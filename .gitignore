@@ -1,0 +1,11 @@
+.streamlit/secrets.toml
+desk_store.json
+.desk_store.json
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.DS_Store
+.env
+.env.local
