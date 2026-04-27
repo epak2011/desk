@@ -22,7 +22,7 @@ from pm_view import get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS
 
 
 st.set_page_config(
-    page_title="Desk",
+    page_title="Trading Desk",
     page_icon="▸",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -239,7 +239,7 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
     """
     if not api_key:
         return {"dossier": None, "technical_narrative": None,
-                "pm_narrative": None, "bullets": {},
+                "pm_narrative": None, "bullets": {}, "quality": {},
                 "_source": "unavailable"}
     ticker = ticker.upper()
     cache = st.session_state.store.setdefault("dossier_cache", {})
@@ -255,7 +255,10 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
                     "technical_narrative": None,
                     "pm_narrative": None,
                     "bullets": {},
+                    "quality": {},
                 }
+                # Defensive: ensure quality key exists for old cached entries
+                full.setdefault("quality", {})
                 return {
                     **full,
                     "_source": (entry.get("source", "claude") + f" · {age.days}d old"),
@@ -278,6 +281,7 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
                 "technical_narrative": result.get("technical_narrative"),
                 "pm_narrative": result.get("pm_narrative"),
                 "bullets": result.get("bullets") or {},
+                "quality": result.get("quality") or {},
             },
             "source": result.get("_source", "claude"),
         }
@@ -1121,10 +1125,42 @@ def format_earnings(meta):
 # Copy helpers
 # ─────────────────────────────────────────────────────────────────────
 STATE_STYLES = {
-    "enter_now": {"color": "#00A870", "label": "Enter", "emoji": "⚡"},
-    "watch":     {"color": "#D18700", "label": "Watch", "emoji": "👀"},
-    "hold_off":  {"color": "#5B6B7D", "label": "Hold off", "emoji": "🤔"},
-    "avoid":     {"color": "#D14545", "label": "Avoid", "emoji": "⛔"},
+    "enter_now": {
+        "color": "#00A870", "label": "Enter", "emoji": "⚡",
+        "tagline": "High-conviction setup — buy without waiting on a condition",
+        "criteria": [
+            "Bullish bias — above both 50d and 200d MAs, both rising, leading the index",
+            "Setup score ≥ 9/10 — trend, structure, and volume all aligned",
+            "No condition required: buy now",
+        ],
+    },
+    "watch": {
+        "color": "#D18700", "label": "Watch", "emoji": "👀",
+        "tagline": "Bullish but waiting on a specific trigger",
+        "criteria": [
+            "Bullish bias is in place",
+            "One thing has to happen first: 50d reclaim, breakout, pullback, RS catchup, etc.",
+            "Trigger and invalidation levels are defined — act immediately if trigger fires",
+        ],
+    },
+    "hold_off": {
+        "color": "#5B6B7D", "label": "Hold off", "emoji": "🤔",
+        "tagline": "Leaning bullish but signals not aligning",
+        "criteria": [
+            "Structure intact (price above 50d)",
+            "Bias score borderline — not strong enough to be bullish",
+            "Not a wrong-side trade — 'not enough edge yet'. Wait for cleaner conditions",
+        ],
+    },
+    "avoid": {
+        "color": "#D14545", "label": "Avoid", "emoji": "⛔",
+        "tagline": "No directional edge",
+        "criteria": [
+            "Bearish bias (tape rejecting the name), OR",
+            "Structure broken (below 50d), OR",
+            "Untradable (ATR < 1.5% — can't draw risk levels cleanly)",
+        ],
+    },
 }
 
 
@@ -1801,7 +1837,7 @@ section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p 
 # ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="desk-bar">
-  <span class="wordmark"><span class="arrow">▸</span> Desk</span>
+  <span class="wordmark"><span class="arrow">▸</span> Trading Desk</span>
   <span class="meta">{st.session_state.current_ticker}</span>
 </div>
 """, unsafe_allow_html=True)
@@ -1918,6 +1954,29 @@ if view == "analyze":
   </span>
   <span class="emoji">{sty['emoji']}</span>
   <div class="context">{decision_context(t)}</div>
+</div>
+""", unsafe_allow_html=True)
+
+        # 1a. State definitions — collapsed reference card. Click to see
+        # what each of the four states means and which one fired here.
+        with st.expander("ℹ️  What does this mean? Decision states reference"):
+            for state_key in ["enter_now", "watch", "hold_off", "avoid"]:
+                s = STATE_STYLES[state_key]
+                is_current = (state_key == t["action"])
+                bg = "#F5F2EB" if is_current else "transparent"
+                border = f"3px solid {s['color']}" if is_current else "3px solid transparent"
+                marker = " ← current" if is_current else ""
+                criteria_html = "".join(
+                    f'<li style="margin: 2px 0; color: #4A453E; font-size: 13px;">{c}</li>'
+                    for c in s["criteria"]
+                )
+                st.markdown(f"""
+<div style="background:{bg}; border-left:{border}; padding: 10px 14px; margin: 6px 0; border-radius: 4px;">
+  <div style="font-family:'Source Serif 4',Georgia,serif; font-size:18px; font-weight:600; color:{s['color']};">
+    {s['emoji']} {s['label']}<span style="color:#6B655B; font-size:13px; font-weight:400; font-family:'Geist',sans-serif; margin-left:8px;">{marker}</span>
+  </div>
+  <div style="font-size: 14px; color: #2D2A26; margin: 4px 0 6px 0;">{s['tagline']}</div>
+  <ul style="margin: 4px 0 0 0; padding-left: 20px;">{criteria_html}</ul>
 </div>
 """, unsafe_allow_html=True)
 
@@ -2239,6 +2298,44 @@ if view == "analyze":
             if st.button("↻", help="Regenerate thesis."):
                 clear_pm_cache(ticker)
                 st.rerun()
+
+        # Quality tier badge — informational, NOT a gate. Sourced from the
+        # dossier Claude call (5th field). Shows long-term ownership read
+        # alongside the tactical action: e.g. "Avoid · Quality A" means the
+        # chart is broken right now but it's a name worth owning at a
+        # better entry. Hidden when no quality data (no API key or pre-
+        # cache miss).
+        quality = (dossier_result or {}).get("quality") or {}
+        q_tier = (quality.get("tier") or "").strip()
+        q_rationale = (quality.get("rationale") or "").strip()
+        if q_tier:
+            tier_styles = {
+                "A":           {"color": "#00A870", "bg": "#E8F5EF",
+                                "label": "Quality A",
+                                "sub": "Durable category leader · core position candidate"},
+                "B":           {"color": "#5B6B7D", "bg": "#EEF1F4",
+                                "label": "Quality B",
+                                "sub": "Real moat with timing or execution risk · tactical + selective"},
+                "Speculative": {"color": "#9B5DE5", "bg": "#F4ECFB",
+                                "label": "Speculative",
+                                "sub": "Real upside with binary risk · size accordingly"},
+                "Avoid":       {"color": "#D14545", "bg": "#FCEBEB",
+                                "label": "Quality Avoid",
+                                "sub": "Structurally weak business · do not engage"},
+            }
+            ts = tier_styles.get(q_tier, tier_styles["B"])
+            rationale_html = f'<div style="font-size:12px; color:#4A453E; margin-top:4px; line-height:1.4;">{q_rationale}</div>' if q_rationale else ""
+            st.markdown(f"""
+<div style="background:{ts['bg']}; border-left:3px solid {ts['color']};
+            padding:8px 12px; margin:6px 0 14px 0; border-radius:4px;">
+  <div style="font-family:'Geist Mono',monospace; font-size:11px; font-weight:600;
+              letter-spacing:0.06em; text-transform:uppercase; color:{ts['color']};">
+    {ts['label']}
+  </div>
+  <div style="font-size:11px; color:#6B655B; margin-top:2px;">{ts['sub']}</div>
+  {rationale_html}
+</div>
+""", unsafe_allow_html=True)
 
         # Layer 1 — snapshot
         st.markdown(f"""

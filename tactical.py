@@ -74,10 +74,56 @@ def structure_quality(hist):
     return max(0.0, min(10.0, score))
 
 
+def _ma_score(price, ma, *, tight=False):
+    """Gradient distance score for price vs a moving average.
+
+    Replaces the old binary ±2 with a graduated scale that distinguishes
+    'just below' (transition) from 'deeply below' (broken).
+
+    For ma200 (`tight=False`), the bands are:
+      > +10%  → +2  strong trend
+      0..+10% → +1  above, stable
+      -5..0%  →  0  neutral / transition zone
+      -15..-5%→ -1  weakening
+      < -15%  → -2  broken
+
+    For ma50 (`tight=True`), the bands are tighter to reflect that the
+    50-day moves more with price:
+      > +5%   → +2
+      0..+5%  → +1
+      -3..0%  →  0  transition
+      -8..-3% → -1
+      < -8%   → -2
+    """
+    if ma <= 0:
+        return 0
+    pct = (price - ma) / ma
+    if tight:
+        if pct >  0.05:  return  2
+        if pct >  0.0:   return  1
+        if pct > -0.03:  return  0
+        if pct > -0.08:  return -1
+        return -2
+    # ma200
+    if pct >  0.10:  return  2
+    if pct >  0.0:   return  1
+    if pct > -0.05:  return  0
+    if pct > -0.15:  return -1
+    return -2
+
+
 def tactical_bias(price, ma50, ma200, ma50_slope, ma200_slope, sq, rs):
+    """Compute directional bias with GRADIENT MA scoring.
+
+    Score range stays ±8 nominal; bullish/bearish thresholds unchanged at
+    ±4. The change is in the middle: names that were previously slammed
+    to a strong negative just for being slightly below the 200d now land
+    in the neutral / transition zone, which lets `tactical_action`
+    correctly classify them as Hold off (recovering) instead of Avoid.
+    """
     score = 0
-    score += 2 if price > ma50 else -2
-    score += 2 if price > ma200 else -2
+    score += _ma_score(price, ma50, tight=True)    # was ±2 binary
+    score += _ma_score(price, ma200, tight=False)  # was ±2 binary
     score += 1 if ma50_slope > 0 else -1
     score += 1 if ma200_slope > 0 else -1
     if sq >= 6: score += 1
@@ -91,23 +137,40 @@ def tactical_bias(price, ma50, ma200, ma50_slope, ma200_slope, sq, rs):
     return bias, score
 
 
-def tactical_action(bias, bias_score, setup_score, atr_ok, price, ma50):
+def tactical_action(bias, bias_score, setup_score, atr_ok, price, ma50,
+                    tech_delta=0):
     """Return one of: 'enter_now', 'watch', 'hold_off', 'avoid'.
 
-    Hold_off is for the gray zone — directionally bullish-leaning (bias score
-    +2 or +3) and structurally not broken (price still above the 50-day) but
-    not strong enough to be an actionable Watch. These stocks aren't wrong-side
-    trades, they're 'not enough edge yet' situations."""
+    Three principles enforced here:
+
+    1. Don't collapse Hold off into Avoid. A name with intact structure
+       but borderline bias score is "not enough edge yet", not a wrong-
+       side trade.
+
+    2. Recognize transitions. A name reclaiming its MA cluster with
+       improving momentum (positive tech_delta) defaults to Hold off
+       even if the bias score isn't quite there yet. This is the
+       META-type repair pattern.
+
+    3. Strong Avoid filter intact. ATR fails, structure broken below
+       50d in a non-improving tape, or genuinely bearish bias → Avoid.
+    """
     if not atr_ok:
         return "avoid"
     if bias == "bullish":
         if setup_score >= 9:
             return "enter_now"
         return "watch"
-    # Bias is neutral or bearish. Look for the gray zone: marginal bullishness
-    # that's structurally intact but score-light.
-    if bias == "neutral" and bias_score >= 2 and price > ma50:
-        return "hold_off"
+    # Neutral zone: catch standard Hold off + transition Hold off
+    if bias == "neutral":
+        # Standard hold_off: structurally intact, score positive-ish
+        if price > ma50 and bias_score >= 1:
+            return "hold_off"
+        # Transition hold_off: improving momentum near MA cluster.
+        # Catches META-type recovery — score might be 0 or even -1 but
+        # the tape is repairing. Requires tech_delta clearly positive.
+        if tech_delta >= 1.5 and price > ma50 * 0.97:
+            return "hold_off"
     return "avoid"
 
 
@@ -411,10 +474,8 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         .iloc[-20:].mean()
     )
 
-    bias, bias_score = tactical_bias(price, ma50, ma200, ma50_slope, ma200_slope, sq, rs)
-    atr_ok = atr_pct >= atr_threshold
-    action = tactical_action(bias, bias_score, setup, atr_ok, price, ma50)
-
+    # Compute tech_delta first — tactical_action needs it for transition
+    # recognition (improving-momentum names default to Hold off).
     if len(ticker_hist) >= 11:
         past_hist = ticker_hist.iloc[:-10]
         setup_t10 = tech_score(past_hist)
@@ -425,6 +486,11 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     else:
         tech_delta = 0
         rs_delta = 0
+
+    bias, bias_score = tactical_bias(price, ma50, ma200, ma50_slope, ma200_slope, sq, rs)
+    atr_ok = atr_pct >= atr_threshold
+    action = tactical_action(bias, bias_score, setup, atr_ok, price, ma50,
+                             tech_delta=tech_delta)
 
     last_252 = prices.iloc[-min(252, len(prices)):]
     high_52w = float(last_252.max())

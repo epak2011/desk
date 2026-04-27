@@ -169,6 +169,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         "technical_narrative": None,
         "pm_narrative": None,
         "bullets": {},
+        "quality": {},
     }
     if not api_key:
         return {**empty, "_source": "unavailable"}
@@ -246,7 +247,7 @@ Drivers: {', '.join(drivers) if drivers else 'n/a'}
 Risks: {', '.join(risks) if risks else 'n/a'}
 Valuation: {valuation or 'n/a'}
 
-DELIVERABLES — return ONLY a JSON object with these four keys:
+DELIVERABLES — return ONLY a JSON object with these five keys:
 
 {{
   "dossier": "...",
@@ -257,6 +258,10 @@ DELIVERABLES — return ONLY a JSON object with these four keys:
     "drivers": ["...", "...", "..."],
     "risks": ["...", "...", "..."],
     "valuation": "..."
+  }},
+  "quality": {{
+    "tier": "A" | "B" | "Speculative" | "Avoid",
+    "rationale": "1-2 sentences"
   }}
 }}
 
@@ -282,6 +287,22 @@ bullets: compact summary that powers the right-hand snapshot panel. Used when th
 - risks: exactly 3 items, each 4-8 words, no trailing period. Specific failure modes, not generic market risk.
 - valuation: 1 sentence. What's priced in vs what the math implies.
 - Generate REAL content for any ticker — never placeholder text like "Not yet analyzed".
+
+quality: Long-term ownership tier. INDEPENDENT of the tactical action and INDEPENDENT of current financial metrics. Quality is informational only; it does NOT change the tactical decision. Assess based on long-term industry leadership, moat durability, and structural opportunity — NOT on whether current revenue is positive, current P/E is reasonable, or current chart is clean.
+
+Tiers:
+
+- **A** — Durable category leader with structural moat: dominant market share + durable competitive advantage (network effects, scale, brand, regulatory moat, switching costs) + secular tailwind. Examples: NVDA, MSFT, META in the AI era; COST in retail; V/MA in payments. Worth owning and accumulating at proper setups.
+
+- **B** — Real business with real moat but with timing, cyclicality, or execution risk that makes ownership conditional. Examples: NFLX through password-sharing transition; TSLA at extreme multiple but real EV/AI leadership; quality cyclicals at the wrong point in cycle. Tactical + selective ownership.
+
+- **Speculative** — Real long-term upside with binary or pre-revenue risk. NOT a disqualifier — this includes leaders in emerging categories (space economy, gene therapy, frontier AI). Position-size accordingly. Examples: ASTS (orbital cellular leader, technical risk retiring), RKLB (small-launch leader), pre-profit category creators with credible moats.
+
+- **Avoid** — Genuinely broken business: declining moat, secular headwinds, melting ice cube. NOT just a name with a broken chart. Reserve this for businesses that probably shouldn't exist in their current form (distressed retail, dying media, obsolete hardware).
+
+Critical: Pre-revenue is NOT Avoid. Negative earnings in a cyclical leader is NOT Avoid. High forward P/E is NOT Avoid. Ask: "Will this company still exist and be relevant in 10 years, and will it likely be a leader in its category?" If yes → A or B or Speculative. Reserve Avoid for the genuine melting-ice-cube cases.
+
+rationale: 1-2 sentences. State the moat and category leadership specifically. Not boilerplate.
 
 Style across all three:
 - Confident, opinionated, specific. No hedging, no consultantese.
@@ -310,6 +331,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
             "technical_narrative": parsed.get("technical_narrative"),
             "pm_narrative": parsed.get("pm_narrative"),
             "bullets": parsed.get("bullets") or {},
+            "quality": parsed.get("quality") or {},
             "_source": "claude",
         }
 
