@@ -168,6 +168,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         "dossier": None,
         "technical_narrative": None,
         "pm_narrative": None,
+        "bullets": {},
     }
     if not api_key:
         return {**empty, "_source": "unavailable"}
@@ -245,12 +246,18 @@ Drivers: {', '.join(drivers) if drivers else 'n/a'}
 Risks: {', '.join(risks) if risks else 'n/a'}
 Valuation: {valuation or 'n/a'}
 
-DELIVERABLES — return ONLY a JSON object with these three keys:
+DELIVERABLES — return ONLY a JSON object with these four keys:
 
 {{
   "dossier": "...",
   "technical_narrative": "...",
-  "pm_narrative": "..."
+  "pm_narrative": "...",
+  "bullets": {{
+    "thesis": "...",
+    "drivers": ["...", "...", "..."],
+    "risks": ["...", "...", "..."],
+    "valuation": "..."
+  }}
 }}
 
 Each field's content rules:
@@ -268,6 +275,13 @@ pm_narrative: 2-4 paragraphs. Senior PM voice. Walk through:
 - Para 2: variant view — what consensus believes vs what the bull/bear case actually requires. Be specific about which view you find more convincing and why.
 - Para 3: valuation context — what's priced in at current multiples, how the math compares to the growth rate, what would have to be true for this to work from current levels.
 - Para 4 (optional): the dominant near-term catalyst or risk and what to watch for.
+
+bullets: compact summary that powers the right-hand snapshot panel. Used when the static template doesn't have a thesis for this ticker (DASH, PLTR, COIN, etc.). Rules:
+- thesis: 1-2 sentences. Core investment rationale. Specific to this name, no boilerplate.
+- drivers: exactly 3 items, each 4-8 words, no trailing period. The structural reasons this works.
+- risks: exactly 3 items, each 4-8 words, no trailing period. Specific failure modes, not generic market risk.
+- valuation: 1 sentence. What's priced in vs what the math implies.
+- Generate REAL content for any ticker — never placeholder text like "Not yet analyzed".
 
 Style across all three:
 - Confident, opinionated, specific. No hedging, no consultantese.
@@ -295,6 +309,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
             "dossier": parsed.get("dossier"),
             "technical_narrative": parsed.get("technical_narrative"),
             "pm_narrative": parsed.get("pm_narrative"),
+            "bullets": parsed.get("bullets") or {},
             "_source": "claude",
         }
 

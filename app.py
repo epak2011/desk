@@ -105,13 +105,25 @@ def load_store():
                     row = cur.fetchone()
                     if row:
                         return row[0]
+                    # No row yet — return defaults; first save creates the row.
+                    return _store_default()
         except Exception as e:
-            # Show the error in the app so we don't silently fail to local
+            # CRITICAL: When DATABASE_URL is set but unreachable, do NOT fall
+            # through to the local file. On Streamlit Cloud the container
+            # filesystem gets wiped on every reboot, so a "save" to the file
+            # appears to succeed but vanishes — silent data loss. Surface the
+            # error and return defaults so the user sees something but knows
+            # to fix the DB.
             try:
-                st.error(f"Database connection failed: {e}. Falling back to local file.")
+                st.error(
+                    f"⚠️ Database load failed: {e}. "
+                    f"Using temporary defaults — your data will NOT persist this session. "
+                    f"Check the DATABASE_URL secret format."
+                )
             except Exception:
                 pass
-    # File fallback — local development OR Postgres unreachable
+            return _store_default()
+    # File fallback — only reached when DATABASE_URL is unset (local dev)
     if STORE_PATH.exists():
         try:
             return json.loads(STORE_PATH.read_text())
@@ -133,24 +145,41 @@ def save_store(store):
                     """, (json.dumps(store),))
             return
         except Exception as e:
+            # CRITICAL: Do NOT fall through to local file when USE_POSTGRES
+            # is true. The container filesystem is wiped on Streamlit Cloud
+            # reboots, so a "successful" file save would silently vanish.
             try:
-                st.error(f"Database save failed: {e}")
+                st.error(
+                    f"⚠️ Database save failed: {e}. "
+                    f"Your changes were NOT persisted. Check DATABASE_URL secret."
+                )
             except Exception:
                 pass
-    # File fallback
+            return
+    # File fallback — only reached when DATABASE_URL is unset (local dev)
     STORE_PATH.write_text(json.dumps(store, indent=2))
 
 
 if "store" not in st.session_state:
     st.session_state.store = load_store()
+    # Track whether any defaults were applied so we save once after init.
+    # Without this, defaults stayed in-memory and were never persisted, so
+    # every session re-applied them from scratch.
+    _needs_save = False
     if "pm_cache" not in st.session_state.store:
         st.session_state.store["pm_cache"] = {}
+        _needs_save = True
     if "account_size" not in st.session_state.store:
         st.session_state.store["account_size"] = 100000
+        _needs_save = True
     if "risk_per_trade" not in st.session_state.store:
         st.session_state.store["risk_per_trade"] = 0.01
+        _needs_save = True
     if "max_position_pct" not in st.session_state.store:
         st.session_state.store["max_position_pct"] = 0.25
+        _needs_save = True
+    if _needs_save:
+        save_store(st.session_state.store)
 if "current_ticker" not in st.session_state:
     st.session_state.current_ticker = "NVDA"
 if "view" not in st.session_state:
@@ -176,6 +205,13 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name):
         except Exception:
             pass
     pm = get_pm_view(ticker, tactical_output, api_key=api_key, company_name=company_name)
+    # Count this fresh Claude call if it actually hit the API. Source is
+    # "claude" on success, "static" or "static (claude call failed: ...)"
+    # on fallback — only the first counts toward session cost.
+    if pm.get("_source") == "claude":
+        st.session_state["claude_calls_this_session"] = (
+            st.session_state.get("claude_calls_this_session", 0) + 1
+        )
     cache[ticker] = {
         "ts": datetime.now().isoformat(timespec="seconds"),
         "view": {k: v for k, v in pm.items() if not k.startswith("_")},
@@ -195,9 +231,16 @@ def clear_pm_cache(ticker):
 def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name):
     """Cache decision dossiers separately from PM views — they share the
     same 7-day TTL but key independently so a PM-view ↻ refresh doesn't
-    cost a dossier regeneration too."""
+    cost a dossier regeneration too.
+
+    Caches the FULL result (dossier + narratives + bullets) so cache hits
+    don't lose data. Backward-compatible with old cache entries that only
+    stored {text: ...}.
+    """
     if not api_key:
-        return {"dossier": None, "_source": "unavailable"}
+        return {"dossier": None, "technical_narrative": None,
+                "pm_narrative": None, "bullets": {},
+                "_source": "unavailable"}
     ticker = ticker.upper()
     cache = st.session_state.store.setdefault("dossier_cache", {})
     entry = cache.get(ticker)
@@ -205,7 +248,18 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
         try:
             age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
             if age < timedelta(days=PM_CACHE_TTL_DAYS):
-                return {"dossier": entry["text"], "_source": entry.get("source", "claude") + f" · {age.days}d old"}
+                # New format: full result stored under "result"
+                # Old format: just {text: ..., source: ...} — back-compat
+                full = entry.get("result") or {
+                    "dossier": entry.get("text"),
+                    "technical_narrative": None,
+                    "pm_narrative": None,
+                    "bullets": {},
+                }
+                return {
+                    **full,
+                    "_source": (entry.get("source", "claude") + f" · {age.days}d old"),
+                }
         except Exception:
             pass
     result = get_decision_dossier(
@@ -213,9 +267,18 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
         api_key=api_key, company_name=company_name,
     )
     if result.get("dossier"):
+        # Count this fresh Claude call for the session usage tracker.
+        st.session_state["claude_calls_this_session"] = (
+            st.session_state.get("claude_calls_this_session", 0) + 1
+        )
         cache[ticker] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
-            "text": result["dossier"],
+            "result": {
+                "dossier": result.get("dossier"),
+                "technical_narrative": result.get("technical_narrative"),
+                "pm_narrative": result.get("pm_narrative"),
+                "bullets": result.get("bullets") or {},
+            },
             "source": result.get("_source", "claude"),
         }
         save_store(st.session_state.store)
@@ -1669,6 +1732,68 @@ section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p 
             st.rerun()
         api_key = new_key
 
+    # ── Session usage tracker ──────────────────────────────────────
+    # Counts fresh Claude calls this session (cache hits don't count).
+    # ~$0.03 per fresh dossier+narratives call. Resets on browser refresh.
+    _calls = st.session_state.get("claude_calls_this_session", 0)
+    if _calls > 0:
+        _est_cost = _calls * 0.03
+        st.markdown(
+            f'<div style="margin-top:24px;padding:8px 10px;background:#F5F2EB;'
+            f'border-radius:3px;font-family:Geist Mono,monospace;font-size:11px;'
+            f'color:#6B655B;line-height:1.5;">'
+            f'<div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;'
+            f'color:#8A857C;margin-bottom:3px;">Session usage</div>'
+            f'<div>{_calls} fresh call{"s" if _calls != 1 else ""} \u00b7 ~${_est_cost:.2f}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    # ── Persistence health indicator ──────────────────────────────
+    # Tells the user at a glance whether their data is persisting.
+    # Health check runs once per session and is cached in session_state
+    # so we don't hammer Postgres on every render.
+    if USE_POSTGRES:
+        if "_db_health" not in st.session_state:
+            try:
+                with _pg_connect() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT 1")
+                        cur.fetchone()
+                st.session_state["_db_health"] = "ok"
+            except Exception as _e:
+                st.session_state["_db_health"] = f"error: {str(_e)[:80]}"
+        _health = st.session_state["_db_health"]
+        if _health == "ok":
+            st.markdown(
+                '<div style="margin-top:8px;padding:6px 10px;background:#F0FDF4;'
+                'border:1px solid #BBF7D0;border-radius:3px;'
+                'font-family:Geist Mono,monospace;font-size:10px;color:#15803D;">'
+                '✓ Database connected · data persisting'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'<div style="margin-top:8px;padding:6px 10px;background:#FEF2F2;'
+                f'border:1px solid #FECACA;border-radius:3px;'
+                f'font-family:Geist Mono,monospace;font-size:10px;color:#B91C1C;">'
+                f'✗ Database error · data NOT persisting<br>'
+                f'<span style="font-size:9px;color:#8B2F2F;">{_health}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+    else:
+        # No DATABASE_URL configured — running in session-only mode
+        st.markdown(
+            '<div style="margin-top:8px;padding:6px 10px;background:#FEF7E8;'
+            'border:1px solid #F5D88A;border-radius:3px;'
+            'font-family:Geist Mono,monospace;font-size:10px;color:#6B4E1D;">'
+            '⚠ Session-only · data resets on refresh'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Navbar
@@ -1723,6 +1848,21 @@ if view == "analyze":
             api_key=api_key if api_key else None,
             company_name=name,
         )
+
+    # Live PM bullets: when the dossier call returned bullets, prefer those
+    # over the static template. This is what makes non-hardcoded tickers
+    # (DASH, PLTR, COIN, etc.) show real thesis/drivers/risks/valuation
+    # instead of "Not yet analyzed". Bullets come from the SAME Claude call
+    # as the dossier, so there's no extra cost.
+    live_bullets = (dossier_result or {}).get("bullets") or {}
+    if live_bullets.get("thesis"):
+        pm = {
+            **pm,
+            "thesis": live_bullets.get("thesis", pm.get("thesis", "")),
+            "drivers": live_bullets.get("drivers") or pm.get("drivers", []),
+            "risks": live_bullets.get("risks") or pm.get("risks", []),
+            "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
+        }
 
     sty = STATE_STYLES[t["action"]]
 
