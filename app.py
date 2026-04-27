@@ -298,7 +298,7 @@ def clear_dossier_cache(ticker):
 # ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
 .stApp { background: #FBFAF7; }
 .main .block-container {
@@ -319,7 +319,7 @@ html, body, [class*="css"], .main, .main p, .main div, .main span, .main li {
 #MainMenu, header, footer { visibility: hidden; }
 
 /* ────────────────────────────────────────────────────────────── */
-/*  Decision Dossier — top hero paragraph synthesizing everything */
+/*  Decision Dossier — synthesis paragraph below the decision     */
 /* ────────────────────────────────────────────────────────────── */
 .desk-dossier {
     margin: 0 0 28px;
@@ -336,15 +336,16 @@ html, body, [class*="css"], .main, .main p, .main div, .main span, .main li {
     display: flex; justify-content: space-between; align-items: baseline;
     margin-bottom: 10px;
 }
+.desk-dossier-label .em { font-size: 13px; margin-right: 6px; }
 .desk-dossier-label .src {
     font-family: 'Geist Mono', monospace; font-size: 10px;
     color: #B4ADA0; letter-spacing: 0.04em;
     text-transform: none; font-weight: 400;
 }
 .desk-dossier-text {
-    font-family: 'Instrument Serif', Georgia, serif;
+    font-family: 'Source Serif 4', Georgia, serif;
     font-size: 19px; line-height: 1.55; color: #0F0E0D;
-    font-style: italic;
+    font-style: normal;
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -376,7 +377,7 @@ html, body, [class*="css"], .main, .main p, .main div, .main span, .main li {
     margin: -1.2rem -1rem 1.5rem;
 }
 .desk-bar .wordmark {
-    font-family: 'Instrument Serif', Georgia, serif; font-style: italic;
+    font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
     font-size: 22px; line-height: 1;
 }
 .desk-bar .wordmark .arrow { color: #00A870; margin-right: 3px; }
@@ -438,7 +439,7 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
     border-bottom: 1px solid #E5E3DE;
 }
 .desk-decision .word {
-    font-family: 'Instrument Serif', Georgia, serif; font-style: italic;
+    font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
     font-size: 104px; line-height: 0.92; letter-spacing: -0.04em;
     display: inline-block;
 }
@@ -461,7 +462,7 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
 }
 .desk-trigger-label .em { font-size: 15px; }
 .desk-trigger-text {
-    font-family: 'Instrument Serif', Georgia, serif; font-style: italic;
+    font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
     font-size: 44px; line-height: 1.2; color: #0F0E0D;
     letter-spacing: -0.015em;
 }
@@ -658,11 +659,11 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
     text-transform: uppercase; color: #8A857C; margin-bottom: 5px;
 }
 .desk-pm-block .body {
-    font-family: 'Instrument Serif', Georgia, serif; font-style: italic;
+    font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
     font-size: 21px; line-height: 1.5; color: #3F3B34;
 }
 .desk-pm-item {
-    font-family: 'Instrument Serif', Georgia, serif; font-style: italic;
+    font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
     font-size: 19px; line-height: 1.45; color: #3F3B34;
     padding: 3px 0 3px 16px; position: relative;
 }
@@ -681,7 +682,7 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
     text-transform: uppercase; color: #8A857C; margin: 14px 0 4px;
 }
 .desk-pm-deep .sub-body {
-    font-family: 'Instrument Serif', Georgia, serif; font-style: italic;
+    font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
     font-size: 14px; line-height: 1.5; color: #3F3B34;
 }
 .desk-pm-deep .variant-grid {
@@ -700,7 +701,7 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
     text-transform: uppercase; margin-bottom: 3px;
 }
 .desk-pm-deep .variant-card .body {
-    font-family: 'Instrument Serif', Georgia, serif; font-style: italic;
+    font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
     font-size: 13px; line-height: 1.45; color: #3F3B34;
 }
 
@@ -1870,21 +1871,6 @@ if view == "analyze":
 
     # ───── LEFT COLUMN: decision + trading logic ─────
     with col_decision:
-        # Dossier — top of page when API key is configured. Skipped silently
-        # when no key (the snapshot below is enough on its own).
-        dossier_text = dossier_result.get("dossier") if dossier_result else None
-        if dossier_text:
-            src = dossier_result.get("_source", "claude")
-            st.markdown(f"""
-<div class="desk-dossier">
-  <div class="desk-dossier-label">
-    <span>📋  Decision dossier</span>
-    <span class="src">{src}</span>
-  </div>
-  <div class="desk-dossier-text">{dossier_text}</div>
-</div>
-""", unsafe_allow_html=True)
-
         # 0. Compact ticker line with inline meta (sector · mcap · short · earnings)
         chg_color = "#2E7D4F" if t["change"] >= 0 else "#D14545"
         mcap = format_market_cap(meta.get("market_cap"))
@@ -1952,6 +1938,22 @@ if view == "analyze":
                 f'<div class="desk-modifiers">{badges_html}</div>',
                 unsafe_allow_html=True,
             )
+
+        # 1c. Decision dossier — the synthesis paragraph. Sits below the
+        # headline decision and its modifiers; explains the call before the
+        # tape numbers and trigger. Skipped silently when no API key.
+        dossier_text = dossier_result.get("dossier") if dossier_result else None
+        if dossier_text:
+            src = dossier_result.get("_source", "claude")
+            st.markdown(f"""
+<div class="desk-dossier">
+  <div class="desk-dossier-label">
+    <span><span class="em">📋</span>Decision dossier</span>
+    <span class="src">{src}</span>
+  </div>
+  <div class="desk-dossier-text">{dossier_text}</div>
+</div>
+""", unsafe_allow_html=True)
 
         # Read of the tape — always visible, anchors every screen with the
         # current technical state in concrete numbers.
@@ -2377,8 +2379,8 @@ if view == "analyze":
                 paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
                 paras_html = "".join(
                     f'<p style="margin: 0 0 14px; font-size: 16px; line-height: 1.6; '
-                    f'color: #3F3B34; font-family: \'Instrument Serif\', Georgia, serif; '
-                    f'font-style: italic;">{p}</p>'
+                    f'color: #3F3B34; font-family: \'Source Serif 4\', Georgia, serif; '
+                    f'font-style: normal;">{p}</p>'
                     for p in paragraphs
                 )
                 st.markdown(
