@@ -888,27 +888,39 @@ div.streamlit-expanderHeader {
 # ─────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_history(ticker):
+    """Fetch 2y daily history + name. Returns (hist, name, err_reason).
+
+    err_reason is None on success; otherwise a short string explaining why
+    the fetch failed (rate limit, 404, JSON decode error, etc.). The UI
+    surfaces this so the user sees WHY data didn't load instead of a
+    generic 'couldn't find data' message.
+    """
     try:
         yf_ticker = yf.Ticker(ticker)
         hist = yf_ticker.history(period="2y", interval="1d", auto_adjust=True)
-        if len(hist) == 0:
-            return None, None
+        if hist is None or len(hist) == 0:
+            return None, None, "Yahoo returned no rows for this ticker (possibly delisted, wrong symbol, or yfinance API drift)"
         info = {}
         try:
             info = yf_ticker.info or {}
         except Exception:
             pass
         name = info.get("longName") or info.get("shortName") or ticker
-        return hist, name
-    except Exception:
-        return None, None
+        return hist, name, None
+    except Exception as e:
+        # yfinance 1.x can raise AttributeError on internal None/Response
+        # mishandling when Yahoo's API drifts. Treat all exceptions the
+        # same: surface the reason so the user can debug, not just shrug.
+        return None, None, f"{type(e).__name__}: {str(e)[:160]}"
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_bench():
     try:
         hist = yf.Ticker("SPY").history(period="2y", interval="1d", auto_adjust=True)
-        return hist if len(hist) > 0 else None
+        if hist is None or len(hist) == 0:
+            return None
+        return hist
     except Exception:
         return None
 
@@ -1856,15 +1868,26 @@ if view == "analyze":
         st.stop()
 
     with st.spinner(f"Loading {ticker}…"):
-        hist, name = fetch_history(ticker)
+        hist, name, err_reason = fetch_history(ticker)
         bench = fetch_bench()
         meta = fetch_quote_meta(ticker)
 
     if hist is None or len(hist) < 50:
-        st.error(f"Couldn't find data for **{ticker}**.")
+        if err_reason:
+            st.error(
+                f"**Couldn't load data for {ticker}.**  \n"
+                f"Reason: `{err_reason}`  \n\n"
+                f"This is almost always a yfinance / Yahoo Finance API issue, "
+                f"not a bug in this app. The yfinance library ships near-weekly "
+                f"patches for Yahoo's API changes — if this persists, bumping "
+                f"the version in `requirements.txt` and rebooting the app usually "
+                f"fixes it within a day or two."
+            )
+        else:
+            st.error(f"Couldn't find data for **{ticker}** — only {len(hist) if hist is not None else 0} rows of history (need ≥50).")
         st.stop()
     if bench is None:
-        st.error("Couldn't load SPY benchmark.")
+        st.error("Couldn't load SPY benchmark — yfinance API issue, see above.")
         st.stop()
 
     t = tactical.compute(hist, bench)
@@ -2249,14 +2272,24 @@ if view == "analyze":
         # 5. Log button
         st.markdown("<div style='margin-top:22px;'></div>", unsafe_allow_html=True)
         if st.button(f"Log this {sty['label'].lower()} decision"):
-            st.session_state.store["log"].insert(0, {
+            log_entry = {
                 "date": datetime.now().strftime("%m/%d"),
                 "ticker": ticker,
                 "action": t["action"],
                 "result": "open",
                 "closed": False,
-                "entry": round(t["entry"], 2),
-            })
+            }
+            # Only enter_now / watch decisions have an entry price worth
+            # tracking. hold_off and avoid are non-trades — no entry to
+            # measure result_pct against.
+            if t["action"] in ("enter_now", "watch"):
+                log_entry["entry"] = round(t["entry"], 2)
+            elif t["action"] == "hold_off":
+                # hold_off is a "didn't act" record — the only outcome
+                # to track later is whether the setup eventually fired.
+                log_entry["closed"] = True  # immediately closed, just a note
+                log_entry["result"] = "noted (no trade taken)"
+            st.session_state.store["log"].insert(0, log_entry)
             save_store(st.session_state.store)
             st.success(f"Logged {ticker} as {sty['label'].lower()}.")
 
@@ -2620,11 +2653,11 @@ if view == "watchlist":
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
         bench = fetch_bench()
-        rows_by_action = {"enter_now": [], "watch": [], "avoid": []}
+        rows_by_action = {"enter_now": [], "watch": [], "hold_off": [], "avoid": []}
 
         with st.spinner("Analyzing watchlist…"):
             for tkr in st.session_state.store["watchlist"]:
-                hist, name = fetch_history(tkr)
+                hist, name, _err = fetch_history(tkr)
                 if hist is None or bench is None:
                     continue
                 t = tactical.compute(hist, bench)
@@ -2632,7 +2665,7 @@ if view == "watchlist":
                     continue
                 rows_by_action[t["action"]].append((tkr, name, t))
 
-        for key in ["enter_now", "watch", "avoid"]:
+        for key in ["enter_now", "watch", "hold_off", "avoid"]:
             sty = STATE_STYLES[key]
             st.markdown(f"""
 <div style="font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:{sty['color']};margin:14px 0 8px;">
@@ -2675,9 +2708,18 @@ if view == "tracker":
     closed = [l for l in log if l.get("closed")]
 
     if closed:
-        wins = [l for l in closed if (l.get("correct") if l["action"] == "avoid" else l.get("result_pct", 0) > 0)]
-        hit_rate = round(100 * len(wins) / len(closed))
-        entry_trades = [l for l in closed if l["action"] != "avoid"]
+        # Tracker math by action type:
+        # - enter_now / watch entries: success = positive result_pct after close
+        # - avoid entries: success = "correct" flag (you avoided, was it right?)
+        # - hold_off entries: NEITHER — these are "didn't act" decisions, not
+        #   trades. Excluding them keeps hit_rate and avg_edge honest.
+        scoreable = [l for l in closed if l["action"] != "hold_off"]
+        wins = [
+            l for l in scoreable
+            if (l.get("correct") if l["action"] == "avoid" else l.get("result_pct", 0) > 0)
+        ]
+        hit_rate = round(100 * len(wins) / len(scoreable)) if scoreable else 0
+        entry_trades = [l for l in scoreable if l["action"] in ("enter_now", "watch")]
         avg_edge = (sum(l.get("result_pct", 0) for l in entry_trades) / len(entry_trades)) if entry_trades else 0
     else:
         hit_rate = 0
@@ -2723,7 +2765,7 @@ if view == "tracker":
             cols[3].markdown(f'<div style="font-family:\'Geist Mono\',monospace;font-size:12px;color:{result_color};padding-top:9px;">{result_text}</div>', unsafe_allow_html=True)
             if not entry.get("closed"):
                 if cols[4].button("Close", key=f"close_{i}"):
-                    cur_hist, _ = fetch_history(entry["ticker"])
+                    cur_hist, _, _err = fetch_history(entry["ticker"])
                     if cur_hist is not None and "entry" in entry:
                         cur_price = float(cur_hist["Close"].iloc[-1])
                         pct = (cur_price / entry["entry"] - 1) * 100
