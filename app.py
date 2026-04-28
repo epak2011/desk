@@ -1157,20 +1157,36 @@ STATE_STYLES = {
     },
     "hold_off": {
         "color": "#5B6B7D", "label": "Hold off", "emoji": "🤔",
-        "tagline": "Leaning bullish but signals not aligning",
+        "tagline": "Default state for ambiguity — pullbacks, transitions, leadership in correction",
         "criteria": [
-            "Structure intact (price above 50d)",
-            "Bias score borderline — not strong enough to be bullish",
-            "Not a wrong-side trade — 'not enough edge yet'. Wait for cleaner conditions",
+            "Pullback in uptrend (above 200d, below 50d) — short-term weakness, long-term trend intact",
+            "Transition / repair shape — recovering from drawdown",
+            "Below 200d but tape still loyal (RS strong) — leadership name in correction",
+            "Mixed signals where edge isn't clear in either direction",
+            "Universal default when not clearly bullish (Enter/Watch) and not clearly broken (Avoid)",
+        ],
+    },
+    "accumulate": {
+        "color": "#7C5DD9", "label": "Accumulate", "emoji": "🌱",
+        "tagline": "Quality name stabilizing after deep drawdown — early entry, small sizing only",
+        "criteria": [
+            "Quality tier A or B — durable business",
+            "Drawdown ≥ 35% from 52-week high AND price within 20% of 52-week low",
+            "Stabilization signal: RS improving OR no new 30-day low in last 5 sessions",
+            "Not actively breaking down: above 20-day MA OR positive 5-day return",
+            "Position size: small / staggered. Not a full allocation signal.",
         ],
     },
     "avoid": {
         "color": "#D14545", "label": "Avoid", "emoji": "⛔",
-        "tagline": "No directional edge",
+        "tagline": "Truly broken — long-term structure broken AND tape rejecting AND no signs of repair",
         "criteria": [
-            "Bearish bias (tape rejecting the name), OR",
-            "Structure broken (below 50d), OR",
-            "Untradable (ATR < 1.5% — can't draw risk levels cleanly)",
+            "Below the 200-day moving average (long-term structure broken)",
+            "Relative strength < 0.9 (tape actively rejecting the name)",
+            "RS not improving (10-day delta < 0.01)",
+            "Technical score not improving over 10 sessions",
+            "Not a quality-drawdown candidate (Accumulation Watch doesn't apply)",
+            "ALL FIVE conditions required — short-term weakness alone is never Avoid",
         ],
     },
 }
@@ -1195,26 +1211,46 @@ def decision_context(t):
         if kind == "rs_catchup":    return f"{bias} — needs relative strength to confirm."
         return f"{bias} — needs confirmation."
     if a == "hold_off":
-        # Marginal bullishness, structurally intact, but signals not strong
-        # enough to act. Specific copy depending on what's lacking.
+        # Universal fall-through state. Several distinct shapes can land
+        # here under the new strict-Avoid model — pick copy that matches
+        # the dominant signal.
+        price = t.get("price", 0)
+        ma50 = t.get("ma50", price)
+        ma200 = t.get("ma200", price)
         rs = t.get("rs", 1.0)
-        if rs < 0.95:
-            return "Bullish drift but lagging the index — not actionable yet."
-        if t.get("vol_ratio", 1.0) < 0.8:
-            return "Bullish drift on light volume — not enough conviction yet."
-        if t.get("structure_quality", 5) <= 5:
-            return "Bullish drift but structure is mixed — wait for cleaner setup."
-        return "Bullish drift but signals aren't aligning — not actionable yet."
+
+        # Pullback in uptrend: above ma200 but below ma50.
+        if price > ma200 and price < ma50:
+            return "Hold off — short-term trend weakening, long-term trend intact."
+
+        # Below ma200 but tape still loyal (RS holding up).
+        if price < ma200 and rs >= 0.95:
+            return "Hold off — below the 200-day but tape still respecting the name."
+
+        # Marginal bullishness, structurally intact (legacy gray-zone path).
+        if price > ma200:
+            if rs < 0.95:
+                return "Hold off — structure intact but lagging the index."
+            if t.get("vol_ratio", 1.0) < 0.8:
+                return "Hold off — structure intact but conviction light."
+            if t.get("structure_quality", 5) <= 5:
+                return "Hold off — structure intact but mixed signals."
+            return "Hold off — leaning bullish but not enough edge yet."
+
+        # Below 200-day with weakening but not fully broken tape.
+        return "Hold off — structure weakening but not broken — wait for direction."
+
+    if a == "accumulate":
+        return "Accumulation Watch — high-quality name stabilizing after deep drawdown."
+
     if a == "avoid":
-        if t["raw_bias"] == "bearish":
-            if t["price"] < t["ma200"]:
-                return "Avoid — full downtrend, below both moving averages."
-            return "Avoid — bearish bias, trend has broken."
+        # Under the new strict rules, Avoid means: below 200d AND RS<0.9
+        # AND not improving AND no momentum AND not a quality drawdown
+        # candidate. Copy reflects that reality.
         if not t["atr_ok"]:
             return "Avoid — daily range too tight for this system to work."
-        if t["price"] < t["ma50"]:
-            return "Avoid — broke below the 50-day, structure compromised."
-        return "Avoid — no directional edge, signals fragmented."
+        return "Avoid — below the 200-day with weak relative strength and no signs of repair."
+
     return ""
 
 
@@ -1340,67 +1376,90 @@ def why_avoid_reasons(t):
     bias_score = t.get("bias_score", 0)
 
     if action == "hold_off":
-        # Marginal-bullish copy — what's MISSING, not what's broken.
-        # Bias score is +2 or +3, price is above the 50-day, structure
-        # isn't fully broken. So reasons describe the unaligned signals.
-        if rs < 0.95:
-            reasons.append(f"Relative strength {rs:.2f} — lagging the S&P 500. Need leadership to turn before this becomes actionable.")
-        elif rs < 1.0:
-            reasons.append(f"Relative strength {rs:.2f} — barely tracking the S&P 500. Want to see the stock pulling ahead.")
+        # New universal-fallthrough hold_off covers several distinct shapes.
+        # Cite the dominant one(s) — what's MISSING, not what's broken.
 
+        # Shape 1: pullback in uptrend (above ma200, below ma50)
+        if price > ma200 and price < ma50:
+            reasons.append(
+                f"Below the 50-day (${ma50:.2f}) but holding above the 200-day "
+                f"(${ma200:.2f}) — short-term pullback in an intact long-term trend."
+            )
+
+        # Shape 2: below ma200 but tape still loyal
+        if price < ma200 and rs >= 0.95:
+            reasons.append(
+                f"Below the 200-day (${ma200:.2f}) but relative strength "
+                f"{rs:.2f} suggests the tape is still respecting this name — "
+                f"long-term structure is breaking, leadership isn't yet."
+            )
+
+        # Always-applicable signal callouts (light-touch — only cite the
+        # ones that stand out)
+        if rs < 0.95 and price > ma200:
+            reasons.append(f"Relative strength {rs:.2f} — lagging the S&P 500.")
         if vol_ratio < 0.85:
-            reasons.append(f"Volume {vol_ratio:.2f}× the 20-day average — light participation. Want confirmation before sizing in.")
-
-        if abs(tech_delta) < 0.5:
-            reasons.append(f"Technical score is flat (Δ {tech_delta:+.1f} over 10 sessions) — no momentum building yet.")
-        elif tech_delta < 0:
-            reasons.append(f"Technical score is drifting down ({tech_delta:+.1f} over 10 sessions) — momentum cooling, not heating up.")
-
-        if sq <= 5:
+            reasons.append(f"Volume {vol_ratio:.2f}× the 20-day average — light participation.")
+        if tech_delta < -0.5:
+            reasons.append(f"Technical score drifting down ({tech_delta:+.1f} over 10 sessions) — momentum cooling.")
+        if sq <= 5 and price > ma200:
             reasons.append(f"Structure score {sq:.1f}/10 — pattern isn't clean enough to anchor a trade plan.")
 
         if not reasons:
-            reasons.append(f"Bias score {bias_score:+d}/±10 — directionally OK but not strong enough to clear the action bar.")
+            reasons.append(
+                f"Mixed signals — bias score {bias_score:+d}/±10. "
+                f"Directionally ambiguous, no edge to act on yet."
+            )
         return reasons
 
-    # Default: avoid copy — what's WRONG.
-    # Trend / MA stack
-    if price < ma50 and price < ma200 and ma50 < ma200:
-        reasons.append(f"Below both moving averages with the 50-day (${ma50:.2f}) under the 200-day (${ma200:.2f}) — full downtrend.")
-    elif price < ma50 and price < ma200:
-        reasons.append(f"Below both the 50-day (${ma50:.2f}) and 200-day (${ma200:.2f}) — no trend support overhead.")
-    elif price < ma50:
-        reasons.append(f"Below the 50-day moving average (${ma50:.2f}) — short-term trend has broken.")
-
+    # Default: AVOID copy — under the new strict rules, this means below
+    # ma200 AND weak RS AND not improving AND no momentum AND not a
+    # quality drawdown candidate. Cite those specifically — never blame
+    # the 50-day alone.
     if not t.get("atr_ok", True):
         reasons.append(f"Average true range is {atr_pct*100:.2f}% — below the 1.5% floor this system needs to work.")
 
-    if rs < 0.95:
-        reasons.append(f"Lagging the S&P 500 (relative strength {rs:.2f}) — the tape isn't supporting this name.")
+    if price < ma200:
+        reasons.append(f"Below the 200-day moving average (${ma200:.2f}) — long-term structure has broken.")
 
-    if sq <= 4:
-        reasons.append(f"Structure score {sq:.1f}/10 — failing higher highs and higher lows on the daily.")
+    if rs < 0.9:
+        reasons.append(f"Relative strength {rs:.2f} — tape is actively rejecting this name (vs 0.9 threshold).")
+
+    if rs_delta < 0.01:
+        reasons.append(f"Relative strength not improving (Δ {rs_delta:+.3f} over 10 sessions) — no signs of leadership repair.")
+
+    if tech_delta <= 0:
+        reasons.append(f"Technical score Δ {tech_delta:+.1f} over 10 sessions — no momentum recovery.")
 
     if not reasons:
-        if bias == "bearish":
-            reasons.append("Multiple bearish signals stacked — trend, momentum, and relative strength all negative.")
-        elif bias == "neutral":
-            reasons.append("Mixed signals across trend, structure, and relative strength — no directional edge.")
+        reasons.append("Multiple structural and tape signals weak simultaneously — trend, leadership, and momentum all negative.")
     return reasons
 
 
 def reconsider_when(t):
-    """Concrete conditions that would flip this from Avoid to Watch.
-    Picks reversal levels intelligently — the nearest meaningful overhead
-    resistance, not a far-off 52-week high that the stock would have to
-    rally 50%+ to touch."""
+    """Concrete conditions that would flip this from Avoid/Hold off to Watch.
+
+    Each candidate price level is tagged on TWO dimensions:
+      - DISTANCE: near (≤7%), mid (7-15%), far (>15%)
+      - IMPORTANCE: primary, secondary, reference
+
+    Selection rule: lead with one level that is BOTH (near OR mid) AND
+    primary. Mid-distance Primary levels can lead if structurally
+    important. Never lead with Far levels regardless of importance.
+
+    Always include at least one signal-based proximate condition (RS
+    turning, momentum, no-new-lows) so the user gets a leading-indicator
+    answer to "what would change my mind in the near term."
+    """
     conditions = []
     price = t["price"]
     ma50 = t["ma50"]
     ma200 = t["ma200"]
     high_52w = t.get("high_52w", price)
-    bias = t.get("raw_bias")
+    swing_high_60d = t.get("swing_high_60d", high_52w)
     rs = t.get("rs", 1.0)
+    rs_delta = t.get("rs_delta", 0)
+    tech_delta = t.get("tech_delta", 0)
 
     # ── Volatility-gated avoid: only one reversal condition matters ──
     if not t.get("atr_ok", True):
@@ -1409,48 +1468,128 @@ def reconsider_when(t):
         )
         return conditions
 
-    # ── Choose the nearest overhead level for "break above" ──
-    # We want the *closest* meaningful resistance above current price, not
-    # a far-off 52w high that's irrelevant on the current timeframe.
-    overhead_candidates = []
-    if ma50 > price:
-        overhead_candidates.append(("50-day moving average", ma50))
+    # ── Tier candidate levels by distance ──
+    def distance_tier(level):
+        if level <= price:
+            return None
+        pct = (level - price) / price
+        if pct <= 0.07:  return "near"
+        if pct <= 0.15:  return "mid"
+        return "far"
+
+    # ── Tag candidates with importance ──
+    # Importance is structural, not distance-based:
+    #   - ma200 reclaim: always Primary (defines long-term trend)
+    #   - ma50 reclaim:  Primary if above ma200 (real pullback support);
+    #                    Secondary if below ma200 (a reclaim wouldn't fix
+    #                    the bigger picture)
+    #   - swing_high_60d: Primary if it's distinctly above current price
+    #                    AND distinct from the MAs (>2% gap to nearest MA)
+    #                    — this is the recent breakout level
+    #   - 52w high: Primary only when close (≤5%) — true breakout pivot;
+    #               Reference otherwise
+    candidates = []  # list of (label, level, distance_tier, importance)
+
     if ma200 > price:
-        overhead_candidates.append(("200-day moving average", ma200))
-    # Only include 52w high if we're within 10% of it — otherwise it's noise
-    if high_52w > price and (high_52w - price) / price < 0.10:
-        overhead_candidates.append(("52-week high", high_52w))
-    overhead_candidates.sort(key=lambda x: x[1])  # nearest first
+        d = distance_tier(ma200)
+        candidates.append(("200-day moving average", ma200, d, "primary"))
 
-    if bias == "bearish":
-        # Need to reclaim trend levels first
-        if price < ma50:
-            conditions.append(f"Price reclaims and holds the 50-day moving average at ${ma50:.2f}.")
-        if price < ma200 and len(conditions) < 2:
-            conditions.append(f"Price reclaims and holds the 200-day moving average at ${ma200:.2f}.")
-        if rs < 0.95:
-            conditions.append("Relative strength versus the S&P 500 climbs back above 1.00.")
+    if ma50 > price:
+        d = distance_tier(ma50)
+        # Primary if a reclaim would put us back above the ma200 line
+        # (i.e. price is currently above ma200 already, or ma50 is above
+        # ma200 so reclaiming ma50 = strong recovery). Otherwise Secondary.
+        importance = "primary" if (price >= ma200 or ma50 > ma200) else "secondary"
+        candidates.append(("50-day moving average", ma50, d, importance))
 
-    elif bias == "neutral":
-        # Reclaim the 50-day if below it, otherwise look for a clean break
-        # above the nearest overhead resistance
-        if price < ma50:
-            conditions.append(f"Price reclaims and holds the 50-day moving average at ${ma50:.2f}.")
-        elif overhead_candidates:
-            level_name, level_price = overhead_candidates[0]
+    if swing_high_60d > price * 1.005:
+        d = distance_tier(swing_high_60d)
+        # Primary only if the swing high is meaningfully distinct from
+        # ma50/ma200 (within 2% of either MA = redundant).
+        too_close_to_ma = (
+            abs(swing_high_60d - ma50) / ma50 < 0.02 or
+            abs(swing_high_60d - ma200) / ma200 < 0.02
+        )
+        importance = "reference" if too_close_to_ma else "primary"
+        candidates.append(("recent swing high", swing_high_60d, d, importance))
+
+    if high_52w > price:
+        d = distance_tier(high_52w)
+        importance = "primary" if d == "near" else "reference"
+        candidates.append(("52-week high", high_52w, d, importance))
+
+    # ── Select THE primary level to lead with ──
+    # Rule: must be (near OR mid) AND primary. Near beats mid. Among ties,
+    # nearest level wins.
+    leadable = [c for c in candidates
+                if c[2] in ("near", "mid") and c[3] == "primary"]
+    if leadable:
+        leadable.sort(key=lambda c: (c[2] != "near", c[1]))  # near first, then nearest
+        lead = leadable[0]
+        name, level, dist, _ = lead
+        if dist == "near":
             conditions.append(
-                f"A clean break above the {level_name} at ${level_price:.2f} on rising volume."
+                f"A clean break above the {name} at ${level:.2f} on rising volume."
             )
         else:
-            # Price is above all key MAs but bias is still neutral — likely
-            # weak structure. Ask for a higher high.
-            conditions.append("A higher high on the daily timeframe with confirming volume.")
+            pct = (level / price - 1) * 100
+            conditions.append(
+                f"A reclaim of the {name} at ${level:.2f} ({pct:+.0f}% from here) "
+                f"on rising volume."
+            )
+        leading_with_price_level = True
+    else:
+        leading_with_price_level = False
 
-        if rs < 1.0:
-            conditions.append("Relative strength versus the S&P 500 turns positive.")
+    # ── Always include signal-based proximate conditions ──
+    signal_conditions = []
+    if rs < 1.0:
+        if rs_delta < 0.02:
+            signal_conditions.append(
+                f"Relative strength climbs back toward 1.00 with daily improvement "
+                f"(currently {rs:.2f}, Δ {rs_delta:+.3f} over 10 sessions)."
+            )
+        else:
+            signal_conditions.append(
+                f"Relative strength continues improving from {rs:.2f} toward 1.00 — "
+                f"the tape starting to lead is the earliest repair signal."
+            )
+    if tech_delta <= 0:
+        signal_conditions.append(
+            "Technical score turns positive over a 10-session window — "
+            "momentum reversing is the next confirmation."
+        )
+
+    # No-new-lows is a particularly clean signal for deeply-broken names
+    if price < ma200 and not leading_with_price_level:
+        signal_conditions.append(
+            "Price holds without setting a new 30-day low for several weeks — "
+            "structural basing is required before any reclaim becomes plausible."
+        )
+
+    if leading_with_price_level:
+        # Supplement the price-level lead with 1-2 signal conditions
+        conditions.extend(signal_conditions[:2])
+    else:
+        # No leadable price level. Lead with signals; mention the closest
+        # Far/Reference level as long-horizon context only.
+        conditions.extend(signal_conditions[:2])
+
+        far_or_ref = [c for c in candidates if c[2] == "far" or c[3] == "reference"]
+        if far_or_ref:
+            far_or_ref.sort(key=lambda c: c[1])  # nearest first
+            name, level, _, _ = far_or_ref[0]
+            pct = (level / price - 1) * 100
+            conditions.append(
+                f"Eventually, a reclaim of the {name} at ${level:.2f} ({pct:+.0f}% away) — "
+                f"but treat that as a long-horizon target, not a near-term trigger."
+            )
 
     if not conditions:
-        conditions.append("Trend, structure, and relative strength all turn positive together.")
+        conditions.append(
+            "Trend, structure, and relative strength turn positive together "
+            "across a multi-week window."
+        )
     return conditions
 
 
@@ -1924,6 +2063,20 @@ if view == "analyze":
             "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
         }
 
+    # Accumulation Watch override: if compute() flagged the name as
+    # accumulation-eligible (deep drawdown + near low + stabilizing + not
+    # breaking down) AND the dossier returned a Quality A or B tier, then
+    # upgrade the action from "avoid" to "accumulate". Quality gate is
+    # hard — this is the value-trap protection. Only fires when there's a
+    # dossier (i.e., API key is set).
+    quality_tier = ((dossier_result or {}).get("quality") or {}).get("tier", "")
+    if t.get("is_accumulation_eligible") and t["action"] == "avoid":
+        new_action = tactical.apply_accumulation_override(
+            t["action"], True, quality_tier
+        )
+        if new_action != t["action"]:
+            t = {**t, "action": new_action}
+
     sty = STATE_STYLES[t["action"]]
 
     col_decision, col_pm = st.columns([5, 3])
@@ -1970,6 +2123,30 @@ if view == "analyze":
 """, unsafe_allow_html=True)
 
         # 1. DECISION — hero
+        # Structure state copy maps action+state to a one-line rationale
+        # that appears under the giant decision word per the 2026-04-28
+        # spec. State comes from classify_state() in tactical.py.
+        _state = t.get("state", "TRENDING")
+        _state_copy = {
+            ("enter_now", "TRENDING"):  "Trend intact",
+            ("enter_now", "TRANSITION"): "Trend reasserting",
+            ("enter_now", "BROKEN"):    "Trend intact",
+            ("watch", "TRENDING"):      "Trend intact",
+            ("watch", "TRANSITION"):    "Trend reasserting",
+            ("watch", "BROKEN"):        "Trend intact",
+            ("hold_off", "TRENDING"):   "Signals not yet aligned",
+            ("hold_off", "TRANSITION"): "Transitioning structure",
+            ("hold_off", "BROKEN"):     "Signals not yet aligned",
+            ("avoid", "TRENDING"):      "No directional edge",
+            ("avoid", "TRANSITION"):    "No directional edge",
+            ("avoid", "BROKEN"):        "Structure broken",
+            ("accumulate", "TRENDING"): "Quality name stabilizing after deep drawdown",
+            ("accumulate", "TRANSITION"): "Quality name stabilizing after deep drawdown",
+            ("accumulate", "BROKEN"):   "Quality name stabilizing after deep drawdown",
+        }.get((t["action"], _state), "")
+        # Treat enter as "deploy" in the state copy per spec language
+        _state_action_label = "Deploy" if t["action"] == "enter_now" else sty["label"]
+
         st.markdown(f"""
 <div class="desk-decision">
   <span class="word" style="color:{sty['color']};">
@@ -1977,13 +2154,18 @@ if view == "analyze":
   </span>
   <span class="emoji">{sty['emoji']}</span>
   <div class="context">{decision_context(t)}</div>
+  <div style="font-family:'Geist Mono',monospace; font-size:11px; font-weight:600;
+              letter-spacing:0.08em; text-transform:uppercase; color:{sty['color']};
+              margin-top:8px; opacity:0.85;">
+    {_state_action_label} — {_state_copy}
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
         # 1a. State definitions — collapsed reference card. Click to see
         # what each of the four states means and which one fired here.
         with st.expander("ℹ️  What does this mean? Decision states reference"):
-            for state_key in ["enter_now", "watch", "hold_off", "avoid"]:
+            for state_key in ["enter_now", "watch", "accumulate", "hold_off", "avoid"]:
                 s = STATE_STYLES[state_key]
                 is_current = (state_key == t["action"])
                 bg = "#F5F2EB" if is_current else "transparent"
@@ -2072,6 +2254,7 @@ if view == "analyze":
                 )
 
         # 2-3. For Watch/Enter render Trigger + Invalidation.
+        # For Accumulate render the "stabilizing" rationale + the entry plan.
         # For Hold off / Avoid render Why + Reconsider when (no trigger).
         if t["action"] in ("enter_now", "watch"):
             trig_line = trigger_text(t)
@@ -2088,6 +2271,48 @@ if view == "analyze":
 <div class="desk-invalidation">
   <div class="label"><span class="em">⛔</span>Invalidation</div>
   <div class="text">{bold_numbers(inv)}</div>
+</div>
+""", unsafe_allow_html=True)
+        elif t["action"] == "accumulate":
+            # Accumulation Watch: high-quality name stabilizing after deep
+            # drawdown. Surface the key data points that earned this and
+            # the explicit position-sizing guidance.
+            drawdown_pct = (t["price"] / t["high_52w"] - 1) * 100
+            above_low_pct = (t["price"] / t["low_52w"] - 1) * 100
+            stabilizing_reasons = []
+            if t.get("rs_delta", 0) >= 0.02:
+                stabilizing_reasons.append(
+                    f"relative strength improving ({t['rs_delta']:+.3f} over 10 days)"
+                )
+            stabilizing_reasons.append(
+                f"price ${t['price']:.2f} sits {drawdown_pct:.0f}% below the 52-week high "
+                f"${t['high_52w']:.2f} and only {above_low_pct:.0f}% above the 52-week low "
+                f"${t['low_52w']:.2f}"
+            )
+            if t["price"] > t.get("ma20", t["price"]):
+                stabilizing_reasons.append(f"holding above the 20-day MA at ${t.get('ma20', 0):.2f}")
+
+            reasons_html = "".join(f'<li>{bold_numbers(r)}</li>' for r in stabilizing_reasons)
+            st.markdown(f"""
+<div class="desk-avoid-reasons" style="border-left-color:#7C5DD9; background:#F4F0FB;">
+  <div class="label" style="color:#7C5DD9;">
+    <span class="em">🌱</span>Why accumulate
+  </div>
+  <ul>{reasons_html}</ul>
+</div>
+""", unsafe_allow_html=True)
+
+            # Sizing guidance — explicit, not a full allocation
+            st.markdown("""
+<div class="desk-reconsider" style="border-left-color:#7C5DD9; background:#F4F0FB;">
+  <div class="label" style="color:#7C5DD9;">
+    <span class="em">📊</span>Position discipline
+  </div>
+  <ul>
+    <li><strong>Small starter only</strong> — this is early-entry logic, not a full allocation</li>
+    <li><strong>Stagger entries</strong> — add on confirmation (50d reclaim, RS catchup) rather than averaging into weakness</li>
+    <li><strong>Cut if it breaks</strong> — close below the 52-week low invalidates the stabilization read</li>
+  </ul>
 </div>
 """, unsafe_allow_html=True)
         else:
@@ -2279,10 +2504,10 @@ if view == "analyze":
                 "result": "open",
                 "closed": False,
             }
-            # Only enter_now / watch decisions have an entry price worth
-            # tracking. hold_off and avoid are non-trades — no entry to
-            # measure result_pct against.
-            if t["action"] in ("enter_now", "watch"):
+            # Only enter_now / watch / accumulate decisions are real trades
+            # with an entry price worth tracking. hold_off and avoid are
+            # non-trades — no entry to measure result_pct against.
+            if t["action"] in ("enter_now", "watch", "accumulate"):
                 log_entry["entry"] = round(t["entry"], 2)
             elif t["action"] == "hold_off":
                 # hold_off is a "didn't act" record — the only outcome
@@ -2653,7 +2878,15 @@ if view == "watchlist":
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
         bench = fetch_bench()
-        rows_by_action = {"enter_now": [], "watch": [], "hold_off": [], "avoid": []}
+        rows_by_action = {
+            "enter_now": [], "watch": [], "accumulate": [],
+            "hold_off": [], "avoid": [],
+        }
+
+        # Pull cached quality tiers — used to upgrade avoid→accumulate.
+        # Quality only available in the dossier cache when the user has
+        # opened that ticker before with API key set.
+        dossier_cache = st.session_state.store.get("dossier_cache", {})
 
         with st.spinner("Analyzing watchlist…"):
             for tkr in st.session_state.store["watchlist"]:
@@ -2663,9 +2896,19 @@ if view == "watchlist":
                 t = tactical.compute(hist, bench)
                 if t is None:
                     continue
+                # Apply accumulation override using cached quality if avail.
+                if t.get("is_accumulation_eligible") and t["action"] == "avoid":
+                    cached = dossier_cache.get(tkr.upper(), {})
+                    cached_quality = ((cached.get("result") or {}).get("quality") or {})
+                    q_tier = cached_quality.get("tier", "")
+                    new_action = tactical.apply_accumulation_override(
+                        t["action"], True, q_tier
+                    )
+                    if new_action != t["action"]:
+                        t = {**t, "action": new_action}
                 rows_by_action[t["action"]].append((tkr, name, t))
 
-        for key in ["enter_now", "watch", "hold_off", "avoid"]:
+        for key in ["enter_now", "watch", "accumulate", "hold_off", "avoid"]:
             sty = STATE_STYLES[key]
             st.markdown(f"""
 <div style="font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:{sty['color']};margin:14px 0 8px;">
@@ -2719,7 +2962,7 @@ if view == "tracker":
             if (l.get("correct") if l["action"] == "avoid" else l.get("result_pct", 0) > 0)
         ]
         hit_rate = round(100 * len(wins) / len(scoreable)) if scoreable else 0
-        entry_trades = [l for l in scoreable if l["action"] in ("enter_now", "watch")]
+        entry_trades = [l for l in scoreable if l["action"] in ("enter_now", "watch", "accumulate")]
         avg_edge = (sum(l.get("result_pct", 0) for l in entry_trades) / len(entry_trades)) if entry_trades else 0
     else:
         hit_rate = 0

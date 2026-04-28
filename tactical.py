@@ -137,41 +137,185 @@ def tactical_bias(price, ma50, ma200, ma50_slope, ma200_slope, sq, rs):
     return bias, score
 
 
+def classify_state(price, ma50, ma200, rs, rs_delta, tech_delta):
+    """Classify structural state BEFORE tactical_action runs.
+
+    Returns one of: "TRENDING", "TRANSITION", "BROKEN".
+
+    Design principles:
+    - TRANSITION is broad but requires confirmation (momentum or RS improvement)
+    - BROKEN is strict (ALL conditions must be true)
+    - When ambiguous, bias toward TRANSITION (Hold off) over BROKEN (Avoid)
+
+    See SPEC dated 2026-04-28 for full logic. The state is exposed in the
+    UI alongside the action so the user always sees why a name landed
+    where it did.
+    """
+    # Guard against zero/negative MAs from bad data
+    if ma50 <= 0 or ma200 <= 0:
+        return "TRENDING"
+
+    # ─── TRANSITION conditions ────────────────────────────────────────
+    # (a) Partial recovery WITH confirmation:
+    #     above MA50 AND below MA200 AND (tech_delta > 0 OR rs_delta >= 0.02)
+    #     The confirmation requirement is critical — without it, weak
+    #     bounces would get protected as TRANSITION.
+    cond_a = (
+        price > ma50 and
+        price < ma200 and
+        (tech_delta > 0 or rs_delta >= 0.02)
+    )
+
+    # (b) Near-MA200 zone:
+    #     Price -20% to -5% of MA200. Captures weakening but not fully
+    #     broken structure regardless of where MA50 sits.
+    pct_vs_ma200 = (price - ma200) / ma200
+    cond_b = -0.20 <= pct_vs_ma200 <= -0.05
+
+    # (c) RS improving from weakness:
+    #     RS < 1.0 AND rs_delta >= 0.02
+    cond_c = rs < 1.0 and rs_delta >= 0.02
+
+    if cond_a or cond_b or cond_c:
+        return "TRANSITION"
+
+    # ─── BROKEN conditions (ALL must be true) ──────────────────────────
+    cond_broken = (
+        price < ma200 * 0.85 and    # >15% below MA200
+        rs < 0.9 and                 # weak RS
+        rs_delta < 0.01 and          # not improving
+        tech_delta <= 0              # no momentum recovery
+    )
+
+    if cond_broken:
+        return "BROKEN"
+
+    # ─── Default ───────────────────────────────────────────────────────
+    return "TRENDING"
+
+
+def classify_accumulation(price, high_52w, low_52w, ma20, ret_5d,
+                          rs_delta, made_new_30d_low_recently):
+    """Classify whether a name is in an Accumulation Watch setup.
+
+    Returns True if ALL spec conditions met (per 2026-04-28 Accumulation
+    Watch spec), regardless of quality. Quality gating happens later in
+    apply_accumulation_override() because it requires the dossier call.
+
+    Conditions (ALL must be true):
+      - Drawdown from 52w high >= 35%
+      - Price within 20% of 52w low
+      - Stabilization: rs_delta >= 0.02 OR no new 30d low in last 5 sessions
+      - No active breakdown: price > ma20 OR 5-day return > 0
+    """
+    # Guard against degenerate inputs
+    if high_52w <= 0 or low_52w <= 0 or price <= 0:
+        return False
+
+    # Drawdown from 52-week high
+    drawdown = (price - high_52w) / high_52w   # negative number
+    cond_deep_drawdown = drawdown <= -0.35
+
+    # Within 20% of 52-week low
+    pct_above_low = (price - low_52w) / low_52w if low_52w > 0 else 0
+    cond_near_low = pct_above_low <= 0.20
+
+    # Stabilization
+    cond_stabilizing = (rs_delta >= 0.02) or (not made_new_30d_low_recently)
+
+    # No active breakdown
+    cond_not_breaking_down = (price > ma20) or (ret_5d > 0)
+
+    return (cond_deep_drawdown and cond_near_low
+            and cond_stabilizing and cond_not_breaking_down)
+
+
+def apply_accumulation_override(action, is_accumulation_eligible, quality_tier):
+    """Upgrade 'avoid' to 'accumulate' if accumulation criteria + quality A/B.
+
+    Called from the app layer after the dossier (and quality tier) is
+    fetched. Only overrides Avoid — never overrides hold_off, watch, or
+    enter_now (those are already actionable; accumulation isn't a
+    promotion path from those states).
+
+    Quality gate is HARD: only "A" or "B" tiers are eligible. Speculative
+    and Avoid quality tiers do NOT get the accumulation upgrade — that's
+    the value-trap protection.
+    """
+    if action != "avoid":
+        return action
+    if not is_accumulation_eligible:
+        return action
+    if quality_tier not in ("A", "B"):
+        return action
+    return "accumulate"
+
+
+
 def tactical_action(bias, bias_score, setup_score, atr_ok, price, ma50,
-                    tech_delta=0):
+                    ma200=None, rs=1.0, rs_delta=0.0, tech_delta=0,
+                    state="TRENDING", is_accumulation_eligible=False):
     """Return one of: 'enter_now', 'watch', 'hold_off', 'avoid'.
 
-    Three principles enforced here:
+    Per the 2026-04-28 strict-Avoid spec, the rules are now:
 
-    1. Don't collapse Hold off into Avoid. A name with intact structure
-       but borderline bias score is "not enough edge yet", not a wrong-
-       side trade.
+    AVOID — strict, ALL conditions required:
+      - price < ma200          (long-term structure broken)
+      - rs < 0.9               (tape actively rejecting)
+      - rs_delta < 0.01        (not improving)
+      - tech_delta <= 0        (no momentum recovery)
+      - NOT accumulation-eligible (not a quality-name drawdown play)
 
-    2. Recognize transitions. A name reclaiming its MA cluster with
-       improving momentum (positive tech_delta) defaults to Hold off
-       even if the bias score isn't quite there yet. This is the
-       META-type repair pattern.
+    ENTER — bullish bias + setup score ≥ 9.
 
-    3. Strong Avoid filter intact. ATR fails, structure broken below
-       50d in a non-improving tape, or genuinely bearish bias → Avoid.
+    WATCH — bullish bias + setup score < 9 (waiting on trigger).
+
+    HOLD OFF — universal fall-through for everything else. This includes:
+      - Pullbacks in uptrends (price > ma200 but below ma50)
+      - Leadership names below ma200 with strong RS
+      - Transition / repair phases (any TRANSITION state)
+      - Any ambiguous setup that isn't clearly bullish or clearly broken
+
+    Note that ACCUMULATION is applied as an override at the app layer
+    after the dossier returns Quality tier. compute() flags eligibility
+    via is_accumulation_eligible; the override never fires from inside
+    tactical_action because the quality data isn't available here. Same
+    flag IS used here to block premature Avoid on names that might earn
+    Accumulate in the next step.
+
+    Key principle:
+      - MA200 defines structure
+      - MA50 defines short-term noise
+      - RS + momentum determine quality of breakdown
     """
     if not atr_ok:
         return "avoid"
+
+    # ENTER / WATCH path — bullish bias only.
     if bias == "bullish":
         if setup_score >= 9:
             return "enter_now"
         return "watch"
-    # Neutral zone: catch standard Hold off + transition Hold off
-    if bias == "neutral":
-        # Standard hold_off: structurally intact, score positive-ish
-        if price > ma50 and bias_score >= 1:
-            return "hold_off"
-        # Transition hold_off: improving momentum near MA cluster.
-        # Catches META-type recovery — score might be 0 or even -1 but
-        # the tape is repairing. Requires tech_delta clearly positive.
-        if tech_delta >= 1.5 and price > ma50 * 0.97:
-            return "hold_off"
-    return "avoid"
+
+    # AVOID — strict, all five conditions required. If ma200 wasn't passed
+    # (back-compat for callers that didn't update), default to "not below"
+    # and skip the Avoid path entirely.
+    is_avoid = (
+        ma200 is not None and
+        price < ma200 and
+        rs < 0.9 and
+        rs_delta < 0.01 and
+        tech_delta <= 0 and
+        not is_accumulation_eligible
+    )
+    if is_avoid:
+        return "avoid"
+
+    # Universal fall-through: everything that isn't clearly bullish and
+    # isn't clearly broken lands in Hold off. This is the deliberate
+    # broadening per the spec — the GDX / pullback / leadership-in-
+    # correction case all funnel here.
+    return "hold_off"
 
 
 def next_trigger(bias, action, price, ma50, high_52w, vol_ratio,
@@ -460,6 +604,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
 
     prices = ticker_hist["Close"]
     price = float(prices.iloc[-1])
+    ma20 = float(prices.iloc[-20:].mean()) if len(prices) >= 20 else price
     ma50 = float(prices.iloc[-50:].mean()) if len(prices) >= 50 else price
     ma200 = float(prices.iloc[-200:].mean()) if len(prices) >= 200 else price
     ma50_slope = _ma_slope(prices, 50, 20)
@@ -489,20 +634,65 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
 
     bias, bias_score = tactical_bias(price, ma50, ma200, ma50_slope, ma200_slope, sq, rs)
     atr_ok = atr_pct >= atr_threshold
-    action = tactical_action(bias, bias_score, setup, atr_ok, price, ma50,
-                             tech_delta=tech_delta)
 
+    # Compute 52-week extremes + accumulation inputs BEFORE classify_state
+    # and tactical_action. tactical_action needs is_accumulation_eligible
+    # to block premature Avoid on names that might earn the override.
     last_252 = prices.iloc[-min(252, len(prices)):]
     high_52w = float(last_252.max())
     low_52w = float(last_252.min())
-    # Position as % of 52-week range: 0% = at low, 100% = at high
     rng_52w = high_52w - low_52w
     pct_of_52w_range = float((price - low_52w) / rng_52w * 100) if rng_52w > 0 else 50.0
+
+    # ret_5d: 5-session close return (positive = price recovering)
+    if len(prices) >= 6:
+        ret_5d = float(prices.iloc[-1] / prices.iloc[-6] - 1)
+    else:
+        ret_5d = 0.0
+    # New 30-day low check — used to gate the stabilization signal
+    if len(prices) >= 30:
+        last_30 = prices.iloc[-30:]
+        recent_5 = prices.iloc[-5:]
+        rolling_30_low = float(last_30.min())
+        recent_5_low = float(recent_5.min())
+        made_new_30d_low_recently = bool(recent_5_low <= rolling_30_low + 1e-9)
+    else:
+        made_new_30d_low_recently = True
+
+    is_accumulation_eligible = classify_accumulation(
+        price, high_52w, low_52w, ma20, ret_5d, rs_delta,
+        made_new_30d_low_recently,
+    )
+
+    # Classify structural state. This still drives UI copy ("transitioning
+    # structure" etc.), but the action gate itself is now driven by the
+    # strict-Avoid rule below, not by state.
+    state = classify_state(price, ma50, ma200, rs, rs_delta, tech_delta)
+
+    # Action: strict Avoid + universal Hold off fallthrough per the
+    # 2026-04-28 spec. Avoid requires ALL five strict conditions; anything
+    # else that isn't bullish lands in Hold off.
+    action = tactical_action(
+        bias, bias_score, setup, atr_ok, price, ma50,
+        ma200=ma200, rs=rs, rs_delta=rs_delta, tech_delta=tech_delta,
+        state=state, is_accumulation_eligible=is_accumulation_eligible,
+    )
+
     rsi14 = _rsi(prices)
     last_10 = prices.iloc[-10:]
     range_10d_pct = float((last_10.max() - last_10.min()) / price)
     support = float(last_10.min())
     resistance = float(last_10.max())
+
+    # Recent swing high — highest close in the last 60 sessions (3 months).
+    # Used by reconsider_when as a "Primary" candidate level when it sits
+    # closer than the MAs. For a name chopping below ma200, the recent
+    # swing high reclaim is the actionable level, not the ma200.
+    if len(prices) >= 60:
+        swing_high_60d = float(prices.iloc[-60:].max())
+    else:
+        swing_high_60d = float(prices.max())
+
     avg_vol_20d = float(ticker_hist["Volume"].iloc[-20:].mean())
     vol_ratio = float(ticker_hist["Volume"].iloc[-1] / avg_vol_20d) if avg_vol_20d > 0 else 1.0
 
@@ -552,6 +742,8 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "bias": display_bias,
         "raw_bias": bias,
         "action": action,
+        "state": state,          # TRENDING / TRANSITION / BROKEN
+        "is_accumulation_eligible": is_accumulation_eligible,
         "trigger": trigger,      # now a dict or None
         "bias_score": bias_score,
         "setup_score": setup,
@@ -560,11 +752,13 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "price": price,
         "ma50": ma50,
         "ma200": ma200,
+        "ma20": ma20,
         "rs": rs,
         "rs_delta": rs_delta,
         "tech_delta": tech_delta,
         "high_52w": high_52w,
         "low_52w": low_52w,
+        "swing_high_60d": swing_high_60d,
         "pct_of_52w_range": pct_of_52w_range,
         "rsi14": rsi14,
         "structure_quality": sq,
