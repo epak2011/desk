@@ -453,29 +453,33 @@ def tactical_action(bias, bias_score, setup_score, atr_ok, price, ma50,
 
 def historical_support_trigger(price, ma50, atr_pct, support_levels,
                                approach_tolerance=0.05,
-                               below_tolerance=0.02):
+                               wick_tolerance=0.003):
     """Generate a Watch trigger if price is approaching a meaningful
     historical support level.
 
     Args:
-      price: current price
-      ma50: 50-day MA (for context in the abort rule)
+      price: current price (close)
+      ma50: 50-day MA (for context)
       atr_pct: average true range as % (for sizing the abort buffer)
       support_levels: list of dicts with at minimum {"level": float,
         "touches": int, "is_flip": bool, "_score": float, "source":
-        "auto"|"manual"}. Both auto-detected and user-marked levels.
+        "auto"|"manual"}.
       approach_tolerance: how close (above) does price need to be? Default
         5% — close enough that the test is imminent, far enough that we
         get notice before the bounce.
-      below_tolerance: tolerance for "price is at the level". Default 2%.
+      wick_tolerance: small allowance for closes that print just below
+        the level (default 0.3%) — handles intraday wicks below support.
+        NOT a "broke through" allowance.
 
     Returns a trigger dict (same shape as next_trigger) or None.
 
-    Fires only when:
-      - At least one support level is within `approach_tolerance` of price
-        (above or at the level)
-      - Price is NOT already meaningfully below the level (below_tolerance)
-        — that means support is broken, not approaching
+    Fires only when the support level is being TESTED FROM ABOVE:
+      - 0 ≤ pct_above ≤ approach_tolerance, OR
+      - just barely below within wick_tolerance (intraday wick scenarios)
+
+    Does NOT fire when price has closed meaningfully below the level —
+    that's a BROKEN support, not an approach. In that case the level
+    becomes resistance and the right action is Hold off until reclaim.
     """
     if not support_levels or price <= 0:
         return None
@@ -485,11 +489,11 @@ def historical_support_trigger(price, ma50, atr_pct, support_levels,
         level = s.get("level", 0)
         if level <= 0:
             continue
-        # How does price sit relative to this level?
+        # pct_above > 0: price above level (approaching from above) ✓
+        # pct_above ≈ 0: price at level                              ✓
+        # pct_above < -wick_tolerance: price BELOW — support broken  ✗
         pct_above = (price - level) / level
-        # Approaching from above: 0 ≤ pct_above ≤ approach_tolerance
-        # At the level: -below_tolerance ≤ pct_above ≤ below_tolerance
-        if -below_tolerance <= pct_above <= approach_tolerance:
+        if -wick_tolerance <= pct_above <= approach_tolerance:
             candidates.append((s, pct_above))
 
     if not candidates:

@@ -170,6 +170,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         "pm_narrative": None,
         "bullets": {},
         "quality": {},
+        "tactical_call": {},
     }
     if not api_key:
         return {**empty, "_source": "unavailable"}
@@ -211,15 +212,17 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
 DATA YOU HAVE:
 
 Tactical state:
-- Decision: {action.replace('_', ' ')}
+- Decision (rule engine): {action.replace('_', ' ')}
+- Structural state: {t_state.get('state', 'TRENDING')}
 - Bias: {bias}
 - Setup score: {t_state.get('setup_score', 0):.1f}/10 (bias_score {t_state.get('bias_score', 0):+d}/±10)
-- Price: ${t_state.get('price', 0):.2f}; 50-day MA ${t_state.get('ma50', 0):.2f}; 200-day MA ${t_state.get('ma200', 0):.2f}
+- Price: ${t_state.get('price', 0):.2f}; 20-day MA ${t_state.get('ma20', 0):.2f}; 50-day MA ${t_state.get('ma50', 0):.2f}; 100-day MA ${t_state.get('ma100', 0):.2f}; 200-day MA ${t_state.get('ma200', 0):.2f}
 - RSI: {t_state.get('rsi14', 50):.0f}; 52-week range position {t_state.get('pct_of_52w_range', 50):.0f}%
 - Relative strength vs SPX: {t_state.get('rs', 1):.2f} (10d delta {t_state.get('rs_delta', 0):+.3f})
 - ATR: {t_state.get('atr_pct', 0)*100:.2f}%; Volume vs 20d avg: {t_state.get('vol_ratio', 1):.2f}×
 - Tech score 10d delta: {t_state.get('tech_delta', 0):+.1f}
 - Structure quality: {t_state.get('structure_quality', 5):.1f}/10
+- Accumulation eligible: {t_state.get('is_accumulation_eligible', False)}
 - Trigger: {trig_summary}
 - Buy above: {f'${buy_above:.2f}' if buy_above else 'n/a'}
 - Invalidation below: {f'${abort_below:.2f}' if abort_below else 'n/a'}
@@ -247,7 +250,7 @@ Drivers: {', '.join(drivers) if drivers else 'n/a'}
 Risks: {', '.join(risks) if risks else 'n/a'}
 Valuation: {valuation or 'n/a'}
 
-DELIVERABLES — return ONLY a JSON object with these five keys:
+DELIVERABLES — return ONLY a JSON object with these six keys:
 
 {{
   "dossier": "...",
@@ -262,6 +265,14 @@ DELIVERABLES — return ONLY a JSON object with these five keys:
   "quality": {{
     "tier": "A" | "B" | "Speculative" | "Avoid",
     "rationale": "1-2 sentences"
+  }},
+  "tactical_call": {{
+    "action": "ENTER" | "WATCH" | "HOLD_OFF" | "AVOID" | "ACCUMULATE",
+    "confidence": 1-10,
+    "reasoning": "2-3 sentences",
+    "trigger": "specific price/condition or null",
+    "invalidation": "what breaks the setup or null",
+    "notes": "optional nuance"
   }}
 }}
 
@@ -304,6 +315,78 @@ Critical: Pre-revenue is NOT Avoid. Negative earnings in a cyclical leader is NO
 
 rationale: 1-2 sentences. State the moat and category leadership specifically. Not boilerplate.
 
+tactical_call: YOUR independent action call on a 1-8 week trading horizon. This is timing, not long-term ownership — Quality is informational, not a gate (with one specific exception below). The rule engine's decision is shown above for reference, but you must make your OWN call based on the underlying data. Where the rules and your judgment disagree, output your judgment — that's the whole point of having both. The downstream system will surface disagreements explicitly. Apply this decision framework strictly:
+
+CORE PRINCIPLE — separate timing (action) from long-term quality (already given). Answer ONLY: "Is this a good entry or setup right now, on a 1-8 week horizon?"
+
+HARD CONSTRAINTS (must follow; if your output conflicts with these, the constraints win):
+
+AVOID if ALL of:
+- price < ma200 (below long-term structure)
+- relative_strength < 0.9 (tape rejecting)
+- RS_delta < 0.01 (no improvement)
+- tech_delta ≤ 0 (no momentum)
+- accumulation_flag is false
+(This matches the rules engine's strict 5-condition Avoid. Mirror it.)
+
+ENTER only if ALL of:
+- bullish bias (price above ma50 AND ma200, momentum positive)
+- tech_score ≥ 9
+- valid trigger exists AND is actionable now
+- NOT extended (price within ~12% above MA50 AND within ~8% above MA100)
+
+WATCH if:
+- bullish bias but tech_score < 9 (waiting on confirmation), OR
+- valid trigger exists and is approaching but not fired, OR
+- bullish bias but extended → wait for pullback target
+
+HOLD_OFF (universal default for ambiguity) if:
+- pullback in uptrend (above ma200, below ma50)
+- transitioning structure (recovering, no clean confirmation)
+- below ma200 but tape still loyal (RS ≥ 0.95)
+- mixed signals where edge isn't clear
+
+ACCUMULATE if:
+- accumulation_flag is true AND quality is A or B
+This is the ONLY case where quality affects action. Otherwise quality is informational.
+
+INTERPRETATION RULES:
+
+Trend vs Transition vs Broken — use the trend_state input directly:
+- TRENDING: above MA50 and MA200, structure intact
+- TRANSITION: conflicting signals (e.g. above MA50, below MA200) with momentum recovering — default HOLD_OFF unless very strong confluence
+- BROKEN: below key MAs, weak RS, no structure
+
+RS interpretation: RS > 1.0 = leadership; 0.9-1.0 = neutral; <0.9 = lagging. Improving RS (positive RS_delta) matters more than absolute level — a name with RS 0.92 and rs_delta +0.04 is repairing.
+
+Extension: price >12% above MA50 AND >8% above MA100 → extended → do NOT ENTER → downgrade to WATCH with pullback target.
+
+Triggers: prefer proximate, actionable levels. A reclaim of MA200 that's 35% away is NOT a trigger — it's a long-horizon target. The trigger must be reachable on a 1-8 week timeframe (typically within 10% of current price).
+
+QUALITY USAGE — strictly limited:
+- DO use quality to inform reasoning tone and risk framing
+- DO use quality to gate the ACCUMULATE upgrade (A/B only)
+- DO NOT upgrade non-accumulation AVOIDs to ENTER because of quality
+- DO NOT downgrade clean ENTERs because of low quality
+- Speculative quality + WATCH → "setup valid, size smaller" framing
+- Quality A + HOLD_OFF → "wait for better entry" framing
+
+CONFIDENCE SCALE (anchor your number to these):
+- 1-3: I don't trust this — signals are mixed, low conviction
+- 4-6: reasonable read but not high conviction — could go either way
+- 7-9: clean setup, signals aligning
+- 10: if this fails, my framework is wrong
+
+OUTPUT for tactical_call:
+- action: one of ENTER/WATCH/HOLD_OFF/AVOID/ACCUMULATE
+- confidence: integer 1-10 anchored to scale above
+- reasoning: 2-3 sentences focused on structure + RS + trigger. Reference specific numbers from inputs. Identify the dominant principle that drove the call.
+- trigger: concrete price/condition (e.g. "Hold of $145 with volume confirmation") or null if no clear trigger
+- invalidation: specific price level that breaks the setup, or null if action is HOLD_OFF/AVOID
+- notes: optional one-line nuance (e.g. "extended above 50d, want pullback first")
+
+FINAL RULE: if uncertain or the setup is not clearly actionable with favorable risk/reward, default to HOLD_OFF. Do NOT force trades. Do NOT default to optimism. Your job is to avoid bad trades and identify clean setups — not to justify interest.
+
 Style across all three:
 - Confident, opinionated, specific. No hedging, no consultantese.
 - Reference exact prices, multiples, percentages. Numbers anchor every claim.
@@ -314,7 +397,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
 
         message = client.messages.create(
             model="claude-sonnet-4-5-20250929",
-            max_tokens=2500,
+            max_tokens=3000,
             messages=[{"role": "user", "content": prompt}],
         )
         text = message.content[0].text.strip()
@@ -332,6 +415,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
             "pm_narrative": parsed.get("pm_narrative"),
             "bullets": parsed.get("bullets") or {},
             "quality": parsed.get("quality") or {},
+            "tactical_call": parsed.get("tactical_call") or {},
             "_source": "claude",
         }
 
