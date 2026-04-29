@@ -19,6 +19,110 @@ def _ma_slope(prices, period, lookback):
     return (ma_today - ma_past) / lookback
 
 
+def detect_key_levels(prices, lookback_days=504, min_touches=3,
+                      cluster_tolerance=0.02, min_separation_days=5):
+    """Scan price history for significant support / resistance levels.
+
+    Algorithm:
+      1. Find local extrema (highs and lows) where price reverses
+         direction with at least `min_separation_days` between picks
+      2. Cluster nearby extrema within `cluster_tolerance` (2% default)
+      3. A cluster with ≥ `min_touches` reversals = a key level
+      4. Level price = mean of cluster members; importance scales with
+         touch count and how recent the most recent touch was
+
+    Returns list of dicts:
+      [{"level": float, "touches": int, "kind": "support"|"resistance",
+        "last_touch_idx": int, "first_touch_idx": int}]
+    Sorted by importance (touches × recency).
+    """
+    if prices is None or len(prices) < 60:
+        return []
+
+    series = prices.iloc[-min(lookback_days, len(prices)):].reset_index(drop=True)
+    n = len(series)
+
+    # Find local extrema using a 5-day window: a point is a local high
+    # if it's the max of [-5, +5] around it; symmetric for lows.
+    window = 5
+    extrema = []  # (index, price, kind)
+    for i in range(window, n - window):
+        slice_ = series.iloc[i - window:i + window + 1]
+        center = series.iloc[i]
+        if center == slice_.max() and center > series.iloc[i - 1]:
+            extrema.append((i, float(center), "high"))
+        elif center == slice_.min() and center < series.iloc[i - 1]:
+            extrema.append((i, float(center), "low"))
+
+    # Enforce min_separation_days
+    pruned = []
+    for e in extrema:
+        if pruned and (e[0] - pruned[-1][0]) < min_separation_days:
+            # Keep the more extreme of the two
+            if e[2] == pruned[-1][2]:
+                if (e[2] == "high" and e[1] > pruned[-1][1]) or \
+                   (e[2] == "low" and e[1] < pruned[-1][1]):
+                    pruned[-1] = e
+                continue
+        pruned.append(e)
+    extrema = pruned
+
+    # Cluster nearby extrema within cluster_tolerance
+    # Sort by price first to make clustering linear
+    by_price = sorted(extrema, key=lambda e: e[1])
+    clusters = []
+    current_cluster = []
+    for e in by_price:
+        if not current_cluster:
+            current_cluster = [e]
+            continue
+        cluster_avg = sum(c[1] for c in current_cluster) / len(current_cluster)
+        if abs(e[1] - cluster_avg) / cluster_avg <= cluster_tolerance:
+            current_cluster.append(e)
+        else:
+            clusters.append(current_cluster)
+            current_cluster = [e]
+    if current_cluster:
+        clusters.append(current_cluster)
+
+    # Filter to meaningful clusters
+    levels = []
+    for cluster in clusters:
+        if len(cluster) < min_touches:
+            continue
+        # A cluster can contain both highs and lows (S/R flip). Tag by
+        # majority — but note that flipped levels (resistance becoming
+        # support) are particularly valuable.
+        highs = sum(1 for c in cluster if c[2] == "high")
+        lows = sum(1 for c in cluster if c[2] == "low")
+        kind = "resistance" if highs >= lows else "support"
+
+        level = sum(c[1] for c in cluster) / len(cluster)
+        last_idx = max(c[0] for c in cluster)
+        first_idx = min(c[0] for c in cluster)
+        levels.append({
+            "level": round(level, 2),
+            "touches": len(cluster),
+            "kind": kind,
+            "last_touch_idx": last_idx,
+            "first_touch_idx": first_idx,
+            "is_flip": highs > 0 and lows > 0,  # tested both ways
+        })
+
+    # Sort by importance: touches × recency_weight
+    # recency_weight = (last_touch_idx / n) — more recent = higher weight
+    for lv in levels:
+        recency = lv["last_touch_idx"] / n
+        lv["_score"] = lv["touches"] * (0.5 + 0.5 * recency)
+        # Flip levels (tested both as S and R) get a boost — they're
+        # the strongest setups
+        if lv["is_flip"]:
+            lv["_score"] *= 1.4
+
+    levels.sort(key=lambda lv: -lv["_score"])
+    return levels
+
+
 def _rsi(prices, period=14):
     if len(prices) < period + 1:
         return 50.0
@@ -318,9 +422,101 @@ def tactical_action(bias, bias_score, setup_score, atr_ok, price, ma50,
     return "hold_off"
 
 
+def historical_support_trigger(price, ma50, atr_pct, support_levels,
+                               approach_tolerance=0.05,
+                               below_tolerance=0.02):
+    """Generate a Watch trigger if price is approaching a meaningful
+    historical support level.
+
+    Args:
+      price: current price
+      ma50: 50-day MA (for context in the abort rule)
+      atr_pct: average true range as % (for sizing the abort buffer)
+      support_levels: list of dicts with at minimum {"level": float,
+        "touches": int, "is_flip": bool, "_score": float, "source":
+        "auto"|"manual"}. Both auto-detected and user-marked levels.
+      approach_tolerance: how close (above) does price need to be? Default
+        5% — close enough that the test is imminent, far enough that we
+        get notice before the bounce.
+      below_tolerance: tolerance for "price is at the level". Default 2%.
+
+    Returns a trigger dict (same shape as next_trigger) or None.
+
+    Fires only when:
+      - At least one support level is within `approach_tolerance` of price
+        (above or at the level)
+      - Price is NOT already meaningfully below the level (below_tolerance)
+        — that means support is broken, not approaching
+    """
+    if not support_levels or price <= 0:
+        return None
+
+    candidates = []
+    for s in support_levels:
+        level = s.get("level", 0)
+        if level <= 0:
+            continue
+        # How does price sit relative to this level?
+        pct_above = (price - level) / level
+        # Approaching from above: 0 ≤ pct_above ≤ approach_tolerance
+        # At the level: -below_tolerance ≤ pct_above ≤ below_tolerance
+        if -below_tolerance <= pct_above <= approach_tolerance:
+            candidates.append((s, pct_above))
+
+    if not candidates:
+        return None
+
+    # Pick the strongest candidate by score; tie-break by closest to price
+    candidates.sort(key=lambda x: (-x[0].get("_score", 0), abs(x[1])))
+    best, pct_above = candidates[0]
+    level = best["level"]
+    touches = best.get("touches", 0)
+    is_flip = best.get("is_flip", False)
+    source = best.get("source", "auto")
+
+    # Build the trigger dict
+    # Buy rule: hold of the level on volume confirmation
+    # Abort: clean break below the level (allow a small buffer)
+    abort_buffer = max(0.5 * atr_pct * level, 0.01 * level)
+    abort_below = round(level - abort_buffer, 2)
+
+    if source == "manual":
+        descriptor = "user-marked support"
+    elif is_flip:
+        descriptor = "support level (former resistance, now flipped)"
+    else:
+        descriptor = f"support level ({touches}× tested)"
+
+    return {
+        "kind": "historical_support_test",
+        "summary": f"hold of ${level:.2f} {descriptor}",
+        "buy_rule": (
+            f"Buy on a hold of ${level:.2f} — wait for either a tap-and-bounce "
+            f"with confirming volume, or two daily closes back above the level."
+        ),
+        "abort_rule": (
+            f"Abandon if price closes below ${abort_below:.2f} on volume — "
+            f"a clean break of {descriptor} invalidates the thesis."
+        ),
+        "levels": {
+            "buy_above": round(level, 2),
+            "abort_below": abort_below,
+            "volume_min": None,
+        },
+        "support_meta": {
+            "touches": touches,
+            "is_flip": is_flip,
+            "source": source,
+            "pct_above_currently": round(pct_above * 100, 2),
+        },
+    }
+
+
+
 def next_trigger(bias, action, price, ma50, high_52w, vol_ratio,
                  range_10d_pct, support, resistance,
-                 tech_delta, rs_delta, rs, avg_vol_20d):
+                 tech_delta, rs_delta, rs, avg_vol_20d,
+                 ma20=None, recent_pullback_anchor=None):
     """Return a rich trigger dict with explicit levels and conditions.
 
     Shape:
@@ -333,6 +529,14 @@ def next_trigger(bias, action, price, ma50, high_52w, vol_ratio,
         "levels": {"buy_above": float|None, "abort_below": float|None,
                    "volume_min": float|None, ...}
       }
+
+    Pullback branch is now extension-aware: the target depends on how far
+    above ma50 price is sitting. A name +25% above ma50 is not going to
+    pull back to ma50 in any actionable timeframe — that's a -20% move,
+    by which point the trade is no longer the trade we're entering. The
+    new logic uses ma20 or a recent local low as the proximate target
+    when the stock is materially extended.
+
     Returns None when no trigger applies (including enter_now).
     """
     if action == "enter_now" or bias != "bullish":
@@ -416,24 +620,104 @@ def next_trigger(bias, action, price, ma50, high_52w, vol_ratio,
             },
         }
 
-    # 5. Extended — wait for pullback
-    if (price - ma50) / ma50 > 0.08:
-        return {
-            "kind": "pullback",
-            "summary": f"pullback to the 50-day moving average at ${ma50:.2f}",
-            "buy_rule": (
-                f"Buy on a pullback to ${ma50:.2f} that holds, with price "
-                f"closing back up from the test."
-            ),
-            "abort_rule": (
-                f"Abandon the setup if price closes decisively below ${ma50:.2f}."
-            ),
-            "levels": {
-                "buy_above": round(ma50, 2),
-                "abort_below": round(ma50 * 0.98, 2),
-                "volume_min": None,
-            },
-        }
+    # 5. Extended — wait for pullback. Branch by how extended.
+    extension_pct = (price - ma50) / ma50
+    if extension_pct > 0.08:
+        # Build candidate pullback targets, nearest first.
+        # Each candidate = (target, abort, label, summary_descriptor)
+        candidates = []
+
+        # Recent local low (last ~20 sessions): the most actionable target
+        # for a name in a strong uptrend. This is the "first dip" buyers
+        # are watching for.
+        if recent_pullback_anchor is not None and price > recent_pullback_anchor > 0:
+            pull_pct = (price - recent_pullback_anchor) / price
+            # Only use it if it's meaningfully below price (≥3%) but not
+            # so deep that it's basically the ma50 anyway (≥40% of the
+            # gap to ma50)
+            if 0.03 <= pull_pct <= 0.15:
+                candidates.append((
+                    recent_pullback_anchor,
+                    round(recent_pullback_anchor * 0.97, 2),
+                    "recent support level",
+                    f"pullback to ${recent_pullback_anchor:.2f} "
+                    f"(recent support, -{pull_pct*100:.1f}% from here)",
+                ))
+
+        # ma20: usually 3-8% below price in trending names; the textbook
+        # "first pullback" target.
+        if ma20 is not None and ma20 > 0 and ma20 < price:
+            pull_pct = (price - ma20) / price
+            if 0.02 <= pull_pct <= 0.12:
+                candidates.append((
+                    ma20,
+                    round(ma20 * 0.97, 2),
+                    "20-day moving average",
+                    f"pullback to the 20-day moving average at ${ma20:.2f} "
+                    f"(-{pull_pct*100:.1f}% from here)",
+                ))
+
+        # ma50: only useful when extension is moderate (<15%). Above
+        # that, ma50 is too far to be actionable.
+        if extension_pct < 0.15:
+            ma50_pct = (price - ma50) / price
+            candidates.append((
+                ma50,
+                round(ma50 * 0.97, 2),
+                "50-day moving average",
+                f"pullback to the 50-day moving average at ${ma50:.2f} "
+                f"(-{ma50_pct*100:.1f}% from here)",
+            ))
+
+        # Pick the nearest target above 3% pullback. If we have nothing
+        # workable (rare — happens when stock is very extended AND no
+        # recent low AND ma20 is very close), fall through to a generic
+        # "wait for any meaningful pullback" message keyed off ma20.
+        if candidates:
+            # Sort by distance — nearest target wins (smallest pullback)
+            candidates.sort(key=lambda c: -c[0])  # higher target = smaller pullback
+            target, abort, label, summary = candidates[0]
+            return {
+                "kind": "pullback",
+                "summary": summary,
+                "buy_rule": (
+                    f"Buy on a pullback to ${target:.2f} ({label}) that holds "
+                    f"with price closing back up from the test."
+                ),
+                "abort_rule": (
+                    f"Abandon the setup if price closes decisively below "
+                    f"${abort:.2f}."
+                ),
+                "levels": {
+                    "buy_above": round(target, 2),
+                    "abort_below": abort,
+                    "volume_min": None,
+                },
+            }
+        else:
+            # Fallback — name is so extended that nothing reasonable pulls
+            # back to. Suggest watching for any 3-5% dip as the entry.
+            target_band = round(price * 0.96, 2)
+            return {
+                "kind": "pullback",
+                "summary": (
+                    f"a 3-5% pullback (around ${target_band:.2f}) that "
+                    f"holds — the stock is too extended for a clean MA test"
+                ),
+                "buy_rule": (
+                    f"Buy on a 3-5% pullback that holds — first sign of "
+                    f"meaningful selling pressure that the trend absorbs."
+                ),
+                "abort_rule": (
+                    f"Abandon the setup if price closes below ${ma50:.2f} "
+                    f"(the 50-day moving average) — that's a real character change."
+                ),
+                "levels": {
+                    "buy_above": target_band,
+                    "abort_below": round(ma50, 2),
+                    "volume_min": None,
+                },
+            }
 
     # 6. RS weakness
     if rs < 1.0:
@@ -693,13 +977,42 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     else:
         swing_high_60d = float(prices.max())
 
+    # Auto-detected key support/resistance levels from full price history.
+    # Used by historical_support_trigger to fire a Watch when price is
+    # approaching a meaningful support level — even when bias isn't bullish.
+    key_levels = detect_key_levels(prices)
+
     avg_vol_20d = float(ticker_hist["Volume"].iloc[-20:].mean())
     vol_ratio = float(ticker_hist["Volume"].iloc[-1] / avg_vol_20d) if avg_vol_20d > 0 else 1.0
+
+    # Recent pullback anchor — the most meaningful local low in the last
+    # ~25 sessions. Used by next_trigger's pullback branch when price is
+    # materially extended above ma50 (so ma50 itself is too far away to
+    # be actionable). A "local low" requires a 3-day swing window so we
+    # don't pick a single-bar outlier wick.
+    recent_pullback_anchor = None
+    if len(prices) >= 30:
+        lookback_window = prices.iloc[-25:]
+        local_lows = []
+        for i in range(2, len(lookback_window) - 2):
+            ctr = lookback_window.iloc[i]
+            if (ctr <= lookback_window.iloc[i - 1] and
+                    ctr <= lookback_window.iloc[i - 2] and
+                    ctr <= lookback_window.iloc[i + 1] and
+                    ctr <= lookback_window.iloc[i + 2]):
+                local_lows.append(float(ctr))
+        if local_lows:
+            # Pick the highest local low — the most recent meaningful
+            # pullback level the stock has bounced from. Higher = closer
+            # to current price = more actionable.
+            recent_pullback_anchor = max(local_lows)
 
     trigger = next_trigger(
         bias, action, price, ma50, high_52w, vol_ratio,
         range_10d_pct, support, resistance, tech_delta, rs_delta, rs,
         avg_vol_20d,
+        ma20=ma20,
+        recent_pullback_anchor=recent_pullback_anchor,
     )
 
     display_bias = None if (action == "avoid" and bias == "bearish") else bias
@@ -759,6 +1072,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "high_52w": high_52w,
         "low_52w": low_52w,
         "swing_high_60d": swing_high_60d,
+        "key_levels": key_levels,
         "pct_of_52w_range": pct_of_52w_range,
         "rsi14": rsi14,
         "structure_quality": sq,

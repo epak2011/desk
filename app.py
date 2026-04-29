@@ -92,6 +92,10 @@ def _store_default():
         "account_size": 100000,
         "risk_per_trade": 0.01,
         "max_position_pct": 0.25,
+        # User-marked support/resistance levels per ticker. Shape:
+        # {"COIN": {"support": [145, 110], "resistance": [213, 280]}, ...}
+        # These are merged with auto-detected key_levels at app render time.
+        "manual_levels": {},
     }
 
 
@@ -177,6 +181,9 @@ if "store" not in st.session_state:
         _needs_save = True
     if "max_position_pct" not in st.session_state.store:
         st.session_state.store["max_position_pct"] = 0.25
+        _needs_save = True
+    if "manual_levels" not in st.session_state.store:
+        st.session_state.store["manual_levels"] = {}
         _needs_save = True
     if _needs_save:
         save_store(st.session_state.store)
@@ -441,6 +448,7 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
     padding: 4px 0 24px;
     margin-bottom: 32px;
     border-bottom: 1px solid #E5E3DE;
+    position: relative;
 }
 .desk-decision .word {
     font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
@@ -451,6 +459,76 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
 .desk-decision .context {
     font-size: 24px; color: #0F0E0D; margin-top: 18px;
     line-height: 1.4; max-width: 660px; font-weight: 400;
+}
+
+/* Info icon — corner of the decision card. Hover reveals the criteria
+   tooltip without taking real estate from the trigger block below. */
+.desk-decision-info {
+    position: absolute;
+    top: 6px;
+    right: 0;
+    width: 22px; height: 22px;
+    border-radius: 11px;
+    border: 1px solid #C9C5BC;
+    color: #6B655B;
+    font-family: 'Geist', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    text-align: center;
+    cursor: help;
+    background: #FBFAF7;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.desk-decision-info:hover {
+    background: #F0EDE5;
+    color: #0F0E0D;
+    border-color: #6B655B;
+}
+.desk-decision-info-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    top: 30px; right: 0;
+    width: 320px;
+    background: #0F0E0D;
+    color: #FBFAF7;
+    padding: 12px 14px;
+    border-radius: 6px;
+    font-family: 'Geist', sans-serif;
+    font-size: 12px;
+    line-height: 1.45;
+    z-index: 100;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    transition: opacity 0.15s;
+    pointer-events: none;
+}
+.desk-decision-info:hover + .desk-decision-info-tooltip,
+.desk-decision-info-tooltip:hover {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+}
+.desk-decision-info-tooltip .tt-title {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 16px; font-weight: 600;
+    margin-bottom: 4px;
+}
+.desk-decision-info-tooltip .tt-tagline {
+    font-size: 12px; color: #C9C5BC; margin-bottom: 8px;
+}
+.desk-decision-info-tooltip ul {
+    margin: 0; padding-left: 16px;
+}
+.desk-decision-info-tooltip li {
+    margin: 3px 0; color: #FBFAF7; font-size: 11.5px;
+}
+.desk-decision-info-tooltip .tt-footer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #2A2725;
+    font-size: 11px;
+    color: #B4ADA0;
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -1209,6 +1287,13 @@ def decision_context(t):
         if kind == "coil_break":    return f"{bias} — coiling, needs direction."
         if kind == "pullback":      return f"{bias} — extended, waiting for pullback."
         if kind == "rs_catchup":    return f"{bias} — needs relative strength to confirm."
+        if kind == "historical_support_test":
+            level = trg["levels"].get("buy_above")
+            meta = trg.get("support_meta", {})
+            src = "user-marked" if meta.get("source") == "manual" else (
+                "key support level"
+            )
+            return f"Approaching {src} at ${level:.2f} — buy on a hold."
         return f"{bias} — needs confirmation."
     if a == "hold_off":
         # Universal fall-through state. Several distinct shapes can land
@@ -1279,6 +1364,12 @@ def trigger_text(t):
             return f"Pullback to ${buy:.2f} that holds."
         if kind == "rs_catchup":
             return "Relative strength vs S&P 500 back above 1.00."
+        if kind == "historical_support_test" and buy:
+            meta = trg.get("support_meta", {})
+            descriptor = "user-marked support" if meta.get("source") == "manual" else (
+                "key support level"
+            )
+            return f"Hold of ${buy:.2f} — {descriptor}, wait for tap-and-bounce."
         if buy:
             return f"Close above ${buy:.2f}."
         return trg.get("summary", "").capitalize()
@@ -2077,6 +2168,64 @@ if view == "analyze":
         if new_action != t["action"]:
             t = {**t, "action": new_action}
 
+    # Historical-support trigger override: when price is approaching a
+    # meaningful S/R level (auto-detected or user-marked), upgrade hold_off
+    # to watch with a precise trigger. Only overrides hold_off — never
+    # touches enter_now / watch / accumulate / avoid. The override is
+    # gated on Quality A/B when a dossier is available, but auto-detected
+    # levels can also fire on names where Claude hasn't been run yet (the
+    # support setup itself is meaningful regardless of fundamentals).
+    auto_levels = t.get("key_levels") or []
+    user_levels_for_ticker = (
+        st.session_state.store.get("manual_levels", {}).get(ticker.upper(), {})
+    )
+    user_supports = user_levels_for_ticker.get("support", []) or []
+
+    # Tag auto levels with source, build user-level objects matching shape
+    merged_supports = []
+    for lv in auto_levels:
+        if lv.get("kind") == "support":
+            merged_supports.append({**lv, "source": "auto"})
+    for level_price in user_supports:
+        try:
+            merged_supports.append({
+                "level": float(level_price),
+                "touches": 0,
+                "is_flip": False,
+                "_score": 999,  # user-marked levels rank ABOVE auto
+                "source": "manual",
+            })
+        except (TypeError, ValueError):
+            continue
+
+    support_trigger_override = None
+    if t["action"] == "hold_off" and merged_supports:
+        support_trigger_override = tactical.historical_support_trigger(
+            price=t["price"], ma50=t["ma50"], atr_pct=t["atr_pct"],
+            support_levels=merged_supports,
+        )
+        if support_trigger_override:
+            # Block the upgrade for low-quality names (value trap risk).
+            # When dossier is unavailable, allow the upgrade — the support
+            # setup is real regardless. Only block when we explicitly know
+            # quality is "Avoid" or "Speculative" (and the level is auto-
+            # detected, not user-marked — user-marked = trusted override).
+            is_user_marked = support_trigger_override["support_meta"]["source"] == "manual"
+            blocked_by_quality = (
+                quality_tier in ("Avoid", "Speculative") and not is_user_marked
+            )
+            if not blocked_by_quality:
+                # Promote to watch and inject the trigger
+                t = {
+                    **t,
+                    "action": "watch",
+                    "trigger": support_trigger_override,
+                    # Recompute entry levels from the trigger
+                    "entry": support_trigger_override["levels"]["buy_above"],
+                }
+            else:
+                support_trigger_override = None  # don't render banner
+
     sty = STATE_STYLES[t["action"]]
 
     col_decision, col_pm = st.columns([5, 3])
@@ -2147,8 +2296,27 @@ if view == "analyze":
         # Treat enter as "deploy" in the state copy per spec language
         _state_action_label = "Deploy" if t["action"] == "enter_now" else sty["label"]
 
+        # Build the criteria tooltip for the current action.
+        # Hover the info icon in the corner to reveal it; clicking does
+        # nothing — purely a hover affordance to keep real estate clean.
+        _current_style = STATE_STYLES[t["action"]]
+        _criteria_items = "".join(
+            f"<li>{c}</li>" for c in _current_style.get("criteria", [])
+        )
+        _tooltip_html = (
+            f"<div class='tt-title' style=\"color:{sty['color']};\">"
+            f"{sty['emoji']} {sty['label']}</div>"
+            f"<div class='tt-tagline'>{_current_style.get('tagline', '')}</div>"
+            f"<ul>{_criteria_items}</ul>"
+            f"<div class='tt-footer'>The other states (Enter, Watch, Accumulate, "
+            f"Hold off, Avoid) and their criteria are described in the help "
+            f"area in the sidebar.</div>"
+        )
+
         st.markdown(f"""
 <div class="desk-decision">
+  <div class="desk-decision-info" title="What does this mean?">i</div>
+  <div class="desk-decision-info-tooltip">{_tooltip_html}</div>
   <span class="word" style="color:{sty['color']};">
     {sty['label']}<span style="color:#0F0E0D;">.</span>
   </span>
@@ -2162,26 +2330,102 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        # 1a. State definitions — collapsed reference card. Click to see
-        # what each of the four states means and which one fired here.
-        with st.expander("ℹ️  What does this mean? Decision states reference"):
-            for state_key in ["enter_now", "watch", "accumulate", "hold_off", "avoid"]:
-                s = STATE_STYLES[state_key]
-                is_current = (state_key == t["action"])
-                bg = "#F5F2EB" if is_current else "transparent"
-                border = f"3px solid {s['color']}" if is_current else "3px solid transparent"
-                marker = " ← current" if is_current else ""
-                criteria_html = "".join(
-                    f'<li style="margin: 2px 0; color: #4A453E; font-size: 13px;">{c}</li>'
-                    for c in s["criteria"]
-                )
+        # 1a. TRIGGER — sits directly under the decision word so it's the
+        # first actionable thing the eye lands on. Also Invalidation when
+        # there's a watch/enter trigger; Accumulate's "stabilization
+        # rationale + position discipline" panels; Hold off / Avoid get
+        # "What's missing" + "Reconsider when" instead. All rendered HERE
+        # so they're above the modifier badges, dossier, and tape read.
+        if t["action"] in ("enter_now", "watch"):
+            trig_line = trigger_text(t)
+            st.markdown(f"""
+<div class="desk-trigger-block">
+  <div class="desk-trigger-label"><span class="em">⚡</span>Trigger</div>
+  <div class="desk-trigger-text">{bold_numbers(trig_line)}</div>
+</div>
+""", unsafe_allow_html=True)
+
+            inv = invalidation_text(t)
+            if inv:
                 st.markdown(f"""
-<div style="background:{bg}; border-left:{border}; padding: 10px 14px; margin: 6px 0; border-radius: 4px;">
-  <div style="font-family:'Source Serif 4',Georgia,serif; font-size:18px; font-weight:600; color:{s['color']};">
-    {s['emoji']} {s['label']}<span style="color:#6B655B; font-size:13px; font-weight:400; font-family:'Geist',sans-serif; margin-left:8px;">{marker}</span>
+<div class="desk-invalidation">
+  <div class="label"><span class="em">⛔</span>Invalidation</div>
+  <div class="text">{bold_numbers(inv)}</div>
+</div>
+""", unsafe_allow_html=True)
+        elif t["action"] == "accumulate":
+            # Accumulation Watch: high-quality name stabilizing after deep
+            # drawdown. Surface the key data points that earned this and
+            # the explicit position-sizing guidance.
+            drawdown_pct = (t["price"] / t["high_52w"] - 1) * 100
+            above_low_pct = (t["price"] / t["low_52w"] - 1) * 100
+            stabilizing_reasons = []
+            if t.get("rs_delta", 0) >= 0.02:
+                stabilizing_reasons.append(
+                    f"relative strength improving ({t['rs_delta']:+.3f} over 10 days)"
+                )
+            stabilizing_reasons.append(
+                f"price ${t['price']:.2f} sits {drawdown_pct:.0f}% below the 52-week high "
+                f"${t['high_52w']:.2f} and only {above_low_pct:.0f}% above the 52-week low "
+                f"${t['low_52w']:.2f}"
+            )
+            if t["price"] > t.get("ma20", t["price"]):
+                stabilizing_reasons.append(
+                    f"holding above the 20-day MA at ${t.get('ma20', 0):.2f}"
+                )
+
+            reasons_html = "".join(f'<li>{bold_numbers(r)}</li>' for r in stabilizing_reasons)
+            st.markdown(f"""
+<div class="desk-avoid-reasons" style="border-left-color:#7C5DD9; background:#F4F0FB;">
+  <div class="label" style="color:#7C5DD9;">
+    <span class="em">🌱</span>Why accumulate
   </div>
-  <div style="font-size: 14px; color: #2D2A26; margin: 4px 0 6px 0;">{s['tagline']}</div>
-  <ul style="margin: 4px 0 0 0; padding-left: 20px;">{criteria_html}</ul>
+  <ul>{reasons_html}</ul>
+</div>
+""", unsafe_allow_html=True)
+
+            # Sizing guidance — explicit, not a full allocation
+            st.markdown("""
+<div class="desk-reconsider" style="border-left-color:#7C5DD9; background:#F4F0FB;">
+  <div class="label" style="color:#7C5DD9;">
+    <span class="em">📊</span>Position discipline
+  </div>
+  <ul>
+    <li><strong>Small starter only</strong> — this is early-entry logic, not a full allocation</li>
+    <li><strong>Stagger entries</strong> — add on confirmation (50d reclaim, RS catchup) rather than averaging into weakness</li>
+    <li><strong>Cut if it breaks</strong> — close below the 52-week low invalidates the stabilization read</li>
+  </ul>
+</div>
+""", unsafe_allow_html=True)
+        else:
+            # Hold off / Avoid — "What's missing" + "Reconsider when"
+            reasons = why_avoid_reasons(t)
+            reversals = reconsider_when(t)
+
+            if t["action"] == "hold_off":
+                why_emoji = "🤔"
+                why_label = "What's missing"
+            else:
+                why_emoji = "⛔"
+                why_label = "Why avoid"
+
+            reasons_html = "".join(
+                f'<li>{bold_numbers(r)}</li>' for r in reasons
+            )
+            st.markdown(f"""
+<div class="desk-avoid-reasons">
+  <div class="label"><span class="em">{why_emoji}</span>{why_label}</div>
+  <ul>{reasons_html}</ul>
+</div>
+""", unsafe_allow_html=True)
+
+            reversal_html = "".join(
+                f'<li>{bold_numbers(c)}</li>' for c in reversals
+            )
+            st.markdown(f"""
+<div class="desk-reconsider">
+  <div class="label"><span class="em">🔄</span>Reconsider when</div>
+  <ul>{reversal_html}</ul>
 </div>
 """, unsafe_allow_html=True)
 
@@ -2252,102 +2496,6 @@ if view == "analyze":
                     f'<div style="padding: 4px 2px;">{paras_html}</div>',
                     unsafe_allow_html=True,
                 )
-
-        # 2-3. For Watch/Enter render Trigger + Invalidation.
-        # For Accumulate render the "stabilizing" rationale + the entry plan.
-        # For Hold off / Avoid render Why + Reconsider when (no trigger).
-        if t["action"] in ("enter_now", "watch"):
-            trig_line = trigger_text(t)
-            st.markdown(f"""
-<div class="desk-trigger-block">
-  <div class="desk-trigger-label"><span class="em">⚡</span>Trigger</div>
-  <div class="desk-trigger-text">{bold_numbers(trig_line)}</div>
-</div>
-""", unsafe_allow_html=True)
-
-            inv = invalidation_text(t)
-            if inv:
-                st.markdown(f"""
-<div class="desk-invalidation">
-  <div class="label"><span class="em">⛔</span>Invalidation</div>
-  <div class="text">{bold_numbers(inv)}</div>
-</div>
-""", unsafe_allow_html=True)
-        elif t["action"] == "accumulate":
-            # Accumulation Watch: high-quality name stabilizing after deep
-            # drawdown. Surface the key data points that earned this and
-            # the explicit position-sizing guidance.
-            drawdown_pct = (t["price"] / t["high_52w"] - 1) * 100
-            above_low_pct = (t["price"] / t["low_52w"] - 1) * 100
-            stabilizing_reasons = []
-            if t.get("rs_delta", 0) >= 0.02:
-                stabilizing_reasons.append(
-                    f"relative strength improving ({t['rs_delta']:+.3f} over 10 days)"
-                )
-            stabilizing_reasons.append(
-                f"price ${t['price']:.2f} sits {drawdown_pct:.0f}% below the 52-week high "
-                f"${t['high_52w']:.2f} and only {above_low_pct:.0f}% above the 52-week low "
-                f"${t['low_52w']:.2f}"
-            )
-            if t["price"] > t.get("ma20", t["price"]):
-                stabilizing_reasons.append(f"holding above the 20-day MA at ${t.get('ma20', 0):.2f}")
-
-            reasons_html = "".join(f'<li>{bold_numbers(r)}</li>' for r in stabilizing_reasons)
-            st.markdown(f"""
-<div class="desk-avoid-reasons" style="border-left-color:#7C5DD9; background:#F4F0FB;">
-  <div class="label" style="color:#7C5DD9;">
-    <span class="em">🌱</span>Why accumulate
-  </div>
-  <ul>{reasons_html}</ul>
-</div>
-""", unsafe_allow_html=True)
-
-            # Sizing guidance — explicit, not a full allocation
-            st.markdown("""
-<div class="desk-reconsider" style="border-left-color:#7C5DD9; background:#F4F0FB;">
-  <div class="label" style="color:#7C5DD9;">
-    <span class="em">📊</span>Position discipline
-  </div>
-  <ul>
-    <li><strong>Small starter only</strong> — this is early-entry logic, not a full allocation</li>
-    <li><strong>Stagger entries</strong> — add on confirmation (50d reclaim, RS catchup) rather than averaging into weakness</li>
-    <li><strong>Cut if it breaks</strong> — close below the 52-week low invalidates the stabilization read</li>
-  </ul>
-</div>
-""", unsafe_allow_html=True)
-        else:
-            # Hold off OR Avoid — concrete reasons + reversal conditions.
-            # Reasons function picks copy appropriate to action state.
-            reasons = why_avoid_reasons(t)
-            reversals = reconsider_when(t)
-
-            # Different label for hold_off vs avoid
-            if t["action"] == "hold_off":
-                why_emoji = "🤔"
-                why_label = "What's missing"
-            else:
-                why_emoji = "⛔"
-                why_label = "Why avoid"
-
-            reasons_html = "".join(
-                f'<li>{bold_numbers(r)}</li>' for r in reasons
-            )
-            st.markdown(f"""
-<div class="desk-avoid-reasons">
-  <div class="label"><span class="em">{why_emoji}</span>{why_label}</div>
-  <ul>{reasons_html}</ul>
-</div>
-""", unsafe_allow_html=True)
-
-            reversal_html = "".join(
-                f'<li>{bold_numbers(c)}</li>' for c in reversals
-            )
-            st.markdown(f"""
-<div class="desk-reconsider">
-  <div class="label"><span class="em">🔄</span>Reconsider when</div>
-  <ul>{reversal_html}</ul>
-</div>
-""", unsafe_allow_html=True)
 
         # 4. IF TRIGGER HITS — conditional trade plan
         if t["action"] in ("enter_now", "watch"):
@@ -2538,6 +2686,125 @@ if view == "analyze":
   <span>{label}</span><span style="color:#0F0E0D;">{value}</span>
 </div>
 """, unsafe_allow_html=True)
+
+        # 7. Key Levels (auto-detected + manual) — collapsed expander
+        with st.expander("🎯 Key levels — auto-detected support / resistance"):
+            auto_lvls = t.get("key_levels") or []
+            user_lvls = st.session_state.store.setdefault("manual_levels", {}).setdefault(
+                ticker.upper(), {"support": [], "resistance": []}
+            )
+
+            st.markdown(
+                """<div style="font-size:12px;color:#6B655B;margin-bottom:10px;">
+                Auto-detected: levels with at least 3 touches in the last 2 years of price history.
+                Higher score = more recent + more touches + tested both ways (S/R flips).
+                </div>""",
+                unsafe_allow_html=True,
+            )
+
+            # Auto-detected list
+            if auto_lvls:
+                st.markdown("**Auto-detected**")
+                for lv in auto_lvls[:8]:
+                    pct_to = (lv["level"] - t["price"]) / t["price"] * 100
+                    arrow = "↑" if lv["level"] > t["price"] else "↓"
+                    flip_tag = " · flip" if lv["is_flip"] else ""
+                    color = "#00A870" if lv["kind"] == "support" else "#D14545"
+                    st.markdown(
+                        f"""<div style="display:flex;justify-content:space-between;
+                            font-family:'Geist Mono',monospace;font-size:11px;
+                            color:#0F0E0D;padding:3px 0;border-bottom:1px dashed #E5E3DE;">
+                            <span style="color:{color};font-weight:600;">
+                                ${lv['level']:.2f} {arrow} {lv['kind']}{flip_tag}
+                            </span>
+                            <span style="color:#6B655B;">
+                                {lv['touches']}× tested · {pct_to:+.1f}% from price · score {lv['_score']:.2f}
+                            </span>
+                        </div>""",
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.markdown(
+                    "<div style='font-size:12px;color:#B4ADA0;font-style:italic;'>"
+                    "No significant clusters found in price history.</div>",
+                    unsafe_allow_html=True,
+                )
+
+            # Manual override section
+            st.markdown("&nbsp;", unsafe_allow_html=True)
+            st.markdown("**Your levels**")
+            st.markdown(
+                """<div style="font-size:11px;color:#6B655B;margin-bottom:8px;">
+                User-marked levels override auto-detection. Marked supports
+                rank above auto-detected and bypass quality gating.
+                </div>""",
+                unsafe_allow_html=True,
+            )
+
+            mc1, mc2 = st.columns(2)
+            with mc1:
+                st.markdown("*Support levels*")
+                for i, lv_price in enumerate(list(user_lvls.get("support", []))):
+                    sub_c1, sub_c2 = st.columns([3, 1])
+                    sub_c1.markdown(
+                        f"<div style='font-family:\"Geist Mono\",monospace;font-size:13px;color:#00A870;padding-top:7px;'>"
+                        f"${float(lv_price):.2f}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
+                        user_lvls["support"].pop(i)
+                        st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                        save_store(st.session_state.store)
+                        st.rerun()
+                new_support = st.text_input(
+                    "Add support level",
+                    key=f"new_sup_{ticker}",
+                    placeholder="e.g. 145",
+                    label_visibility="collapsed",
+                )
+                if st.button("Add support", key=f"btn_sup_{ticker}"):
+                    try:
+                        v = float(new_support)
+                        if v > 0:
+                            user_lvls.setdefault("support", []).append(round(v, 2))
+                            user_lvls["support"] = sorted(set(user_lvls["support"]), reverse=True)
+                            st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                            save_store(st.session_state.store)
+                            st.rerun()
+                    except (ValueError, TypeError):
+                        st.warning("Enter a positive number.")
+
+            with mc2:
+                st.markdown("*Resistance levels*")
+                for i, lv_price in enumerate(list(user_lvls.get("resistance", []))):
+                    sub_c1, sub_c2 = st.columns([3, 1])
+                    sub_c1.markdown(
+                        f"<div style='font-family:\"Geist Mono\",monospace;font-size:13px;color:#D14545;padding-top:7px;'>"
+                        f"${float(lv_price):.2f}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
+                        user_lvls["resistance"].pop(i)
+                        st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                        save_store(st.session_state.store)
+                        st.rerun()
+                new_res = st.text_input(
+                    "Add resistance level",
+                    key=f"new_res_{ticker}",
+                    placeholder="e.g. 213",
+                    label_visibility="collapsed",
+                )
+                if st.button("Add resistance", key=f"btn_res_{ticker}"):
+                    try:
+                        v = float(new_res)
+                        if v > 0:
+                            user_lvls.setdefault("resistance", []).append(round(v, 2))
+                            user_lvls["resistance"] = sorted(set(user_lvls["resistance"]))
+                            st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                            save_store(st.session_state.store)
+                            st.rerun()
+                    except (ValueError, TypeError):
+                        st.warning("Enter a positive number.")
 
     # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
