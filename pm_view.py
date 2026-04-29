@@ -296,7 +296,7 @@ Tiers:
 
 - **B** — Real business with real moat but with timing, cyclicality, or execution risk that makes ownership conditional. Examples: NFLX through password-sharing transition; TSLA at extreme multiple but real EV/AI leadership; quality cyclicals at the wrong point in cycle. Tactical + selective ownership.
 
-- **Speculative** — Real long-term upside with binary or pre-revenue risk. NOT a disqualifier — this includes leaders in emerging categories (space economy, gene therapy, frontier AI). Position-size accordingly. Examples: ASTS (orbital cellular leader, technical risk retiring), RKLB (small-launch leader), pre-profit category creators with credible moats.
+- **Speculative** — Real long-term upside with binary or pre-revenue risk. NOT a disqualifier — this includes leaders in emerging categories (space economy, gene therapy, frontier AI). Examples: ASTS (orbital cellular leader, technical risk retiring), RKLB (small-launch leader), pre-profit category creators with credible moats. CRITICAL: only act on Speculative names with strong technical setups and clear momentum. Do NOT treat Speculative names as long-term accumulation candidates unless they are explicitly stabilized (basing pattern, RS turning, no new lows). Position-size accordingly — this tier requires cleaner setups than Quality A/B.
 
 - **Avoid** — Genuinely broken business: declining moat, secular headwinds, melting ice cube. NOT just a name with a broken chart. Reserve this for businesses that probably shouldn't exist in their current form (distressed retail, dying media, obsolete hardware).
 

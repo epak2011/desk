@@ -412,53 +412,48 @@ section[data-testid="stSidebar"] div.stButton > button {
 section[data-testid="stSidebar"] div.stButton > button:hover {
     background: #EDE8DD; color: #0F0E0D;
 }
-section[data-testid="stSidebar"] [role="radiogroup"] label {
-    padding: 6px 10px; margin: 1px 0; border-radius: 3px;
-    font-size: 13px; color: #3F3B34;
-}
-section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #EDE8DD; }
 
 /* Ticker line */
 .desk-ticker-row {
     display: flex; justify-content: space-between; align-items: baseline;
-    padding-bottom: 10px; border-bottom: 1px solid #E5E3DE; margin-bottom: 24px;
+    padding-bottom: 8px; border-bottom: 1px solid #E5E3DE; margin-bottom: 18px;
 }
 .desk-ticker-row .sym {
-    font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1;
+    font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1;
 }
-.desk-ticker-row .name { font-size: 16px; color: #6B655B; margin-left: 12px; }
+.desk-ticker-row .name { font-size: 14px; color: #6B655B; margin-left: 10px; }
 .desk-ticker-row .price {
     font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 19px; font-weight: 500;
+    font-size: 18px; font-weight: 500;
 }
 .desk-ticker-row .chg {
     font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 15px; margin-left: 12px;
+    font-size: 14px; margin-left: 10px;
 }
 .desk-ticker-row .meta-inline {
     font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 13px; color: #8A857C;
-    margin-top: 5px; letter-spacing: 0.02em;
+    font-size: 11px; color: #8A857C;
+    margin-top: 4px; letter-spacing: 0.04em;
 }
 
 /* ────────────────────────────────────────────────────────────── */
 /*  1. DECISION — hero                                            */
 /* ────────────────────────────────────────────────────────────── */
 .desk-decision {
-    padding: 4px 0 24px;
-    margin-bottom: 32px;
+    padding: 4px 0 20px;
+    margin-bottom: 28px;
     border-bottom: 1px solid #E5E3DE;
     position: relative;
 }
 .desk-decision .word {
     font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
-    font-size: 104px; line-height: 0.92; letter-spacing: -0.04em;
+    font-size: 88px; line-height: 0.95; letter-spacing: -0.035em;
     display: inline-block;
 }
-.desk-decision .emoji { font-size: 52px; margin-left: 12px; vertical-align: 12px; }
+.desk-decision .emoji { font-size: 44px; margin-left: 10px; vertical-align: 10px; }
 .desk-decision .context {
-    font-size: 24px; color: #0F0E0D; margin-top: 18px;
-    line-height: 1.4; max-width: 660px; font-weight: 400;
+    font-size: 19px; color: #0F0E0D; margin-top: 14px;
+    line-height: 1.4; max-width: 680px; font-weight: 400;
 }
 
 /* Info icon — corner of the decision card. Hover reveals the criteria
@@ -534,25 +529,25 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
 /* ────────────────────────────────────────────────────────────── */
 /*  2. TRIGGER — most important actionable                        */
 /* ────────────────────────────────────────────────────────────── */
-.desk-trigger-block { margin: 8px 0 32px; }
+.desk-trigger-block { margin: 8px 0 24px; }
 .desk-trigger-label {
     font-family: 'Geist', sans-serif;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.18em;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
     text-transform: uppercase; color: #0F0E0D;
     display: flex; align-items: center; gap: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
-.desk-trigger-label .em { font-size: 15px; }
+.desk-trigger-label .em { font-size: 13px; }
 .desk-trigger-text {
     font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
-    font-size: 44px; line-height: 1.2; color: #0F0E0D;
-    letter-spacing: -0.015em;
+    font-size: 30px; line-height: 1.25; color: #0F0E0D;
+    letter-spacing: -0.01em;
 }
 .desk-trigger-text b {
     font-family: 'Geist Mono', monospace; font-style: normal;
     font-weight: 600; font-variant-numeric: tabular-nums;
-    background: #FFF1C4; padding: 0 7px; border-radius: 2px;
-    font-size: 40px;
+    background: #FFF1C4; padding: 0 6px; border-radius: 2px;
+    font-size: 28px;
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -742,11 +737,11 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
 }
 .desk-pm-block .body {
     font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
-    font-size: 21px; line-height: 1.5; color: #3F3B34;
+    font-size: 17px; line-height: 1.5; color: #3F3B34;
 }
 .desk-pm-item {
     font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
-    font-size: 19px; line-height: 1.45; color: #3F3B34;
+    font-size: 15px; line-height: 1.45; color: #3F3B34;
     padding: 3px 0 3px 16px; position: relative;
 }
 .desk-pm-item:before {
@@ -760,7 +755,7 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
 }
 .desk-pm-deep .sub-lb {
     font-family: 'Geist', sans-serif;
-    font-size: 9px; font-weight: 600; letter-spacing: 0.14em;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
     text-transform: uppercase; color: #8A857C; margin: 14px 0 4px;
 }
 .desk-pm-deep .sub-body {
@@ -779,7 +774,7 @@ section[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #
 .desk-pm-deep .variant-card .lb-bull { color: #2E7D4F; }
 .desk-pm-deep .variant-card .lb-bear { color: #8B2F2F; }
 .desk-pm-deep .variant-card .lb {
-    font-size: 9px; font-weight: 600; letter-spacing: 0.12em;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
     text-transform: uppercase; margin-bottom: 3px;
 }
 .desk-pm-deep .variant-card .body {
@@ -867,7 +862,7 @@ div.streamlit-expanderHeader {
 }
 .desk-meta-item .lb {
     font-family: 'Geist', sans-serif;
-    font-size: 9px; font-weight: 600; letter-spacing: 0.12em;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
     text-transform: uppercase; color: #8A857C;
 }
 .desk-meta-item .v {
@@ -1311,6 +1306,17 @@ def decision_context(t):
         # Below ma200 but tape still loyal (RS holding up).
         if price < ma200 and rs >= 0.95:
             return "Hold off — below the 200-day but tape still respecting the name."
+
+        # NVO-shape: below ma200 with weak RS (<0.95) but the strict-Avoid
+        # 5-condition test didn't fire — typically because the name is
+        # accumulation-eligible (deep drawdown + first signs of stabilization)
+        # OR rs_delta isn't quite negative enough. The "fundamentals say
+        # buy, tape says no" pattern. Don't dress this up as a recovery
+        # trade — the right answer is patience.
+        if price < ma200 and rs < 0.95:
+            return ("Hold off — extended drawdown without stabilization. "
+                    "Tape is rejecting despite intact fundamentals; wait for "
+                    "a real basing pattern or RS turn before engaging.")
 
         # Marginal bullishness, structurally intact (legacy gray-zone path).
         if price > ma200:
@@ -1815,7 +1821,12 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown("### Ticker")
+    st.markdown(
+        '<div style="font-family:\'Geist Mono\',monospace;font-size:10px;'
+        'font-weight:600;letter-spacing:0.16em;text-transform:uppercase;'
+        'color:#6B655B;margin:6px 0 8px;">Ticker</div>',
+        unsafe_allow_html=True,
+    )
     input_ticker = st.text_input(
         "Any US ticker",
         value=st.session_state.current_ticker,
@@ -1827,7 +1838,12 @@ with st.sidebar:
         st.session_state.current_ticker = input_ticker
 
     st.markdown("---")
-    st.markdown("### Watchlist")
+    st.markdown(
+        '<div style="font-family:\'Geist Mono\',monospace;font-size:10px;'
+        'font-weight:600;letter-spacing:0.16em;text-transform:uppercase;'
+        'color:#6B655B;margin:6px 0 8px;">Watchlist</div>',
+        unsafe_allow_html=True,
+    )
 
     watchlist = st.session_state.store["watchlist"]
     if watchlist:
@@ -1837,24 +1853,39 @@ section[data-testid='stSidebar'] [role='radiogroup'] {
     gap: 0px !important;
 }
 section[data-testid='stSidebar'] [role='radiogroup'] label {
-    padding: 9px 12px !important;
-    margin: 0 !important;
-    font-family: 'Geist Mono', monospace !important;
-    font-size: 16px !important;
-    border-radius: 3px !important;
+    padding: 8px 12px !important;
+    margin: 1px 0 !important;
+    font-family: 'Geist', sans-serif !important;
+    font-size: 13px !important;
+    border-radius: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    line-height: 1.2 !important;
+    cursor: pointer;
 }
 section[data-testid='stSidebar'] [role='radiogroup'] label p {
-    font-size: 16px !important;
+    font-size: 13px !important;
     font-weight: 500 !important;
     margin: 0 !important;
+    line-height: 1.2 !important;
 }
 section[data-testid='stSidebar'] [role='radiogroup'] label:hover {
     background: #EDE8DD !important;
 }
-/* Hide the radio dot itself so the watchlist reads as a list, not a form */
-section[data-testid='stSidebar'] [role='radiogroup'] label > div:has(> div[data-testid="stMarkdownContainer"]) ~ div,
+/* Hide the radio dot AND the empty wrapper so text owns the full width */
 section[data-testid='stSidebar'] [role='radiogroup'] label > div:first-child {
     display: none !important;
+}
+section[data-testid='stSidebar'] [role='radiogroup'] label > div:has(> div[data-testid="stMarkdownContainer"]) ~ div {
+    display: none !important;
+}
+/* When the only remaining child is the markdown wrapper, give it
+   explicit margin-zero so vertical alignment is clean. */
+section[data-testid='stSidebar'] [role='radiogroup'] label > div {
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
 }
 /* Highlight active selection with a solid background */
 section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) {
@@ -2489,7 +2520,7 @@ if view == "analyze":
                 # Render paragraphs with proper spacing
                 paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
                 paras_html = "".join(
-                    f'<p style="margin: 0 0 14px; font-size: 16px; line-height: 1.6; color: #3F3B34;">{p}</p>'
+                    f'<p style="margin: 0 0 12px; font-size: 15px; line-height: 1.55; color: #3F3B34;">{p}</p>'
                     for p in paragraphs
                 )
                 st.markdown(
@@ -3000,7 +3031,7 @@ if view == "analyze":
             with st.expander("Detailed investment view ↓", expanded=False):
                 paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
                 paras_html = "".join(
-                    f'<p style="margin: 0 0 14px; font-size: 16px; line-height: 1.6; '
+                    f'<p style="margin: 0 0 12px; font-size: 15px; line-height: 1.55; '
                     f'color: #3F3B34; font-family: \'Source Serif 4\', Georgia, serif; '
                     f'font-style: normal;">{p}</p>'
                     for p in paragraphs

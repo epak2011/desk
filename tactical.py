@@ -357,54 +357,57 @@ def apply_accumulation_override(action, is_accumulation_eligible, quality_tier):
 
 
 def tactical_action(bias, bias_score, setup_score, atr_ok, price, ma50,
-                    ma200=None, rs=1.0, rs_delta=0.0, tech_delta=0,
+                    ma200=None, ma100=None, ma20=None,
+                    rs=1.0, rs_delta=0.0, tech_delta=0,
                     state="TRENDING", is_accumulation_eligible=False):
     """Return one of: 'enter_now', 'watch', 'hold_off', 'avoid'.
 
-    Per the 2026-04-28 strict-Avoid spec, the rules are now:
+    Per the 2026-04-28 strict-Avoid spec PLUS the user's "decision
+    precedence" framework (Tier 1 hard gates → Tier 2 disqualifiers →
+    Tier 3 modifiers), the rules are now applied in explicit order:
 
-    AVOID — strict, ALL conditions required:
-      - price < ma200          (long-term structure broken)
-      - rs < 0.9               (tape actively rejecting)
-      - rs_delta < 0.01        (not improving)
-      - tech_delta <= 0        (no momentum recovery)
-      - NOT accumulation-eligible (not a quality-name drawdown play)
+    TIER 1 — HARD GATES (always evaluated first; Tier 1 fires regardless
+    of quality, regime, or trend alignment):
+      1.0  ATR fail → AVOID (untradable, capital preservation)
 
-    ENTER — bullish bias + setup score ≥ 9.
+    TIER 2 — DISQUALIFIERS:
+      2.1  BROKEN structure WITHOUT stabilization → AVOID
+           Five strict conditions, all required:
+             - price < ma200
+             - rs < 0.9
+             - rs_delta < 0.01
+             - tech_delta <= 0
+             - NOT accumulation-eligible
+      2.2  Extension disqualifier → DOWNGRADE bullish-Enter to bullish-
+           Watch when price is materially extended above MA50 AND MA100
+           (when MA100 is available). Forces a base before entry.
 
-    WATCH — bullish bias + setup score < 9 (waiting on trigger).
+    TIER 3 — MODIFIERS (quality, regime, trend) are applied through:
+      - bias and setup_score (computed upstream with quality/regime
+        signal embedded via RS, structure_quality, etc.)
+      - is_accumulation_eligible flag (which itself depends on Quality
+        A/B at the app layer, but we just see the boolean here)
 
-    HOLD OFF — universal fall-through for everything else. This includes:
-      - Pullbacks in uptrends (price > ma200 but below ma50)
-      - Leadership names below ma200 with strong RS
-      - Transition / repair phases (any TRANSITION state)
-      - Any ambiguous setup that isn't clearly bullish or clearly broken
+    The ENTER / WATCH / HOLD OFF / AVOID outputs:
+      - ENTER:    bullish bias + setup_score >= 9 + NOT extended
+      - WATCH:    bullish bias + setup_score < 9 (or extended)
+      - AVOID:    Tier 1 or Tier 2.1 fires
+      - HOLD OFF: universal fall-through (every other case)
 
-    Note that ACCUMULATION is applied as an override at the app layer
-    after the dossier returns Quality tier. compute() flags eligibility
-    via is_accumulation_eligible; the override never fires from inside
-    tactical_action because the quality data isn't available here. Same
-    flag IS used here to block premature Avoid on names that might earn
-    Accumulate in the next step.
-
-    Key principle:
-      - MA200 defines structure
-      - MA50 defines short-term noise
-      - RS + momentum determine quality of breakdown
+    Key principle: Tier 1 / 2 fires regardless of quality. Quality
+    cannot rescue an untradable name (ATR fail) or a structurally
+    broken name. Quality CAN earn an upgrade from avoid to accumulate,
+    but that's applied as a separate override at the app layer after
+    Quality is known from the dossier.
     """
+    # ─── TIER 1: HARD GATES ─────────────────────────────────────────
     if not atr_ok:
         return "avoid"
 
-    # ENTER / WATCH path — bullish bias only.
-    if bias == "bullish":
-        if setup_score >= 9:
-            return "enter_now"
-        return "watch"
-
-    # AVOID — strict, all five conditions required. If ma200 wasn't passed
-    # (back-compat for callers that didn't update), default to "not below"
-    # and skip the Avoid path entirely.
-    is_avoid = (
+    # ─── TIER 2.1: STRUCTURAL BREAKDOWN ────────────────────────────
+    # Strict Avoid: ALL five conditions required. Reserved for genuinely
+    # broken names with no stabilization signs.
+    is_broken = (
         ma200 is not None and
         price < ma200 and
         rs < 0.9 and
@@ -412,13 +415,39 @@ def tactical_action(bias, bias_score, setup_score, atr_ok, price, ma50,
         tech_delta <= 0 and
         not is_accumulation_eligible
     )
-    if is_avoid:
+    if is_broken:
         return "avoid"
 
-    # Universal fall-through: everything that isn't clearly bullish and
-    # isn't clearly broken lands in Hold off. This is the deliberate
-    # broadening per the spec — the GDX / pullback / leadership-in-
-    # correction case all funnel here.
+    # ─── ENTER / WATCH (bullish path) ──────────────────────────────
+    if bias == "bullish":
+        # ─── TIER 2.2: EXTENSION DISQUALIFIER ──────────────────────
+        # If MA100 is available, "extended above BOTH MA50 AND MA100"
+        # is the trigger. Without MA100, fall back to a stricter MA50-
+        # only check (since we have no second MA to confirm extension).
+        ext_ma50 = (price - ma50) / ma50 if ma50 > 0 else 0
+        if ma100 is not None and ma100 > 0:
+            ext_ma100 = (price - ma100) / ma100
+            # "Significantly extended" = >12% above MA50 AND >8% above MA100.
+            # The dual-MA check is more discriminating than MA50 alone —
+            # a name +15% above MA50 but only +6% above MA100 is in a
+            # normal pullback-to-MA100 zone, not chasing.
+            extended = ext_ma50 > 0.12 and ext_ma100 > 0.08
+        else:
+            # Without MA100, use MA50 alone with a tighter band
+            extended = ext_ma50 > 0.15
+
+        if setup_score >= 9 and not extended:
+            return "enter_now"
+        # Either setup_score < 9, OR extended → watch (with a
+        # pullback-style trigger generated by next_trigger)
+        return "watch"
+
+    # ─── HOLD OFF (universal fall-through) ─────────────────────────
+    # Any non-bullish, non-broken case lands here. Includes:
+    #   - Pullbacks in uptrends
+    #   - Leadership names below MA200 with strong RS
+    #   - Transitioning structures
+    #   - Ambiguous setups with no clear edge
     return "hold_off"
 
 
@@ -890,6 +919,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     price = float(prices.iloc[-1])
     ma20 = float(prices.iloc[-20:].mean()) if len(prices) >= 20 else price
     ma50 = float(prices.iloc[-50:].mean()) if len(prices) >= 50 else price
+    ma100 = float(prices.iloc[-100:].mean()) if len(prices) >= 100 else price
     ma200 = float(prices.iloc[-200:].mean()) if len(prices) >= 200 else price
     ma50_slope = _ma_slope(prices, 50, 20)
     ma200_slope = _ma_slope(prices, 200, 50)
@@ -953,12 +983,14 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     # strict-Avoid rule below, not by state.
     state = classify_state(price, ma50, ma200, rs, rs_delta, tech_delta)
 
-    # Action: strict Avoid + universal Hold off fallthrough per the
-    # 2026-04-28 spec. Avoid requires ALL five strict conditions; anything
-    # else that isn't bullish lands in Hold off.
+    # Action: tier-1 hard gates → tier-2 disqualifiers → tier-3 modifiers
+    # per the 2026-04-28 decision-precedence spec. Avoid is strict (5
+    # conditions). Extension downgrade prevents Enter when extended above
+    # both MA50 AND MA100 (when MA100 available).
     action = tactical_action(
         bias, bias_score, setup, atr_ok, price, ma50,
-        ma200=ma200, rs=rs, rs_delta=rs_delta, tech_delta=tech_delta,
+        ma200=ma200, ma100=ma100, ma20=ma20,
+        rs=rs, rs_delta=rs_delta, tech_delta=tech_delta,
         state=state, is_accumulation_eligible=is_accumulation_eligible,
     )
 
@@ -1064,6 +1096,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "atr_ok": atr_ok,
         "price": price,
         "ma50": ma50,
+        "ma100": ma100,
         "ma200": ma200,
         "ma20": ma20,
         "rs": rs,
