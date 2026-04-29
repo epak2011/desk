@@ -2514,19 +2514,53 @@ if view == "analyze":
 
         # Technical narrative — 2-4 paragraphs, behind an expander.
         # Defaults closed so the page stays scannable; one click reveals.
+        # The expander now ALSO contains the technical-read commentary
+        # lines (previously rendered separately on the right column) so
+        # all detailed technical content lives in one place.
         tech_narrative = dossier_result.get("technical_narrative") if dossier_result else None
-        if tech_narrative:
+        commentary_lines = technical_commentary(t)
+        has_detailed_tech = bool(tech_narrative) or bool(commentary_lines)
+        if has_detailed_tech:
             with st.expander("Detailed technical view ↓", expanded=False):
-                # Render paragraphs with proper spacing
-                paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
-                paras_html = "".join(
-                    f'<p style="margin: 0 0 12px; font-size: 15px; line-height: 1.55; color: #3F3B34;">{p}</p>'
-                    for p in paragraphs
-                )
-                st.markdown(
-                    f'<div style="padding: 4px 2px;">{paras_html}</div>',
-                    unsafe_allow_html=True,
-                )
+                # First: the structured commentary lines (tape detail).
+                # Same Geist font + size as narrative below for visual unity.
+                if commentary_lines:
+                    commentary_html = "".join(
+                        f'<p style="margin: 0 0 8px; font-size: 13px; line-height: 1.55; '
+                        f'color: #3F3B34; font-family: Geist, sans-serif;">'
+                        f'{bold_numbers(line)}</p>'
+                        for line in commentary_lines
+                    )
+                    # Sub-label so users know what this section is
+                    st.markdown(
+                        f'<div style="font-family:Geist,sans-serif;font-size:10px;'
+                        f'font-weight:600;letter-spacing:0.14em;text-transform:uppercase;'
+                        f'color:#6B655B;margin-bottom:8px;">Tape detail</div>'
+                        f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                # Then: the prose narrative (if available)
+                if tech_narrative:
+                    if commentary_lines:
+                        # Visual divider between sections inside the expander
+                        st.markdown(
+                            '<div style="border-top:1px dashed #E5E3DE;margin:12px 0 14px;"></div>'
+                            '<div style="font-family:Geist,sans-serif;font-size:10px;'
+                            'font-weight:600;letter-spacing:0.14em;text-transform:uppercase;'
+                            'color:#6B655B;margin-bottom:8px;">Narrative</div>',
+                            unsafe_allow_html=True,
+                        )
+                    paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
+                    paras_html = "".join(
+                        f'<p style="margin: 0 0 12px; font-size: 13px; line-height: 1.55; '
+                        f'color: #3F3B34; font-family: Geist, sans-serif;">{p}</p>'
+                        for p in paragraphs
+                    )
+                    st.markdown(
+                        f'<div style="padding: 0 2px;">{paras_html}</div>',
+                        unsafe_allow_html=True,
+                    )
 
         # 4. IF TRIGGER HITS — conditional trade plan
         if t["action"] in ("enter_now", "watch"):
@@ -2640,7 +2674,7 @@ if view == "analyze":
 
         # 4. Chart — full width of the left column, tighter height
         st.markdown(f"""
-<div class="desk-chart-label">📈 Chart · 9 · 50 · 100 · 200 day moving averages</div>
+<div class="desk-chart-label">📈 Chart · MA 9 (orange) · 50 (blue) · 100 (purple) · 200 (red)</div>
 """, unsafe_allow_html=True)
         st.components.v1.html(f"""
 <div class="tradingview-widget-container" style="height:360px;width:100%;">
@@ -2662,11 +2696,31 @@ if view == "analyze":
       "hide_legend": false,
       "save_image": false,
       "studies": [
-        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 9}}}},
-        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 50}}}},
-        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 100}}}},
-        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 200}}}}
+        {{
+          "id": "MASimple@tv-basicstudies",
+          "inputs": {{"length": 9}},
+          "styles": {{"plot": {{"color": "#F97316", "linewidth": 2}}}}
+        }},
+        {{
+          "id": "MASimple@tv-basicstudies",
+          "inputs": {{"length": 50}},
+          "styles": {{"plot": {{"color": "#2563EB", "linewidth": 2}}}}
+        }},
+        {{
+          "id": "MASimple@tv-basicstudies",
+          "inputs": {{"length": 100}},
+          "styles": {{"plot": {{"color": "#9333EA", "linewidth": 2}}}}
+        }},
+        {{
+          "id": "MASimple@tv-basicstudies",
+          "inputs": {{"length": 200}},
+          "styles": {{"plot": {{"color": "#DC2626", "linewidth": 2}}}}
+        }}
       ],
+      "studies_overrides": {{
+        "moving average.plot.color": "#2563EB",
+        "moving average.plot.linewidth": 2
+      }},
       "container_id": "tv_chart_{ticker}"
     }});
   </script>
@@ -2718,124 +2772,174 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        # 7. Key Levels (auto-detected + manual) — collapsed expander
-        with st.expander("🎯 Key levels — auto-detected support / resistance"):
+        # 7. Key Levels — auto-detected support/resistance, focused on
+        # proximate actionable levels. Collapsed by default; opens to show
+        # nearby levels first with cleaner language than the prior version.
+        with st.expander("🎯 Key levels — support / resistance"):
             auto_lvls = t.get("key_levels") or []
             user_lvls = st.session_state.store.setdefault("manual_levels", {}).setdefault(
                 ticker.upper(), {"support": [], "resistance": []}
             )
+            current_price = t["price"]
 
-            st.markdown(
-                """<div style="font-size:12px;color:#6B655B;margin-bottom:10px;">
-                Auto-detected: levels with at least 3 touches in the last 2 years of price history.
-                Higher score = more recent + more touches + tested both ways (S/R flips).
-                </div>""",
-                unsafe_allow_html=True,
-            )
+            # Helper: format one auto level as a readable row
+            def _fmt_level_row(lv):
+                level = lv["level"]
+                pct = (level - current_price) / current_price * 100
+                kind = lv["kind"]
+                color = "#00A870" if kind == "support" else "#D14545"
+                # Direction language matters more than the +/- sign
+                if abs(pct) < 0.5:
+                    distance = "at current price"
+                elif pct > 0:
+                    distance = f"{pct:.1f}% above"
+                else:
+                    distance = f"{abs(pct):.1f}% below"
+                # Touches and flip context, in plain English
+                touches_text = f"{lv['touches']}× tested"
+                flip_text = " · also tested as resistance" if (kind == "support" and lv["is_flip"]) else (
+                    " · former support" if (kind == "resistance" and lv["is_flip"]) else ""
+                )
+                return (
+                    f'<div style="display:flex;justify-content:space-between;align-items:baseline;'
+                    f'font-family:Geist,sans-serif;font-size:13px;color:#0F0E0D;'
+                    f'padding:7px 0;border-bottom:1px solid #EFEDE7;">'
+                    f'<span><span style="font-family:\'Geist Mono\',monospace;font-weight:600;'
+                    f'color:{color};">${level:.2f}</span> '
+                    f'<span style="color:#6B655B;font-size:12px;margin-left:8px;">{kind}</span></span>'
+                    f'<span style="color:#6B655B;font-size:12px;">'
+                    f'{distance} · {touches_text}{flip_text}</span>'
+                    f'</div>'
+                )
 
-            # Auto-detected list
-            if auto_lvls:
-                st.markdown("**Auto-detected**")
-                for lv in auto_lvls[:8]:
-                    pct_to = (lv["level"] - t["price"]) / t["price"] * 100
-                    arrow = "↑" if lv["level"] > t["price"] else "↓"
-                    flip_tag = " · flip" if lv["is_flip"] else ""
-                    color = "#00A870" if lv["kind"] == "support" else "#D14545"
-                    st.markdown(
-                        f"""<div style="display:flex;justify-content:space-between;
-                            font-family:'Geist Mono',monospace;font-size:11px;
-                            color:#0F0E0D;padding:3px 0;border-bottom:1px dashed #E5E3DE;">
-                            <span style="color:{color};font-weight:600;">
-                                ${lv['level']:.2f} {arrow} {lv['kind']}{flip_tag}
-                            </span>
-                            <span style="color:#6B655B;">
-                                {lv['touches']}× tested · {pct_to:+.1f}% from price · score {lv['_score']:.2f}
-                            </span>
-                        </div>""",
-                        unsafe_allow_html=True,
-                    )
+            # Split into proximate (within 15%) vs distant
+            proximate = [
+                lv for lv in auto_lvls
+                if abs((lv["level"] - current_price) / current_price) <= 0.15
+            ]
+            distant = [lv for lv in auto_lvls if lv not in proximate]
+
+            if proximate:
+                st.markdown(
+                    '<div style="font-family:Geist,sans-serif;font-size:10px;'
+                    'font-weight:600;letter-spacing:0.14em;text-transform:uppercase;'
+                    'color:#6B655B;margin:4px 0 6px;">Nearby — within 15% of current price</div>'
+                    + "".join(_fmt_level_row(lv) for lv in proximate[:6]),
+                    unsafe_allow_html=True,
+                )
+            elif auto_lvls:
+                st.markdown(
+                    '<div style="font-size:12px;color:#6B655B;font-style:italic;'
+                    'margin:4px 0 8px;">No tested levels within 15% of current price '
+                    '— price has run away from established support/resistance zones.</div>',
+                    unsafe_allow_html=True,
+                )
             else:
                 st.markdown(
-                    "<div style='font-size:12px;color:#B4ADA0;font-style:italic;'>"
-                    "No significant clusters found in price history.</div>",
+                    '<div style="font-size:12px;color:#B4ADA0;font-style:italic;'
+                    'margin:4px 0 8px;">No significant clusters in price history yet.</div>',
                     unsafe_allow_html=True,
                 )
 
-            # Manual override section
-            st.markdown("&nbsp;", unsafe_allow_html=True)
-            st.markdown("**Your levels**")
-            st.markdown(
-                """<div style="font-size:11px;color:#6B655B;margin-bottom:8px;">
-                User-marked levels override auto-detection. Marked supports
-                rank above auto-detected and bypass quality gating.
-                </div>""",
-                unsafe_allow_html=True,
+            # Distant levels — context, not action. Collapsed sub-expander.
+            if distant:
+                with st.expander(f"Other tested levels ({len(distant)})"):
+                    st.markdown(
+                        "".join(_fmt_level_row(lv) for lv in distant[:8]),
+                        unsafe_allow_html=True,
+                    )
+
+            # Manual override section — collapsed by default. Most users
+            # never need it; the auto-detection is usually right.
+            user_has_levels = (
+                bool(user_lvls.get("support")) or bool(user_lvls.get("resistance"))
             )
+            with st.expander(
+                "Mark a custom level" + (
+                    f" ({len(user_lvls.get('support',[])) + len(user_lvls.get('resistance',[]))} marked)"
+                    if user_has_levels else ""
+                ),
+                expanded=user_has_levels,
+            ):
+                st.markdown(
+                    '<div style="font-size:11px;color:#6B655B;margin-bottom:10px;">'
+                    'Manually-marked levels override auto-detection and bypass '
+                    'quality gating in the support-test trigger.</div>',
+                    unsafe_allow_html=True,
+                )
 
-            mc1, mc2 = st.columns(2)
-            with mc1:
-                st.markdown("*Support levels*")
-                for i, lv_price in enumerate(list(user_lvls.get("support", []))):
-                    sub_c1, sub_c2 = st.columns([3, 1])
-                    sub_c1.markdown(
-                        f"<div style='font-family:\"Geist Mono\",monospace;font-size:13px;color:#00A870;padding-top:7px;'>"
-                        f"${float(lv_price):.2f}</div>",
+                mc1, mc2 = st.columns(2)
+                with mc1:
+                    st.markdown(
+                        '<div style="font-family:Geist,sans-serif;font-size:11px;'
+                        'font-weight:600;color:#00A870;margin-bottom:4px;">Support</div>',
                         unsafe_allow_html=True,
                     )
-                    if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
-                        user_lvls["support"].pop(i)
-                        st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
-                        save_store(st.session_state.store)
-                        st.rerun()
-                new_support = st.text_input(
-                    "Add support level",
-                    key=f"new_sup_{ticker}",
-                    placeholder="e.g. 145",
-                    label_visibility="collapsed",
-                )
-                if st.button("Add support", key=f"btn_sup_{ticker}"):
-                    try:
-                        v = float(new_support)
-                        if v > 0:
-                            user_lvls.setdefault("support", []).append(round(v, 2))
-                            user_lvls["support"] = sorted(set(user_lvls["support"]), reverse=True)
+                    for i, lv_price in enumerate(list(user_lvls.get("support", []))):
+                        sub_c1, sub_c2 = st.columns([3, 1])
+                        sub_c1.markdown(
+                            f"<div style='font-family:\"Geist Mono\",monospace;font-size:13px;"
+                            f"color:#00A870;padding-top:7px;'>${float(lv_price):.2f}</div>",
+                            unsafe_allow_html=True,
+                        )
+                        if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
+                            user_lvls["support"].pop(i)
                             st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
                             save_store(st.session_state.store)
                             st.rerun()
-                    except (ValueError, TypeError):
-                        st.warning("Enter a positive number.")
+                    new_support = st.text_input(
+                        "Add support",
+                        key=f"new_sup_{ticker}",
+                        placeholder="e.g. 145",
+                        label_visibility="collapsed",
+                    )
+                    if st.button("Add", key=f"btn_sup_{ticker}", use_container_width=True):
+                        try:
+                            v = float(new_support)
+                            if v > 0:
+                                user_lvls.setdefault("support", []).append(round(v, 2))
+                                user_lvls["support"] = sorted(set(user_lvls["support"]), reverse=True)
+                                st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                                save_store(st.session_state.store)
+                                st.rerun()
+                        except (ValueError, TypeError):
+                            st.warning("Enter a positive number.")
 
-            with mc2:
-                st.markdown("*Resistance levels*")
-                for i, lv_price in enumerate(list(user_lvls.get("resistance", []))):
-                    sub_c1, sub_c2 = st.columns([3, 1])
-                    sub_c1.markdown(
-                        f"<div style='font-family:\"Geist Mono\",monospace;font-size:13px;color:#D14545;padding-top:7px;'>"
-                        f"${float(lv_price):.2f}</div>",
+                with mc2:
+                    st.markdown(
+                        '<div style="font-family:Geist,sans-serif;font-size:11px;'
+                        'font-weight:600;color:#D14545;margin-bottom:4px;">Resistance</div>',
                         unsafe_allow_html=True,
                     )
-                    if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
-                        user_lvls["resistance"].pop(i)
-                        st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
-                        save_store(st.session_state.store)
-                        st.rerun()
-                new_res = st.text_input(
-                    "Add resistance level",
-                    key=f"new_res_{ticker}",
-                    placeholder="e.g. 213",
-                    label_visibility="collapsed",
-                )
-                if st.button("Add resistance", key=f"btn_res_{ticker}"):
-                    try:
-                        v = float(new_res)
-                        if v > 0:
-                            user_lvls.setdefault("resistance", []).append(round(v, 2))
-                            user_lvls["resistance"] = sorted(set(user_lvls["resistance"]))
+                    for i, lv_price in enumerate(list(user_lvls.get("resistance", []))):
+                        sub_c1, sub_c2 = st.columns([3, 1])
+                        sub_c1.markdown(
+                            f"<div style='font-family:\"Geist Mono\",monospace;font-size:13px;"
+                            f"color:#D14545;padding-top:7px;'>${float(lv_price):.2f}</div>",
+                            unsafe_allow_html=True,
+                        )
+                        if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
+                            user_lvls["resistance"].pop(i)
                             st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
                             save_store(st.session_state.store)
                             st.rerun()
-                    except (ValueError, TypeError):
-                        st.warning("Enter a positive number.")
+                    new_res = st.text_input(
+                        "Add resistance",
+                        key=f"new_res_{ticker}",
+                        placeholder="e.g. 213",
+                        label_visibility="collapsed",
+                    )
+                    if st.button("Add", key=f"btn_res_{ticker}", use_container_width=True):
+                        try:
+                            v = float(new_res)
+                            if v > 0:
+                                user_lvls.setdefault("resistance", []).append(round(v, 2))
+                                user_lvls["resistance"] = sorted(set(user_lvls["resistance"]))
+                                st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                                save_store(st.session_state.store)
+                                st.rerun()
+                        except (ValueError, TypeError):
+                            st.warning("Enter a positive number.")
 
     # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
@@ -3019,32 +3123,15 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        # PM narrative — 2-4 paragraphs of investment thesis prose, behind
-        # an expander. Sits below the bullets/cards, above the deep dive.
+        # Layer 2 — Full thesis (combined narrative + deep dive)
+        # Behind one expander button. Shows: PM narrative paragraphs first,
+        # then structured deep-dive (variant perception, catalysts, risks,
+        # what-must-be-true, what-would-change-my-mind). Single click to
+        # see everything investment-related.
         pm_narrative = dossier_result.get("pm_narrative") if dossier_result else None
-        if pm_narrative:
-            # Apply 24px left margin to match the PM card column treatment
-            st.markdown(
-                '<div style="padding-left: 24px; margin-top: 16px;">',
-                unsafe_allow_html=True,
-            )
-            with st.expander("Detailed investment view ↓", expanded=False):
-                paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
-                paras_html = "".join(
-                    f'<p style="margin: 0 0 12px; font-size: 15px; line-height: 1.55; '
-                    f'color: #3F3B34; font-family: \'Source Serif 4\', Georgia, serif; '
-                    f'font-style: normal;">{p}</p>'
-                    for p in paragraphs
-                )
-                st.markdown(
-                    f'<div style="padding: 4px 2px;">{paras_html}</div>',
-                    unsafe_allow_html=True,
-                )
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        # Layer 2 — deep dive (expandable)
         deep = pm.get("deep_dive") or {}
-        has_deep = deep.get("expanded_thesis") and pm.get("_source", "").startswith("claude") or deep.get("catalysts")
+        has_deep = (deep.get("expanded_thesis") and pm.get("_source", "").startswith("claude")) or deep.get("catalysts")
+        has_full_thesis_content = bool(pm_narrative) or has_deep
 
         # Track expansion state per ticker
         ticker_key = ticker.upper()
@@ -3088,84 +3175,93 @@ if view == "analyze":
             st.rerun()
 
         if expanded:
-            if not has_deep or not deep.get("expanded_thesis"):
+            if not has_full_thesis_content:
                 st.markdown(f"""
 <div class="desk-pm-deep">
   <div class="sub-body" style="color:#8A857C;">
-    Deep-dive content is only generated when an Anthropic API key is configured in the sidebar.
+    Full thesis content is only generated when an Anthropic API key is configured in the sidebar.
     Paste a key, then click ↻ next to the Portfolio manager header to regenerate.
   </div>
 </div>
 """, unsafe_allow_html=True)
             else:
-                # Expanded thesis
-                html_parts = ['<div class="desk-pm-deep">']
-                html_parts.append(f'<div class="sub-lb">Expanded thesis</div>')
-                html_parts.append(f'<div class="sub-body">{deep.get("expanded_thesis", "")}</div>')
+                # Render PM narrative paragraphs FIRST if available — these
+                # are the prose-form thesis (2-4 paragraphs of senior-PM voice).
+                if pm_narrative:
+                    paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
+                    narrative_html = "".join(
+                        f'<p style="margin: 0 0 12px; font-size: 15px; line-height: 1.55; '
+                        f'color: #3F3B34; font-family: \'Source Serif 4\', Georgia, serif; '
+                        f'font-style: normal;">{p}</p>'
+                        for p in paragraphs
+                    )
+                    st.markdown(
+                        f'<div class="desk-pm-deep" style="padding-bottom: 4px;">'
+                        f'<div class="sub-lb">Investment thesis</div>'
+                        f'<div style="padding: 4px 0 8px;">{narrative_html}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
 
-                # Business
-                if deep.get("business"):
-                    html_parts.append(f'<div class="sub-lb">Business</div>')
-                    html_parts.append(f'<div class="sub-body">{deep["business"]}</div>')
+                # Then the structured deep-dive (variant perception, catalysts,
+                # risks, what-must-be-true, what-would-change-my-mind)
+                if has_deep and deep.get("expanded_thesis"):
+                    html_parts = ['<div class="desk-pm-deep">']
+                    html_parts.append(f'<div class="sub-lb">Expanded thesis</div>')
+                    html_parts.append(f'<div class="sub-body">{deep.get("expanded_thesis", "")}</div>')
 
-                # Variant perception — bull vs bear, side by side
-                if deep.get("variant_bull") or deep.get("variant_bear"):
-                    html_parts.append(f'<div class="sub-lb">Variant perception</div>')
-                    html_parts.append('<div class="variant-grid">')
-                    if deep.get("variant_bull"):
-                        html_parts.append(f'''
+                    # Business
+                    if deep.get("business"):
+                        html_parts.append(f'<div class="sub-lb">Business</div>')
+                        html_parts.append(f'<div class="sub-body">{deep["business"]}</div>')
+
+                    # Variant perception — bull vs bear, side by side
+                    if deep.get("variant_bull") or deep.get("variant_bear"):
+                        html_parts.append(f'<div class="sub-lb">Variant perception</div>')
+                        html_parts.append('<div class="variant-grid">')
+                        if deep.get("variant_bull"):
+                            html_parts.append(f'''
 <div class="variant-card">
   <div class="lb lb-bull">Bull case</div>
   <div class="body">{deep["variant_bull"]}</div>
 </div>''')
-                    if deep.get("variant_bear"):
-                        html_parts.append(f'''
+                        if deep.get("variant_bear"):
+                            html_parts.append(f'''
 <div class="variant-card">
   <div class="lb lb-bear">Bear case</div>
   <div class="body">{deep["variant_bear"]}</div>
 </div>''')
+                        html_parts.append('</div>')
+                        if deep.get("variant_needs"):
+                            html_parts.append(f'<div class="sub-body" style="margin-top:8px;"><em>What needs to happen:</em> {deep["variant_needs"]}</div>')
+
+                    # Catalysts
+                    if deep.get("catalysts"):
+                        html_parts.append(f'<div class="sub-lb">Catalysts · next 1–2 quarters</div>')
+                        html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
+
+                    # Risk scenarios
+                    if deep.get("risk_scenarios"):
+                        html_parts.append(f'<div class="sub-lb">Specific risk scenarios</div>')
+                        html_parts.extend(f'<div class="desk-pm-item">{r}</div>' for r in deep["risk_scenarios"])
+
+                    # Valuation context
+                    if deep.get("valuation_context"):
+                        html_parts.append(f'<div class="sub-lb">Valuation context</div>')
+                        html_parts.append(f'<div class="sub-body">{deep["valuation_context"]}</div>')
+
+                    # What must be true
+                    if deep.get("must_be_true"):
+                        html_parts.append(f'<div class="sub-lb">What must be true</div>')
+                        html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["must_be_true"])
+
+                    # What would change my mind
+                    if deep.get("would_change_mind"):
+                        html_parts.append(f'<div class="sub-lb">What would change my mind</div>')
+                        html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["would_change_mind"])
+
                     html_parts.append('</div>')
-                    if deep.get("variant_needs"):
-                        html_parts.append(f'<div class="sub-body" style="margin-top:8px;"><em>What needs to happen:</em> {deep["variant_needs"]}</div>')
-
-                # Catalysts
-                if deep.get("catalysts"):
-                    html_parts.append(f'<div class="sub-lb">Catalysts · next 1–2 quarters</div>')
-                    html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
-
-                # Risk scenarios
-                if deep.get("risk_scenarios"):
-                    html_parts.append(f'<div class="sub-lb">Specific risk scenarios</div>')
-                    html_parts.extend(f'<div class="desk-pm-item">{r}</div>' for r in deep["risk_scenarios"])
-
-                # Valuation context
-                if deep.get("valuation_context"):
-                    html_parts.append(f'<div class="sub-lb">Valuation context</div>')
-                    html_parts.append(f'<div class="sub-body">{deep["valuation_context"]}</div>')
-
-                # What must be true
-                if deep.get("must_be_true"):
-                    html_parts.append(f'<div class="sub-lb">What must be true</div>')
-                    html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["must_be_true"])
-
-                # What would change my mind
-                if deep.get("would_change_mind"):
-                    html_parts.append(f'<div class="sub-lb">What would change my mind</div>')
-                    html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["would_change_mind"])
-
-                html_parts.append('</div>')
-                st.markdown("".join(html_parts), unsafe_allow_html=True)
-
-        # Technical read — same card treatment as the other PM stat cards
-        commentary_lines = technical_commentary(t)
-        if commentary_lines:
-            paras = "".join(f"<p>{bold_numbers(line)}</p>" for line in commentary_lines)
-            st.markdown(f"""
-<div class="desk-stat-card desk-stat-card-read">
-  <div class="label">🔎 Technical read</div>
-  <div class="read-body">{paras}</div>
-</div>
-""", unsafe_allow_html=True)
+                    st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────
