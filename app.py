@@ -248,9 +248,23 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name):
 
 
 def clear_pm_cache(ticker):
+    """Clear BOTH the pm_cache and dossier_cache for a ticker.
+
+    Originally these were separate caches (dossier was expensive, PM was
+    cheap, refresh shouldn't trigger both). But now the dossier holds
+    `tactical_call` for the calibration trial — so clearing only pm_cache
+    leaves a stale Claude action on the comparison panel forever, which
+    defeats the purpose of the ↻ button. Clear both.
+    """
     ticker = ticker.upper()
-    if ticker in st.session_state.store["pm_cache"]:
+    changed = False
+    if ticker in st.session_state.store.get("pm_cache", {}):
         del st.session_state.store["pm_cache"][ticker]
+        changed = True
+    if ticker in st.session_state.store.get("dossier_cache", {}):
+        del st.session_state.store["dossier_cache"][ticker]
+        changed = True
+    if changed:
         save_store(st.session_state.store)
 
 
@@ -1980,15 +1994,41 @@ with st.sidebar:
         'color:#6B655B;margin:6px 0 8px;">Ticker</div>',
         unsafe_allow_html=True,
     )
+    # Ticker text input — TRICKY: Streamlit's text_input ignores `value=`
+    # parameter on reruns after the first render. The widget owns its
+    # state via the `key` parameter.
+    #
+    # Two separate update paths must both work:
+    #  1. User types → widget changes → update current_ticker
+    #  2. Watchlist click → current_ticker changes → update widget
+    #
+    # We use a sentinel ("_last_synced_ticker") to detect path 2 — when
+    # current_ticker has drifted from what we last synced, we know the
+    # change came from outside the widget (watchlist) and we update
+    # widget state. Otherwise we treat any difference as user typing
+    # (path 1) and update current_ticker.
+    if "ticker_input" not in st.session_state:
+        st.session_state["ticker_input"] = st.session_state.current_ticker
+        st.session_state["_last_synced_ticker"] = st.session_state.current_ticker
+
+    if st.session_state.get("_last_synced_ticker") != st.session_state.current_ticker:
+        # current_ticker changed externally (watchlist click, etc.).
+        # Update the widget to match.
+        st.session_state["ticker_input"] = st.session_state.current_ticker
+        st.session_state["_last_synced_ticker"] = st.session_state.current_ticker
+
     input_ticker = st.text_input(
         "Any US ticker",
-        value=st.session_state.current_ticker,
         key="ticker_input",
         label_visibility="collapsed",
         placeholder="NVDA, META, PLTR...",
     ).strip().upper()
+    # If user typed something different from current_ticker, update.
+    # The sync above guarantees current_ticker matches what was rendered,
+    # so any difference here is genuine user input.
     if input_ticker and input_ticker != st.session_state.current_ticker:
         st.session_state.current_ticker = input_ticker
+        st.session_state["_last_synced_ticker"] = input_ticker
 
     st.markdown("---")
     st.markdown(
@@ -2713,98 +2753,146 @@ if view == "analyze":
             if claude_trigger else ''
         )
 
-        st.markdown(f"""
-<div style="background:#FBFAF7;border:1px solid #E5E3DE;border-radius:4px;
-            padding:12px 14px;margin:8px 0 10px;">
-  <div style="font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
-              letter-spacing:0.16em;text-transform:uppercase;color:#6B655B;
-              margin-bottom:10px;">
-    Decision comparison {disagree_marker}
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-    <div style="border-right:1px solid #E5E3DE;padding-right:14px;">
-      <div style="font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
-                  letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;
-                  margin-bottom:4px;">Rule engine</div>
-      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:18px;
-                  font-weight:600;color:{rule_sty.get('color', '#0F0E0D')};">
-        {rule_sty.get('emoji', '')} {rule_sty.get('label', rule_action)}
-      </div>
-      <div style="font-size:11px;color:#6B655B;margin-top:4px;">
-        State: {t.get('state', 'TRENDING')}
-      </div>
-    </div>
-    <div>
-      <div style="font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
-                  letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;
-                  margin-bottom:4px;">Claude</div>
-      {claude_html}
-    </div>
-  </div>
-  {reasoning_html}
-  {trigger_html}
-  <div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;
-              font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
-              letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;">
-    Your call
-  </div>
-</div>
-""", unsafe_allow_html=True)
+        # Render the entire comparison + logging UI inside a single
+        # bordered Streamlit container so the radio, note input, and Log
+        # button all appear visually inside the same card as the panel
+        # above. Previously these were rendered outside the bordered HTML
+        # div, creating visual disconnect.
+        with st.container(border=True):
+            # Header row: "Decision comparison" + agree/disagree badge
+            st.markdown(
+                f'<div style="font-family:\'Geist\',sans-serif;font-size:10px;font-weight:600;'
+                f'letter-spacing:0.16em;text-transform:uppercase;color:#6B655B;'
+                f'margin-bottom:10px;">Decision comparison {disagree_marker}</div>',
+                unsafe_allow_html=True,
+            )
 
-        # Log controls — always available, even when Claude data is missing.
-        # If Claude data is missing, the entry will just have empty
-        # claude_action / reasoning fields, which the Tracker tab handles.
-        user_choice_options = ["ENTER", "WATCH", "HOLD_OFF", "AVOID", "ACCUMULATE"]
-        _engine_to_user_label = {
-            "enter_now": "ENTER",
-            "watch": "WATCH",
-            "hold_off": "HOLD_OFF",
-            "avoid": "AVOID",
-            "accumulate": "ACCUMULATE",
-        }
-        _default_label = _engine_to_user_label.get(rule_action, "WATCH")
-        user_pick = st.radio(
-            "Your call",
-            options=user_choice_options,
-            index=user_choice_options.index(_default_label),
-            horizontal=True,
-            key=f"decision_compare_user_pick_{ticker}",
-            label_visibility="collapsed",
-        )
-        log_c1, log_c2 = st.columns([3, 1])
-        with log_c1:
-            user_note = st.text_input(
-                "Note (optional)",
-                key=f"decision_compare_user_note_{ticker}",
-                placeholder="Why this call? (optional)",
+            # Two-column comparison: Rule engine | Claude
+            # Vertical divider extends the full height of this side-by-side block
+            cmp_c1, cmp_c2 = st.columns(2, gap="medium")
+            with cmp_c1:
+                st.markdown(
+                    f'<div style="font-family:\'Geist\',sans-serif;font-size:10px;font-weight:600;'
+                    f'letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;'
+                    f'margin-bottom:4px;">Rule engine</div>'
+                    f'<div style="font-family:\'Source Serif 4\',Georgia,serif;font-size:18px;'
+                    f'font-weight:600;color:{rule_sty.get("color", "#0F0E0D")};">'
+                    f'{rule_sty.get("emoji", "")} {rule_sty.get("label", rule_action)}'
+                    f'</div>'
+                    f'<div style="font-size:11px;color:#6B655B;margin-top:4px;">'
+                    f'State: {t.get("state", "TRENDING")}'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with cmp_c2:
+                st.markdown(
+                    f'<div style="font-family:\'Geist\',sans-serif;font-size:10px;font-weight:600;'
+                    f'letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;'
+                    f'margin-bottom:4px;">Claude</div>'
+                    f'{claude_html}',
+                    unsafe_allow_html=True,
+                )
+
+            if reasoning_html:
+                st.markdown(reasoning_html, unsafe_allow_html=True)
+            if trigger_html:
+                st.markdown(trigger_html, unsafe_allow_html=True)
+
+            # Divider before "Your call" section
+            st.markdown(
+                '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;"></div>',
+                unsafe_allow_html=True,
+            )
+
+            # "Your call" header with info-icon hover explaining each state
+            _action_help = (
+                "ENTER — high-conviction setup, buy now (bullish + setup ≥ 9, no extension)\n"
+                "WATCH — bullish but waiting on a specific trigger\n"
+                "HOLD OFF — universal default for ambiguity (pullbacks, transitions, mixed signals)\n"
+                "AVOID — truly broken (below ma200 + RS<0.9 + not improving + no momentum)\n"
+                "ACCUMULATE — quality A/B name in deep drawdown, stabilizing — small starter only"
+            )
+            yc_c1, yc_c2 = st.columns([10, 1])
+            with yc_c1:
+                st.markdown(
+                    '<div style="font-family:\'Geist\',sans-serif;font-size:10px;font-weight:600;'
+                    'letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;'
+                    'margin-bottom:4px;">Your call</div>',
+                    unsafe_allow_html=True,
+                )
+            with yc_c2:
+                st.markdown(
+                    f'<div title="{_action_help}" style="font-family:\'Geist\',sans-serif;'
+                    f'font-size:11px;color:#8A857C;cursor:help;text-align:right;'
+                    f'border:1px solid #C9C5BC;border-radius:50%;width:18px;height:18px;'
+                    f'line-height:16px;text-align:center;display:inline-block;">i</div>',
+                    unsafe_allow_html=True,
+                )
+
+            # Radio options stored as canonical UPPER_SNAKE for backward
+            # compat with already-logged entries; displayed via format_func
+            # so users see "Hold off" not "HOLD_OFF"
+            user_choice_options = ["ENTER", "WATCH", "HOLD_OFF", "AVOID", "ACCUMULATE"]
+            _display_labels = {
+                "ENTER": "Enter",
+                "WATCH": "Watch",
+                "HOLD_OFF": "Hold off",
+                "AVOID": "Avoid",
+                "ACCUMULATE": "Accumulate",
+            }
+            _engine_to_user_label = {
+                "enter_now": "ENTER",
+                "watch": "WATCH",
+                "hold_off": "HOLD_OFF",
+                "avoid": "AVOID",
+                "accumulate": "ACCUMULATE",
+            }
+            _default_label = _engine_to_user_label.get(rule_action, "WATCH")
+            user_pick = st.radio(
+                "Your call",
+                options=user_choice_options,
+                format_func=lambda x: _display_labels.get(x, x),
+                index=user_choice_options.index(_default_label),
+                horizontal=True,
+                key=f"decision_compare_user_pick_{ticker}",
                 label_visibility="collapsed",
             )
-        with log_c2:
-            log_clicked = st.button(
-                "Log",
-                key=f"log_compare_{ticker}",
-                use_container_width=True,
-            )
-        if log_clicked:
-            import uuid
-            entry = {
-                "id": str(uuid.uuid4())[:8],
-                "ts": datetime.now().isoformat(timespec="seconds"),
-                "ticker": ticker.upper(),
-                "price": round(t["price"], 2),
-                "rule_action": rule_action,
-                "rule_state": t.get("state", ""),
-                "claude_action": claude_action_raw,
-                "claude_confidence": confidence,
-                "claude_reasoning": reasoning,
-                "claude_trigger": claude_trigger,
-                "user_action": user_pick,
-                "user_note": user_note.strip() if user_note else "",
-                "outcome": None,
-            }
-            st.session_state.store.setdefault("decisions_log", []).insert(0, entry)
-            save_store(st.session_state.store)
-            st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
+
+            # Note input + Log button on a single row, INSIDE the container
+            log_c1, log_c2 = st.columns([3, 1])
+            with log_c1:
+                user_note = st.text_input(
+                    "Note (optional)",
+                    key=f"decision_compare_user_note_{ticker}",
+                    placeholder="Why this call? (optional)",
+                    label_visibility="collapsed",
+                )
+            with log_c2:
+                log_clicked = st.button(
+                    "Log",
+                    key=f"log_compare_{ticker}",
+                    use_container_width=True,
+                )
+            if log_clicked:
+                import uuid
+                entry = {
+                    "id": str(uuid.uuid4())[:8],
+                    "ts": datetime.now().isoformat(timespec="seconds"),
+                    "ticker": ticker.upper(),
+                    "price": round(t["price"], 2),
+                    "rule_action": rule_action,
+                    "rule_state": t.get("state", ""),
+                    "claude_action": claude_action_raw,
+                    "claude_confidence": confidence,
+                    "claude_reasoning": reasoning,
+                    "claude_trigger": claude_trigger,
+                    "user_action": user_pick,
+                    "user_note": user_note.strip() if user_note else "",
+                    "outcome": None,
+                }
+                st.session_state.store.setdefault("decisions_log", []).insert(0, entry)
+                save_store(st.session_state.store)
+                st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
 
         # 1b. Decision modifiers — badges that nudge conviction up or down
         # on top of the same nominal decision (earnings proximity, market
@@ -3363,7 +3451,7 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
         with refresh_col:
-            if st.button("↻", help="Regenerate thesis."):
+            if st.button("↻", help="Regenerate Claude analysis (~$0.05). Refreshes thesis AND tactical_call comparison."):
                 clear_pm_cache(ticker)
                 st.rerun()
 
