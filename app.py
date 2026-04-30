@@ -710,25 +710,29 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 /* ────────────────────────────────────────────────────────────── */
 .desk-plan-label {
     font-family: 'Geist', sans-serif;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.18em;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
     text-transform: uppercase; color: #6B655B;
     display: flex; align-items: center; gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
-.desk-plan-label .em { font-size: 14px; }
+.desk-plan-label .em { font-size: 12px; }
 .desk-plan-row {
     display: flex; justify-content: space-between; align-items: baseline;
-    padding: 10px 0; border-top: 1px dashed #E5E3DE;
+    padding: 6px 0; border-top: 1px dashed #E5E3DE;
 }
 .desk-plan-row:last-child { border-bottom: 1px dashed #E5E3DE; }
-.desk-plan-row .k { font-size: 17px; color: #8A857C; }
+.desk-plan-row .k { font-size: 13px; color: #6B655B; font-weight: 500; }
 .desk-plan-row .v {
     font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 18px; font-weight: 500; color: #3F3B34;
+    font-size: 14px; font-weight: 500; color: #0F0E0D;
 }
 .desk-plan-row .d {
     font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 14px; margin-left: 6px;
+    font-size: 12px; margin-left: 6px; color: #6B655B;
+}
+.desk-plan-row .sub {
+    font-family: 'Geist Mono', monospace; font-size: 10px; color: #A8A29E;
+    display: block; text-align: right; margin-top: 1px;
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -973,6 +977,133 @@ div.streamlit-expanderHeader {
     font-family: 'Geist Mono', monospace; font-weight: 600;
     font-variant-numeric: tabular-nums; color: #0F0E0D;
     font-size: 17px;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  MOBILE RESPONSIVE — narrow viewports (≤768px)                  */
+/*  Goal: app stays usable on a phone. Not optimal, but readable. */
+/* ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    /* Loosen the desktop max-width and reduce side padding */
+    .main .block-container {
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
+        font-size: 15px !important;
+    }
+
+    /* Hero decision word: shrink so "Accumulate." doesn't overflow */
+    .desk-decision .word {
+        font-size: 56px !important;
+        letter-spacing: -0.025em !important;
+    }
+    .desk-decision .emoji {
+        font-size: 30px !important;
+        margin-left: 8px !important;
+        vertical-align: 6px !important;
+    }
+    .desk-decision .context {
+        font-size: 16px !important;
+        margin-top: 10px !important;
+    }
+    .desk-decision-info-tooltip {
+        width: 260px !important;
+        right: -8px !important;
+    }
+
+    /* Trigger block: keep readable but stop dominating the screen */
+    .desk-trigger-text { font-size: 22px !important; line-height: 1.3 !important; }
+    .desk-trigger-text b { font-size: 22px !important; }
+
+    /* Ticker row: shrink sym, hide secondary meta line so the row fits */
+    .desk-ticker-row .sym { font-size: 22px !important; }
+    .desk-ticker-row .name { font-size: 12px !important; margin-left: 6px !important; }
+    .desk-ticker-row .price { font-size: 16px !important; }
+    .desk-ticker-row .chg { font-size: 12px !important; margin-left: 6px !important; }
+    .desk-ticker-row .meta-inline { font-size: 10px !important; }
+
+    /* Stack Streamlit columns vertically on mobile.
+       This is the critical fix — col_decision (5) + col_pm (3) split
+       becomes ~238px + 143px on a 380px phone, both unreadable.
+       Stacked, each gets full width. */
+    [data-testid="stHorizontalBlock"] {
+        flex-direction: column !important;
+    }
+    [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+
+    /* PM column on mobile: kill the desktop left-border + indent */
+    .desk-pm-container {
+        border-left: none !important;
+        padding-left: 0 !important;
+        margin-top: 24px !important;
+        padding-top: 18px !important;
+        border-top: 1px solid #E5E3DE !important;
+    }
+
+    /* Trade plan: trim row padding further on mobile and stack the
+       sub-line under the value rather than to the right */
+    .desk-plan-row { padding: 5px 0 !important; }
+    .desk-plan-row .k { font-size: 12px !important; }
+    .desk-plan-row .v { font-size: 13px !important; }
+    .desk-plan-row .d { font-size: 11px !important; }
+    .desk-plan-row .sub { font-size: 9px !important; }
+
+    /* Read of the tape: smaller numbers, tighter rows */
+    .desk-tape-read .row { padding: 4px 0 !important; }
+    .desk-tape-read .row .v { font-size: 11px !important; }
+    .desk-tape-read .row .lbl { font-size: 11px !important; }
+
+    /* PM panel body + bullets: shrink */
+    .desk-pm-block .body { font-size: 14px !important; line-height: 1.45 !important; }
+    .desk-pm-item { font-size: 13px !important; line-height: 1.4 !important; }
+    .desk-pm-header { font-size: 10px !important; }
+
+    /* Dossier text: serif body still readable but smaller */
+    .desk-dossier-text { font-size: 15px !important; line-height: 1.5 !important; }
+    .desk-dossier { padding: 12px 14px !important; }
+
+    /* Modifier badges: stack vertically (each on own line) */
+    .desk-modifiers { flex-direction: column !important; gap: 4px !important; }
+    .desk-mod { font-size: 10px !important; }
+
+    /* Why-avoid / reconsider lists: tighter */
+    .desk-avoid-reasons li, .desk-reconsider li {
+        font-size: 12px !important; line-height: 1.45 !important;
+    }
+
+    /* Sidebar nav buttons: keep tappable size (44px min recommended) */
+    section[data-testid='stSidebar'] [role='radiogroup'] label {
+        padding: 10px 12px !important;
+    }
+
+    /* Stack any 2-col or 3-col inline grids vertically on mobile.
+       Catches the variant-grid (bull/bear cards), the decision-comparison
+       Rules/Claude side-by-side, and the Accuracy by source panel. */
+    .desk-pm-deep .variant-grid,
+    div[style*="grid-template-columns:1fr 1fr"],
+    div[style*="grid-template-columns: 1fr 1fr"],
+    div[style*="grid-template-columns:1fr 1fr 1fr"],
+    div[style*="grid-template-columns: 1fr 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Streamlit sometimes leaves stray horizontal scroll on overflow */
+    body, html { overflow-x: hidden !important; }
+}
+
+/* Even narrower (small phones, ≤380px): one more shrink step */
+@media (max-width: 380px) {
+    .desk-decision .word { font-size: 48px !important; }
+    .desk-decision .emoji { font-size: 26px !important; }
+    .desk-trigger-text { font-size: 19px !important; }
+    .desk-trigger-text b { font-size: 19px !important; padding: 0 4px !important; }
+    .main .block-container {
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -2744,14 +2875,12 @@ if view == "analyze":
                 delta_html = ""
                 if delta is not None:
                     delta_html = f'<span class="d" style="color:{delta_color};">{"+" if delta >= 0 else ""}{delta:.1f}%</span>'
-                note_html = ""
-                if note:
-                    note_html = f'<div style="font-family:\'Geist Mono\',monospace;font-size:11px;color:#A8A29E;margin-top:2px;">{note}</div>'
+                note_html = f'<span class="sub">{note}</span>' if note else ""
                 st.markdown(f"""
 <div class="desk-plan-row">
   <span class="k">{label}</span>
-  <span style="text-align:right;">
-    <div><span class="v">${value:.2f}</span>{delta_html}</div>
+  <span style="text-align:right;line-height:1.2;">
+    <span class="v">${value:.2f}</span>{delta_html}
     {note_html}
   </span>
 </div>
@@ -2813,15 +2942,15 @@ if view == "analyze":
                 if cap_active:
                     cap_note = (
                         f'<div style="font-family:\'Geist\',sans-serif;font-style:italic;'
-                        f'font-size:13px;color:#8B6914;margin-top:6px;">'
+                        f'font-size:11px;color:#8B6914;margin-top:4px;">'
                         f'Capped by max position size ({max_pos_pct*100:.0f}%). '
                         f'Risk math alone wanted {risk_shares:,} shares.'
                         f'</div>'
                     )
 
                 st.markdown(f"""
-<div style="margin-top:14px;padding:12px 14px;background:#F5F2EB;border-radius:3px;
-            font-family:'Geist Mono',monospace;font-size:14px;color:#3F3B34;line-height:1.55;">
+<div style="margin-top:12px;padding:10px 12px;background:#F5F2EB;border-radius:3px;
+            font-family:'Geist Mono',monospace;font-size:12px;color:#3F3B34;line-height:1.45;">
   <div>
     <span style="color:#8A857C;">Risk</span>
     <b style="color:#0F0E0D;">${effective_risk:,.0f}</b>
@@ -2843,7 +2972,16 @@ if view == "analyze":
 
         # 4. Chart — full width of the left column, tighter height
         st.markdown(f"""
-<div class="desk-chart-label">📈 Chart · MA 9 (orange) · 50 (blue) · 100 (purple) · 200 (red)</div>
+<div class="desk-chart-label">
+  <span style="color:#6B655B;">📈 Chart · </span>
+  <span style="color:#F97316;">MA 9</span>
+  <span style="color:#6B655B;"> · </span>
+  <span style="color:#2563EB;">MA 50</span>
+  <span style="color:#6B655B;"> · </span>
+  <span style="color:#9333EA;">MA 100</span>
+  <span style="color:#6B655B;"> · </span>
+  <span style="color:#DC2626;">MA 200</span>
+</div>
 """, unsafe_allow_html=True)
         st.components.v1.html(f"""
 <div class="tradingview-widget-container" style="height:360px;width:100%;">
