@@ -2068,7 +2068,13 @@ section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p 
         if picked != st.session_state["_watchlist_radio_last"]:
             st.session_state["_watchlist_radio_last"] = picked
             st.session_state.current_ticker = picked
-            st.session_state.view = "analyze"
+            # If the user clicked a watchlist ticker while on a non-analyze
+            # tab (Tracker, Watchlist), they almost certainly want to view
+            # that ticker on the Analyze page. Switch view + force rerun
+            # so the view-nav radio re-renders with the new state.
+            if st.session_state.view != "analyze":
+                st.session_state.view = "analyze"
+                st.rerun()
 
         # Remove-ticker — a separate small dropdown at the bottom of the
         # watchlist. Used rarely; doesn't need to live next to each row.
@@ -2616,8 +2622,10 @@ if view == "analyze":
         # 1a-extra. DECISION COMPARISON — rule engine vs Claude vs you.
         # Diagnostic panel for the 2-4 week trial period to evaluate which
         # decision source is producing better calls. Shows side-by-side
-        # whenever Claude's tactical_call is available (i.e., dossier was
-        # generated). Logs to decisions_log on click.
+        # whenever the user wants to log a comparison. Renders even when
+        # Claude data is missing (older cached dossiers without the
+        # tactical_call field) — in that case the Claude side shows a
+        # "regenerate to compare" nudge but the Rules+You logging works.
         claude_call = (dossier_result or {}).get("tactical_call") or {}
         claude_action_raw = (claude_call.get("action") or "").upper()
         # Map Claude's vocabulary to engine's keys for comparison
@@ -2627,8 +2635,7 @@ if view == "analyze":
         }
         claude_action_key = _claude_to_engine.get(claude_action_raw, "")
         rule_action = t["action"]
-        # Three states: agree, disagree, unrecognized. The third occurs
-        # when Claude returns an action label outside our enum.
+        # Three states: agree, disagree, unknown.
         if not claude_action_key:
             agreement_state = "unknown"
         elif claude_action_key == rule_action:
@@ -2636,39 +2643,74 @@ if view == "analyze":
         else:
             agreement_state = "disagree"
 
-        if claude_action_raw:
-            # Build the comparison panel HTML.
-            rule_sty = STATE_STYLES.get(rule_action, {})
-            claude_sty = STATE_STYLES.get(claude_action_key, {}) if claude_action_key else {}
-            if agreement_state == "disagree":
-                disagree_marker = (
-                    '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;'
-                    'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
-                    'text-transform:uppercase;margin-left:8px;">disagree</span>'
-                )
-            elif agreement_state == "agree":
-                disagree_marker = (
-                    '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;'
-                    'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
-                    'text-transform:uppercase;margin-left:8px;">agree</span>'
-                )
-            else:  # unknown — Claude returned an action we don't recognize
-                disagree_marker = (
-                    '<span style="background:#F5F2EB;color:#6B655B;padding:2px 8px;'
-                    'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
-                    'text-transform:uppercase;margin-left:8px;">unrecognized</span>'
-                )
-            confidence = claude_call.get("confidence", 0)
-            try:
-                confidence = int(confidence)
-            except (TypeError, ValueError):
-                confidence = 0
-            reasoning = (claude_call.get("reasoning") or "").strip()
-            claude_trigger = (claude_call.get("trigger") or "").strip()
+        # Always render the comparison panel. Build agree/disagree/unknown badge.
+        rule_sty = STATE_STYLES.get(rule_action, {})
+        claude_sty = STATE_STYLES.get(claude_action_key, {}) if claude_action_key else {}
+        if agreement_state == "disagree":
+            disagree_marker = (
+                '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;'
+                'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
+                'text-transform:uppercase;margin-left:8px;">disagree</span>'
+            )
+        elif agreement_state == "agree":
+            disagree_marker = (
+                '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;'
+                'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
+                'text-transform:uppercase;margin-left:8px;">agree</span>'
+            )
+        else:  # unknown — Claude action missing
+            disagree_marker = (
+                '<span style="background:#F5F2EB;color:#6B655B;padding:2px 8px;'
+                'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
+                'text-transform:uppercase;margin-left:8px;">claude data missing</span>'
+            )
 
-            st.markdown(f"""
+        confidence = claude_call.get("confidence", 0)
+        try:
+            confidence = int(confidence)
+        except (TypeError, ValueError):
+            confidence = 0
+        reasoning = (claude_call.get("reasoning") or "").strip()
+        claude_trigger = (claude_call.get("trigger") or "").strip()
+
+        # Claude side content varies based on whether data is present
+        if claude_action_raw:
+            claude_html = f"""
+      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:18px;
+                  font-weight:600;color:{claude_sty.get('color', '#0F0E0D')};">
+        {claude_sty.get('emoji', '')} {claude_action_raw.replace('_', ' ').title()}
+      </div>
+      <div style="font-size:11px;color:#6B655B;margin-top:4px;">
+        Confidence: {confidence}/10
+      </div>"""
+        else:
+            claude_html = """
+      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:14px;
+                  font-weight:400;color:#A8A29E;font-style:italic;">
+        Click ↻ on Portfolio Manager panel to regenerate
+      </div>
+      <div style="font-size:11px;color:#A8A29E;margin-top:4px;">
+        Older cached dossier without tactical_call data
+      </div>"""
+
+        reasoning_html = (
+            f'<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;'
+            f'font-size:13px;line-height:1.5;color:#3F3B34;font-family:Geist,sans-serif;">'
+            f'<span style="font-size:10px;font-weight:600;letter-spacing:0.12em;'
+            f'text-transform:uppercase;color:#8A857C;">Claude reasoning</span><br>'
+            f'{reasoning}</div>'
+            if reasoning else ''
+        )
+        trigger_html = (
+            f'<div style="margin-top:8px;font-size:12px;color:#3F3B34;font-family:Geist,sans-serif;">'
+            f'<span style="color:#8A857C;font-size:10px;font-weight:600;letter-spacing:0.12em;'
+            f'text-transform:uppercase;">Trigger:</span> {claude_trigger}</div>'
+            if claude_trigger else ''
+        )
+
+        st.markdown(f"""
 <div style="background:#FBFAF7;border:1px solid #E5E3DE;border-radius:4px;
-            padding:12px 14px;margin:8px 0 24px;">
+            padding:12px 14px;margin:8px 0 10px;">
   <div style="font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
               letter-spacing:0.16em;text-transform:uppercase;color:#6B655B;
               margin-bottom:10px;">
@@ -2691,17 +2733,11 @@ if view == "analyze":
       <div style="font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
                   letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;
                   margin-bottom:4px;">Claude</div>
-      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:18px;
-                  font-weight:600;color:{claude_sty.get('color', '#0F0E0D')};">
-        {claude_sty.get('emoji', '')} {claude_action_raw.replace('_', ' ').title()}
-      </div>
-      <div style="font-size:11px;color:#6B655B;margin-top:4px;">
-        Confidence: {confidence}/10
-      </div>
+      {claude_html}
     </div>
   </div>
-  {f'<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;font-size:13px;line-height:1.5;color:#3F3B34;font-family:Geist,sans-serif;"><span style="font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;">Claude reasoning</span><br>{reasoning}</div>' if reasoning else ''}
-  {f'<div style="margin-top:8px;font-size:12px;color:#3F3B34;font-family:Geist,sans-serif;"><span style="color:#8A857C;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;">Trigger:</span> {claude_trigger}</div>' if claude_trigger else ''}
+  {reasoning_html}
+  {trigger_html}
   <div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;
               font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
               letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;">
@@ -2710,60 +2746,60 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-            # Log controls: inline (no expander), placed immediately
-            # below the comparison panel so the visual flow is
-            # panel → "Your call" label → radio → button.
-            user_choice_options = ["ENTER", "WATCH", "HOLD_OFF", "AVOID", "ACCUMULATE"]
-            _engine_to_user_label = {
-                "enter_now": "ENTER",
-                "watch": "WATCH",
-                "hold_off": "HOLD_OFF",
-                "avoid": "AVOID",
-                "accumulate": "ACCUMULATE",
-            }
-            _default_label = _engine_to_user_label.get(rule_action, "WATCH")
-            user_pick = st.radio(
-                "Your call",
-                options=user_choice_options,
-                index=user_choice_options.index(_default_label),
-                horizontal=True,
-                key=f"decision_compare_user_pick_{ticker}",
+        # Log controls — always available, even when Claude data is missing.
+        # If Claude data is missing, the entry will just have empty
+        # claude_action / reasoning fields, which the Tracker tab handles.
+        user_choice_options = ["ENTER", "WATCH", "HOLD_OFF", "AVOID", "ACCUMULATE"]
+        _engine_to_user_label = {
+            "enter_now": "ENTER",
+            "watch": "WATCH",
+            "hold_off": "HOLD_OFF",
+            "avoid": "AVOID",
+            "accumulate": "ACCUMULATE",
+        }
+        _default_label = _engine_to_user_label.get(rule_action, "WATCH")
+        user_pick = st.radio(
+            "Your call",
+            options=user_choice_options,
+            index=user_choice_options.index(_default_label),
+            horizontal=True,
+            key=f"decision_compare_user_pick_{ticker}",
+            label_visibility="collapsed",
+        )
+        log_c1, log_c2 = st.columns([3, 1])
+        with log_c1:
+            user_note = st.text_input(
+                "Note (optional)",
+                key=f"decision_compare_user_note_{ticker}",
+                placeholder="Why this call? (optional)",
                 label_visibility="collapsed",
             )
-            log_c1, log_c2 = st.columns([3, 1])
-            with log_c1:
-                user_note = st.text_input(
-                    "Note (optional)",
-                    key=f"decision_compare_user_note_{ticker}",
-                    placeholder="Why this call? (optional)",
-                    label_visibility="collapsed",
-                )
-            with log_c2:
-                log_clicked = st.button(
-                    "Log",
-                    key=f"log_compare_{ticker}",
-                    use_container_width=True,
-                )
-            if log_clicked:
-                import uuid
-                entry = {
-                    "id": str(uuid.uuid4())[:8],
-                    "ts": datetime.now().isoformat(timespec="seconds"),
-                    "ticker": ticker.upper(),
-                    "price": round(t["price"], 2),
-                    "rule_action": rule_action,
-                    "rule_state": t.get("state", ""),
-                    "claude_action": claude_action_raw,
-                    "claude_confidence": confidence,
-                    "claude_reasoning": reasoning,
-                    "claude_trigger": claude_trigger,
-                    "user_action": user_pick,
-                    "user_note": user_note.strip() if user_note else "",
-                    "outcome": None,
-                }
-                st.session_state.store.setdefault("decisions_log", []).insert(0, entry)
-                save_store(st.session_state.store)
-                st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
+        with log_c2:
+            log_clicked = st.button(
+                "Log",
+                key=f"log_compare_{ticker}",
+                use_container_width=True,
+            )
+        if log_clicked:
+            import uuid
+            entry = {
+                "id": str(uuid.uuid4())[:8],
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "ticker": ticker.upper(),
+                "price": round(t["price"], 2),
+                "rule_action": rule_action,
+                "rule_state": t.get("state", ""),
+                "claude_action": claude_action_raw,
+                "claude_confidence": confidence,
+                "claude_reasoning": reasoning,
+                "claude_trigger": claude_trigger,
+                "user_action": user_pick,
+                "user_note": user_note.strip() if user_note else "",
+                "outcome": None,
+            }
+            st.session_state.store.setdefault("decisions_log", []).insert(0, entry)
+            save_store(st.session_state.store)
+            st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
 
         # 1b. Decision modifiers — badges that nudge conviction up or down
         # on top of the same nominal decision (earnings proximity, market
@@ -2975,46 +3011,133 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        # 4. Chart — full width of the left column, tighter height
+        # 4. Chart — Plotly candlestick + 4 colored MAs.
+        # We use the `hist` dataframe we already loaded (no extra fetch),
+        # which gives us full styling control. Replaces the TradingView
+        # embed because their free widget doesn't honor per-study color
+        # overrides, so all four MA lines used to render in the same color.
         st.markdown(f"""
 <div class="desk-chart-label">
-  📈 Chart · MA 9 / 50 / 100 / 200
+  <span style="color:#6B655B;">📈 Chart · </span>
+  <span style="color:#F97316;font-weight:700;">MA 9</span>
+  <span style="color:#6B655B;"> · </span>
+  <span style="color:#2563EB;font-weight:700;">MA 50</span>
+  <span style="color:#6B655B;"> · </span>
+  <span style="color:#9333EA;font-weight:700;">MA 100</span>
+  <span style="color:#6B655B;"> · </span>
+  <span style="color:#DC2626;font-weight:700;">MA 200</span>
 </div>
 """, unsafe_allow_html=True)
-        st.components.v1.html(f"""
-<div class="tradingview-widget-container" style="height:360px;width:100%;">
-  <div id="tv_chart_{ticker}" style="height:100%;width:100%;"></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-  <script type="text/javascript">
-    new TradingView.widget({{
-      "autosize": true,
-      "symbol": "{ticker}",
-      "interval": "D",
-      "timezone": "America/New_York",
-      "theme": "light",
-      "style": "1",
-      "locale": "en",
-      "toolbar_bg": "#FBFAF7",
-      "enable_publishing": false,
-      "allow_symbol_change": false,
-      "hide_top_toolbar": false,
-      "hide_legend": false,
-      "save_image": false,
-      "studies": [
-        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 9}}}},
-        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 50}}}},
-        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 100}}}},
-        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 200}}}}
-      ],
-      "container_id": "tv_chart_{ticker}"
-    }});
-  </script>
-</div>
-""", height=380)
 
-        # 5. Log button
-        st.markdown("<div style='margin-top:22px;'></div>", unsafe_allow_html=True)
-        if st.button(f"Log this {sty['label'].lower()} decision"):
+        try:
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+
+            # Use the last ~6 months of data so the chart isn't cluttered
+            # but still shows the 200-day MA as a meaningful line.
+            chart_hist = hist.iloc[-130:].copy()
+            chart_hist["MA9"] = hist["Close"].rolling(9).mean().iloc[-130:]
+            chart_hist["MA50"] = hist["Close"].rolling(50).mean().iloc[-130:]
+            chart_hist["MA100"] = hist["Close"].rolling(100).mean().iloc[-130:]
+            chart_hist["MA200"] = hist["Close"].rolling(200).mean().iloc[-130:]
+
+            fig = make_subplots(
+                rows=2, cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.03,
+                row_heights=[0.78, 0.22],
+            )
+
+            # Candlesticks
+            fig.add_trace(go.Candlestick(
+                x=chart_hist.index,
+                open=chart_hist["Open"],
+                high=chart_hist["High"],
+                low=chart_hist["Low"],
+                close=chart_hist["Close"],
+                increasing=dict(line=dict(color="#16A34A"), fillcolor="#16A34A"),
+                decreasing=dict(line=dict(color="#DC2626"), fillcolor="#DC2626"),
+                showlegend=False,
+                name=ticker,
+            ), row=1, col=1)
+
+            # Colored MAs — these are what the TradingView widget couldn't do
+            for col, color, width in [
+                ("MA9",   "#F97316", 1.5),
+                ("MA50",  "#2563EB", 1.7),
+                ("MA100", "#9333EA", 1.7),
+                ("MA200", "#DC2626", 1.9),
+            ]:
+                fig.add_trace(go.Scatter(
+                    x=chart_hist.index,
+                    y=chart_hist[col],
+                    line=dict(color=color, width=width),
+                    name=col,
+                    showlegend=False,
+                    hovertemplate="%{y:.2f}<extra>" + col + "</extra>",
+                ), row=1, col=1)
+
+            # Volume bars (color by up/down day)
+            vol_colors = [
+                "#16A34A" if c >= o else "#DC2626"
+                for o, c in zip(chart_hist["Open"], chart_hist["Close"])
+            ]
+            fig.add_trace(go.Bar(
+                x=chart_hist.index,
+                y=chart_hist["Volume"],
+                marker=dict(color=vol_colors, opacity=0.5),
+                showlegend=False,
+                name="Volume",
+                hovertemplate="%{y:,.0f}<extra>Volume</extra>",
+            ), row=2, col=1)
+
+            fig.update_layout(
+                height=420,
+                margin=dict(l=10, r=10, t=10, b=10),
+                paper_bgcolor="#FBFAF7",
+                plot_bgcolor="#FBFAF7",
+                xaxis=dict(rangeslider=dict(visible=False)),
+                xaxis2=dict(rangeslider=dict(visible=False)),
+                hovermode="x unified",
+                font=dict(family="Geist Mono, monospace", size=10, color="#3F3B34"),
+            )
+            fig.update_xaxes(
+                showgrid=True, gridcolor="#EFEDE7", gridwidth=0.5,
+                showline=False, zeroline=False,
+            )
+            fig.update_yaxes(
+                showgrid=True, gridcolor="#EFEDE7", gridwidth=0.5,
+                showline=False, zeroline=False,
+                tickformat="$.2f", row=1, col=1,
+            )
+            fig.update_yaxes(
+                showgrid=False, showline=False, zeroline=False,
+                tickformat=".2s", row=2, col=1,
+            )
+
+            st.plotly_chart(fig, use_container_width=True, config={
+                "displayModeBar": False,
+                "scrollZoom": False,
+            })
+        except Exception as _chart_err:
+            st.warning(f"Chart could not render: {_chart_err}")
+
+        # 5. Trade tracker log button — separate from the decision-comparison
+        # log above. This logs to the Trades tab (open trade with entry price,
+        # close with P&L) while decisions_log on the comparison panel logs to
+        # the Decisions tab (rules vs Claude vs you for calibration trial).
+        st.markdown(
+            '<div style="margin-top:22px;font-family:\'Geist\',sans-serif;'
+            'font-size:10px;font-weight:600;letter-spacing:0.14em;'
+            'text-transform:uppercase;color:#6B655B;margin-bottom:6px;">'
+            'Trade tracker</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button(
+            f"Track this {sty['label'].lower()} as a trade →",
+            key=f"trade_log_{ticker}",
+            help="Logs to the Trades tab. Use this to track open positions and P&L. Separate from the rules-vs-Claude comparison log above.",
+        ):
             log_entry = {
                 "date": datetime.now().strftime("%m/%d"),
                 "ticker": ticker,
@@ -3022,19 +3145,14 @@ if view == "analyze":
                 "result": "open",
                 "closed": False,
             }
-            # Only enter_now / watch / accumulate decisions are real trades
-            # with an entry price worth tracking. hold_off and avoid are
-            # non-trades — no entry to measure result_pct against.
             if t["action"] in ("enter_now", "watch", "accumulate"):
                 log_entry["entry"] = round(t["entry"], 2)
             elif t["action"] == "hold_off":
-                # hold_off is a "didn't act" record — the only outcome
-                # to track later is whether the setup eventually fired.
-                log_entry["closed"] = True  # immediately closed, just a note
+                log_entry["closed"] = True
                 log_entry["result"] = "noted (no trade taken)"
             st.session_state.store["log"].insert(0, log_entry)
             save_store(st.session_state.store)
-            st.success(f"Logged {ticker} as {sty['label'].lower()}.")
+            st.success(f"Tracked {ticker} as {sty['label'].lower()}.")
 
         # 6. Technical details — footer, collapsed
         with st.expander("Technical details"):
@@ -3684,13 +3802,13 @@ if view == "tracker":
                 if entry.get("closed") and "result_pct" in entry and entry["action"] != "avoid":
                     result_text = f"{'+' if entry['result_pct'] >= 0 else ''}{entry['result_pct']:.1f}%"
 
-                cols = st.columns([1, 1, 2, 2, 1])
+                cols = st.columns([1, 1, 2, 2, 1, 1])
                 cols[0].markdown(f'<div style="font-family:\'Geist Mono\',monospace;font-size:11px;color:#B4ADA0;padding-top:9px;">{entry["date"]}</div>', unsafe_allow_html=True)
                 cols[1].markdown(f'<div style="font-size:13px;font-weight:600;padding-top:9px;">{entry["ticker"]}</div>', unsafe_allow_html=True)
                 cols[2].markdown(f'<div style="font-family:\'Geist Mono\',monospace;font-size:11px;color:{sty["color"]};letter-spacing:0.06em;text-transform:uppercase;padding-top:9px;">{sty["emoji"]} {sty["label"]}</div>', unsafe_allow_html=True)
                 cols[3].markdown(f'<div style="font-family:\'Geist Mono\',monospace;font-size:12px;color:{result_color};padding-top:9px;">{result_text}</div>', unsafe_allow_html=True)
                 if not entry.get("closed"):
-                    if cols[4].button("Close", key=f"close_{i}"):
+                    if cols[4].button("Close", key=f"close_{i}", use_container_width=True):
                         cur_hist, _, _err = fetch_history(entry["ticker"])
                         if cur_hist is not None and "entry" in entry:
                             cur_price = float(cur_hist["Close"].iloc[-1])
@@ -3700,10 +3818,15 @@ if view == "tracker":
                             save_store(st.session_state.store)
                             st.rerun()
                 else:
-                    if cols[4].button("✕", key=f"del_{i}"):
-                        st.session_state.store["log"].pop(i)
-                        save_store(st.session_state.store)
-                        st.rerun()
+                    cols[4].markdown(
+                        '<div style="font-size:10px;color:#A8A29E;padding-top:11px;text-align:center;">closed</div>',
+                        unsafe_allow_html=True,
+                    )
+                # Delete button always available (open or closed)
+                if cols[5].button("✕", key=f"del_{i}", help="Delete this entry", use_container_width=True):
+                    st.session_state.store["log"].pop(i)
+                    save_store(st.session_state.store)
+                    st.rerun()
                 st.markdown('<div style="border-top:1px dashed #E5E3DE;"></div>', unsafe_allow_html=True)
 
     # ─── TAB 2: Decision comparison log ─────────────────────────
