@@ -2702,63 +2702,68 @@ if view == "analyze":
   </div>
   {f'<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;font-size:13px;line-height:1.5;color:#3F3B34;font-family:Geist,sans-serif;"><span style="font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;">Claude reasoning</span><br>{reasoning}</div>' if reasoning else ''}
   {f'<div style="margin-top:8px;font-size:12px;color:#3F3B34;font-family:Geist,sans-serif;"><span style="color:#8A857C;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;">Trigger:</span> {claude_trigger}</div>' if claude_trigger else ''}
+  <div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;
+              font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
+              letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;">
+    Your call
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
-            # Log-this-decision row: capture user's own call for the
-            # comparison study. Defaults to the rule engine action so a
-            # quick click logs the case where user agrees with rules.
-            with st.expander("Log my call (decision comparison study)"):
-                st.markdown(
-                    '<div style="font-size:12px;color:#6B655B;margin-bottom:8px;">'
-                    'Pick the action you would actually take given everything you see. '
-                    'This logs all three views (rules / Claude / you) for later evaluation. '
-                    'Comparison aim: 2-4 weeks of consistent logging to evaluate which '
-                    'source produces better calls.</div>',
-                    unsafe_allow_html=True,
-                )
-                user_choice_options = ["ENTER", "WATCH", "HOLD_OFF", "AVOID", "ACCUMULATE"]
-                # Default radio to whatever the rule engine said (lowest friction)
-                _engine_to_user_label = {
-                    "enter_now": "ENTER",
-                    "watch": "WATCH",
-                    "hold_off": "HOLD_OFF",
-                    "avoid": "AVOID",
-                    "accumulate": "ACCUMULATE",
-                }
-                _default_label = _engine_to_user_label.get(rule_action, "WATCH")
-                user_pick = st.radio(
-                    "Your call",
-                    options=user_choice_options,
-                    index=user_choice_options.index(_default_label),
-                    horizontal=True,
-                    key=f"decision_compare_user_pick_{ticker}",
-                )
+            # Log controls: inline (no expander), placed immediately
+            # below the comparison panel so the visual flow is
+            # panel → "Your call" label → radio → button.
+            user_choice_options = ["ENTER", "WATCH", "HOLD_OFF", "AVOID", "ACCUMULATE"]
+            _engine_to_user_label = {
+                "enter_now": "ENTER",
+                "watch": "WATCH",
+                "hold_off": "HOLD_OFF",
+                "avoid": "AVOID",
+                "accumulate": "ACCUMULATE",
+            }
+            _default_label = _engine_to_user_label.get(rule_action, "WATCH")
+            user_pick = st.radio(
+                "Your call",
+                options=user_choice_options,
+                index=user_choice_options.index(_default_label),
+                horizontal=True,
+                key=f"decision_compare_user_pick_{ticker}",
+                label_visibility="collapsed",
+            )
+            log_c1, log_c2 = st.columns([3, 1])
+            with log_c1:
                 user_note = st.text_input(
-                    "Optional note (why this call?)",
+                    "Note (optional)",
                     key=f"decision_compare_user_note_{ticker}",
-                    placeholder="e.g. agreeing with rules, Claude is wrong because...",
+                    placeholder="Why this call? (optional)",
+                    label_visibility="collapsed",
                 )
-                if st.button("Log this comparison", key=f"log_compare_{ticker}"):
-                    import uuid
-                    entry = {
-                        "id": str(uuid.uuid4())[:8],
-                        "ts": datetime.now().isoformat(timespec="seconds"),
-                        "ticker": ticker.upper(),
-                        "price": round(t["price"], 2),
-                        "rule_action": rule_action,
-                        "rule_state": t.get("state", ""),
-                        "claude_action": claude_action_raw,
-                        "claude_confidence": confidence,
-                        "claude_reasoning": reasoning,
-                        "claude_trigger": claude_trigger,
-                        "user_action": user_pick,
-                        "user_note": user_note.strip() if user_note else "",
-                        "outcome": None,
-                    }
-                    st.session_state.store.setdefault("decisions_log", []).insert(0, entry)
-                    save_store(st.session_state.store)
-                    st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
+            with log_c2:
+                log_clicked = st.button(
+                    "Log",
+                    key=f"log_compare_{ticker}",
+                    use_container_width=True,
+                )
+            if log_clicked:
+                import uuid
+                entry = {
+                    "id": str(uuid.uuid4())[:8],
+                    "ts": datetime.now().isoformat(timespec="seconds"),
+                    "ticker": ticker.upper(),
+                    "price": round(t["price"], 2),
+                    "rule_action": rule_action,
+                    "rule_state": t.get("state", ""),
+                    "claude_action": claude_action_raw,
+                    "claude_confidence": confidence,
+                    "claude_reasoning": reasoning,
+                    "claude_trigger": claude_trigger,
+                    "user_action": user_pick,
+                    "user_note": user_note.strip() if user_note else "",
+                    "outcome": None,
+                }
+                st.session_state.store.setdefault("decisions_log", []).insert(0, entry)
+                save_store(st.session_state.store)
+                st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
 
         # 1b. Decision modifiers — badges that nudge conviction up or down
         # on top of the same nominal decision (earnings proximity, market
@@ -2973,14 +2978,7 @@ if view == "analyze":
         # 4. Chart — full width of the left column, tighter height
         st.markdown(f"""
 <div class="desk-chart-label">
-  <span style="color:#6B655B;">📈 Chart · </span>
-  <span style="color:#F97316;">MA 9</span>
-  <span style="color:#6B655B;"> · </span>
-  <span style="color:#2563EB;">MA 50</span>
-  <span style="color:#6B655B;"> · </span>
-  <span style="color:#9333EA;">MA 100</span>
-  <span style="color:#6B655B;"> · </span>
-  <span style="color:#DC2626;">MA 200</span>
+  📈 Chart · MA 9 / 50 / 100 / 200
 </div>
 """, unsafe_allow_html=True)
         st.components.v1.html(f"""
@@ -3003,31 +3001,11 @@ if view == "analyze":
       "hide_legend": false,
       "save_image": false,
       "studies": [
-        {{
-          "id": "MASimple@tv-basicstudies",
-          "inputs": {{"length": 9}},
-          "styles": {{"plot": {{"color": "#F97316", "linewidth": 2}}}}
-        }},
-        {{
-          "id": "MASimple@tv-basicstudies",
-          "inputs": {{"length": 50}},
-          "styles": {{"plot": {{"color": "#2563EB", "linewidth": 2}}}}
-        }},
-        {{
-          "id": "MASimple@tv-basicstudies",
-          "inputs": {{"length": 100}},
-          "styles": {{"plot": {{"color": "#9333EA", "linewidth": 2}}}}
-        }},
-        {{
-          "id": "MASimple@tv-basicstudies",
-          "inputs": {{"length": 200}},
-          "styles": {{"plot": {{"color": "#DC2626", "linewidth": 2}}}}
-        }}
+        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 9}}}},
+        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 50}}}},
+        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 100}}}},
+        {{"id": "MASimple@tv-basicstudies", "inputs": {{"length": 200}}}}
       ],
-      "studies_overrides": {{
-        "moving average.plot.color": "#2563EB",
-        "moving average.plot.linewidth": 2
-      }},
       "container_id": "tv_chart_{ticker}"
     }});
   </script>
