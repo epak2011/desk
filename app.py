@@ -2673,25 +2673,30 @@ if view == "analyze":
         reasoning = (claude_call.get("reasoning") or "").strip()
         claude_trigger = (claude_call.get("trigger") or "").strip()
 
-        # Claude side content varies based on whether data is present
+        # Claude side content varies based on whether data is present.
+        # IMPORTANT: HTML lines must NOT start with 4+ spaces — Streamlit's
+        # markdown processor treats indented lines as code blocks and
+        # renders them as literal source text instead of as HTML.
         if claude_action_raw:
-            claude_html = f"""
-      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:18px;
-                  font-weight:600;color:{claude_sty.get('color', '#0F0E0D')};">
-        {claude_sty.get('emoji', '')} {claude_action_raw.replace('_', ' ').title()}
-      </div>
-      <div style="font-size:11px;color:#6B655B;margin-top:4px;">
-        Confidence: {confidence}/10
-      </div>"""
+            claude_html = (
+                f'<div style="font-family:\'Source Serif 4\',Georgia,serif;font-size:18px;'
+                f'font-weight:600;color:{claude_sty.get("color", "#0F0E0D")};">'
+                f'{claude_sty.get("emoji", "")} {claude_action_raw.replace("_", " ").title()}'
+                f'</div>'
+                f'<div style="font-size:11px;color:#6B655B;margin-top:4px;">'
+                f'Confidence: {confidence}/10'
+                f'</div>'
+            )
         else:
-            claude_html = """
-      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:14px;
-                  font-weight:400;color:#A8A29E;font-style:italic;">
-        Click ↻ on Portfolio Manager panel to regenerate
-      </div>
-      <div style="font-size:11px;color:#A8A29E;margin-top:4px;">
-        Older cached dossier without tactical_call data
-      </div>"""
+            claude_html = (
+                '<div style="font-family:\'Source Serif 4\',Georgia,serif;font-size:14px;'
+                'font-weight:400;color:#A8A29E;font-style:italic;">'
+                'Click ↻ on Portfolio Manager panel to regenerate'
+                '</div>'
+                '<div style="font-size:11px;color:#A8A29E;margin-top:4px;">'
+                'Older cached dossier without tactical_call data'
+                '</div>'
+            )
 
         reasoning_html = (
             f'<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;'
