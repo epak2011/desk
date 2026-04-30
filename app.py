@@ -357,25 +357,63 @@ st.markdown("""
 /*    --hero:  the giant decision word                            */
 /* ────────────────────────────────────────────────────────────── */
 :root {
+    /* Type scale */
     --fs-xs: 10px;
     --fs-sm: 11px;
     --fs-base: 13px;
     --fs-md: 15px;
     --fs-lg: 18px;
+    --fs-xl: 24px;
     --fs-hero: 88px;
-    --color-text: #0F0E0D;
-    --color-muted: #6B655B;
-    --color-faint: #8A857C;
-    --color-border: #E5E3DE;
-    --color-border-soft: #EFEDE7;
-    --color-accent: #00A870;
+
+    /* Font families */
+    --font-sans:  'Geist', -apple-system, system-ui, sans-serif;
+    --font-serif: 'Source Serif 4', Georgia, serif;
+    --font-mono:  'Geist Mono', monospace;
+
+    /* Letter-spacing scale */
+    --ls-tight:    0.02em;
+    --ls-normal:   0.04em;
+    --ls-caps-xs:  0.06em;
+    --ls-caps-sm:  0.08em;
+    --ls-caps:     0.10em;
+    --ls-caps-md:  0.12em;
+    --ls-caps-lg:  0.14em;
+    --ls-caps-xl:  0.16em;
+    --ls-caps-xxl: 0.18em;
+
+    /* Color palette — text */
+    --color-text:      #0F0E0D;
+    --color-body:      #3F3B34;
+    --color-muted:     #6B655B;
+    --color-faint:     #8A857C;
+    --color-fainter:   #A8A29E;
+    --color-faintest:  #B4ADA0;
+
+    /* Color palette — surfaces */
+    --color-bg:              #FBFAF7;
+    --color-surface:         #FFFFFF;
+    --color-surface-soft:    #F5F2EB;
+    --color-surface-warning: #FDF5F5;
+    --color-surface-trigger: #FEF7E8;
+    --color-border:          #E5E3DE;
+    --color-border-soft:     #EFEDE7;
+
+    /* Color palette — semantic */
+    --color-accent:       #00A870;
+    --color-accent-hover: #008859;
+    --color-positive:     #2E7D4F;
+    --color-negative:     #D14545;
+    --color-warning:      #8B2F2F;
+    --color-warning-text: #6B4E1D;
+    --color-purple:       #7C5DD9;
 }
 
 /* ────────────────────────────────────────────────────────────── */
 /*  DECISION COMPARISON PANEL — single source of truth            */
 /* ────────────────────────────────────────────────────────────── */
 .desk-cmp {
-    background: #FBFAF7;
+    background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: 4px;
     padding: 14px 16px;
@@ -393,10 +431,10 @@ st.markdown("""
     height: 100%;
 }
 .desk-cmp-header {
-    font-family: 'Geist', sans-serif;
+    font-family: var(--font-sans);
     font-size: var(--fs-xs) !important;
     font-weight: 600;
-    letter-spacing: 0.16em;
+    letter-spacing: var(--ls-caps-xl);
     text-transform: uppercase;
     color: var(--color-muted);
     margin-bottom: 12px;
@@ -405,16 +443,16 @@ st.markdown("""
     align-items: center;
 }
 .desk-cmp-side-label {
-    font-family: 'Geist', sans-serif;
+    font-family: var(--font-sans);
     font-size: var(--fs-xs) !important;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: var(--ls-caps-md);
     text-transform: uppercase;
     color: var(--color-faint);
     margin-bottom: 4px;
 }
 .desk-cmp-action {
-    font-family: 'Source Serif 4', Georgia, serif;
+    font-family: var(--font-serif);
     font-size: var(--fs-lg) !important;
     font-weight: 600;
     line-height: 1.2;
@@ -425,10 +463,10 @@ st.markdown("""
     margin-top: 4px;
 }
 .desk-cmp-fallback {
-    font-family: 'Source Serif 4', Georgia, serif;
+    font-family: var(--font-serif);
     font-size: var(--fs-base) !important;
     font-weight: 400;
-    color: #A8A29E;
+    color: var(--color-fainter);
     font-style: italic;
     line-height: 1.4;
 }
@@ -438,12 +476,12 @@ st.markdown("""
     border-top: 1px dashed var(--color-border-soft);
     font-size: var(--fs-base) !important;
     line-height: 1.55;
-    color: #3F3B34;
+    color: var(--color-body);
 }
 .desk-cmp-reasoning-label {
     font-size: var(--fs-xs) !important;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: var(--ls-caps-md);
     text-transform: uppercase;
     color: var(--color-faint);
     display: block;
@@ -452,12 +490,12 @@ st.markdown("""
 .desk-cmp-trigger {
     margin-top: 8px;
     font-size: var(--fs-base) !important;
-    color: #3F3B34;
+    color: var(--color-body);
 }
 .desk-cmp-trigger-label {
     font-size: var(--fs-xs) !important;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: var(--ls-caps-md);
     text-transform: uppercase;
     color: var(--color-faint);
 }
@@ -465,10 +503,10 @@ st.markdown("""
     margin-top: 14px;
     padding-top: 12px;
     border-top: 1px dashed var(--color-border-soft);
-    font-family: 'Geist', sans-serif;
+    font-family: var(--font-sans);
     font-size: var(--fs-xs) !important;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: var(--ls-caps-md);
     text-transform: uppercase;
     color: var(--color-faint);
     display: flex;
@@ -480,11 +518,13 @@ st.markdown("""
     border-radius: 50%;
     border: 1px solid #C9C5BC;
     color: var(--color-faint);
-    font-family: 'Geist', sans-serif;
-    font-size: 12px !important;
+    font-family: var(--font-serif);
+    font-size: var(--fs-base) !important;
     font-weight: 600;
+    font-style: italic;
     line-height: 18px;
     text-align: center;
+    text-transform: none !important;
     cursor: help;
     display: inline-block;
     flex-shrink: 0;
@@ -494,13 +534,13 @@ st.markdown("""
     border-radius: 3px;
     font-size: var(--fs-xs) !important;
     font-weight: 600;
-    letter-spacing: 0.1em;
+    letter-spacing: var(--ls-caps);
     text-transform: uppercase;
     line-height: 1.4;
 }
 .desk-cmp-badge-disagree { background: #FEF3C7; color: #92400E; }
 .desk-cmp-badge-agree    { background: #D1FAE5; color: #065F46; }
-.desk-cmp-badge-unknown  { background: #F5F2EB; color: #6B655B; }
+.desk-cmp-badge-unknown  { background: var(--color-surface-soft); color: var(--color-muted); }
 
 /* Green primary Log button inside the comparison panel.
    Streamlit doesn't allow per-button styling, so we wrap the button in
@@ -508,36 +548,36 @@ st.markdown("""
 .desk-log-btn-wrap div[data-testid="stButton"] > button,
 .desk-log-btn-wrap button[kind="secondary"] {
     background: var(--color-accent) !important;
-    color: #FBFAF7 !important;
+    color: var(--color-bg) !important;
     border: 1px solid var(--color-accent) !important;
     font-weight: 600 !important;
 }
 .desk-log-btn-wrap div[data-testid="stButton"] > button:hover,
 .desk-log-btn-wrap button[kind="secondary"]:hover {
-    background: #008859 !important;
-    border-color: #008859 !important;
-    color: #FBFAF7 !important;
+    background: var(--color-accent-hover) !important;
+    border-color: var(--color-accent-hover) !important;
+    color: var(--color-bg) !important;
 }
 
-.stApp { background: #FBFAF7; }
+.stApp { background: var(--color-bg); }
 .main .block-container {
     padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1400px;
-    font-size: 18px;
+    font-size: var(--fs-lg);
 }
 
 html, body, .main, .main p, .main li {
-    font-family: 'Geist', -apple-system, system-ui, sans-serif;
-    color: #0F0E0D;
+    font-family: var(--font-sans);
+    color: var(--color-text);
 }
 /* Default body size — only applied to elements WITHOUT a more specific
    class. Without this scoping, Streamlit's emotion classes plus the
    wildcard div/span selectors override every class-defined font-size
    in the app, causing 10px badges to render at 18px, etc. */
 html, body, .main, .main p, .main li {
-    font-size: 18px;
+    font-size: var(--fs-lg);
 }
 .main p:not([class*="desk-"]):not([class*="stMarkdown"]) {
-    font-size: 18px;
+    font-size: var(--fs-lg);
 }
 #MainMenu, header, footer { visibility: hidden; }
 
@@ -547,27 +587,27 @@ html, body, .main, .main p, .main li {
 .desk-dossier {
     margin: 0 0 28px;
     padding: 18px 22px;
-    background: #FFFFFF;
-    border: 1px solid #E5E3DE;
-    border-left: 4px solid #0F0E0D;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-text);
     border-radius: 4px;
 }
 .desk-dossier-label {
-    font-family: 'Geist', sans-serif;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #6B655B;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
+    text-transform: uppercase; color: var(--color-muted);
     display: flex; justify-content: space-between; align-items: baseline;
     margin-bottom: 10px;
 }
-.desk-dossier-label .em { font-size: 13px; margin-right: 6px; }
+.desk-dossier-label .em { font-size: var(--fs-base); margin-right: 6px; }
 .desk-dossier-label .src {
-    font-family: 'Geist Mono', monospace; font-size: 10px;
-    color: #B4ADA0; letter-spacing: 0.04em;
+    font-family: var(--font-mono); font-size: var(--fs-xs);
+    color: var(--color-faintest); letter-spacing: var(--ls-normal);
     text-transform: none; font-weight: 400;
 }
 .desk-dossier-text {
-    font-family: 'Source Serif 4', Georgia, serif;
-    font-size: 19px; line-height: 1.55; color: #0F0E0D;
+    font-family: var(--font-serif);
+    font-size: var(--fs-lg); line-height: 1.55; color: var(--color-text);
     font-style: normal;
 }
 
@@ -580,72 +620,72 @@ html, body, .main, .main p, .main li {
 }
 .desk-mod {
     padding: 7px 12px;
-    font-size: 14px; line-height: 1.35;
+    font-size: var(--fs-base); line-height: 1.35;
     border-radius: 3px;
     border: 1px solid;
     display: flex; align-items: center; gap: 8px;
 }
-.desk-mod-high { background: #FDF5F5; border-color: #F5C8C8; color: #6E2E2E; }
-.desk-mod-med  { background: #FEF7E8; border-color: #F5D88A; color: #6B4E1D; }
-.desk-mod-low  { background: #F5F2EB; border-color: #E5E3DE; color: #3F3B34; }
+.desk-mod-high { background: var(--color-surface-warning); border-color: #F5C8C8; color: #6E2E2E; }
+.desk-mod-med  { background: var(--color-surface-trigger); border-color: #F5D88A; color: var(--color-warning-text); }
+.desk-mod-low  { background: var(--color-surface-soft); border-color: var(--color-border); color: var(--color-body); }
 .desk-mod .icon {
-    font-size: 14px; line-height: 1;
+    font-size: var(--fs-base); line-height: 1;
 }
 
 /* Navbar */
 .desk-bar {
-    background: #0F0E0D; color: #FBFAF7;
+    background: var(--color-text); color: var(--color-bg);
     padding: 11px 20px;
     display: flex; justify-content: space-between; align-items: center;
     margin: -1.2rem -1rem 1.5rem;
 }
 .desk-bar .wordmark {
-    font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
-    font-size: 22px; line-height: 1;
+    font-family: var(--font-serif); font-weight: 500;
+    font-size: var(--fs-xl); line-height: 1;
 }
-.desk-bar .wordmark .arrow { color: #00A870; margin-right: 3px; }
+.desk-bar .wordmark .arrow { color: var(--color-accent); margin-right: 3px; }
 .desk-bar .meta {
-    font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px;
-    color: #8A857C; letter-spacing: 0.08em; text-transform: uppercase;
+    font-family: var(--font-mono); font-size: var(--fs-sm);
+    color: var(--color-faint); letter-spacing: var(--ls-caps-sm); text-transform: uppercase;
 }
 
 /* Sidebar: low visual weight */
-section[data-testid="stSidebar"] { background: #F5F2EB; }
+section[data-testid="stSidebar"] { background: var(--color-surface-soft); }
 section[data-testid="stSidebar"] .stMarkdown h3 {
-    font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
-    text-transform: uppercase; color: #6B655B; margin-bottom: 6px;
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps);
+    text-transform: uppercase; color: var(--color-muted); margin-bottom: 6px;
 }
 section[data-testid="stSidebar"] div.stButton > button {
     background: transparent; border: 1px solid transparent;
-    color: #3F3B34;
-    font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 500;
+    color: var(--color-body);
+    font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 500;
     border-radius: 3px; padding: 4px 8px; text-align: left; justify-content: flex-start;
 }
 section[data-testid="stSidebar"] div.stButton > button:hover {
-    background: #EDE8DD; color: #0F0E0D;
+    background: #EDE8DD; color: var(--color-text);
 }
 
 /* Ticker line */
 .desk-ticker-row {
     display: flex; justify-content: space-between; align-items: baseline;
-    padding-bottom: 8px; border-bottom: 1px solid #E5E3DE; margin-bottom: 18px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--color-border); margin-bottom: 18px;
 }
 .desk-ticker-row .sym {
-    font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1;
+    font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1;
 }
-.desk-ticker-row .name { font-size: 14px; color: #6B655B; margin-left: 10px; }
+.desk-ticker-row .name { font-size: var(--fs-base); color: var(--color-muted); margin-left: 10px; }
 .desk-ticker-row .price {
-    font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 18px; font-weight: 500;
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-lg); font-weight: 500;
 }
 .desk-ticker-row .chg {
-    font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 14px; margin-left: 10px;
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-base); margin-left: 10px;
 }
 .desk-ticker-row .meta-inline {
-    font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 11px; color: #8A857C;
-    margin-top: 4px; letter-spacing: 0.04em;
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-sm); color: var(--color-faint);
+    margin-top: 4px; letter-spacing: var(--ls-normal);
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -654,17 +694,17 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 .desk-decision {
     padding: 4px 0 20px;
     margin-bottom: 28px;
-    border-bottom: 1px solid #E5E3DE;
+    border-bottom: 1px solid var(--color-border);
     position: relative;
 }
 .desk-decision .word {
-    font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
+    font-family: var(--font-serif); font-weight: 500;
     font-size: 88px; line-height: 0.95; letter-spacing: -0.035em;
     display: inline-block;
 }
 .desk-decision .emoji { font-size: 44px; margin-left: 10px; vertical-align: 10px; }
 .desk-decision .context {
-    font-size: 19px; color: #0F0E0D; margin-top: 14px;
+    font-size: var(--fs-lg); color: var(--color-text); margin-top: 14px;
     line-height: 1.4; max-width: 680px; font-weight: 400;
 }
 
@@ -677,20 +717,20 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     width: 22px; height: 22px;
     border-radius: 11px;
     border: 1px solid #C9C5BC;
-    color: #6B655B;
-    font-family: 'Geist', sans-serif;
-    font-size: 13px;
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
     font-weight: 600;
     line-height: 20px;
     text-align: center;
     cursor: help;
-    background: #FBFAF7;
+    background: var(--color-bg);
     transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .desk-decision-info:hover {
     background: #F0EDE5;
-    color: #0F0E0D;
-    border-color: #6B655B;
+    color: var(--color-text);
+    border-color: var(--color-muted);
 }
 .desk-decision-info-tooltip {
     visibility: hidden;
@@ -698,12 +738,12 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     position: absolute;
     top: 30px; right: 0;
     width: 320px;
-    background: #0F0E0D;
-    color: #FBFAF7;
+    background: var(--color-text);
+    color: var(--color-bg);
     padding: 12px 14px;
     border-radius: 6px;
-    font-family: 'Geist', sans-serif;
-    font-size: 12px;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
     line-height: 1.45;
     z-index: 100;
     box-shadow: 0 4px 14px rgba(0,0,0,0.18);
@@ -717,25 +757,25 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     pointer-events: auto;
 }
 .desk-decision-info-tooltip .tt-title {
-    font-family: 'Source Serif 4', Georgia, serif;
-    font-size: 16px; font-weight: 600;
+    font-family: var(--font-serif);
+    font-size: var(--fs-md); font-weight: 600;
     margin-bottom: 4px;
 }
 .desk-decision-info-tooltip .tt-tagline {
-    font-size: 12px; color: #C9C5BC; margin-bottom: 8px;
+    font-size: var(--fs-sm); color: #C9C5BC; margin-bottom: 8px;
 }
 .desk-decision-info-tooltip ul {
     margin: 0; padding-left: 16px;
 }
 .desk-decision-info-tooltip li {
-    margin: 3px 0; color: #FBFAF7; font-size: 11.5px;
+    margin: 3px 0; color: var(--color-bg); font-size: 11.5px;
 }
 .desk-decision-info-tooltip .tt-footer {
     margin-top: 10px;
     padding-top: 8px;
     border-top: 1px solid #2A2725;
-    font-size: 11px;
-    color: #B4ADA0;
+    font-size: var(--fs-sm);
+    color: var(--color-faintest);
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -743,20 +783,20 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 /* ────────────────────────────────────────────────────────────── */
 .desk-trigger-block { margin: 8px 0 24px; }
 .desk-trigger-label {
-    font-family: 'Geist', sans-serif;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #0F0E0D;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
+    text-transform: uppercase; color: var(--color-text);
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 8px;
 }
-.desk-trigger-label .em { font-size: 13px; }
+.desk-trigger-label .em { font-size: var(--fs-base); }
 .desk-trigger-text {
-    font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
-    font-size: 30px; line-height: 1.25; color: #0F0E0D;
+    font-family: var(--font-serif); font-weight: 500;
+    font-size: var(--fs-xl); line-height: 1.25; color: var(--color-text);
     letter-spacing: -0.01em;
 }
 .desk-trigger-text b {
-    font-family: 'Geist Mono', monospace; font-style: normal;
+    font-family: var(--font-mono); font-style: normal;
     font-weight: 600; font-variant-numeric: tabular-nums;
     background: #FFF1C4; padding: 0 6px; border-radius: 2px;
     font-size: 28px;
@@ -768,24 +808,24 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 .desk-invalidation {
     margin: 4px 0 36px;
     padding: 10px 14px;
-    background: #FDF5F5;
-    border-left: 3px solid #D14545;
+    background: var(--color-surface-warning);
+    border-left: 3px solid var(--color-negative);
     border-radius: 2px;
 }
 .desk-invalidation .label {
-    font-family: 'Geist', sans-serif;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #8B2F2F;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
+    text-transform: uppercase; color: var(--color-warning);
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 3px;
 }
-.desk-invalidation .label .em { font-size: 13px; }
+.desk-invalidation .label .em { font-size: var(--fs-base); }
 .desk-invalidation .text {
-    font-size: 18px; color: #3F3B34; line-height: 1.4;
+    font-size: var(--fs-lg); color: var(--color-body); line-height: 1.4;
 }
 .desk-invalidation .text b {
-    font-family: 'Geist Mono', monospace; font-weight: 600;
-    font-variant-numeric: tabular-nums; color: #0F0E0D;
+    font-family: var(--font-mono); font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--color-text);
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -794,38 +834,38 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 .desk-tape-read {
     margin: 8px 0 16px;
     padding: 12px 16px;
-    background: #FFFFFF;
-    border: 1px solid #E5E3DE;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 3px;
 }
 .desk-tape-read .label {
-    font-family: 'Geist', sans-serif;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.16em;
-    text-transform: uppercase; color: #6B655B;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xl);
+    text-transform: uppercase; color: var(--color-muted);
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 10px;
 }
-.desk-tape-read .label .em { font-size: 13px; }
+.desk-tape-read .label .em { font-size: var(--fs-base); }
 .desk-tape-read .row {
     display: flex; justify-content: space-between; align-items: baseline;
     padding: 6px 0;
-    border-top: 1px dashed #EFEDE7;
+    border-top: 1px dashed var(--color-border-soft);
 }
 .desk-tape-read .row:first-of-type { border-top: none; }
 .desk-tape-read .row .k {
-    font-family: 'Geist', sans-serif;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
-    text-transform: uppercase; color: #8A857C;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-sm);
+    text-transform: uppercase; color: var(--color-faint);
     flex-shrink: 0; min-width: 90px;
 }
 .desk-tape-read .row .v {
-    font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 14px; line-height: 1.4;
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-base); line-height: 1.4;
     text-align: right;
 }
 .desk-tape-read .row .v b {
-    font-family: 'Geist Mono', monospace; font-weight: 600;
-    color: #0F0E0D;
+    font-family: var(--font-mono); font-weight: 600;
+    color: var(--color-text);
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -834,94 +874,94 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 .desk-avoid-reasons {
     margin: 8px 0 20px;
     padding: 12px 16px;
-    background: #FDF5F5;
-    border-left: 3px solid #D14545;
+    background: var(--color-surface-warning);
+    border-left: 3px solid var(--color-negative);
     border-radius: 2px;
 }
 .desk-avoid-reasons .label {
-    font-family: 'Geist', sans-serif;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #8B2F2F;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
+    text-transform: uppercase; color: var(--color-warning);
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 8px;
 }
-.desk-avoid-reasons .label .em { font-size: 14px; }
+.desk-avoid-reasons .label .em { font-size: var(--fs-base); }
 .desk-avoid-reasons ul {
     margin: 0; padding: 0; list-style: none;
 }
 .desk-avoid-reasons li {
-    font-size: 17px; color: #3F3B34; line-height: 1.45;
+    font-size: var(--fs-md); color: var(--color-body); line-height: 1.45;
     padding: 4px 0 4px 16px; position: relative;
 }
 .desk-avoid-reasons li:before {
     content: '–'; position: absolute; left: 0; top: 4px;
-    color: #A8A29E;
+    color: var(--color-fainter);
 }
 .desk-avoid-reasons li b {
-    font-family: 'Geist Mono', monospace; font-weight: 600;
-    font-variant-numeric: tabular-nums; color: #0F0E0D;
-    font-size: 16px;
+    font-family: var(--font-mono); font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--color-text);
+    font-size: var(--fs-md);
 }
 
 .desk-reconsider {
     margin: 4px 0 36px;
     padding: 12px 16px;
     background: #F5F8F4;
-    border-left: 3px solid #2E7D4F;
+    border-left: 3px solid var(--color-positive);
     border-radius: 2px;
 }
 .desk-reconsider .label {
-    font-family: 'Geist', sans-serif;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.18em;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
     text-transform: uppercase; color: #2E5E3A;
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 8px;
 }
-.desk-reconsider .label .em { font-size: 14px; }
+.desk-reconsider .label .em { font-size: var(--fs-base); }
 .desk-reconsider ul {
     margin: 0; padding: 0; list-style: none;
 }
 .desk-reconsider li {
-    font-size: 17px; color: #3F3B34; line-height: 1.45;
+    font-size: var(--fs-md); color: var(--color-body); line-height: 1.45;
     padding: 4px 0 4px 16px; position: relative;
 }
 .desk-reconsider li:before {
     content: '→'; position: absolute; left: 0; top: 3px;
-    color: #2E7D4F; font-weight: 500;
+    color: var(--color-positive); font-weight: 500;
 }
 .desk-reconsider li b {
-    font-family: 'Geist Mono', monospace; font-weight: 600;
-    font-variant-numeric: tabular-nums; color: #0F0E0D;
-    font-size: 16px;
+    font-family: var(--font-mono); font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--color-text);
+    font-size: var(--fs-md);
 }
 
 /* ────────────────────────────────────────────────────────────── */
 /*  4. IF TRIGGER HITS — conditional trade plan, secondary        */
 /* ────────────────────────────────────────────────────────────── */
 .desk-plan-label {
-    font-family: 'Geist', sans-serif;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #6B655B;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
+    text-transform: uppercase; color: var(--color-muted);
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 8px;
 }
-.desk-plan-label .em { font-size: 12px; }
+.desk-plan-label .em { font-size: var(--fs-sm); }
 .desk-plan-row {
     display: flex; justify-content: space-between; align-items: baseline;
-    padding: 6px 0; border-top: 1px dashed #E5E3DE;
+    padding: 6px 0; border-top: 1px dashed var(--color-border);
 }
-.desk-plan-row:last-child { border-bottom: 1px dashed #E5E3DE; }
-.desk-plan-row .k { font-size: 13px; color: #6B655B; font-weight: 500; }
+.desk-plan-row:last-child { border-bottom: 1px dashed var(--color-border); }
+.desk-plan-row .k { font-size: var(--fs-base); color: var(--color-muted); font-weight: 500; }
 .desk-plan-row .v {
-    font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 14px; font-weight: 500; color: #0F0E0D;
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-base); font-weight: 500; color: var(--color-text);
 }
 .desk-plan-row .d {
-    font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 12px; margin-left: 6px; color: #6B655B;
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-sm); margin-left: 6px; color: var(--color-muted);
 }
 .desk-plan-row .sub {
-    font-family: 'Geist Mono', monospace; font-size: 10px; color: #A8A29E;
+    font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--color-fainter);
     display: block; text-align: right; margin-top: 1px;
 }
 
@@ -929,73 +969,73 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 /*  5. PM VIEW — two-layer, right column, separated               */
 /* ────────────────────────────────────────────────────────────── */
 .desk-pm-container {
-    border-left: 1px solid #E5E3DE;
+    border-left: 1px solid var(--color-border);
     padding-left: 24px;
 }
 .desk-pm-header {
-    font-family: 'Geist', sans-serif;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.16em;
-    text-transform: uppercase; color: #6B655B;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xl);
+    text-transform: uppercase; color: var(--color-muted);
     margin-bottom: 14px; padding-bottom: 6px;
-    border-bottom: 1px solid #E5E3DE;
+    border-bottom: 1px solid var(--color-border);
     display: flex; justify-content: space-between; align-items: baseline;
 }
-.desk-pm-header .em { font-size: 14px; margin-right: 6px; }
+.desk-pm-header .em { font-size: var(--fs-base); margin-right: 6px; }
 .desk-pm-header .src {
-    font-family: 'Geist Mono', monospace; font-size: 10px; color: #B4ADA0;
-    letter-spacing: 0.04em; text-transform: none; font-weight: 400;
+    font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--color-faintest);
+    letter-spacing: var(--ls-normal); text-transform: none; font-weight: 400;
 }
 .desk-pm-block { margin-bottom: 16px; }
 .desk-pm-block .lb {
-    font-family: 'Geist', sans-serif;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
-    text-transform: uppercase; color: #8A857C; margin-bottom: 5px;
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase; color: var(--color-faint); margin-bottom: 5px;
 }
 .desk-pm-block .body {
-    font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
-    font-size: 17px; line-height: 1.5; color: #3F3B34;
+    font-family: var(--font-serif); font-style: normal;
+    font-size: var(--fs-md); line-height: 1.5; color: var(--color-body);
 }
 .desk-pm-item {
-    font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
-    font-size: 15px; line-height: 1.45; color: #3F3B34;
+    font-family: var(--font-serif); font-style: normal;
+    font-size: var(--fs-md); line-height: 1.45; color: var(--color-body);
     padding: 3px 0 3px 16px; position: relative;
 }
 .desk-pm-item:before {
     content: '–'; position: absolute; left: 0; top: 1px;
-    font-family: 'Geist', sans-serif; font-style: normal;
-    color: #A8A29E; font-weight: 400;
+    font-family: var(--font-sans); font-style: normal;
+    color: var(--color-fainter); font-weight: 400;
 }
 .desk-pm-deep {
     margin-top: 20px; padding-top: 20px;
     border-top: 1px dashed #D9D5CC;
 }
 .desk-pm-deep .sub-lb {
-    font-family: 'Geist', sans-serif;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
-    text-transform: uppercase; color: #8A857C; margin: 14px 0 4px;
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase; color: var(--color-faint); margin: 14px 0 4px;
 }
 .desk-pm-deep .sub-body {
-    font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
-    font-size: 14px; line-height: 1.5; color: #3F3B34;
+    font-family: var(--font-serif); font-style: normal;
+    font-size: var(--fs-base); line-height: 1.5; color: var(--color-body);
 }
 .desk-pm-deep .variant-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
     margin-top: 4px;
 }
 .desk-pm-deep .variant-card {
-    border: 1px solid #E5E3DE; border-radius: 3px;
+    border: 1px solid var(--color-border); border-radius: 3px;
     padding: 9px 11px;
-    background: #FFFFFF;
+    background: var(--color-surface);
 }
-.desk-pm-deep .variant-card .lb-bull { color: #2E7D4F; }
-.desk-pm-deep .variant-card .lb-bear { color: #8B2F2F; }
+.desk-pm-deep .variant-card .lb-bull { color: var(--color-positive); }
+.desk-pm-deep .variant-card .lb-bear { color: var(--color-warning); }
 .desk-pm-deep .variant-card .lb {
-    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
+    font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--ls-caps-lg);
     text-transform: uppercase; margin-bottom: 3px;
 }
 .desk-pm-deep .variant-card .body {
-    font-family: 'Source Serif 4', Georgia, serif; font-style: normal;
-    font-size: 13px; line-height: 1.45; color: #3F3B34;
+    font-family: var(--font-serif); font-style: normal;
+    font-size: var(--fs-base); line-height: 1.45; color: var(--color-body);
 }
 
 /* Deep-dive expand button — aligned with stat cards */
@@ -1004,21 +1044,21 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     margin-left: 24px;
 }
 div.stButton > button {
-    background: transparent; border: 1px solid #E5E3DE; color: #0F0E0D;
-    font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 500;
+    background: transparent; border: 1px solid var(--color-border); color: var(--color-text);
+    font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 500;
     border-radius: 3px; padding: 6px 10px;
 }
 .main div.stButton > button:hover {
-    background: #0F0E0D; color: #FBFAF7; border-color: #0F0E0D;
+    background: var(--color-text); color: var(--color-bg); border-color: var(--color-text);
 }
 
 /* Technical details expander — full bordered container */
 div[data-testid="stExpander"],
 details.stExpander,
 div.stExpander {
-    border: 1px solid #E5E3DE !important;
+    border: 1px solid var(--color-border) !important;
     border-radius: 4px !important;
-    background: #FFFFFF !important;
+    background: var(--color-surface) !important;
     margin-top: 14px !important;
     overflow: hidden;
 }
@@ -1030,37 +1070,37 @@ div[data-testid="stExpander"] details {
 div[data-testid="stExpander"] summary,
 details.stExpander summary,
 div[data-testid="stExpander"] details summary {
-    font-size: 13px !important; font-weight: 500 !important;
-    color: #3F3B34 !important; letter-spacing: 0.04em !important;
+    font-size: var(--fs-base) !important; font-weight: 500 !important;
+    color: var(--color-body) !important; letter-spacing: var(--ls-normal) !important;
     padding: 12px 16px !important;
     list-style: none;
 }
 div[data-testid="stExpanderDetails"],
 div[data-testid="stExpander"] div[data-testid="stExpanderDetails"] {
     padding: 4px 16px 14px 16px !important;
-    border-top: 1px solid #E5E3DE;
+    border-top: 1px solid var(--color-border);
 }
 div.streamlit-expanderHeader {
-    font-size: 13px !important; font-weight: 500 !important;
-    color: #3F3B34 !important; letter-spacing: 0.04em !important;
+    font-size: var(--fs-base) !important; font-weight: 500 !important;
+    color: var(--color-body) !important; letter-spacing: var(--ls-normal) !important;
 }
 
 /* ────────────────────────────────────────────────────────────── */
 /*  Earnings banner — shown when earnings within 7 days           */
 /* ────────────────────────────────────────────────────────────── */
 .desk-earnings-banner {
-    background: #FEF7E8;
+    background: var(--color-surface-trigger);
     border: 1px solid #F5D88A;
     border-radius: 3px;
     padding: 10px 14px;
     margin: 0 0 20px;
     display: flex; align-items: center; gap: 10px;
-    font-size: 13px; color: #6B4E1D;
+    font-size: var(--fs-base); color: var(--color-warning-text);
     line-height: 1.4;
 }
-.desk-earnings-banner .em { font-size: 15px; }
+.desk-earnings-banner .em { font-size: var(--fs-md); }
 .desk-earnings-banner b {
-    font-family: 'Geist Mono', monospace; font-weight: 600;
+    font-family: var(--font-mono); font-weight: 600;
     font-variant-numeric: tabular-nums; color: #3F2E0A;
 }
 
@@ -1071,19 +1111,19 @@ div.streamlit-expanderHeader {
     display: flex; flex-wrap: wrap; gap: 18px;
     padding: 10px 0 4px;
     margin-bottom: 20px;
-    border-bottom: 1px solid #E5E3DE;
+    border-bottom: 1px solid var(--color-border);
 }
 .desk-meta-item {
     display: flex; flex-direction: column; gap: 1px;
 }
 .desk-meta-item .lb {
-    font-family: 'Geist', sans-serif;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
-    text-transform: uppercase; color: #8A857C;
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase; color: var(--color-faint);
 }
 .desk-meta-item .v {
-    font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 12px; font-weight: 500; color: #3F3B34;
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-sm); font-weight: 500; color: var(--color-body);
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -1092,33 +1132,43 @@ div.streamlit-expanderHeader {
 .desk-stat-card {
     margin: 14px 0 0 24px;
     padding: 12px 14px;
-    background: #FFFFFF;
-    border: 1px solid #E5E3DE;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 4px;
 }
 .desk-stat-card .label {
-    font-family: 'Geist', sans-serif;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
-    text-transform: uppercase; color: #6B655B;
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase; color: var(--color-muted);
     margin-bottom: 8px;
 }
 .desk-stat-card .row {
     display: flex; justify-content: space-between; align-items: baseline;
     padding: 6px 0;
-    font-size: 16px; color: #3F3B34;
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+    color: var(--color-body);
 }
 .desk-stat-card .row + .row {
-    border-top: 1px dashed #EFEDE7;
+    border-top: 1px dashed var(--color-border-soft);
 }
 .desk-stat-card .row .v {
-    font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 15px; color: #0F0E0D;
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+    color: var(--color-text);
+}
+/* Number portions inside .v get mono treatment via .num inner span */
+.desk-stat-card .row .v .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    margin-right: 4px;
 }
 
 /* Technical-read variant: prose inside a stat card */
 .desk-stat-card-read .read-body {
-    font-family: 'Geist', sans-serif;
-    font-size: 14px; line-height: 1.55; color: #3F3B34;
+    font-family: var(--font-sans);
+    font-size: var(--fs-base); line-height: 1.55; color: var(--color-body);
     padding: 4px 0 2px;
 }
 .desk-stat-card-read .read-body p {
@@ -1126,14 +1176,14 @@ div.streamlit-expanderHeader {
 }
 .desk-stat-card-read .read-body p:last-child { margin-bottom: 0; }
 .desk-stat-card-read .read-body b {
-    font-family: 'Geist Mono', monospace; font-weight: 600;
-    font-variant-numeric: tabular-nums; color: #0F0E0D;
-    font-size: 13px;
+    font-family: var(--font-mono); font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--color-text);
+    font-size: var(--fs-base);
 }
 .desk-chart-label {
-    font-family: 'Geist', sans-serif;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #6B655B;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
+    text-transform: uppercase; color: var(--color-muted);
     margin: 32px 0 10px;
 }
 
@@ -1144,29 +1194,29 @@ div.streamlit-expanderHeader {
     margin: 28px 0 0;
     padding-left: 24px;
     padding-top: 20px;
-    border-top: 1px solid #E5E3DE;
-    border-left: 1px solid #E5E3DE;
+    border-top: 1px solid var(--color-border);
+    border-left: 1px solid var(--color-border);
 }
 .desk-commentary-label {
-    font-family: 'Geist', sans-serif;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.16em;
-    text-transform: uppercase; color: #6B655B;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xl);
+    text-transform: uppercase; color: var(--color-muted);
     margin-bottom: 10px;
     display: flex; align-items: center; gap: 8px;
 }
-.desk-commentary-label .em { font-size: 14px; }
+.desk-commentary-label .em { font-size: var(--fs-base); }
 .desk-commentary-body {
-    font-family: 'Geist', sans-serif;
-    font-size: 18px; line-height: 1.55; color: #3F3B34;
+    font-family: var(--font-sans);
+    font-size: var(--fs-lg); line-height: 1.55; color: var(--color-body);
 }
 .desk-commentary-body p {
     margin: 0 0 12px; padding: 0;
 }
 .desk-commentary-body p:last-child { margin-bottom: 0; }
 .desk-commentary-body b {
-    font-family: 'Geist Mono', monospace; font-weight: 600;
-    font-variant-numeric: tabular-nums; color: #0F0E0D;
-    font-size: 17px;
+    font-family: var(--font-mono); font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--color-text);
+    font-size: var(--fs-md);
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -1178,7 +1228,7 @@ div.streamlit-expanderHeader {
     .main .block-container {
         padding-left: 0.8rem !important;
         padding-right: 0.8rem !important;
-        font-size: 15px !important;
+        font-size: var(--fs-md) !important;
     }
 
     /* Hero decision word: shrink so "Accumulate." doesn't overflow */
@@ -1187,12 +1237,12 @@ div.streamlit-expanderHeader {
         letter-spacing: -0.025em !important;
     }
     .desk-decision .emoji {
-        font-size: 30px !important;
+        font-size: var(--fs-xl) !important;
         margin-left: 8px !important;
         vertical-align: 6px !important;
     }
     .desk-decision .context {
-        font-size: 16px !important;
+        font-size: var(--fs-md) !important;
         margin-top: 10px !important;
     }
     .desk-decision-info-tooltip {
@@ -1201,15 +1251,15 @@ div.streamlit-expanderHeader {
     }
 
     /* Trigger block: keep readable but stop dominating the screen */
-    .desk-trigger-text { font-size: 22px !important; line-height: 1.3 !important; }
-    .desk-trigger-text b { font-size: 22px !important; }
+    .desk-trigger-text { font-size: var(--fs-xl) !important; line-height: 1.3 !important; }
+    .desk-trigger-text b { font-size: var(--fs-xl) !important; }
 
     /* Ticker row: shrink sym, hide secondary meta line so the row fits */
-    .desk-ticker-row .sym { font-size: 22px !important; }
-    .desk-ticker-row .name { font-size: 12px !important; margin-left: 6px !important; }
-    .desk-ticker-row .price { font-size: 16px !important; }
-    .desk-ticker-row .chg { font-size: 12px !important; margin-left: 6px !important; }
-    .desk-ticker-row .meta-inline { font-size: 10px !important; }
+    .desk-ticker-row .sym { font-size: var(--fs-xl) !important; }
+    .desk-ticker-row .name { font-size: var(--fs-sm) !important; margin-left: 6px !important; }
+    .desk-ticker-row .price { font-size: var(--fs-md) !important; }
+    .desk-ticker-row .chg { font-size: var(--fs-sm) !important; margin-left: 6px !important; }
+    .desk-ticker-row .meta-inline { font-size: var(--fs-xs) !important; }
 
     /* Stack Streamlit columns vertically on mobile.
        This is the critical fix — col_decision (5) + col_pm (3) split
@@ -1230,38 +1280,38 @@ div.streamlit-expanderHeader {
         padding-left: 0 !important;
         margin-top: 24px !important;
         padding-top: 18px !important;
-        border-top: 1px solid #E5E3DE !important;
+        border-top: 1px solid var(--color-border) !important;
     }
 
     /* Trade plan: trim row padding further on mobile and stack the
        sub-line under the value rather than to the right */
     .desk-plan-row { padding: 5px 0 !important; }
-    .desk-plan-row .k { font-size: 12px !important; }
-    .desk-plan-row .v { font-size: 13px !important; }
-    .desk-plan-row .d { font-size: 11px !important; }
-    .desk-plan-row .sub { font-size: 9px !important; }
+    .desk-plan-row .k { font-size: var(--fs-sm) !important; }
+    .desk-plan-row .v { font-size: var(--fs-base) !important; }
+    .desk-plan-row .d { font-size: var(--fs-sm) !important; }
+    .desk-plan-row .sub { font-size: var(--fs-xs) !important; }
 
     /* Read of the tape: smaller numbers, tighter rows */
     .desk-tape-read .row { padding: 4px 0 !important; }
-    .desk-tape-read .row .v { font-size: 11px !important; }
-    .desk-tape-read .row .lbl { font-size: 11px !important; }
+    .desk-tape-read .row .v { font-size: var(--fs-sm) !important; }
+    .desk-tape-read .row .lbl { font-size: var(--fs-sm) !important; }
 
     /* PM panel body + bullets: shrink */
-    .desk-pm-block .body { font-size: 14px !important; line-height: 1.45 !important; }
-    .desk-pm-item { font-size: 13px !important; line-height: 1.4 !important; }
-    .desk-pm-header { font-size: 10px !important; }
+    .desk-pm-block .body { font-size: var(--fs-base) !important; line-height: 1.45 !important; }
+    .desk-pm-item { font-size: var(--fs-base) !important; line-height: 1.4 !important; }
+    .desk-pm-header { font-size: var(--fs-xs) !important; }
 
     /* Dossier text: serif body still readable but smaller */
-    .desk-dossier-text { font-size: 15px !important; line-height: 1.5 !important; }
+    .desk-dossier-text { font-size: var(--fs-md) !important; line-height: 1.5 !important; }
     .desk-dossier { padding: 12px 14px !important; }
 
     /* Modifier badges: stack vertically (each on own line) */
     .desk-modifiers { flex-direction: column !important; gap: 4px !important; }
-    .desk-mod { font-size: 10px !important; }
+    .desk-mod { font-size: var(--fs-xs) !important; }
 
     /* Why-avoid / reconsider lists: tighter */
     .desk-avoid-reasons li, .desk-reconsider li {
-        font-size: 12px !important; line-height: 1.45 !important;
+        font-size: var(--fs-sm) !important; line-height: 1.45 !important;
     }
 
     /* Sidebar nav buttons: keep tappable size (44px min recommended) */
@@ -1287,9 +1337,9 @@ div.streamlit-expanderHeader {
 /* Even narrower (small phones, ≤380px): one more shrink step */
 @media (max-width: 380px) {
     .desk-decision .word { font-size: 48px !important; }
-    .desk-decision .emoji { font-size: 26px !important; }
-    .desk-trigger-text { font-size: 19px !important; }
-    .desk-trigger-text b { font-size: 19px !important; padding: 0 4px !important; }
+    .desk-decision .emoji { font-size: var(--fs-xl) !important; }
+    .desk-trigger-text { font-size: var(--fs-lg) !important; }
+    .desk-trigger-text b { font-size: var(--fs-lg) !important; padding: 0 4px !important; }
     .main .block-container {
         padding-left: 0.6rem !important;
         padding-right: 0.6rem !important;
@@ -2165,9 +2215,9 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown(
-        '<div style="font-family:\'Geist Mono\',monospace;font-size:10px;'
-        'font-weight:600;letter-spacing:0.16em;text-transform:uppercase;'
-        'color:#6B655B;margin:6px 0 8px;">Ticker</div>',
+        '<div style="font-family: var(--font-mono);font-size:var(--fs-xs);'
+        'font-weight:600;letter-spacing: var(--ls-caps-xl);text-transform:uppercase;'
+        'color:var(--color-muted);margin:6px 0 8px;">Ticker</div>',
         unsafe_allow_html=True,
     )
     # Ticker text input — TRICKY: Streamlit's text_input ignores `value=`
@@ -2208,9 +2258,9 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown(
-        '<div style="font-family:\'Geist Mono\',monospace;font-size:10px;'
-        'font-weight:600;letter-spacing:0.16em;text-transform:uppercase;'
-        'color:#6B655B;margin:6px 0 8px;">Watchlist</div>',
+        '<div style="font-family: var(--font-mono);font-size:var(--fs-xs);'
+        'font-weight:600;letter-spacing: var(--ls-caps-xl);text-transform:uppercase;'
+        'color:var(--color-muted);margin:6px 0 8px;">Watchlist</div>',
         unsafe_allow_html=True,
     )
 
@@ -2224,8 +2274,8 @@ section[data-testid='stSidebar'] [role='radiogroup'] {
 section[data-testid='stSidebar'] [role='radiogroup'] label {
     padding: 8px 12px !important;
     margin: 1px 0 !important;
-    font-family: 'Geist', sans-serif !important;
-    font-size: 13px !important;
+    font-family: var(--font-sans) !important;
+    font-size: var(--fs-base) !important;
     border-radius: 4px !important;
     display: flex !important;
     align-items: center !important;
@@ -2233,7 +2283,7 @@ section[data-testid='stSidebar'] [role='radiogroup'] label {
     cursor: pointer;
 }
 section[data-testid='stSidebar'] [role='radiogroup'] label p {
-    font-size: 13px !important;
+    font-size: var(--fs-base) !important;
     font-weight: 500 !important;
     margin: 0 !important;
     line-height: 1.2 !important;
@@ -2258,11 +2308,11 @@ section[data-testid='stSidebar'] [role='radiogroup'] label > div {
 }
 /* Highlight active selection with a solid background */
 section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) {
-    background: #0F0E0D !important;
-    color: #FBFAF7 !important;
+    background: var(--color-text) !important;
+    color: var(--color-bg) !important;
 }
 section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p {
-    color: #FBFAF7 !important;
+    color: var(--color-bg) !important;
 }
 </style>""",
             unsafe_allow_html=True,
@@ -2382,10 +2432,10 @@ section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p 
         else:
             source_note = "saved"
         st.markdown(
-            f'<div style="font-size:13px;color:#3F3B34;'
+            f'<div style="font-size:var(--fs-base);color:var(--color-body);'
             f'padding:8px 10px;background:#F0FDF4;border:1px solid #BBF7D0;'
             f'border-radius:3px;font-family:Geist Mono,monospace;">'
-            f'✓ key {source_note} <span style="color:#8A857C;">({masked})</span>'
+            f'✓ key {source_note} <span style="color:var(--color-faint);">({masked})</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -2424,11 +2474,11 @@ section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p 
     if _calls > 0:
         _est_cost = _calls * 0.03
         st.markdown(
-            f'<div style="margin-top:24px;padding:8px 10px;background:#F5F2EB;'
-            f'border-radius:3px;font-family:Geist Mono,monospace;font-size:11px;'
-            f'color:#6B655B;line-height:1.5;">'
-            f'<div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;'
-            f'color:#8A857C;margin-bottom:3px;">Session usage</div>'
+            f'<div style="margin-top:24px;padding:8px 10px;background:var(--color-surface-soft);'
+            f'border-radius:3px;font-family:Geist Mono,monospace;font-size:var(--fs-sm);'
+            f'color:var(--color-muted);line-height:1.5;">'
+            f'<div style="font-size:var(--fs-xs);letter-spacing: var(--ls-caps-md);text-transform:uppercase;'
+            f'color:var(--color-faint);margin-bottom:3px;">Session usage</div>'
             f'<div>{_calls} fresh call{"s" if _calls != 1 else ""} \u00b7 ~${_est_cost:.2f}</div>'
             f'</div>',
             unsafe_allow_html=True,
@@ -2453,7 +2503,7 @@ section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p 
             st.markdown(
                 '<div style="margin-top:8px;padding:6px 10px;background:#F0FDF4;'
                 'border:1px solid #BBF7D0;border-radius:3px;'
-                'font-family:Geist Mono,monospace;font-size:10px;color:#15803D;">'
+                'font-family:Geist Mono,monospace;font-size:var(--fs-xs);color:#15803D;">'
                 '✓ Database connected · data persisting'
                 '</div>',
                 unsafe_allow_html=True,
@@ -2462,18 +2512,18 @@ section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p 
             st.markdown(
                 f'<div style="margin-top:8px;padding:6px 10px;background:#FEF2F2;'
                 f'border:1px solid #FECACA;border-radius:3px;'
-                f'font-family:Geist Mono,monospace;font-size:10px;color:#B91C1C;">'
+                f'font-family:Geist Mono,monospace;font-size:var(--fs-xs);color:#B91C1C;">'
                 f'✗ Database error · data NOT persisting<br>'
-                f'<span style="font-size:9px;color:#8B2F2F;">{_health}</span>'
+                f'<span style="font-size:var(--fs-xs);color:var(--color-warning);">{_health}</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
     else:
         # No DATABASE_URL configured — running in session-only mode
         st.markdown(
-            '<div style="margin-top:8px;padding:6px 10px;background:#FEF7E8;'
+            '<div style="margin-top:8px;padding:6px 10px;background:var(--color-surface-trigger);'
             'border:1px solid #F5D88A;border-radius:3px;'
-            'font-family:Geist Mono,monospace;font-size:10px;color:#6B4E1D;">'
+            'font-family:Geist Mono,monospace;font-size:var(--fs-xs);color:var(--color-warning-text);">'
             '⚠ Session-only · data resets on refresh'
             '</div>',
             unsafe_allow_html=True,
@@ -2724,12 +2774,12 @@ if view == "analyze":
   <div class="desk-decision-info" title="What does this mean?">i</div>
   <div class="desk-decision-info-tooltip">{_tooltip_html}</div>
   <span class="word" style="color:{sty['color']};">
-    {sty['label']}<span style="color:#0F0E0D;">.</span>
+    {sty['label']}<span style="color:var(--color-text);">.</span>
   </span>
   <span class="emoji">{sty['emoji']}</span>
   <div class="context">{decision_context(t)}</div>
-  <div style="font-family:'Geist Mono',monospace; font-size:11px; font-weight:600;
-              letter-spacing:0.08em; text-transform:uppercase; color:{sty['color']};
+  <div style="font-family: var(--font-mono); font-size:var(--fs-sm); font-weight:600;
+              letter-spacing: var(--ls-caps-sm); text-transform:uppercase; color:{sty['color']};
               margin-top:8px; opacity:0.85;">
     {_state_action_label} — {_state_copy}
   </div>
@@ -2782,8 +2832,8 @@ if view == "analyze":
 
             reasons_html = "".join(f'<li>{bold_numbers(r)}</li>' for r in stabilizing_reasons)
             st.markdown(f"""
-<div class="desk-avoid-reasons" style="border-left-color:#7C5DD9; background:#F4F0FB;">
-  <div class="label" style="color:#7C5DD9;">
+<div class="desk-avoid-reasons" style="border-left-color:var(--color-purple); background:#F4F0FB;">
+  <div class="label" style="color:var(--color-purple);">
     <span class="em">🌱</span>Why accumulate
   </div>
   <ul>{reasons_html}</ul>
@@ -2792,8 +2842,8 @@ if view == "analyze":
 
             # Sizing guidance — explicit, not a full allocation
             st.markdown("""
-<div class="desk-reconsider" style="border-left-color:#7C5DD9; background:#F4F0FB;">
-  <div class="label" style="color:#7C5DD9;">
+<div class="desk-reconsider" style="border-left-color:var(--color-purple); background:#F4F0FB;">
+  <div class="label" style="color:var(--color-purple);">
     <span class="em">📊</span>Position discipline
   </div>
   <ul>
@@ -2832,6 +2882,22 @@ if view == "analyze":
 <div class="desk-reconsider">
   <div class="label"><span class="em">🔄</span>Reconsider when</div>
   <ul>{reversal_html}</ul>
+</div>
+""", unsafe_allow_html=True)
+
+        # 1c. Decision dossier — the synthesis paragraph. Now sits ABOVE
+        # the comparison panel so users read Claude's full reasoning
+        # first, then see the side-by-side comparison and log their call.
+        dossier_text = dossier_result.get("dossier") if dossier_result else None
+        if dossier_text:
+            src = dossier_result.get("_source", "claude")
+            st.markdown(f"""
+<div class="desk-dossier">
+  <div class="desk-dossier-label">
+    <span><span class="em">📋</span>Decision dossier</span>
+    <span class="src">{src}</span>
+  </div>
+  <div class="desk-dossier-text">{dossier_text}</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -2896,7 +2962,7 @@ if view == "analyze":
                 '<div class="desk-cmp-fallback">'
                 'Click ↻ on Portfolio Manager panel to regenerate'
                 '</div>'
-                '<div class="desk-cmp-meta" style="color:#A8A29E;">'
+                '<div class="desk-cmp-meta" style="color:var(--color-fainter);">'
                 'Older cached dossier without tactical_call data'
                 '</div>'
             )
@@ -2926,24 +2992,30 @@ if view == "analyze":
                 unsafe_allow_html=True,
             )
 
-            # Side-by-side: Rule engine | Claude (Streamlit native columns)
-            cmp_c1, cmp_c2 = st.columns(2, gap="medium")
-            with cmp_c1:
-                rule_color = rule_sty.get("color", "#0F0E0D")
-                rule_label = rule_sty.get("label", rule_action)
-                rule_emoji = rule_sty.get("emoji", "")
-                state_label = t.get("state", "TRENDING")
-                st.markdown(
-                    f'<div class="desk-cmp-side-label">Rule engine</div>'
-                    f'<div class="desk-cmp-action" style="color:{rule_color};">{rule_emoji} {rule_label}</div>'
-                    f'<div class="desk-cmp-meta">State: {state_label}</div>',
-                    unsafe_allow_html=True,
-                )
-            with cmp_c2:
-                st.markdown(
-                    f'<div class="desk-cmp-side-label">Claude</div>{claude_html}',
-                    unsafe_allow_html=True,
-                )
+            # Side-by-side via CSS grid: Claude (primary) | divider | Rule engine (secondary)
+            # Claude is on the left because it's the primary decision source —
+            # the rule engine is the comparison baseline. The 1px middle column
+            # of the grid renders as a vertical divider that spans the full
+            # height of both sides.
+            rule_color = rule_sty.get("color", "#0F0E0D")
+            rule_label = rule_sty.get("label", rule_action)
+            rule_emoji = rule_sty.get("emoji", "")
+            state_label = t.get("state", "TRENDING")
+            st.markdown(
+                f'<div class="desk-cmp-grid">'
+                f'<div>'
+                f'<div class="desk-cmp-side-label">Claude <span style="color:var(--color-muted);font-weight:500;">· primary</span></div>'
+                f'{claude_html}'
+                f'</div>'
+                f'<div class="desk-cmp-divider"></div>'
+                f'<div>'
+                f'<div class="desk-cmp-side-label">Rule engine <span style="color:var(--color-faint);font-weight:500;">· secondary</span></div>'
+                f'<div class="desk-cmp-action" style="color:{rule_color};">{rule_emoji} {rule_label}</div>'
+                f'<div class="desk-cmp-meta">State: {state_label}</div>'
+                f'</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
             # Reasoning + trigger blocks (only when present)
             if reasoning_html:
@@ -3049,22 +3121,6 @@ if view == "analyze":
                 unsafe_allow_html=True,
             )
 
-        # 1c. Decision dossier — the synthesis paragraph. Sits below the
-        # headline decision and its modifiers; explains the call before the
-        # tape numbers and trigger. Skipped silently when no API key.
-        dossier_text = dossier_result.get("dossier") if dossier_result else None
-        if dossier_text:
-            src = dossier_result.get("_source", "claude")
-            st.markdown(f"""
-<div class="desk-dossier">
-  <div class="desk-dossier-label">
-    <span><span class="em">📋</span>Decision dossier</span>
-    <span class="src">{src}</span>
-  </div>
-  <div class="desk-dossier-text">{dossier_text}</div>
-</div>
-""", unsafe_allow_html=True)
-
         # Read of the tape — always visible, anchors every screen with the
         # current technical state in concrete numbers.
         tape_rows = tape_read(t)
@@ -3072,7 +3128,7 @@ if view == "analyze":
         tape_html = "".join(
             f'<div class="row">'
             f'  <span class="k">{label}</span>'
-            f'  <span class="v" style="color:{color_map.get(sev, "#3F3B34")};">{bold_numbers(value)}</span>'
+            f'  <span class="v" style="color:{color_map.get(sev, "var(--color-body)")};">{bold_numbers(value)}</span>'
             f'</div>'
             for label, value, sev in tape_rows
         )
@@ -3097,16 +3153,16 @@ if view == "analyze":
                 # Same Geist font + size as narrative below for visual unity.
                 if commentary_lines:
                     commentary_html = "".join(
-                        f'<p style="margin: 0 0 8px; font-size: 13px; line-height: 1.55; '
-                        f'color: #3F3B34; font-family: Geist, sans-serif;">'
+                        f'<p style="margin: 0 0 8px; font-size: var(--fs-base); line-height: 1.55; '
+                        f'color: var(--color-body); font-family: Geist, sans-serif;">'
                         f'{bold_numbers(line)}</p>'
                         for line in commentary_lines
                     )
                     # Sub-label so users know what this section is
                     st.markdown(
-                        f'<div style="font-family:Geist,sans-serif;font-size:10px;'
-                        f'font-weight:600;letter-spacing:0.14em;text-transform:uppercase;'
-                        f'color:#6B655B;margin-bottom:8px;">Tape detail</div>'
+                        f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                        f'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                        f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
                         f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
                         unsafe_allow_html=True,
                     )
@@ -3116,16 +3172,16 @@ if view == "analyze":
                     if commentary_lines:
                         # Visual divider between sections inside the expander
                         st.markdown(
-                            '<div style="border-top:1px dashed #E5E3DE;margin:12px 0 14px;"></div>'
-                            '<div style="font-family:Geist,sans-serif;font-size:10px;'
-                            'font-weight:600;letter-spacing:0.14em;text-transform:uppercase;'
-                            'color:#6B655B;margin-bottom:8px;">Narrative</div>',
+                            '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                            '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                            'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                            'color:var(--color-muted);margin-bottom:8px;">Narrative</div>',
                             unsafe_allow_html=True,
                         )
                     paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
                     paras_html = "".join(
-                        f'<p style="margin: 0 0 12px; font-size: 13px; line-height: 1.55; '
-                        f'color: #3F3B34; font-family: Geist, sans-serif;">{p}</p>'
+                        f'<p style="margin: 0 0 12px; font-size: var(--fs-base); line-height: 1.55; '
+                        f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
                         for p in paragraphs
                     )
                     st.markdown(
@@ -3212,30 +3268,30 @@ if view == "analyze":
                 cap_note = ""
                 if cap_active:
                     cap_note = (
-                        f'<div style="font-family:\'Geist\',sans-serif;font-style:italic;'
-                        f'font-size:11px;color:#8B6914;margin-top:4px;">'
+                        f'<div style="font-family: var(--font-sans);font-style:italic;'
+                        f'font-size:var(--fs-sm);color:#8B6914;margin-top:4px;">'
                         f'Capped by max position size ({max_pos_pct*100:.0f}%). '
                         f'Risk math alone wanted {risk_shares:,} shares.'
                         f'</div>'
                     )
 
                 st.markdown(f"""
-<div style="margin-top:12px;padding:10px 12px;background:#F5F2EB;border-radius:3px;
-            font-family:'Geist Mono',monospace;font-size:12px;color:#3F3B34;line-height:1.45;">
+<div style="margin-top:12px;padding:10px 12px;background:var(--color-surface-soft);border-radius:3px;
+            font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-body);line-height:1.45;">
   <div>
-    <span style="color:#8A857C;">Risk</span>
-    <b style="color:#0F0E0D;">${effective_risk:,.0f}</b>
-    <span style="color:#A8A29E;">({effective_risk_pct:.2f}% of ${account:,.0f})</span>
+    <span style="color:var(--color-faint);">Risk</span>
+    <b style="color:var(--color-text);">${effective_risk:,.0f}</b>
+    <span style="color:var(--color-fainter);">({effective_risk_pct:.2f}% of ${account:,.0f})</span>
   </div>
   <div>
-    <span style="color:#8A857C;">Shares</span>
-    <b style="color:#0F0E0D;">{shares:,}</b>
-    <span style="color:#A8A29E;">at ${t['entry']:.2f} entry</span>
+    <span style="color:var(--color-faint);">Shares</span>
+    <b style="color:var(--color-text);">{shares:,}</b>
+    <span style="color:var(--color-fainter);">at ${t['entry']:.2f} entry</span>
   </div>
   <div>
-    <span style="color:#8A857C;">Position</span>
-    <b style="color:#0F0E0D;">${position_value:,.0f}</b>
-    <span style="color:#A8A29E;">({pos_pct:.1f}% of account)</span>
+    <span style="color:var(--color-faint);">Position</span>
+    <b style="color:var(--color-text);">${position_value:,.0f}</b>
+    <span style="color:var(--color-fainter);">({pos_pct:.1f}% of account)</span>
   </div>
   {cap_note}
 </div>
@@ -3248,13 +3304,13 @@ if view == "analyze":
         # overrides, so all four MA lines used to render in the same color.
         st.markdown(f"""
 <div class="desk-chart-label">
-  <span style="color:#6B655B;">📈 Chart · </span>
+  <span style="color:var(--color-muted);">📈 Chart · </span>
   <span style="color:#F97316;font-weight:700;">MA 9</span>
-  <span style="color:#6B655B;"> · </span>
+  <span style="color:var(--color-muted);"> · </span>
   <span style="color:#2563EB;font-weight:700;">MA 50</span>
-  <span style="color:#6B655B;"> · </span>
+  <span style="color:var(--color-muted);"> · </span>
   <span style="color:#9333EA;font-weight:700;">MA 100</span>
-  <span style="color:#6B655B;"> · </span>
+  <span style="color:var(--color-muted);"> · </span>
   <span style="color:#DC2626;font-weight:700;">MA 200</span>
 </div>
 """, unsafe_allow_html=True)
@@ -3357,9 +3413,9 @@ if view == "analyze":
         # close with P&L) while decisions_log on the comparison panel logs to
         # the Decisions tab (rules vs Claude vs you for calibration trial).
         st.markdown(
-            '<div style="margin-top:22px;font-family:\'Geist\',sans-serif;'
-            'font-size:10px;font-weight:600;letter-spacing:0.14em;'
-            'text-transform:uppercase;color:#6B655B;margin-bottom:6px;">'
+            '<div style="margin-top:22px;font-family: var(--font-sans);'
+            'font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);'
+            'text-transform:uppercase;color:var(--color-muted);margin-bottom:6px;">'
             'Trade tracker</div>',
             unsafe_allow_html=True,
         )
@@ -3400,8 +3456,8 @@ if view == "analyze":
             ]
             for label, value in rows:
                 st.markdown(f"""
-<div style="display:flex;justify-content:space-between;font-family:'Geist Mono',monospace;font-size:11px;color:#6B655B;padding:3px 0;">
-  <span>{label}</span><span style="color:#0F0E0D;">{value}</span>
+<div style="display:flex;justify-content:space-between;font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);padding:3px 0;">
+  <span>{label}</span><span style="color:var(--color-text);">{value}</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -3435,12 +3491,12 @@ if view == "analyze":
                 )
                 return (
                     f'<div style="display:flex;justify-content:space-between;align-items:baseline;'
-                    f'font-family:Geist,sans-serif;font-size:13px;color:#0F0E0D;'
-                    f'padding:7px 0;border-bottom:1px solid #EFEDE7;">'
-                    f'<span><span style="font-family:\'Geist Mono\',monospace;font-weight:600;'
+                    f'font-family:Geist,sans-serif;font-size:var(--fs-base);color:var(--color-text);'
+                    f'padding:7px 0;border-bottom:1px solid var(--color-border-soft);">'
+                    f'<span><span style="font-family: var(--font-mono);font-weight:600;'
                     f'color:{color};">${level:.2f}</span> '
-                    f'<span style="color:#6B655B;font-size:12px;margin-left:8px;">{kind}</span></span>'
-                    f'<span style="color:#6B655B;font-size:12px;">'
+                    f'<span style="color:var(--color-muted);font-size:var(--fs-sm);margin-left:8px;">{kind}</span></span>'
+                    f'<span style="color:var(--color-muted);font-size:var(--fs-sm);">'
                     f'{distance} · {touches_text}{flip_text}</span>'
                     f'</div>'
                 )
@@ -3454,22 +3510,22 @@ if view == "analyze":
 
             if proximate:
                 st.markdown(
-                    '<div style="font-family:Geist,sans-serif;font-size:10px;'
-                    'font-weight:600;letter-spacing:0.14em;text-transform:uppercase;'
-                    'color:#6B655B;margin:4px 0 6px;">Nearby — within 15% of current price</div>'
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin:4px 0 6px;">Nearby — within 15% of current price</div>'
                     + "".join(_fmt_level_row(lv) for lv in proximate[:6]),
                     unsafe_allow_html=True,
                 )
             elif auto_lvls:
                 st.markdown(
-                    '<div style="font-size:12px;color:#6B655B;font-style:italic;'
+                    '<div style="font-size:var(--fs-sm);color:var(--color-muted);font-style:italic;'
                     'margin:4px 0 8px;">No tested levels within 15% of current price '
                     '— price has run away from established support/resistance zones.</div>',
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    '<div style="font-size:12px;color:#B4ADA0;font-style:italic;'
+                    '<div style="font-size:var(--fs-sm);color:var(--color-faintest);font-style:italic;'
                     'margin:4px 0 8px;">No significant clusters in price history yet.</div>',
                     unsafe_allow_html=True,
                 )
@@ -3495,7 +3551,7 @@ if view == "analyze":
                 expanded=user_has_levels,
             ):
                 st.markdown(
-                    '<div style="font-size:11px;color:#6B655B;margin-bottom:10px;">'
+                    '<div style="font-size:var(--fs-sm);color:var(--color-muted);margin-bottom:10px;">'
                     'Manually-marked levels override auto-detection and bypass '
                     'quality gating in the support-test trigger.</div>',
                     unsafe_allow_html=True,
@@ -3504,15 +3560,15 @@ if view == "analyze":
                 mc1, mc2 = st.columns(2)
                 with mc1:
                     st.markdown(
-                        '<div style="font-family:Geist,sans-serif;font-size:11px;'
-                        'font-weight:600;color:#00A870;margin-bottom:4px;">Support</div>',
+                        '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
+                        'font-weight:600;color:var(--color-accent);margin-bottom:4px;">Support</div>',
                         unsafe_allow_html=True,
                     )
                     for i, lv_price in enumerate(list(user_lvls.get("support", []))):
                         sub_c1, sub_c2 = st.columns([3, 1])
                         sub_c1.markdown(
-                            f"<div style='font-family:\"Geist Mono\",monospace;font-size:13px;"
-                            f"color:#00A870;padding-top:7px;'>${float(lv_price):.2f}</div>",
+                            f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
+                            f"color:var(--color-accent);padding-top:7px;'>${float(lv_price):.2f}</div>",
                             unsafe_allow_html=True,
                         )
                         if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
@@ -3540,15 +3596,15 @@ if view == "analyze":
 
                 with mc2:
                     st.markdown(
-                        '<div style="font-family:Geist,sans-serif;font-size:11px;'
-                        'font-weight:600;color:#D14545;margin-bottom:4px;">Resistance</div>',
+                        '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
+                        'font-weight:600;color:var(--color-negative);margin-bottom:4px;">Resistance</div>',
                         unsafe_allow_html=True,
                     )
                     for i, lv_price in enumerate(list(user_lvls.get("resistance", []))):
                         sub_c1, sub_c2 = st.columns([3, 1])
                         sub_c1.markdown(
-                            f"<div style='font-family:\"Geist Mono\",monospace;font-size:13px;"
-                            f"color:#D14545;padding-top:7px;'>${float(lv_price):.2f}</div>",
+                            f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
+                            f"color:var(--color-negative);padding-top:7px;'>${float(lv_price):.2f}</div>",
                             unsafe_allow_html=True,
                         )
                         if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
@@ -3617,15 +3673,15 @@ if view == "analyze":
                                 "sub": "Structurally weak business · do not engage"},
             }
             ts = tier_styles.get(q_tier, tier_styles["B"])
-            rationale_html = f'<div style="font-size:12px; color:#4A453E; margin-top:4px; line-height:1.4;">{q_rationale}</div>' if q_rationale else ""
+            rationale_html = f'<div style="font-size:var(--fs-sm); color:#4A453E; margin-top:4px; line-height:1.4;">{q_rationale}</div>' if q_rationale else ""
             st.markdown(f"""
 <div style="background:{ts['bg']}; border-left:3px solid {ts['color']};
             padding:8px 12px; margin:6px 0 14px 0; border-radius:4px;">
-  <div style="font-family:'Geist Mono',monospace; font-size:11px; font-weight:600;
-              letter-spacing:0.06em; text-transform:uppercase; color:{ts['color']};">
+  <div style="font-family: var(--font-mono); font-size:var(--fs-sm); font-weight:600;
+              letter-spacing: var(--ls-caps-xs); text-transform:uppercase; color:{ts['color']};">
     {ts['label']}
   </div>
-  <div style="font-size:11px; color:#6B655B; margin-top:2px;">{ts['sub']}</div>
+  <div style="font-size:var(--fs-sm); color:var(--color-muted); margin-top:2px;">{ts['sub']}</div>
   {rationale_html}
 </div>
 """, unsafe_allow_html=True)
@@ -3696,8 +3752,8 @@ if view == "analyze":
 
         def pass_fail(is_pass, na=False):
             if na:
-                return '<span style="color:#B4ADA0;">—</span>'
-            return '<span style="color:#2E7D4F;">✓</span>' if is_pass else '<span style="color:#D14545;">✗</span>'
+                return '<span style="color:var(--color-faintest);">—</span>'
+            return '<span style="color:var(--color-positive);">✓</span>' if is_pass else '<span style="color:var(--color-negative);">✗</span>'
 
         peg_verdict = ""
         peg_row = ""
@@ -3711,7 +3767,7 @@ if view == "analyze":
             else:
                 peg_verdict = "expensive"
                 peg_pass = False
-            peg_row = f'<div class="row"><span>PEG</span><span class="v">{peg:.2f} · {peg_verdict} {pass_fail(peg_pass)}</span></div>'
+            peg_row = f'<div class="row"><span>PEG</span><span class="v"><span class="num">{peg:.2f}</span> · {peg_verdict} {pass_fail(peg_pass)}</span></div>'
 
         pe_row = ""
         if fpe is not None:
@@ -3732,17 +3788,17 @@ if view == "analyze":
             else:
                 pe_context = cat_hint
                 pe_pass = True
-            pe_row = f'<div class="row"><span>Forward P/E</span><span class="v">{fpe:.1f} · {pe_context} {pass_fail(pe_pass)}</span></div>'
+            pe_row = f'<div class="row"><span>Forward P/E</span><span class="v"><span class="num">{fpe:.1f}</span> · {pe_context} {pass_fail(pe_pass)}</span></div>'
 
         de_row = ""
         if de is not None:
             de_pass = de < 30
             de_note = "healthy" if de_pass else "leveraged"
-            de_row = f'<div class="row"><span>Debt / Equity</span><span class="v">{de:.0f}% · {de_note} {pass_fail(de_pass)}</span></div>'
+            de_row = f'<div class="row"><span>Debt / Equity</span><span class="v"><span class="num">{de:.0f}%</span> · {de_note} {pass_fail(de_pass)}</span></div>'
 
         growth_row = ""
         if eg is not None:
-            growth_row = f'<div class="row"><span>Earnings growth</span><span class="v">{eg:+.1f}% YoY</span></div>'
+            growth_row = f'<div class="row"><span>Earnings growth</span><span class="v"><span class="num">{eg:+.1f}%</span> YoY</span></div>'
 
         if any([peg_row, pe_row, de_row, growth_row]):
             st.markdown(f"""
@@ -3784,20 +3840,20 @@ if view == "analyze":
             '.pm-thesis-btn-wrap div[data-testid="stButton"] > button {'
             '  width: auto !important;'
             '  font-family: Geist, sans-serif !important;'
-            '  font-size: 13px !important;'
+            '  font-size: var(--fs-base) !important;'
             '  font-weight: 500 !important;'
-            '  letter-spacing: 0.02em !important;'
+            '  letter-spacing: var(--ls-tight) !important;'
             '  padding: 8px 14px !important;'
-            '  border: 1px solid #E5E3DE !important;'
-            '  background: #FFFFFF !important;'
-            '  color: #3F3B34 !important;'
+            '  border: 1px solid var(--color-border) !important;'
+            '  background: var(--color-surface) !important;'
+            '  color: var(--color-body) !important;'
             '  margin-top: 14px !important;'
             '  margin-left: 24px !important;'
             '}'
             '.pm-thesis-btn-wrap div[data-testid="stButton"] > button:hover {'
-            '  background: #0F0E0D !important;'
-            '  color: #FBFAF7 !important;'
-            '  border-color: #0F0E0D !important;'
+            '  background: var(--color-text) !important;'
+            '  color: var(--color-bg) !important;'
+            '  border-color: var(--color-text) !important;'
             '}'
             '</style>'
             '<div class="pm-thesis-btn-wrap"></div>',
@@ -3811,7 +3867,7 @@ if view == "analyze":
             if not has_full_thesis_content:
                 st.markdown(f"""
 <div class="desk-pm-deep">
-  <div class="sub-body" style="color:#8A857C;">
+  <div class="sub-body" style="color:var(--color-faint);">
     Full thesis content is only generated when an Anthropic API key is configured in the sidebar.
     Paste a key, then click ↻ next to the Portfolio manager header to regenerate.
   </div>
@@ -3823,8 +3879,8 @@ if view == "analyze":
                 if pm_narrative:
                     paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
                     narrative_html = "".join(
-                        f'<p style="margin: 0 0 12px; font-size: 15px; line-height: 1.55; '
-                        f'color: #3F3B34; font-family: \'Source Serif 4\', Georgia, serif; '
+                        f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.55; '
+                        f'color: var(--color-body); font-family: var(--font-serif); '
                         f'font-style: normal;">{p}</p>'
                         for p in paragraphs
                     )
@@ -3938,25 +3994,25 @@ if view == "watchlist":
         for key in ["enter_now", "watch", "accumulate", "hold_off", "avoid"]:
             sty = STATE_STYLES[key]
             st.markdown(f"""
-<div style="font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:{sty['color']};margin:14px 0 8px;">
+<div style="font-size:var(--fs-sm);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:{sty['color']};margin:14px 0 8px;">
   {sty['emoji']} {sty['label']} · {len(rows_by_action[key])}
 </div>
 """, unsafe_allow_html=True)
             if not rows_by_action[key]:
-                st.markdown('<div style="color:#B4ADA0;font-style:italic;font-size:13px;margin:6px 0 18px;">Nothing here.</div>', unsafe_allow_html=True)
+                st.markdown('<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);margin:6px 0 18px;">Nothing here.</div>', unsafe_allow_html=True)
                 continue
             for tkr, name, t in rows_by_action[key]:
                 chg_color = "#2E7D4F" if t["change"] >= 0 else "#D14545"
                 c1, c2 = st.columns([10, 1])
                 with c1:
                     st.markdown(f"""
-<div style="border-top:1px dashed #E5E3DE;display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;">
+<div style="border-top:1px dashed var(--color-border);display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;">
   <div>
-    <span style="font-size:14px;font-weight:600;">{tkr}</span>
-    <span style="font-size:12px;color:#6B655B;margin-left:10px;">{name}</span>
+    <span style="font-size:var(--fs-base);font-weight:600;">{tkr}</span>
+    <span style="font-size:var(--fs-sm);color:var(--color-muted);margin-left:10px;">{name}</span>
   </div>
   <div style="display:flex;align-items:baseline;gap:14px;">
-    <span style="font-family:'Geist Mono',monospace;font-size:11px;color:{chg_color};min-width:50px;text-align:right;">
+    <span style="font-family: var(--font-mono);font-size:var(--fs-sm);color:{chg_color};min-width:50px;text-align:right;">
       {'+' if t['change'] >= 0 else ''}{t['change']:.1f}%
     </span>
   </div>
@@ -4001,23 +4057,23 @@ if view == "tracker":
 
         c1, c2 = st.columns(2)
         c1.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:12px 14px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;">Hit rate</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:24px;font-weight:500;margin-top:3px;letter-spacing:-0.02em;">{hit_rate}%</div>
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:12px 14px;">
+  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Hit rate</div>
+  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:3px;letter-spacing:-0.02em;">{hit_rate}%</div>
 </div>
 """, unsafe_allow_html=True)
         c2.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:12px 14px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;">Average edge</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:24px;font-weight:500;margin-top:3px;letter-spacing:-0.02em;">{'+' if avg_edge >= 0 else ''}{avg_edge:.1f}%</div>
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:12px 14px;">
+  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Average edge</div>
+  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:3px;letter-spacing:-0.02em;">{'+' if avg_edge >= 0 else ''}{avg_edge:.1f}%</div>
 </div>
 """, unsafe_allow_html=True)
 
         st.markdown("&nbsp;", unsafe_allow_html=True)
-        st.markdown('<div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;margin:6px 0;">Log</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin:6px 0;">Log</div>', unsafe_allow_html=True)
 
         if not log:
-            st.markdown('<div style="color:#B4ADA0;font-style:italic;font-size:13px;">No decisions logged yet.</div>', unsafe_allow_html=True)
+            st.markdown('<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);">No decisions logged yet.</div>', unsafe_allow_html=True)
         else:
             for i, entry in enumerate(log):
                 sty = STATE_STYLES[entry["action"]]
@@ -4033,10 +4089,10 @@ if view == "tracker":
                     result_text = f"{'+' if entry['result_pct'] >= 0 else ''}{entry['result_pct']:.1f}%"
 
                 cols = st.columns([1, 1, 2, 2, 1, 1])
-                cols[0].markdown(f'<div style="font-family:\'Geist Mono\',monospace;font-size:11px;color:#B4ADA0;padding-top:9px;">{entry["date"]}</div>', unsafe_allow_html=True)
-                cols[1].markdown(f'<div style="font-size:13px;font-weight:600;padding-top:9px;">{entry["ticker"]}</div>', unsafe_allow_html=True)
-                cols[2].markdown(f'<div style="font-family:\'Geist Mono\',monospace;font-size:11px;color:{sty["color"]};letter-spacing:0.06em;text-transform:uppercase;padding-top:9px;">{sty["emoji"]} {sty["label"]}</div>', unsafe_allow_html=True)
-                cols[3].markdown(f'<div style="font-family:\'Geist Mono\',monospace;font-size:12px;color:{result_color};padding-top:9px;">{result_text}</div>', unsafe_allow_html=True)
+                cols[0].markdown(f'<div style="font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-faintest);padding-top:9px;">{entry["date"]}</div>', unsafe_allow_html=True)
+                cols[1].markdown(f'<div style="font-size:var(--fs-base);font-weight:600;padding-top:9px;">{entry["ticker"]}</div>', unsafe_allow_html=True)
+                cols[2].markdown(f'<div style="font-family: var(--font-mono);font-size:var(--fs-sm);color:{sty["color"]};letter-spacing: var(--ls-caps-xs);text-transform:uppercase;padding-top:9px;">{sty["emoji"]} {sty["label"]}</div>', unsafe_allow_html=True)
+                cols[3].markdown(f'<div style="font-family: var(--font-mono);font-size:var(--fs-sm);color:{result_color};padding-top:9px;">{result_text}</div>', unsafe_allow_html=True)
                 if not entry.get("closed"):
                     if cols[4].button("Close", key=f"close_{i}", use_container_width=True):
                         cur_hist, _, _err = fetch_history(entry["ticker"])
@@ -4049,7 +4105,7 @@ if view == "tracker":
                             st.rerun()
                 else:
                     cols[4].markdown(
-                        '<div style="font-size:10px;color:#A8A29E;padding-top:11px;text-align:center;">closed</div>',
+                        '<div style="font-size:var(--fs-xs);color:var(--color-fainter);padding-top:11px;text-align:center;">closed</div>',
                         unsafe_allow_html=True,
                     )
                 # Delete button always available (open or closed)
@@ -4057,7 +4113,7 @@ if view == "tracker":
                     st.session_state.store["log"].pop(i)
                     save_store(st.session_state.store)
                     st.rerun()
-                st.markdown('<div style="border-top:1px dashed #E5E3DE;"></div>', unsafe_allow_html=True)
+                st.markdown('<div style="border-top:1px dashed var(--color-border);"></div>', unsafe_allow_html=True)
 
     # ─── TAB 2: Decision comparison log ─────────────────────────
     with tab_decisions:
@@ -4097,20 +4153,20 @@ if view == "tracker":
             progress_pct = 0
 
         st.markdown(f"""
-<div style="background:linear-gradient(90deg,#F4F0FB 0%, #FBFAF7 {progress_pct}%, #FBFAF7 100%);
+<div style="background:linear-gradient(90deg,#F4F0FB 0%, var(--color-bg) {progress_pct}%, var(--color-bg) 100%);
             border:1px solid #D9D5CC;border-radius:4px;padding:10px 14px;
             margin-bottom:14px;">
-  <div style="font-family:'Geist',sans-serif;font-size:10px;font-weight:600;
-              letter-spacing:0.16em;text-transform:uppercase;color:#7C5DD9;
+  <div style="font-family: var(--font-sans);font-size:var(--fs-xs);font-weight:600;
+              letter-spacing: var(--ls-caps-xl);text-transform:uppercase;color:var(--color-purple);
               margin-bottom:4px;">Calibration trial</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#3F3B34;">
+  <div style="font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-body);">
     {trial_status}
   </div>
 </div>
 """, unsafe_allow_html=True)
 
         st.markdown(
-            '<div style="font-size:13px;color:#3F3B34;line-height:1.55;'
+            '<div style="font-size:var(--fs-base);color:var(--color-body);line-height:1.55;'
             'margin-bottom:18px;max-width:720px;">'
             'Side-by-side log of rule engine action vs Claude\'s tactical_call vs '
             'your call at the time of viewing each ticker. Use this to evaluate '
@@ -4141,15 +4197,15 @@ if view == "tracker":
 
         m1, m2, m3, m4 = st.columns(4)
         m1.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:10px 12px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;">Total logged</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:500;margin-top:2px;">{len(decisions_log)}</div>
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
+  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Total logged</div>
+  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{len(decisions_log)}</div>
 </div>
 """, unsafe_allow_html=True)
         m2.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:10px 12px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;">Outcome scored</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:500;margin-top:2px;">{len(scored)}</div>
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
+  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Outcome scored</div>
+  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{len(scored)}</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -4157,10 +4213,10 @@ if view == "tracker":
         rc_agree, rc_total = _agreement(decisions_log, "rule_action", "claude_action")
         rc_pct = round(100 * rc_agree / rc_total) if rc_total else 0
         m3.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:10px 12px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;">Rules ≡ Claude</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:500;margin-top:2px;">{rc_pct}%</div>
-  <div style="font-size:10px;color:#8A857C;margin-top:1px;">{rc_agree}/{rc_total} agree</div>
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
+  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Rules ≡ Claude</div>
+  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{rc_pct}%</div>
+  <div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">{rc_agree}/{rc_total} agree</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -4168,10 +4224,10 @@ if view == "tracker":
         cu_agree, cu_total = _agreement(decisions_log, "claude_action", "user_action")
         cu_pct = round(100 * cu_agree / cu_total) if cu_total else 0
         m4.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:10px 12px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;">Claude ≡ You</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:500;margin-top:2px;">{cu_pct}%</div>
-  <div style="font-size:10px;color:#8A857C;margin-top:1px;">{cu_agree}/{cu_total} agree</div>
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
+  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Claude ≡ You</div>
+  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{cu_pct}%</div>
+  <div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">{cu_agree}/{cu_total} agree</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -4192,9 +4248,9 @@ if view == "tracker":
 
             st.markdown(
                 '<div style="margin-top:14px;"></div>'
-                '<div style="font-family:\'Geist\',sans-serif;font-size:10px;'
-                'font-weight:600;letter-spacing:0.14em;text-transform:uppercase;'
-                'color:#6B655B;margin-bottom:6px;">Accuracy by source — scored entries only</div>',
+                '<div style="font-family: var(--font-sans);font-size:var(--fs-xs);'
+                'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                'color:var(--color-muted);margin-bottom:6px;">Accuracy by source — scored entries only</div>',
                 unsafe_allow_html=True,
             )
             a1, a2, a3 = st.columns(3)
@@ -4205,10 +4261,10 @@ if view == "tracker":
             ]:
                 pct = round(100 * count / total_scored) if total_scored else 0
                 col.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:10px 12px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;">{label}</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:500;margin-top:2px;">{pct}%</div>
-  <div style="font-size:10px;color:#8A857C;margin-top:1px;">{count}/{total_scored} right</div>
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
+  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">{label}</div>
+  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{pct}%</div>
+  <div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">{count}/{total_scored} right</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -4216,7 +4272,7 @@ if view == "tracker":
 
         if not decisions_log:
             st.markdown(
-                '<div style="color:#B4ADA0;font-style:italic;font-size:13px;'
+                '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
                 'padding:20px 0;">No decisions logged yet. Open a ticker on '
                 'the Analyze tab and click "Log my call (decision comparison '
                 'study)" to start collecting data.</div>',
@@ -4248,60 +4304,60 @@ if view == "tracker":
                 price = entry.get("price", 0)
 
                 st.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:12px 14px;
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:12px 14px;
             margin-bottom:10px;">
   <div style="display:flex;justify-content:space-between;align-items:baseline;
               margin-bottom:8px;">
     <div>
-      <span style="font-size:14px;font-weight:600;">{ticker}</span>
-      <span style="font-family:'Geist Mono',monospace;font-size:12px;
-                   color:#6B655B;margin-left:8px;">${price:.2f}</span>
+      <span style="font-size:var(--fs-base);font-weight:600;">{ticker}</span>
+      <span style="font-family: var(--font-mono);font-size:var(--fs-sm);
+                   color:var(--color-muted);margin-left:8px;">${price:.2f}</span>
     </div>
-    <span style="font-family:'Geist Mono',monospace;font-size:11px;color:#A8A29E;">
+    <span style="font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-fainter);">
       {ts_short} · {entry.get("id", "")}
     </span>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;
-              padding:8px 0;border-top:1px dashed #E5E3DE;">
+              padding:8px 0;border-top:1px dashed var(--color-border);">
     <div>
-      <div style="font-size:9px;font-weight:600;letter-spacing:0.14em;
-                  text-transform:uppercase;color:#8A857C;margin-bottom:3px;">
+      <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);
+                  text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">
         Rules
       </div>
-      <div style="color:{rule_sty.get('color', '#0F0E0D')};font-weight:600;
-                  font-size:13px;">
+      <div style="color:{rule_sty.get('color', 'var(--color-text)')};font-weight:600;
+                  font-size:var(--fs-base);">
         {rule_sty.get('emoji', '')} {rule_sty.get('label', entry.get('rule_action', '—'))}
       </div>
-      <div style="font-size:10px;color:#8A857C;margin-top:1px;">
+      <div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">
         {entry.get("rule_state", "")}
       </div>
     </div>
     <div>
-      <div style="font-size:9px;font-weight:600;letter-spacing:0.14em;
-                  text-transform:uppercase;color:#8A857C;margin-bottom:3px;">
+      <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);
+                  text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">
         Claude
       </div>
-      <div style="color:{claude_sty.get('color', '#0F0E0D')};font-weight:600;
-                  font-size:13px;">
+      <div style="color:{claude_sty.get('color', 'var(--color-text)')};font-weight:600;
+                  font-size:var(--fs-base);">
         {claude_sty.get('emoji', '')} {entry.get('claude_action', '—').replace('_', ' ').title()}
       </div>
-      <div style="font-size:10px;color:#8A857C;margin-top:1px;">
+      <div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">
         Conf {entry.get('claude_confidence', 0)}/10
       </div>
     </div>
     <div>
-      <div style="font-size:9px;font-weight:600;letter-spacing:0.14em;
-                  text-transform:uppercase;color:#8A857C;margin-bottom:3px;">
+      <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);
+                  text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">
         You
       </div>
-      <div style="color:{user_sty.get('color', '#0F0E0D')};font-weight:600;
-                  font-size:13px;">
+      <div style="color:{user_sty.get('color', 'var(--color-text)')};font-weight:600;
+                  font-size:var(--fs-base);">
         {user_sty.get('emoji', '')} {user_sty.get('label', entry.get('user_action', '—'))}
       </div>
     </div>
   </div>
-  {f'<div style="font-size:11px;color:#3F3B34;line-height:1.5;padding-top:6px;border-top:1px dashed #E5E3DE;font-style:italic;">"{entry.get("claude_reasoning", "")}"</div>' if entry.get("claude_reasoning") else ''}
-  {f'<div style="font-size:11px;color:#3F3B34;line-height:1.5;padding-top:6px;"><span style="color:#8A857C;">Your note:</span> {entry.get("user_note", "")}</div>' if entry.get("user_note") else ''}
+  {f'<div style="font-size:var(--fs-sm);color:var(--color-body);line-height:1.5;padding-top:6px;border-top:1px dashed var(--color-border);font-style:italic;">"{entry.get("claude_reasoning", "")}"</div>' if entry.get("claude_reasoning") else ''}
+  {f'<div style="font-size:var(--fs-sm);color:var(--color-body);line-height:1.5;padding-top:6px;"><span style="color:var(--color-faint);">Your note:</span> {entry.get("user_note", "")}</div>' if entry.get("user_note") else ''}
 </div>
 """, unsafe_allow_html=True)
 
@@ -4355,7 +4411,7 @@ if view == "tracker":
             with sub_open:
                 if not unscored:
                     st.markdown(
-                        '<div style="color:#B4ADA0;font-style:italic;font-size:13px;'
+                        '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
                         'padding:14px 0;">No open decisions.</div>',
                         unsafe_allow_html=True,
                     )
@@ -4366,7 +4422,7 @@ if view == "tracker":
             with sub_resolved:
                 if not scored:
                     st.markdown(
-                        '<div style="color:#B4ADA0;font-style:italic;font-size:13px;'
+                        '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
                         'padding:14px 0;">No outcomes scored yet.</div>',
                         unsafe_allow_html=True,
                     )
@@ -4385,10 +4441,10 @@ if view == "tracker":
                         )
                         pct = round(100 * right_n / total) if total else 0
                         col.markdown(f"""
-<div style="border:1px solid #E5E3DE;border-radius:4px;padding:10px 12px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6B655B;">{src.title()} accuracy</div>
-  <div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:500;margin-top:2px;">{pct}%</div>
-  <div style="font-size:10px;color:#8A857C;margin-top:1px;">{right_n}/{total}</div>
+<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
+  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">{src.title()} accuracy</div>
+  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{pct}%</div>
+  <div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">{right_n}/{total}</div>
 </div>
 """, unsafe_allow_html=True)
 
