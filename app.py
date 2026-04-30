@@ -381,9 +381,20 @@ st.markdown("""
     padding: 14px 16px;
     margin: 8px 0 14px;
 }
+.desk-cmp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 14px;
+    align-items: stretch;
+}
+.desk-cmp-divider {
+    background: var(--color-border);
+    width: 1px;
+    height: 100%;
+}
 .desk-cmp-header {
     font-family: 'Geist', sans-serif;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-xs) !important;
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;
@@ -393,22 +404,9 @@ st.markdown("""
     justify-content: space-between;
     align-items: center;
 }
-.desk-cmp-grid {
-    display: grid;
-    grid-template-columns: 1fr 1px 1fr;
-    gap: 14px;
-    align-items: stretch;
-}
-/* The real vertical divider — middle column is just a 1px line that
-   spans the full height of the grid, then again past Your call below. */
-.desk-cmp-divider {
-    background: var(--color-border);
-    width: 1px;
-    height: 100%;
-}
 .desk-cmp-side-label {
     font-family: 'Geist', sans-serif;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-xs) !important;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -417,18 +415,18 @@ st.markdown("""
 }
 .desk-cmp-action {
     font-family: 'Source Serif 4', Georgia, serif;
-    font-size: var(--fs-lg);
+    font-size: var(--fs-lg) !important;
     font-weight: 600;
     line-height: 1.2;
 }
 .desk-cmp-meta {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-sm) !important;
     color: var(--color-muted);
     margin-top: 4px;
 }
 .desk-cmp-fallback {
     font-family: 'Source Serif 4', Georgia, serif;
-    font-size: var(--fs-base);
+    font-size: var(--fs-base) !important;
     font-weight: 400;
     color: #A8A29E;
     font-style: italic;
@@ -438,12 +436,12 @@ st.markdown("""
     margin-top: 14px;
     padding-top: 12px;
     border-top: 1px dashed var(--color-border-soft);
-    font-size: var(--fs-base);
+    font-size: var(--fs-base) !important;
     line-height: 1.55;
     color: #3F3B34;
 }
 .desk-cmp-reasoning-label {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-xs) !important;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -453,11 +451,11 @@ st.markdown("""
 }
 .desk-cmp-trigger {
     margin-top: 8px;
-    font-size: var(--fs-base);
+    font-size: var(--fs-base) !important;
     color: #3F3B34;
 }
 .desk-cmp-trigger-label {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-xs) !important;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -468,7 +466,7 @@ st.markdown("""
     padding-top: 12px;
     border-top: 1px dashed var(--color-border-soft);
     font-family: 'Geist', sans-serif;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-xs) !important;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -478,25 +476,27 @@ st.markdown("""
     align-items: center;
 }
 .desk-cmp-info {
-    width: 18px; height: 18px;
+    width: 20px; height: 20px;
     border-radius: 50%;
     border: 1px solid #C9C5BC;
     color: var(--color-faint);
     font-family: 'Geist', sans-serif;
-    font-size: var(--fs-sm);
+    font-size: 12px !important;
     font-weight: 600;
-    line-height: 16px;
+    line-height: 18px;
     text-align: center;
     cursor: help;
     display: inline-block;
+    flex-shrink: 0;
 }
 .desk-cmp-badge {
     padding: 2px 8px;
     border-radius: 3px;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-xs) !important;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
+    line-height: 1.4;
 }
 .desk-cmp-badge-disagree { background: #FEF3C7; color: #92400E; }
 .desk-cmp-badge-agree    { background: #D1FAE5; color: #065F46; }
@@ -525,14 +525,18 @@ st.markdown("""
     font-size: 18px;
 }
 
-html, body, [class*="css"], .main, .main p, .main div, .main span, .main li {
+html, body, .main, .main p, .main li {
     font-family: 'Geist', -apple-system, system-ui, sans-serif;
     color: #0F0E0D;
+}
+/* Default body size — only applied to elements WITHOUT a more specific
+   class. Without this scoping, Streamlit's emotion classes plus the
+   wildcard div/span selectors override every class-defined font-size
+   in the app, causing 10px badges to render at 18px, etc. */
+html, body, .main, .main p, .main li {
     font-size: 18px;
 }
-/* Streamlit's default emotion classes also need the bump */
-.stMarkdown, .stMarkdown p, .stMarkdown div, .stMarkdown span,
-[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p {
+.main p:not([class*="desk-"]):not([class*="stMarkdown"]) {
     font-size: 18px;
 }
 #MainMenu, header, footer { visibility: hidden; }
@@ -2910,41 +2914,50 @@ if view == "analyze":
         )
 
         # Render comparison + logging UI inside a single bordered Streamlit
-        # container. The HTML side uses the desk-cmp-* class system which
-        # includes a proper CSS-grid vertical divider (1px middle column)
-        # that spans the full height of the side-by-side comparison block.
+        # container. Single-line HTML strings (no leading whitespace inside
+        # any string content — Streamlit's markdown processor treats
+        # indented lines as code blocks). Use Streamlit's native columns
+        # for the side-by-side rather than CSS grid, since the HTML
+        # markdown block doesn't share a DOM with the widget block.
         with st.container(border=True):
+            # Header row: "Decision comparison" + agree/disagree badge
             st.markdown(
-                f'<div class="desk-cmp-header">'
-                f'<span>Decision comparison</span>'
-                f'{disagree_marker}'
-                f'</div>'
-                f'<div class="desk-cmp-grid">'
-                f'  <div>'
-                f'    <div class="desk-cmp-side-label">Rule engine</div>'
-                f'    <div class="desk-cmp-action" style="color:{rule_sty.get("color", "var(--color-text)")};">'
-                f'      {rule_sty.get("emoji", "")} {rule_sty.get("label", rule_action)}'
-                f'    </div>'
-                f'    <div class="desk-cmp-meta">State: {t.get("state", "TRENDING")}</div>'
-                f'  </div>'
-                f'  <div class="desk-cmp-divider"></div>'
-                f'  <div>'
-                f'    <div class="desk-cmp-side-label">Claude</div>'
-                f'    {claude_html}'
-                f'  </div>'
-                f'</div>'
-                f'{reasoning_html}'
-                f'{trigger_html}',
+                f'<div class="desk-cmp-header"><span>Decision comparison</span>{disagree_marker}</div>',
                 unsafe_allow_html=True,
             )
 
-            # "Your call" header with info-icon hover explaining each state
+            # Side-by-side: Rule engine | Claude (Streamlit native columns)
+            cmp_c1, cmp_c2 = st.columns(2, gap="medium")
+            with cmp_c1:
+                rule_color = rule_sty.get("color", "#0F0E0D")
+                rule_label = rule_sty.get("label", rule_action)
+                rule_emoji = rule_sty.get("emoji", "")
+                state_label = t.get("state", "TRENDING")
+                st.markdown(
+                    f'<div class="desk-cmp-side-label">Rule engine</div>'
+                    f'<div class="desk-cmp-action" style="color:{rule_color};">{rule_emoji} {rule_label}</div>'
+                    f'<div class="desk-cmp-meta">State: {state_label}</div>',
+                    unsafe_allow_html=True,
+                )
+            with cmp_c2:
+                st.markdown(
+                    f'<div class="desk-cmp-side-label">Claude</div>{claude_html}',
+                    unsafe_allow_html=True,
+                )
+
+            # Reasoning + trigger blocks (only when present)
+            if reasoning_html:
+                st.markdown(reasoning_html, unsafe_allow_html=True)
+            if trigger_html:
+                st.markdown(trigger_html, unsafe_allow_html=True)
+
+            # "Your call" header with info-icon hover
             _action_help = (
-                "Enter — high-conviction setup, buy now (bullish + setup ≥ 9, no extension)\n"
-                "Watch — bullish but waiting on a specific trigger\n"
-                "Hold off — universal default for ambiguity (pullbacks, transitions, mixed signals)\n"
-                "Avoid — truly broken (below ma200 + RS<0.9 + not improving + no momentum)\n"
-                "Accumulate — quality A/B name in deep drawdown, stabilizing — small starter only"
+                "Enter — high-conviction setup, buy now (bullish + setup ≥ 9, no extension). "
+                "Watch — bullish but waiting on a specific trigger. "
+                "Hold off — universal default for ambiguity (pullbacks, transitions, mixed signals). "
+                "Avoid — truly broken (below ma200 + RS<0.9 + not improving + no momentum). "
+                "Accumulate — quality A/B name in deep drawdown, stabilizing — small starter only."
             )
             st.markdown(
                 f'<div class="desk-cmp-yourcall-label">'
@@ -2954,8 +2967,7 @@ if view == "analyze":
                 unsafe_allow_html=True,
             )
 
-            # Radio: stored as canonical UPPER_SNAKE for backward compat,
-            # displayed via format_func so users see "Hold off" not "HOLD_OFF"
+            # Radio: stored as canonical UPPER_SNAKE, displayed via format_func
             user_choice_options = ["ENTER", "WATCH", "HOLD_OFF", "AVOID", "ACCUMULATE"]
             _display_labels = {
                 "ENTER": "Enter",
@@ -2982,7 +2994,7 @@ if view == "analyze":
                 label_visibility="collapsed",
             )
 
-            # Note input + green Log button on a single row, INSIDE the container
+            # Note input + Log button on a single row
             log_c1, log_c2 = st.columns([3, 1])
             with log_c1:
                 user_note = st.text_input(
@@ -2992,16 +3004,12 @@ if view == "analyze":
                     label_visibility="collapsed",
                 )
             with log_c2:
-                # Wrap the button in a div with class desk-log-btn-wrap so
-                # the CSS rule turns it green. Streamlit doesn't expose
-                # per-button color directly.
-                st.markdown('<div class="desk-log-btn-wrap">', unsafe_allow_html=True)
                 log_clicked = st.button(
                     "Log",
                     key=f"log_compare_{ticker}",
                     use_container_width=True,
+                    type="primary",
                 )
-                st.markdown('</div>', unsafe_allow_html=True)
             if log_clicked:
                 import uuid
                 entry = {
