@@ -1,4 +1,4 @@
-# Desk — local
+# Trading Desk — local
 
 Tactical decision interface. Any US ticker, real Yahoo Finance data, runs on your Mac. No deploy, no accounts, no rate limits.
 
