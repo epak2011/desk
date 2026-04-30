@@ -3297,15 +3297,17 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        # 4. Chart — Plotly candlestick + 4 colored MAs.
-        # We use the `hist` dataframe we already loaded (no extra fetch),
-        # which gives us full styling control. Replaces the TradingView
-        # embed because their free widget doesn't honor per-study color
-        # overrides, so all four MA lines used to render in the same color.
+        # 4. Chart — TradingView Lightweight Charts (open-source, ~40KB).
+        # Renders client-side from our existing OHLCV data. Replaces the
+        # earlier Plotly attempt because Lightweight Charts produces a
+        # professional-looking trading chart (matches the paid TradingView
+        # widget aesthetic) with full styling control — the free TradingView
+        # embed widget doesn't allow per-MA color overrides, which is why
+        # we own the rendering ourselves.
         st.markdown(f"""
 <div class="desk-chart-label">
   <span style="color:var(--color-muted);">📈 Chart · </span>
-  <span style="color:#F97316;font-weight:700;">MA 9</span>
+  <span style="color:#F97316;font-weight:700;">MA 20</span>
   <span style="color:var(--color-muted);"> · </span>
   <span style="color:#2563EB;font-weight:700;">MA 50</span>
   <span style="color:var(--color-muted);"> · </span>
@@ -3316,95 +3318,167 @@ if view == "analyze":
 """, unsafe_allow_html=True)
 
         try:
-            import plotly.graph_objects as go
-            from plotly.subplots import make_subplots
+            import json as _chart_json
 
-            # Use the last ~6 months of data so the chart isn't cluttered
-            # but still shows the 200-day MA as a meaningful line.
-            chart_hist = hist.iloc[-130:].copy()
-            chart_hist["MA9"] = hist["Close"].rolling(9).mean().iloc[-130:]
-            chart_hist["MA50"] = hist["Close"].rolling(50).mean().iloc[-130:]
-            chart_hist["MA100"] = hist["Close"].rolling(100).mean().iloc[-130:]
-            chart_hist["MA200"] = hist["Close"].rolling(200).mean().iloc[-130:]
+            # Build the data payload for Lightweight Charts.
+            # Show 1 year so MA200 has proper context. MAs are computed
+            # on the FULL hist series so they're valid even at the start
+            # of the visible window.
+            chart_hist = hist.iloc[-252:].copy()
+            chart_hist["MA20"] = hist["Close"].rolling(20).mean().iloc[-252:]
+            chart_hist["MA50"] = hist["Close"].rolling(50).mean().iloc[-252:]
+            chart_hist["MA100"] = hist["Close"].rolling(100).mean().iloc[-252:]
+            chart_hist["MA200"] = hist["Close"].rolling(200).mean().iloc[-252:]
 
-            fig = make_subplots(
-                rows=2, cols=1,
-                shared_xaxes=True,
-                vertical_spacing=0.03,
-                row_heights=[0.78, 0.22],
-            )
+            # Lightweight Charts wants seconds-since-epoch (UTCTimestamp)
+            # for time values. The hist index is daily DatetimeIndex.
+            def _ts(idx):
+                return int(idx.timestamp())
 
-            # Candlesticks
-            fig.add_trace(go.Candlestick(
-                x=chart_hist.index,
-                open=chart_hist["Open"],
-                high=chart_hist["High"],
-                low=chart_hist["Low"],
-                close=chart_hist["Close"],
-                increasing=dict(line=dict(color="#16A34A"), fillcolor="#16A34A"),
-                decreasing=dict(line=dict(color="#DC2626"), fillcolor="#DC2626"),
-                showlegend=False,
-                name=ticker,
-            ), row=1, col=1)
-
-            # Colored MAs — these are what the TradingView widget couldn't do
-            for col, color, width in [
-                ("MA9",   "#F97316", 1.5),
-                ("MA50",  "#2563EB", 1.7),
-                ("MA100", "#9333EA", 1.7),
-                ("MA200", "#DC2626", 1.9),
-            ]:
-                fig.add_trace(go.Scatter(
-                    x=chart_hist.index,
-                    y=chart_hist[col],
-                    line=dict(color=color, width=width),
-                    name=col,
-                    showlegend=False,
-                    hovertemplate="%{y:.2f}<extra>" + col + "</extra>",
-                ), row=1, col=1)
-
-            # Volume bars (color by up/down day)
-            vol_colors = [
-                "#16A34A" if c >= o else "#DC2626"
-                for o, c in zip(chart_hist["Open"], chart_hist["Close"])
+            candles = [
+                {
+                    "time": _ts(idx),
+                    "open": round(float(row["Open"]), 4),
+                    "high": round(float(row["High"]), 4),
+                    "low": round(float(row["Low"]), 4),
+                    "close": round(float(row["Close"]), 4),
+                }
+                for idx, row in chart_hist.iterrows()
             ]
-            fig.add_trace(go.Bar(
-                x=chart_hist.index,
-                y=chart_hist["Volume"],
-                marker=dict(color=vol_colors, opacity=0.5),
-                showlegend=False,
-                name="Volume",
-                hovertemplate="%{y:,.0f}<extra>Volume</extra>",
-            ), row=2, col=1)
+            volume = [
+                {
+                    "time": _ts(idx),
+                    "value": float(row["Volume"]),
+                    "color": ("rgba(22,163,74,0.45)" if row["Close"] >= row["Open"]
+                              else "rgba(220,38,38,0.45)"),
+                }
+                for idx, row in chart_hist.iterrows()
+            ]
 
-            fig.update_layout(
-                height=420,
-                margin=dict(l=10, r=10, t=10, b=10),
-                paper_bgcolor="#FBFAF7",
-                plot_bgcolor="#FBFAF7",
-                xaxis=dict(rangeslider=dict(visible=False)),
-                xaxis2=dict(rangeslider=dict(visible=False)),
-                hovermode="x unified",
-                font=dict(family="Geist Mono, monospace", size=10, color="#3F3B34"),
-            )
-            fig.update_xaxes(
-                showgrid=True, gridcolor="#EFEDE7", gridwidth=0.5,
-                showline=False, zeroline=False,
-            )
-            fig.update_yaxes(
-                showgrid=True, gridcolor="#EFEDE7", gridwidth=0.5,
-                showline=False, zeroline=False,
-                tickformat="$.2f", row=1, col=1,
-            )
-            fig.update_yaxes(
-                showgrid=False, showline=False, zeroline=False,
-                tickformat=".2s", row=2, col=1,
-            )
+            def _ma_series(col):
+                out = []
+                for idx, val in chart_hist[col].items():
+                    # Lightweight Charts skips points with None/null
+                    if val is None:
+                        continue
+                    try:
+                        if val != val:  # NaN check
+                            continue
+                    except Exception:
+                        continue
+                    out.append({"time": _ts(idx), "value": round(float(val), 4)})
+                return out
 
-            st.plotly_chart(fig, use_container_width=True, config={
-                "displayModeBar": False,
-                "scrollZoom": False,
+            ma_data = {
+                "MA20":  _ma_series("MA20"),
+                "MA50":  _ma_series("MA50"),
+                "MA100": _ma_series("MA100"),
+                "MA200": _ma_series("MA200"),
+            }
+
+            payload = _chart_json.dumps({
+                "candles": candles,
+                "volume": volume,
+                "ma": ma_data,
             })
+
+            chart_html = f"""
+<div id="lwchart_{ticker}" style="width:100%;height:480px;background:#FBFAF7;"></div>
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(function() {{
+  const data = {payload};
+  const container = document.getElementById('lwchart_{ticker}');
+  if (!container) return;
+
+  const chart = LightweightCharts.createChart(container, {{
+    width: container.clientWidth,
+    height: 480,
+    layout: {{
+      background: {{ type: 'solid', color: '#FBFAF7' }},
+      textColor: '#3F3B34',
+      fontFamily: 'Geist Mono, monospace',
+      fontSize: 11,
+    }},
+    grid: {{
+      vertLines: {{ color: '#EFEDE7' }},
+      horzLines: {{ color: '#EFEDE7' }},
+    }},
+    rightPriceScale: {{
+      borderColor: '#E5E3DE',
+      scaleMargins: {{ top: 0.08, bottom: 0.28 }},
+    }},
+    timeScale: {{
+      borderColor: '#E5E3DE',
+      timeVisible: false,
+      secondsVisible: false,
+    }},
+    crosshair: {{
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: {{ color: '#8A857C', width: 1, style: 2 }},
+      horzLine: {{ color: '#8A857C', width: 1, style: 2 }},
+    }},
+    handleScroll: true,
+    handleScale: true,
+  }});
+
+  // Candlesticks
+  const candleSeries = chart.addCandlestickSeries({{
+    upColor: '#16A34A',
+    downColor: '#DC2626',
+    borderUpColor: '#16A34A',
+    borderDownColor: '#DC2626',
+    wickUpColor: '#16A34A',
+    wickDownColor: '#DC2626',
+    priceLineVisible: true,
+    priceLineColor: '#8A857C',
+    priceLineWidth: 1,
+    priceLineStyle: 2,
+  }});
+  candleSeries.setData(data.candles);
+
+  // Four colored MA lines — the whole reason we're not using the
+  // free TradingView embed widget, which doesn't allow per-study colors.
+  const maConfigs = [
+    {{ key: 'MA20',  color: '#F97316' }},
+    {{ key: 'MA50',  color: '#2563EB' }},
+    {{ key: 'MA100', color: '#9333EA' }},
+    {{ key: 'MA200', color: '#DC2626' }},
+  ];
+  for (const cfg of maConfigs) {{
+    const series = chart.addLineSeries({{
+      color: cfg.color,
+      lineWidth: 1.5,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      title: cfg.key,
+      crosshairMarkerVisible: false,
+    }});
+    series.setData(data.ma[cfg.key]);
+  }}
+
+  // Volume on a separate price scale at the bottom (overlay)
+  const volumeSeries = chart.addHistogramSeries({{
+    priceFormat: {{ type: 'volume' }},
+    priceScaleId: 'volume',
+    color: 'rgba(107, 101, 91, 0.4)',
+  }});
+  volumeSeries.priceScale().applyOptions({{
+    scaleMargins: {{ top: 0.78, bottom: 0 }},
+  }});
+  volumeSeries.setData(data.volume);
+
+  chart.timeScale().fitContent();
+
+  // Re-fit on window resize so the chart stays full-width
+  const resize = () => {{
+    chart.applyOptions({{ width: container.clientWidth }});
+  }};
+  window.addEventListener('resize', resize);
+}})();
+</script>
+"""
+            st.components.v1.html(chart_html, height=500)
         except Exception as _chart_err:
             st.warning(f"Chart could not render: {_chart_err}")
 
@@ -3412,33 +3486,44 @@ if view == "analyze":
         # log above. This logs to the Trades tab (open trade with entry price,
         # close with P&L) while decisions_log on the comparison panel logs to
         # the Decisions tab (rules vs Claude vs you for calibration trial).
-        st.markdown(
-            '<div style="margin-top:22px;font-family: var(--font-sans);'
-            'font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);'
-            'text-transform:uppercase;color:var(--color-muted);margin-bottom:6px;">'
-            'Trade tracker</div>',
-            unsafe_allow_html=True,
-        )
-        if st.button(
-            f"Track this {sty['label'].lower()} as a trade →",
-            key=f"trade_log_{ticker}",
-            help="Logs to the Trades tab. Use this to track open positions and P&L. Separate from the rules-vs-Claude comparison log above.",
-        ):
-            log_entry = {
-                "date": datetime.now().strftime("%m/%d"),
-                "ticker": ticker,
-                "action": t["action"],
-                "result": "open",
-                "closed": False,
-            }
-            if t["action"] in ("enter_now", "watch", "accumulate"):
-                log_entry["entry"] = round(t["entry"], 2)
-            elif t["action"] == "hold_off":
-                log_entry["closed"] = True
-                log_entry["result"] = "noted (no trade taken)"
-            st.session_state.store["log"].insert(0, log_entry)
-            save_store(st.session_state.store)
-            st.success(f"Tracked {ticker} as {sty['label'].lower()}.")
+        st.markdown("<div style='margin-top:18px;'></div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            tt_c1, tt_c2 = st.columns([3, 1])
+            with tt_c1:
+                st.markdown(
+                    '<div style="font-family: var(--font-sans);'
+                    'font-size: var(--fs-xs);font-weight:600;'
+                    'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color: var(--color-muted);margin-bottom:2px;">Trade tracker</div>'
+                    '<div style="font-family: var(--font-sans);'
+                    'font-size: var(--fs-sm);color: var(--color-faint);">'
+                    'Log this as a trade with entry price; close it later for P&amp;L.'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+            with tt_c2:
+                trade_clicked = st.button(
+                    f"Track as {sty['label'].lower()}",
+                    key=f"trade_log_{ticker}",
+                    help="Logs to the Trades tab. Use this for tracking open positions, not for the rules-vs-Claude comparison study.",
+                    use_container_width=True,
+                )
+            if trade_clicked:
+                log_entry = {
+                    "date": datetime.now().strftime("%m/%d"),
+                    "ticker": ticker,
+                    "action": t["action"],
+                    "result": "open",
+                    "closed": False,
+                }
+                if t["action"] in ("enter_now", "watch", "accumulate"):
+                    log_entry["entry"] = round(t["entry"], 2)
+                elif t["action"] == "hold_off":
+                    log_entry["closed"] = True
+                    log_entry["result"] = "noted (no trade taken)"
+                st.session_state.store["log"].insert(0, log_entry)
+                save_store(st.session_state.store)
+                st.success(f"Tracked {ticker} as {sty['label'].lower()}.")
 
         # 6. Technical details — footer, collapsed
         with st.expander("Technical details"):
