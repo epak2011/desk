@@ -347,6 +347,178 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
+/* ────────────────────────────────────────────────────────────── */
+/*  TYPE SCALE — six tokens, used everywhere                      */
+/*    --xs:    section labels, small caps                         */
+/*    --sm:    tertiary metadata, footnotes                       */
+/*    --base:  body text, controls, list items                    */
+/*    --md:    body emphasis, dossier paragraphs                  */
+/*    --lg:    section headers inside cards                       */
+/*    --hero:  the giant decision word                            */
+/* ────────────────────────────────────────────────────────────── */
+:root {
+    --fs-xs: 10px;
+    --fs-sm: 11px;
+    --fs-base: 13px;
+    --fs-md: 15px;
+    --fs-lg: 18px;
+    --fs-hero: 88px;
+    --color-text: #0F0E0D;
+    --color-muted: #6B655B;
+    --color-faint: #8A857C;
+    --color-border: #E5E3DE;
+    --color-border-soft: #EFEDE7;
+    --color-accent: #00A870;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  DECISION COMPARISON PANEL — single source of truth            */
+/* ────────────────────────────────────────────────────────────── */
+.desk-cmp {
+    background: #FBFAF7;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin: 8px 0 14px;
+}
+.desk-cmp-header {
+    font-family: 'Geist', sans-serif;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.desk-cmp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 14px;
+    align-items: stretch;
+}
+/* The real vertical divider — middle column is just a 1px line that
+   spans the full height of the grid, then again past Your call below. */
+.desk-cmp-divider {
+    background: var(--color-border);
+    width: 1px;
+    height: 100%;
+}
+.desk-cmp-side-label {
+    font-family: 'Geist', sans-serif;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+    margin-bottom: 4px;
+}
+.desk-cmp-action {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    line-height: 1.2;
+}
+.desk-cmp-meta {
+    font-size: var(--fs-sm);
+    color: var(--color-muted);
+    margin-top: 4px;
+}
+.desk-cmp-fallback {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: var(--fs-base);
+    font-weight: 400;
+    color: #A8A29E;
+    font-style: italic;
+    line-height: 1.4;
+}
+.desk-cmp-reasoning {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--color-border-soft);
+    font-size: var(--fs-base);
+    line-height: 1.55;
+    color: #3F3B34;
+}
+.desk-cmp-reasoning-label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+    display: block;
+    margin-bottom: 4px;
+}
+.desk-cmp-trigger {
+    margin-top: 8px;
+    font-size: var(--fs-base);
+    color: #3F3B34;
+}
+.desk-cmp-trigger-label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+}
+.desk-cmp-yourcall-label {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--color-border-soft);
+    font-family: 'Geist', sans-serif;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.desk-cmp-info {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1px solid #C9C5BC;
+    color: var(--color-faint);
+    font-family: 'Geist', sans-serif;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+    cursor: help;
+    display: inline-block;
+}
+.desk-cmp-badge {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.desk-cmp-badge-disagree { background: #FEF3C7; color: #92400E; }
+.desk-cmp-badge-agree    { background: #D1FAE5; color: #065F46; }
+.desk-cmp-badge-unknown  { background: #F5F2EB; color: #6B655B; }
+
+/* Green primary Log button inside the comparison panel.
+   Streamlit doesn't allow per-button styling, so we wrap the button in
+   a div with class `desk-log-btn-wrap` and target the button inside. */
+.desk-log-btn-wrap div[data-testid="stButton"] > button,
+.desk-log-btn-wrap button[kind="secondary"] {
+    background: var(--color-accent) !important;
+    color: #FBFAF7 !important;
+    border: 1px solid var(--color-accent) !important;
+    font-weight: 600 !important;
+}
+.desk-log-btn-wrap div[data-testid="stButton"] > button:hover,
+.desk-log-btn-wrap button[kind="secondary"]:hover {
+    background: #008859 !important;
+    border-color: #008859 !important;
+    color: #FBFAF7 !important;
+}
+
 .stApp { background: #FBFAF7; }
 .main .block-container {
     padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1400px;
@@ -2686,24 +2858,17 @@ if view == "analyze":
         # Always render the comparison panel. Build agree/disagree/unknown badge.
         rule_sty = STATE_STYLES.get(rule_action, {})
         claude_sty = STATE_STYLES.get(claude_action_key, {}) if claude_action_key else {}
-        if agreement_state == "disagree":
-            disagree_marker = (
-                '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;'
-                'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
-                'text-transform:uppercase;margin-left:8px;">disagree</span>'
-            )
-        elif agreement_state == "agree":
-            disagree_marker = (
-                '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;'
-                'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
-                'text-transform:uppercase;margin-left:8px;">agree</span>'
-            )
-        else:  # unknown — Claude action missing
-            disagree_marker = (
-                '<span style="background:#F5F2EB;color:#6B655B;padding:2px 8px;'
-                'border-radius:3px;font-size:10px;font-weight:600;letter-spacing:0.1em;'
-                'text-transform:uppercase;margin-left:8px;">claude data missing</span>'
-            )
+        _badge_class = {
+            "disagree": "desk-cmp-badge desk-cmp-badge-disagree",
+            "agree":    "desk-cmp-badge desk-cmp-badge-agree",
+            "unknown":  "desk-cmp-badge desk-cmp-badge-unknown",
+        }[agreement_state]
+        _badge_text = {
+            "disagree": "disagree",
+            "agree":    "agree",
+            "unknown":  "claude data missing",
+        }[agreement_state]
+        disagree_marker = f'<span class="{_badge_class}">{_badge_text}</span>'
 
         confidence = claude_call.get("confidence", 0)
         try:
@@ -2714,124 +2879,83 @@ if view == "analyze":
         claude_trigger = (claude_call.get("trigger") or "").strip()
 
         # Claude side content varies based on whether data is present.
-        # IMPORTANT: HTML lines must NOT start with 4+ spaces — Streamlit's
-        # markdown processor treats indented lines as code blocks and
-        # renders them as literal source text instead of as HTML.
         if claude_action_raw:
+            _claude_label = claude_action_raw.replace("_", " ").title()
             claude_html = (
-                f'<div style="font-family:\'Source Serif 4\',Georgia,serif;font-size:18px;'
-                f'font-weight:600;color:{claude_sty.get("color", "#0F0E0D")};">'
-                f'{claude_sty.get("emoji", "")} {claude_action_raw.replace("_", " ").title()}'
+                f'<div class="desk-cmp-action" style="color:{claude_sty.get("color", "var(--color-text)")};">'
+                f'{claude_sty.get("emoji", "")} {_claude_label}'
                 f'</div>'
-                f'<div style="font-size:11px;color:#6B655B;margin-top:4px;">'
-                f'Confidence: {confidence}/10'
-                f'</div>'
+                f'<div class="desk-cmp-meta">Confidence: {confidence}/10</div>'
             )
         else:
             claude_html = (
-                '<div style="font-family:\'Source Serif 4\',Georgia,serif;font-size:14px;'
-                'font-weight:400;color:#A8A29E;font-style:italic;">'
+                '<div class="desk-cmp-fallback">'
                 'Click ↻ on Portfolio Manager panel to regenerate'
                 '</div>'
-                '<div style="font-size:11px;color:#A8A29E;margin-top:4px;">'
+                '<div class="desk-cmp-meta" style="color:#A8A29E;">'
                 'Older cached dossier without tactical_call data'
                 '</div>'
             )
 
         reasoning_html = (
-            f'<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;'
-            f'font-size:13px;line-height:1.5;color:#3F3B34;font-family:Geist,sans-serif;">'
-            f'<span style="font-size:10px;font-weight:600;letter-spacing:0.12em;'
-            f'text-transform:uppercase;color:#8A857C;">Claude reasoning</span><br>'
+            f'<div class="desk-cmp-reasoning">'
+            f'<span class="desk-cmp-reasoning-label">Claude reasoning</span>'
             f'{reasoning}</div>'
             if reasoning else ''
         )
         trigger_html = (
-            f'<div style="margin-top:8px;font-size:12px;color:#3F3B34;font-family:Geist,sans-serif;">'
-            f'<span style="color:#8A857C;font-size:10px;font-weight:600;letter-spacing:0.12em;'
-            f'text-transform:uppercase;">Trigger:</span> {claude_trigger}</div>'
+            f'<div class="desk-cmp-trigger">'
+            f'<span class="desk-cmp-trigger-label">Trigger:</span> {claude_trigger}</div>'
             if claude_trigger else ''
         )
 
-        # Render the entire comparison + logging UI inside a single
-        # bordered Streamlit container so the radio, note input, and Log
-        # button all appear visually inside the same card as the panel
-        # above. Previously these were rendered outside the bordered HTML
-        # div, creating visual disconnect.
+        # Render comparison + logging UI inside a single bordered Streamlit
+        # container. The HTML side uses the desk-cmp-* class system which
+        # includes a proper CSS-grid vertical divider (1px middle column)
+        # that spans the full height of the side-by-side comparison block.
         with st.container(border=True):
-            # Header row: "Decision comparison" + agree/disagree badge
             st.markdown(
-                f'<div style="font-family:\'Geist\',sans-serif;font-size:10px;font-weight:600;'
-                f'letter-spacing:0.16em;text-transform:uppercase;color:#6B655B;'
-                f'margin-bottom:10px;">Decision comparison {disagree_marker}</div>',
-                unsafe_allow_html=True,
-            )
-
-            # Two-column comparison: Rule engine | Claude
-            # Vertical divider extends the full height of this side-by-side block
-            cmp_c1, cmp_c2 = st.columns(2, gap="medium")
-            with cmp_c1:
-                st.markdown(
-                    f'<div style="font-family:\'Geist\',sans-serif;font-size:10px;font-weight:600;'
-                    f'letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;'
-                    f'margin-bottom:4px;">Rule engine</div>'
-                    f'<div style="font-family:\'Source Serif 4\',Georgia,serif;font-size:18px;'
-                    f'font-weight:600;color:{rule_sty.get("color", "#0F0E0D")};">'
-                    f'{rule_sty.get("emoji", "")} {rule_sty.get("label", rule_action)}'
-                    f'</div>'
-                    f'<div style="font-size:11px;color:#6B655B;margin-top:4px;">'
-                    f'State: {t.get("state", "TRENDING")}'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-            with cmp_c2:
-                st.markdown(
-                    f'<div style="font-family:\'Geist\',sans-serif;font-size:10px;font-weight:600;'
-                    f'letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;'
-                    f'margin-bottom:4px;">Claude</div>'
-                    f'{claude_html}',
-                    unsafe_allow_html=True,
-                )
-
-            if reasoning_html:
-                st.markdown(reasoning_html, unsafe_allow_html=True)
-            if trigger_html:
-                st.markdown(trigger_html, unsafe_allow_html=True)
-
-            # Divider before "Your call" section
-            st.markdown(
-                '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DE;"></div>',
+                f'<div class="desk-cmp-header">'
+                f'<span>Decision comparison</span>'
+                f'{disagree_marker}'
+                f'</div>'
+                f'<div class="desk-cmp-grid">'
+                f'  <div>'
+                f'    <div class="desk-cmp-side-label">Rule engine</div>'
+                f'    <div class="desk-cmp-action" style="color:{rule_sty.get("color", "var(--color-text)")};">'
+                f'      {rule_sty.get("emoji", "")} {rule_sty.get("label", rule_action)}'
+                f'    </div>'
+                f'    <div class="desk-cmp-meta">State: {t.get("state", "TRENDING")}</div>'
+                f'  </div>'
+                f'  <div class="desk-cmp-divider"></div>'
+                f'  <div>'
+                f'    <div class="desk-cmp-side-label">Claude</div>'
+                f'    {claude_html}'
+                f'  </div>'
+                f'</div>'
+                f'{reasoning_html}'
+                f'{trigger_html}',
                 unsafe_allow_html=True,
             )
 
             # "Your call" header with info-icon hover explaining each state
             _action_help = (
-                "ENTER — high-conviction setup, buy now (bullish + setup ≥ 9, no extension)\n"
-                "WATCH — bullish but waiting on a specific trigger\n"
-                "HOLD OFF — universal default for ambiguity (pullbacks, transitions, mixed signals)\n"
-                "AVOID — truly broken (below ma200 + RS<0.9 + not improving + no momentum)\n"
-                "ACCUMULATE — quality A/B name in deep drawdown, stabilizing — small starter only"
+                "Enter — high-conviction setup, buy now (bullish + setup ≥ 9, no extension)\n"
+                "Watch — bullish but waiting on a specific trigger\n"
+                "Hold off — universal default for ambiguity (pullbacks, transitions, mixed signals)\n"
+                "Avoid — truly broken (below ma200 + RS<0.9 + not improving + no momentum)\n"
+                "Accumulate — quality A/B name in deep drawdown, stabilizing — small starter only"
             )
-            yc_c1, yc_c2 = st.columns([10, 1])
-            with yc_c1:
-                st.markdown(
-                    '<div style="font-family:\'Geist\',sans-serif;font-size:10px;font-weight:600;'
-                    'letter-spacing:0.12em;text-transform:uppercase;color:#8A857C;'
-                    'margin-bottom:4px;">Your call</div>',
-                    unsafe_allow_html=True,
-                )
-            with yc_c2:
-                st.markdown(
-                    f'<div title="{_action_help}" style="font-family:\'Geist\',sans-serif;'
-                    f'font-size:11px;color:#8A857C;cursor:help;text-align:right;'
-                    f'border:1px solid #C9C5BC;border-radius:50%;width:18px;height:18px;'
-                    f'line-height:16px;text-align:center;display:inline-block;">i</div>',
-                    unsafe_allow_html=True,
-                )
+            st.markdown(
+                f'<div class="desk-cmp-yourcall-label">'
+                f'<span>Your call</span>'
+                f'<span class="desk-cmp-info" title="{_action_help}">i</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
-            # Radio options stored as canonical UPPER_SNAKE for backward
-            # compat with already-logged entries; displayed via format_func
-            # so users see "Hold off" not "HOLD_OFF"
+            # Radio: stored as canonical UPPER_SNAKE for backward compat,
+            # displayed via format_func so users see "Hold off" not "HOLD_OFF"
             user_choice_options = ["ENTER", "WATCH", "HOLD_OFF", "AVOID", "ACCUMULATE"]
             _display_labels = {
                 "ENTER": "Enter",
@@ -2858,7 +2982,7 @@ if view == "analyze":
                 label_visibility="collapsed",
             )
 
-            # Note input + Log button on a single row, INSIDE the container
+            # Note input + green Log button on a single row, INSIDE the container
             log_c1, log_c2 = st.columns([3, 1])
             with log_c1:
                 user_note = st.text_input(
@@ -2868,11 +2992,16 @@ if view == "analyze":
                     label_visibility="collapsed",
                 )
             with log_c2:
+                # Wrap the button in a div with class desk-log-btn-wrap so
+                # the CSS rule turns it green. Streamlit doesn't expose
+                # per-button color directly.
+                st.markdown('<div class="desk-log-btn-wrap">', unsafe_allow_html=True)
                 log_clicked = st.button(
                     "Log",
                     key=f"log_compare_{ticker}",
                     use_container_width=True,
                 )
+                st.markdown('</div>', unsafe_allow_html=True)
             if log_clicked:
                 import uuid
                 entry = {
