@@ -3488,16 +3488,17 @@ if view == "analyze":
         # the Decisions tab (rules vs Claude vs you for calibration trial).
         st.markdown("<div style='margin-top:18px;'></div>", unsafe_allow_html=True)
         with st.container(border=True):
-            tt_c1, tt_c2 = st.columns([3, 1])
+            tt_c1, tt_c2 = st.columns([3, 1], vertical_alignment="center")
             with tt_c1:
                 st.markdown(
                     '<div style="font-family: var(--font-sans);'
                     'font-size: var(--fs-xs);font-weight:600;'
                     'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color: var(--color-muted);margin-bottom:2px;">Trade tracker</div>'
+                    'color: var(--color-muted);margin-bottom:4px;">Trade tracker</div>'
                     '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-sm);color: var(--color-faint);">'
-                    'Log this as a trade with entry price; close it later for P&amp;L.'
+                    'font-size: var(--fs-base);color: var(--color-body);'
+                    'line-height: 1.45;">'
+                    'Log this as a trade with entry price; close later for P&amp;L.'
                     '</div>',
                     unsafe_allow_html=True,
                 )
