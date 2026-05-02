@@ -3548,8 +3548,7 @@ if view == "analyze":
         # comparison panel which logs all states for the calibration trial.
         if t["action"] in ("enter_now", "watch", "accumulate"):
             st.markdown(
-                '<div style="margin-top:24px;padding-top:16px;'
-                'border-top:1px solid var(--color-border);"></div>',
+                '<div style="margin-top:32px;"></div>',
                 unsafe_allow_html=True,
             )
             tt_c1, tt_c2 = st.columns([3, 1], vertical_alignment="center")
@@ -4157,6 +4156,9 @@ if view == "watchlist":
                     if t["ma50"] else 0
                 )
 
+                # Sector from yfinance .info — used for grouping and as a column
+                sector = (meta.get("sector") if meta else None) or "—"
+
                 rows.append({
                     "ticker": tkr,
                     "name": name or tkr,
@@ -4170,6 +4172,10 @@ if view == "watchlist":
                     "trig_dist": trig_dist,
                     "earnings_days": earnings_days,
                     "quality": quality_tier,
+                    "sector": sector,
+                    "pct_52w_range": t.get("pct_of_52w_range", 50),
+                    "vol_ratio": t.get("vol_ratio", 1.0),
+                    "tech_delta": t.get("tech_delta", 0),
                     "_t": t,
                 })
 
@@ -4183,7 +4189,7 @@ if view == "watchlist":
             unsafe_allow_html=True,
         )
 
-        sort_c1, sort_c2 = st.columns([2, 5])
+        sort_c1, sort_c2, sort_c3 = st.columns([2, 2, 4])
         with sort_c1:
             sort_by = st.selectbox(
                 "Sort by",
@@ -4197,11 +4203,21 @@ if view == "watchlist":
                     "RS (leaders first)",
                     "Trigger distance (closest)",
                     "Earnings (soonest)",
+                    "52w range (closest to high)",
+                    "52w range (closest to low)",
+                    "Volume ratio (highest)",
                 ],
                 key="watchlist_sort",
                 label_visibility="collapsed",
             )
         with sort_c2:
+            group_by = st.selectbox(
+                "Group by",
+                options=["No grouping", "Action", "Sector", "Quality tier"],
+                key="watchlist_group",
+                label_visibility="collapsed",
+            )
+        with sort_c3:
             st.empty()
 
         # Action priority order
@@ -4228,81 +4244,154 @@ if view == "watchlist":
             rows.sort(key=lambda r: abs(r["trig_dist"]) if r["trig_dist"] is not None else 999)
         elif sort_by == "Earnings (soonest)":
             rows.sort(key=lambda r: r["earnings_days"] if r["earnings_days"] is not None else 999)
+        elif sort_by == "52w range (closest to high)":
+            rows.sort(key=lambda r: -r["pct_52w_range"])
+        elif sort_by == "52w range (closest to low)":
+            rows.sort(key=lambda r: r["pct_52w_range"])
+        elif sort_by == "Volume ratio (highest)":
+            rows.sort(key=lambda r: -r["vol_ratio"])
+
+        # ── Build groups ──
+        if group_by == "Action":
+            from collections import OrderedDict
+            groups = OrderedDict()
+            order = ["enter_now", "watch", "accumulate", "hold_off", "avoid"]
+            for k in order:
+                groups[k] = []
+            for r in rows:
+                groups.setdefault(r["action"], []).append(r)
+            # Format: (group_label, group_color, rows)
+            grouped = []
+            for k in order:
+                if groups[k]:
+                    sty = STATE_STYLES[k]
+                    grouped.append((f"{sty['emoji']} {sty['label']}", sty["color"], groups[k]))
+        elif group_by == "Sector":
+            from collections import defaultdict
+            sectors = defaultdict(list)
+            for r in rows:
+                sectors[r["sector"]].append(r)
+            grouped = [(sec, "var(--color-muted)", srows)
+                       for sec, srows in sorted(sectors.items())]
+        elif group_by == "Quality tier":
+            from collections import OrderedDict
+            tiers = OrderedDict([("A", []), ("B", []), ("Speculative", []),
+                                ("Avoid", []), ("(no quality data)", [])])
+            for r in rows:
+                key = r["quality"] if r["quality"] in ("A", "B", "Speculative", "Avoid") else "(no quality data)"
+                tiers[key].append(r)
+            tier_colors = {"A": "var(--color-accent)", "B": "var(--color-faint)",
+                           "Speculative": "var(--color-purple)", "Avoid": "var(--color-negative)",
+                           "(no quality data)": "var(--color-faintest)"}
+            grouped = [(k, tier_colors[k], v) for k, v in tiers.items() if v]
+        else:
+            grouped = [(None, None, rows)]
 
         # ── Header row ──
+        # Grid: ticker / last / chg / action / state / RS / vs MA50 / 52w / vol / trig / earn / →
+        header_grid = (
+            'grid-template-columns: 70px 75px 60px 100px 100px 55px 70px 60px 60px 60px 50px;'
+        )
         st.markdown(
-            '<div style="display:grid; '
-            'grid-template-columns: 70px 80px 70px 110px 110px 70px 80px 80px 60px 30px; '
-            'gap: 8px; padding: 6px 8px; '
-            'border-bottom: 1px solid var(--color-border); '
-            'font-family: var(--font-sans); '
-            'font-size: var(--fs-xs); font-weight: 600; '
-            'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
-            'color: var(--color-muted);">'
-            '<span>Ticker</span>'
-            '<span style="text-align:right;">Last</span>'
-            '<span style="text-align:right;">Chg % (1D)</span>'
-            '<span>Action</span>'
-            '<span>State</span>'
-            '<span style="text-align:right;">RS</span>'
-            '<span style="text-align:right;">vs MA50</span>'
-            '<span style="text-align:right;">Trig</span>'
-            '<span style="text-align:right;">Earn</span>'
-            '<span></span>'
-            '</div>',
+            f'<div style="display:grid; {header_grid} '
+            f'gap: 6px; padding: 6px 8px; margin-top: 8px; '
+            f'border-bottom: 1px solid var(--color-border); '
+            f'font-family: var(--font-sans); '
+            f'font-size: var(--fs-xs); font-weight: 600; '
+            f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
+            f'color: var(--color-muted);">'
+            f'<span>Ticker</span>'
+            f'<span style="text-align:right;">Last</span>'
+            f'<span style="text-align:right;">Chg (1D)</span>'
+            f'<span>Action</span>'
+            f'<span>State</span>'
+            f'<span style="text-align:right;">RS</span>'
+            f'<span style="text-align:right;">vs MA50</span>'
+            f'<span style="text-align:right;">52w pos</span>'
+            f'<span style="text-align:right;">Vol ×</span>'
+            f'<span style="text-align:right;">Trig</span>'
+            f'<span style="text-align:right;">Earn</span>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
-        # ── Rows ──
-        for row in rows:
-            sty = STATE_STYLES[row["action"]]
-            chg_color = "var(--color-positive)" if row["change"] >= 0 else "var(--color-negative)"
-            rs_color = "var(--color-positive)" if row["rs"] >= 1.0 else "var(--color-faint)"
-            ma_color = (
-                "var(--color-negative)" if row["pct_ma50"] > 12
-                else ("var(--color-positive)" if row["pct_ma50"] > 2
-                      else "var(--color-faint)")
-            )
-            trig_str = (
-                f'{row["trig_dist"]:+.1f}%' if row["trig_dist"] is not None else "—"
-            )
-            earn_str = (
-                f'{row["earnings_days"]}d' if row["earnings_days"] is not None
-                else "—"
-            )
-            quality_badge = (
-                f' <span style="font-size:8px;background:var(--color-surface-soft);color:var(--color-muted);padding:1px 4px;border-radius:2px;margin-left:4px;">{row["quality"]}</span>'
-                if row["quality"] in ("A", "B", "Speculative", "Avoid") else ""
-            )
-
-            # Render row as grid + a tiny column for the buttons
-            row_c1, row_c2 = st.columns([14, 1], vertical_alignment="center")
-            with row_c1:
+        # ── Rows, possibly grouped ──
+        for group_label, group_color, group_rows in grouped:
+            # Group header (only if grouping is active)
+            if group_label is not None:
                 st.markdown(
-                    f'<div style="display:grid; '
-                    f'grid-template-columns: 70px 80px 70px 110px 110px 70px 80px 80px 60px; '
-                    f'gap: 8px; padding: 8px 8px; '
-                    f'border-bottom: 1px dashed var(--color-border-soft); '
-                    f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
-                    f'font-size: var(--fs-base); align-items: baseline;">'
-                    f'<span style="font-weight:600;color:var(--color-text);">{row["ticker"]}{quality_badge}</span>'
-                    f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
-                    f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
-                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
-                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--color-faint);">{row["state"]}</span>'
-                    f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
-                    f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
-                    f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
-                    f'<span style="text-align:right;color:var(--color-faint);">{earn_str}</span>'
+                    f'<div style="margin-top:14px; padding: 6px 8px 4px; '
+                    f'font-family: var(--font-sans); '
+                    f'font-size: var(--fs-xs); font-weight: 600; '
+                    f'letter-spacing: var(--ls-caps-lg); text-transform: uppercase; '
+                    f'color: {group_color};">'
+                    f'{group_label} · {len(group_rows)}'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
-            with row_c2:
-                if st.button("→", key=f"wlpro_open_{row['ticker']}",
-                             help=f"Open {row['ticker']} in Analyze"):
-                    st.session_state.current_ticker = row["ticker"]
-                    st.session_state.view = "analyze"
-                    st.rerun()
+
+            for row in group_rows:
+                sty = STATE_STYLES[row["action"]]
+                chg_color = "var(--color-positive)" if row["change"] >= 0 else "var(--color-negative)"
+                rs_color = "var(--color-positive)" if row["rs"] >= 1.0 else "var(--color-faint)"
+                ma_color = (
+                    "var(--color-negative)" if row["pct_ma50"] > 12
+                    else ("var(--color-positive)" if row["pct_ma50"] > 2
+                          else "var(--color-faint)")
+                )
+                # 52w position colored: near low = green (potential), near high = orange (extended)
+                pct_52w = row["pct_52w_range"]
+                pos_color = (
+                    "var(--color-negative)" if pct_52w >= 90
+                    else ("var(--color-positive)" if pct_52w <= 25
+                          else "var(--color-faint)")
+                )
+                # Volume ratio: >1.5x = high (yellow/positive depending on direction); <0.6x = light
+                vol_color = (
+                    "var(--color-text)" if row["vol_ratio"] >= 1.5
+                    else ("var(--color-fainter)" if row["vol_ratio"] < 0.7
+                          else "var(--color-faint)")
+                )
+                trig_str = (
+                    f'{row["trig_dist"]:+.1f}%' if row["trig_dist"] is not None else "—"
+                )
+                earn_str = (
+                    f'{row["earnings_days"]}d' if row["earnings_days"] is not None
+                    else "—"
+                )
+                quality_badge = (
+                    f' <span style="font-size:8px;background:var(--color-surface-soft);color:var(--color-muted);padding:1px 4px;border-radius:2px;margin-left:4px;">{row["quality"]}</span>'
+                    if row["quality"] in ("A", "B", "Speculative", "Avoid") else ""
+                )
+
+                row_c1, row_c2 = st.columns([14, 1], vertical_alignment="center")
+                with row_c1:
+                    st.markdown(
+                        f'<div style="display:grid; {header_grid} '
+                        f'gap: 6px; padding: 7px 8px; '
+                        f'border-bottom: 1px dashed var(--color-border-soft); '
+                        f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
+                        f'font-size: var(--fs-base); align-items: baseline;">'
+                        f'<span style="font-weight:600;color:var(--color-text);">{row["ticker"]}{quality_badge}</span>'
+                        f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
+                        f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--color-faint);">{row["state"]}</span>'
+                        f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
+                        f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
+                        f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
+                        f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
+                        f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
+                        f'<span style="text-align:right;color:var(--color-faint);">{earn_str}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                with row_c2:
+                    if st.button("→", key=f"wlpro_open_{row['ticker']}",
+                                 help=f"Open {row['ticker']} in Analyze"):
+                        st.session_state.current_ticker = row["ticker"]
+                        st.session_state.view = "analyze"
+                        st.rerun()
 
         # ── Legend / column key ──
         st.markdown(
@@ -4313,7 +4402,9 @@ if view == "watchlist":
             '<strong>Column key:</strong> '
             '<span style="font-family:var(--font-mono);">vs MA50</span> = % above/below 50-day MA · '
             '<span style="font-family:var(--font-mono);">RS</span> = relative strength vs SPY (>1.0 = leader) · '
-            '<span style="font-family:var(--font-mono);">Trig</span> = % to logged trigger price (— if no trigger) · '
+            '<span style="font-family:var(--font-mono);">52w pos</span> = position in 52-week range (0% = at low, 100% = at high) · '
+            '<span style="font-family:var(--font-mono);">Vol ×</span> = today\'s volume vs 20-day average · '
+            '<span style="font-family:var(--font-mono);">Trig</span> = % to logged trigger price · '
             '<span style="font-family:var(--font-mono);">Earn</span> = days to next earnings · '
             'Quality badges (A / B / Spec / Avoid) appear next to ticker when cached'
             '</div>',
