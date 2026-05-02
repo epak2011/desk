@@ -2314,52 +2314,118 @@ section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) {
 section[data-testid='stSidebar'] [role='radiogroup'] label:has(input:checked) p {
     color: var(--color-bg) !important;
 }
+
+/* Watchlist row — Streamlit button styled to look like a list item */
+section[data-testid='stSidebar'] div[data-testid="stButton"] > button[kind="secondary"][data-testid*="wl_select"],
+section[data-testid='stSidebar'] button[data-testid^="stBaseButton-secondary"]:not([kind="primary"]) {
+    /* These rules use Streamlit's data-testid which is fragile but the
+       cleanest available hook for "the watchlist row buttons" specifically. */
+}
+/* Generic styling for sidebar wl_select buttons — they all share key prefix */
+section[data-testid='stSidebar'] div[data-testid="stButton"] button:has(p:only-child) {
+    /* Transparent default, left-aligned, tight padding */
+}
+/* Target by aria-label or wrapper-class fallback */
+section[data-testid='stSidebar'] .desk-wl-del-wrap div[data-testid="stButton"] > button {
+    padding: 0 !important;
+    min-height: 22px !important;
+    height: 22px !important;
+    font-size: var(--fs-sm) !important;
+    color: var(--color-fainter) !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+section[data-testid='stSidebar'] .desk-wl-del-wrap div[data-testid="stButton"] > button:hover {
+    color: var(--color-negative) !important;
+    background: transparent !important;
+}
+/* Compact watchlist row hover state and tighter button styling */
+section[data-testid='stSidebar'] .desk-wl-row:hover {
+    background: #EDE8DD;
+}
+section[data-testid='stSidebar'] .desk-wl-active {
+    background: var(--color-text) !important;
+    color: var(--color-bg) !important;
+}
+section[data-testid='stSidebar'] .desk-wl-active .wl-tkr,
+section[data-testid='stSidebar'] .desk-wl-active .wl-px,
+section[data-testid='stSidebar'] .desk-wl-active .wl-chg {
+    color: var(--color-bg) !important;
+}
 </style>""",
             unsafe_allow_html=True,
         )
 
         current = st.session_state.current_ticker
-        radio_index = watchlist.index(current) if current in watchlist else 0
 
-        if "_watchlist_radio_last" not in st.session_state:
-            st.session_state["_watchlist_radio_last"] = watchlist[radio_index]
+        # Pre-fetch all watchlist prices in one pass. fetch_history is
+        # cached at the function level so this is cheap on repeat views.
+        wl_data = {}
+        for tkr in watchlist:
+            cached_hist, _, _ = fetch_history(tkr)
+            if cached_hist is not None and len(cached_hist) >= 2:
+                last = float(cached_hist["Close"].iloc[-1])
+                prev = float(cached_hist["Close"].iloc[-2])
+                chg_pct = (last / prev - 1) * 100 if prev else 0
+                wl_data[tkr] = (last, chg_pct)
+            else:
+                wl_data[tkr] = (None, None)
 
-        picked = st.radio(
-            "Watchlist",
-            options=watchlist,
-            index=radio_index,
-            label_visibility="collapsed",
-            key="watchlist_radio",
-        )
-        if picked != st.session_state["_watchlist_radio_last"]:
-            st.session_state["_watchlist_radio_last"] = picked
-            st.session_state.current_ticker = picked
-            # If the user clicked a watchlist ticker while on a non-analyze
-            # tab (Tracker, Watchlist), they almost certainly want to view
-            # that ticker on the Analyze page. Switch view + force rerun
-            # so the view-nav radio re-renders with the new state.
-            if st.session_state.view != "analyze":
-                st.session_state.view = "analyze"
-                st.rerun()
+        # Each row: radio for selection + inline ✕ for delete.
+        # Two-column layout per row keeps the ✕ aligned next to the ticker
+        # without needing custom HTML row styling.
+        for tkr in watchlist:
+            last, chg_pct = wl_data[tkr]
+            is_active = (tkr == current)
+            chg_color = "var(--color-positive)" if (chg_pct or 0) >= 0 else "var(--color-negative)"
+            chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else "—"
+            px_str = f"{last:,.2f}" if last is not None else "—"
 
-        # Remove-ticker — a separate small dropdown at the bottom of the
-        # watchlist. Used rarely; doesn't need to live next to each row.
-        with st.expander("Remove a ticker", expanded=False):
-            to_remove = st.selectbox(
-                "Pick one to remove",
-                options=["—"] + watchlist,
-                index=0,
-                label_visibility="collapsed",
-                key="remove_picker",
-            )
-            if to_remove != "—":
-                if st.button(f"Remove {to_remove}", use_container_width=True, key="confirm_remove"):
-                    st.session_state.store["watchlist"].remove(to_remove)
+            # Active row gets a darker background via wrapper class
+            wrap_open = '<div class="desk-wl-row desk-wl-active">' if is_active else '<div class="desk-wl-row">'
+
+            row_c1, row_c2 = st.columns([10, 1.2], gap="small", vertical_alignment="center")
+            with row_c1:
+                # Whole row clickable — use button with the ticker + price baked in
+                btn_label = f"{tkr}"
+                if st.button(
+                    btn_label,
+                    key=f"wl_select_{tkr}",
+                    use_container_width=True,
+                    help=f"${px_str} ({chg_str})",
+                    type="primary" if is_active else "secondary",
+                ):
+                    if tkr != current:
+                        st.session_state.current_ticker = tkr
+                        if st.session_state.view != "analyze":
+                            st.session_state.view = "analyze"
+                        st.rerun()
+                # Price + change line below button
+                st.markdown(
+                    f'<div style="font-family: var(--font-mono);'
+                    f'font-size: var(--fs-sm); '
+                    f'display:flex; justify-content:space-between; '
+                    f'padding: 0 6px 6px; margin-top: -6px; '
+                    f'color: var(--color-faint); line-height: 1.3;">'
+                    f'<span style="color: var(--color-text);">${px_str}</span>'
+                    f'<span style="color: {chg_color};">{chg_str}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with row_c2:
+                st.markdown('<div class="desk-wl-del-wrap">', unsafe_allow_html=True)
+                if st.button(
+                    "✕",
+                    key=f"wl_del_{tkr}",
+                    help=f"Remove {tkr}",
+                ):
+                    st.session_state.store["watchlist"].remove(tkr)
                     save_store(st.session_state.store)
-                    for k in ("watchlist_radio", "_watchlist_radio_last", "remove_picker"):
-                        if k in st.session_state:
-                            del st.session_state[k]
+                    if tkr == current and st.session_state.store["watchlist"]:
+                        st.session_state.current_ticker = st.session_state.store["watchlist"][0]
                     st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.caption("Empty — type a ticker above and add it.")
 
@@ -3488,27 +3554,24 @@ if view == "analyze":
         # the Decisions tab (rules vs Claude vs you for calibration trial).
         st.markdown("<div style='margin-top:18px;'></div>", unsafe_allow_html=True)
         with st.container(border=True):
-            tt_c1, tt_c2 = st.columns([3, 1], vertical_alignment="center")
-            with tt_c1:
-                st.markdown(
-                    '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-xs);font-weight:600;'
-                    'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color: var(--color-muted);margin-bottom:4px;">Trade tracker</div>'
-                    '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-base);color: var(--color-body);'
-                    'line-height: 1.45;">'
-                    'Log this as a trade with entry price; close later for P&amp;L.'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
-            with tt_c2:
-                trade_clicked = st.button(
-                    f"Track as {sty['label'].lower()}",
-                    key=f"trade_log_{ticker}",
-                    help="Logs to the Trades tab. Use this for tracking open positions, not for the rules-vs-Claude comparison study.",
-                    use_container_width=True,
-                )
+            st.markdown(
+                '<div style="font-family: var(--font-sans);'
+                'font-size: var(--fs-xs);font-weight:600;'
+                'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                'color: var(--color-muted);margin-bottom:4px;">Trade tracker</div>'
+                '<div style="font-family: var(--font-sans);'
+                'font-size: var(--fs-base);color: var(--color-body);'
+                'line-height: 1.45;margin-bottom:10px;">'
+                'Log this as a trade with entry price; close later for P&amp;L.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            trade_clicked = st.button(
+                f"Track as {sty['label'].lower()}",
+                key=f"trade_log_{ticker}",
+                help="Logs to the Trades tab. Use this for tracking open positions, not for the rules-vs-Claude comparison study.",
+                use_container_width=True,
+            )
             if trade_clicked:
                 log_entry = {
                     "date": datetime.now().strftime("%m/%d"),
@@ -4040,23 +4103,18 @@ if view == "analyze":
 
 
 # ─────────────────────────────────────────────────────────────────────
-# WATCHLIST
+# WATCHLIST — Pro view
 # ─────────────────────────────────────────────────────────────────────
 if view == "watchlist":
     if not st.session_state.store["watchlist"]:
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
         bench = fetch_bench()
-        rows_by_action = {
-            "enter_now": [], "watch": [], "accumulate": [],
-            "hold_off": [], "avoid": [],
-        }
-
-        # Pull cached quality tiers — used to upgrade avoid→accumulate.
-        # Quality only available in the dossier cache when the user has
-        # opened that ticker before with API key set.
         dossier_cache = st.session_state.store.get("dossier_cache", {})
 
+        # ── Compute everything we'll need for every ticker, in one pass ──
+        # Each row: dict with action/state/RS/etc. + tactical engine output.
+        rows = []
         with st.spinner("Analyzing watchlist…"):
             for tkr in st.session_state.store["watchlist"]:
                 hist, name, _err = fetch_history(tkr)
@@ -4065,7 +4123,8 @@ if view == "watchlist":
                 t = tactical.compute(hist, bench)
                 if t is None:
                     continue
-                # Apply accumulation override using cached quality if avail.
+
+                # Apply accumulation override using cached quality
                 if t.get("is_accumulation_eligible") and t["action"] == "avoid":
                     cached = dossier_cache.get(tkr.upper(), {})
                     cached_quality = ((cached.get("result") or {}).get("quality") or {})
@@ -4075,41 +4134,193 @@ if view == "watchlist":
                     )
                     if new_action != t["action"]:
                         t = {**t, "action": new_action}
-                rows_by_action[t["action"]].append((tkr, name, t))
 
-        for key in ["enter_now", "watch", "accumulate", "hold_off", "avoid"]:
-            sty = STATE_STYLES[key]
-            st.markdown(f"""
-<div style="font-size:var(--fs-sm);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:{sty['color']};margin:14px 0 8px;">
-  {sty['emoji']} {sty['label']} · {len(rows_by_action[key])}
-</div>
-""", unsafe_allow_html=True)
-            if not rows_by_action[key]:
-                st.markdown('<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);margin:6px 0 18px;">Nothing here.</div>', unsafe_allow_html=True)
-                continue
-            for tkr, name, t in rows_by_action[key]:
-                chg_color = "#2E7D4F" if t["change"] >= 0 else "#D14545"
-                c1, c2 = st.columns([10, 1])
-                with c1:
-                    st.markdown(f"""
-<div style="border-top:1px dashed var(--color-border);display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;">
-  <div>
-    <span style="font-size:var(--fs-base);font-weight:600;">{tkr}</span>
-    <span style="font-size:var(--fs-sm);color:var(--color-muted);margin-left:10px;">{name}</span>
-  </div>
-  <div style="display:flex;align-items:baseline;gap:14px;">
-    <span style="font-family: var(--font-mono);font-size:var(--fs-sm);color:{chg_color};min-width:50px;text-align:right;">
-      {'+' if t['change'] >= 0 else ''}{t['change']:.1f}%
-    </span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-                with c2:
-                    if st.button("Open", key=f"go_{tkr}_{key}"):
-                        st.session_state.current_ticker = tkr
-                        st.session_state.view = "analyze"
-                        st.session_state.nav_counter += 1
-                        st.rerun()
+                # Quality tier from dossier cache (if available)
+                cached = dossier_cache.get(tkr.upper(), {})
+                quality_tier = (
+                    ((cached.get("result") or {}).get("quality") or {}).get("tier", "")
+                )
+
+                # Earnings days from quote meta — fetch separately, cached
+                meta = fetch_quote_meta(tkr)
+                earnings_days = meta.get("earnings_days") if meta else None
+
+                # Trigger distance % — how close to a logged trigger?
+                trig = t.get("trigger") or {}
+                buy_above = trig.get("levels", {}).get("buy_above") if trig else None
+                trig_dist = (
+                    (buy_above - t["price"]) / t["price"] * 100
+                    if buy_above and t["price"] else None
+                )
+
+                # % from MA50
+                pct_ma50 = (
+                    (t["price"] - t["ma50"]) / t["ma50"] * 100
+                    if t["ma50"] else 0
+                )
+
+                rows.append({
+                    "ticker": tkr,
+                    "name": name or tkr,
+                    "price": t["price"],
+                    "change": t["change"],
+                    "action": t["action"],
+                    "state": t.get("state", "TRENDING"),
+                    "rs": t.get("rs", 1.0),
+                    "rs_delta": t.get("rs_delta", 0),
+                    "pct_ma50": pct_ma50,
+                    "trig_dist": trig_dist,
+                    "earnings_days": earnings_days,
+                    "quality": quality_tier,
+                    "_t": t,
+                })
+
+        # ── Sort selector ──
+        st.markdown(
+            '<div style="font-family: var(--font-sans);'
+            'font-size: var(--fs-xs);font-weight:600;'
+            'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+            'color: var(--color-muted);margin: 4px 0 8px;">'
+            'Watchlist · ' + str(len(rows)) + ' names</div>',
+            unsafe_allow_html=True,
+        )
+
+        sort_c1, sort_c2 = st.columns([2, 5])
+        with sort_c1:
+            sort_by = st.selectbox(
+                "Sort by",
+                options=[
+                    "Action priority",
+                    "Ticker (A→Z)",
+                    "Change % (high→low)",
+                    "Change % (low→high)",
+                    "% from MA50 (extended first)",
+                    "% from MA50 (closest to MA50)",
+                    "RS (leaders first)",
+                    "Trigger distance (closest)",
+                    "Earnings (soonest)",
+                ],
+                key="watchlist_sort",
+                label_visibility="collapsed",
+            )
+        with sort_c2:
+            st.empty()
+
+        # Action priority order
+        action_priority = {
+            "enter_now": 0, "accumulate": 1, "watch": 2,
+            "hold_off": 3, "avoid": 4,
+        }
+
+        if sort_by == "Action priority":
+            rows.sort(key=lambda r: (action_priority.get(r["action"], 99), r["ticker"]))
+        elif sort_by == "Ticker (A→Z)":
+            rows.sort(key=lambda r: r["ticker"])
+        elif sort_by == "Change % (high→low)":
+            rows.sort(key=lambda r: -r["change"])
+        elif sort_by == "Change % (low→high)":
+            rows.sort(key=lambda r: r["change"])
+        elif sort_by == "% from MA50 (extended first)":
+            rows.sort(key=lambda r: -r["pct_ma50"])
+        elif sort_by == "% from MA50 (closest to MA50)":
+            rows.sort(key=lambda r: abs(r["pct_ma50"]))
+        elif sort_by == "RS (leaders first)":
+            rows.sort(key=lambda r: -r["rs"])
+        elif sort_by == "Trigger distance (closest)":
+            rows.sort(key=lambda r: abs(r["trig_dist"]) if r["trig_dist"] is not None else 999)
+        elif sort_by == "Earnings (soonest)":
+            rows.sort(key=lambda r: r["earnings_days"] if r["earnings_days"] is not None else 999)
+
+        # ── Header row ──
+        st.markdown(
+            '<div style="display:grid; '
+            'grid-template-columns: 70px 80px 70px 110px 110px 70px 80px 80px 60px 30px; '
+            'gap: 8px; padding: 6px 8px; '
+            'border-bottom: 1px solid var(--color-border); '
+            'font-family: var(--font-sans); '
+            'font-size: var(--fs-xs); font-weight: 600; '
+            'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
+            'color: var(--color-muted);">'
+            '<span>Ticker</span>'
+            '<span style="text-align:right;">Last</span>'
+            '<span style="text-align:right;">Chg %</span>'
+            '<span>Action</span>'
+            '<span>State</span>'
+            '<span style="text-align:right;">RS</span>'
+            '<span style="text-align:right;">vs MA50</span>'
+            '<span style="text-align:right;">Trig</span>'
+            '<span style="text-align:right;">Earn</span>'
+            '<span></span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        # ── Rows ──
+        for row in rows:
+            sty = STATE_STYLES[row["action"]]
+            chg_color = "var(--color-positive)" if row["change"] >= 0 else "var(--color-negative)"
+            rs_color = "var(--color-positive)" if row["rs"] >= 1.0 else "var(--color-faint)"
+            ma_color = (
+                "var(--color-negative)" if row["pct_ma50"] > 12
+                else ("var(--color-positive)" if row["pct_ma50"] > 2
+                      else "var(--color-faint)")
+            )
+            trig_str = (
+                f'{row["trig_dist"]:+.1f}%' if row["trig_dist"] is not None else "—"
+            )
+            earn_str = (
+                f'{row["earnings_days"]}d' if row["earnings_days"] is not None
+                else "—"
+            )
+            quality_badge = (
+                f' <span style="font-size:8px;background:var(--color-surface-soft);color:var(--color-muted);padding:1px 4px;border-radius:2px;margin-left:4px;">{row["quality"]}</span>'
+                if row["quality"] in ("A", "B", "Speculative", "Avoid") else ""
+            )
+
+            # Render row as grid + a tiny column for the buttons
+            row_c1, row_c2 = st.columns([14, 1], vertical_alignment="center")
+            with row_c1:
+                st.markdown(
+                    f'<div style="display:grid; '
+                    f'grid-template-columns: 70px 80px 70px 110px 110px 70px 80px 80px 60px; '
+                    f'gap: 8px; padding: 8px 8px; '
+                    f'border-bottom: 1px dashed var(--color-border-soft); '
+                    f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
+                    f'font-size: var(--fs-base); align-items: baseline;">'
+                    f'<span style="font-weight:600;color:var(--color-text);">{row["ticker"]}{quality_badge}</span>'
+                    f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
+                    f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--color-faint);">{row["state"]}</span>'
+                    f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
+                    f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
+                    f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
+                    f'<span style="text-align:right;color:var(--color-faint);">{earn_str}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with row_c2:
+                if st.button("→", key=f"wlpro_open_{row['ticker']}",
+                             help=f"Open {row['ticker']} in Analyze"):
+                    st.session_state.current_ticker = row["ticker"]
+                    st.session_state.view = "analyze"
+                    st.rerun()
+
+        # ── Legend / column key ──
+        st.markdown(
+            '<div style="margin-top:24px;padding-top:16px;'
+            'border-top:1px solid var(--color-border);'
+            'font-family:var(--font-sans);font-size:var(--fs-sm);'
+            'color:var(--color-muted);line-height:1.6;">'
+            '<strong>Column key:</strong> '
+            '<span style="font-family:var(--font-mono);">vs MA50</span> = % above/below 50-day MA · '
+            '<span style="font-family:var(--font-mono);">RS</span> = relative strength vs SPY (>1.0 = leader) · '
+            '<span style="font-family:var(--font-mono);">Trig</span> = % to logged trigger price (— if no trigger) · '
+            '<span style="font-family:var(--font-mono);">Earn</span> = days to next earnings · '
+            'Quality badges (A / B / Spec / Avoid) appear next to ticker when cached'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────
