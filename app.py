@@ -2325,33 +2325,27 @@ section[data-testid='stSidebar'] button[data-testid^="stBaseButton-secondary"]:n
 section[data-testid='stSidebar'] div[data-testid="stButton"] button:has(p:only-child) {
     /* Transparent default, left-aligned, tight padding */
 }
-/* Target by aria-label or wrapper-class fallback */
-section[data-testid='stSidebar'] .desk-wl-del-wrap div[data-testid="stButton"] > button {
-    padding: 0 !important;
-    min-height: 22px !important;
-    height: 22px !important;
-    font-size: var(--fs-sm) !important;
+/* Target the ✕ delete button: it's always in the SECOND column of
+   the watchlist rows. Streamlit gives each column data-testid="stColumn"
+   in source order, so we target the 2nd one inside any horizontal block.
+   This is stable across Streamlit versions because column order is part
+   of the public API. */
+section[data-testid='stSidebar'] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stButton"] > button {
+    padding: 4px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    width: 32px !important;
+    font-size: var(--fs-base) !important;
     color: var(--color-fainter) !important;
     background: transparent !important;
-    border: none !important;
+    border: 1px solid transparent !important;
     box-shadow: none !important;
+    line-height: 1 !important;
 }
-section[data-testid='stSidebar'] .desk-wl-del-wrap div[data-testid="stButton"] > button:hover {
+section[data-testid='stSidebar'] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stButton"] > button:hover {
     color: var(--color-negative) !important;
     background: transparent !important;
-}
-/* Compact watchlist row hover state and tighter button styling */
-section[data-testid='stSidebar'] .desk-wl-row:hover {
-    background: #EDE8DD;
-}
-section[data-testid='stSidebar'] .desk-wl-active {
-    background: var(--color-text) !important;
-    color: var(--color-bg) !important;
-}
-section[data-testid='stSidebar'] .desk-wl-active .wl-tkr,
-section[data-testid='stSidebar'] .desk-wl-active .wl-px,
-section[data-testid='stSidebar'] .desk-wl-active .wl-chg {
-    color: var(--color-bg) !important;
+    border-color: var(--color-border) !important;
 }
 </style>""",
             unsafe_allow_html=True,
@@ -2382,26 +2376,28 @@ section[data-testid='stSidebar'] .desk-wl-active .wl-chg {
             chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else "—"
             px_str = f"{last:,.2f}" if last is not None else "—"
 
-            # Active row gets a darker background via wrapper class
-            wrap_open = '<div class="desk-wl-row desk-wl-active">' if is_active else '<div class="desk-wl-row">'
-
             row_c1, row_c2 = st.columns([10, 1.2], gap="small", vertical_alignment="center")
             with row_c1:
-                # Whole row clickable — use button with the ticker + price baked in
-                btn_label = f"{tkr}"
+                # Active row: prefix ticker with ▸ as a visual indicator.
+                # Tried CSS-based highlighting via wrapper divs and primary
+                # buttons — both caused alignment issues because Streamlit's
+                # DOM doesn't let us style buttons differently without
+                # changing their geometry. A character prefix gives us a
+                # visible difference without geometry change.
+                btn_label = f"▸ {tkr}" if is_active else tkr
                 if st.button(
                     btn_label,
                     key=f"wl_select_{tkr}",
                     use_container_width=True,
-                    help=f"${px_str} ({chg_str})",
-                    type="primary" if is_active else "secondary",
+                    help=f"${px_str} ({chg_str} 1d)",
                 ):
                     if tkr != current:
                         st.session_state.current_ticker = tkr
                         if st.session_state.view != "analyze":
                             st.session_state.view = "analyze"
                         st.rerun()
-                # Price + change line below button
+                # Price + change line below button. (1d) suffix clarifies
+                # this is a daily change, not weekly/intraday/etc.
                 st.markdown(
                     f'<div style="font-family: var(--font-mono);'
                     f'font-size: var(--fs-sm); '
@@ -2409,12 +2405,11 @@ section[data-testid='stSidebar'] .desk-wl-active .wl-chg {
                     f'padding: 0 6px 6px; margin-top: -6px; '
                     f'color: var(--color-faint); line-height: 1.3;">'
                     f'<span style="color: var(--color-text);">${px_str}</span>'
-                    f'<span style="color: {chg_color};">{chg_str}</span>'
+                    f'<span style="color: {chg_color};">{chg_str} <span style="color:var(--color-fainter);font-size:9px;">1d</span></span>'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
             with row_c2:
-                st.markdown('<div class="desk-wl-del-wrap">', unsafe_allow_html=True)
                 if st.button(
                     "✕",
                     key=f"wl_del_{tkr}",
@@ -2425,7 +2420,6 @@ section[data-testid='stSidebar'] .desk-wl-active .wl-chg {
                     if tkr == current and st.session_state.store["watchlist"]:
                         st.session_state.current_ticker = st.session_state.store["watchlist"][0]
                     st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.caption("Empty — type a ticker above and add it.")
 
@@ -3548,30 +3542,38 @@ if view == "analyze":
         except Exception as _chart_err:
             st.warning(f"Chart could not render: {_chart_err}")
 
-        # 5. Trade tracker log button — separate from the decision-comparison
-        # log above. This logs to the Trades tab (open trade with entry price,
-        # close with P&L) while decisions_log on the comparison panel logs to
-        # the Decisions tab (rules vs Claude vs you for calibration trial).
-        st.markdown("<div style='margin-top:18px;'></div>", unsafe_allow_html=True)
-        with st.container(border=True):
+        # 5. Trade tracker log button — only shown for actionable states
+        # (Enter/Watch/Accumulate), since you don't "track" a Hold off or
+        # Avoid as an open trade. Separate from decisions_log on the
+        # comparison panel which logs all states for the calibration trial.
+        if t["action"] in ("enter_now", "watch", "accumulate"):
             st.markdown(
-                '<div style="font-family: var(--font-sans);'
-                'font-size: var(--fs-xs);font-weight:600;'
-                'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                'color: var(--color-muted);margin-bottom:4px;">Trade tracker</div>'
-                '<div style="font-family: var(--font-sans);'
-                'font-size: var(--fs-base);color: var(--color-body);'
-                'line-height: 1.45;margin-bottom:10px;">'
-                'Log this as a trade with entry price; close later for P&amp;L.'
-                '</div>',
+                '<div style="margin-top:24px;padding-top:16px;'
+                'border-top:1px solid var(--color-border);"></div>',
                 unsafe_allow_html=True,
             )
-            trade_clicked = st.button(
-                f"Track as {sty['label'].lower()}",
-                key=f"trade_log_{ticker}",
-                help="Logs to the Trades tab. Use this for tracking open positions, not for the rules-vs-Claude comparison study.",
-                use_container_width=True,
-            )
+            tt_c1, tt_c2 = st.columns([3, 1], vertical_alignment="center")
+            with tt_c1:
+                st.markdown(
+                    '<div style="font-family: var(--font-sans);'
+                    'font-size: var(--fs-xs);font-weight:600;'
+                    'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color: var(--color-muted);margin-bottom:4px;">Trade tracker</div>'
+                    '<div style="font-family: var(--font-sans);'
+                    'font-size: var(--fs-base);color: var(--color-body);'
+                    'line-height: 1.45;">'
+                    f'Log this {sty["label"].lower()} setup with entry price '
+                    f'${t.get("entry", t["price"]):.2f}; close later for P&amp;L.'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+            with tt_c2:
+                trade_clicked = st.button(
+                    "Add to Tracker",
+                    key=f"trade_log_{ticker}",
+                    help="Logs to the Trades tab.",
+                    use_container_width=True,
+                )
             if trade_clicked:
                 log_entry = {
                     "date": datetime.now().strftime("%m/%d"),
@@ -3579,15 +3581,11 @@ if view == "analyze":
                     "action": t["action"],
                     "result": "open",
                     "closed": False,
+                    "entry": round(t["entry"], 2),
                 }
-                if t["action"] in ("enter_now", "watch", "accumulate"):
-                    log_entry["entry"] = round(t["entry"], 2)
-                elif t["action"] == "hold_off":
-                    log_entry["closed"] = True
-                    log_entry["result"] = "noted (no trade taken)"
                 st.session_state.store["log"].insert(0, log_entry)
                 save_store(st.session_state.store)
-                st.success(f"Tracked {ticker} as {sty['label'].lower()}.")
+                st.success(f"Added {ticker} to Trade Tracker.")
 
         # 6. Technical details — footer, collapsed
         with st.expander("Technical details"):
@@ -4243,7 +4241,7 @@ if view == "watchlist":
             'color: var(--color-muted);">'
             '<span>Ticker</span>'
             '<span style="text-align:right;">Last</span>'
-            '<span style="text-align:right;">Chg %</span>'
+            '<span style="text-align:right;">Chg % (1D)</span>'
             '<span>Action</span>'
             '<span>State</span>'
             '<span style="text-align:right;">RS</span>'
