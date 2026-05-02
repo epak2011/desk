@@ -3547,44 +3547,46 @@ if view == "analyze":
         # Avoid as an open trade. Separate from decisions_log on the
         # comparison panel which logs all states for the calibration trial.
         if t["action"] in ("enter_now", "watch", "accumulate"):
-            st.markdown(
-                '<div style="margin-top:32px;"></div>',
-                unsafe_allow_html=True,
-            )
-            tt_c1, tt_c2 = st.columns([3, 1], vertical_alignment="center")
-            with tt_c1:
-                st.markdown(
-                    '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-xs);font-weight:600;'
-                    'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color: var(--color-muted);margin-bottom:4px;">Trade tracker</div>'
-                    '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-base);color: var(--color-body);'
-                    'line-height: 1.45;">'
-                    f'Log this {sty["label"].lower()} setup with entry price '
-                    f'${t.get("entry", t["price"]):.2f}; close later for P&amp;L.'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
-            with tt_c2:
-                trade_clicked = st.button(
-                    "Add to Tracker",
-                    key=f"trade_log_{ticker}",
-                    help="Logs to the Trades tab.",
-                    use_container_width=True,
-                )
-            if trade_clicked:
-                log_entry = {
-                    "date": datetime.now().strftime("%m/%d"),
-                    "ticker": ticker,
-                    "action": t["action"],
-                    "result": "open",
-                    "closed": False,
-                    "entry": round(t["entry"], 2),
-                }
-                st.session_state.store["log"].insert(0, log_entry)
-                save_store(st.session_state.store)
-                st.success(f"Added {ticker} to Trade Tracker.")
+            st.markdown("<div style='margin-top:24px;'></div>", unsafe_allow_html=True)
+            with st.container(border=True):
+                # Three columns: text / button / empty buffer.
+                # The empty 3rd column is the trick — without it, the button
+                # (with use_container_width) always anchors to the page edge.
+                # Adding a buffer column gives the button visual breathing room.
+                tt_c1, tt_c2, tt_c3 = st.columns([5, 2, 1], vertical_alignment="center")
+                with tt_c1:
+                    st.markdown(
+                        '<div style="font-family: var(--font-sans);'
+                        'font-size: var(--fs-xs);font-weight:600;'
+                        'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                        'color: var(--color-muted);margin-bottom:4px;">Trade tracker</div>'
+                        '<div style="font-family: var(--font-sans);'
+                        'font-size: var(--fs-base);color: var(--color-body);'
+                        'line-height: 1.45;">'
+                        f'Log this {sty["label"].lower()} setup with entry price '
+                        f'${t.get("entry", t["price"]):.2f}; close later for P&amp;L.'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
+                with tt_c2:
+                    trade_clicked = st.button(
+                        "Add to Tracker",
+                        key=f"trade_log_{ticker}",
+                        help="Logs to the Trades tab.",
+                        use_container_width=True,
+                    )
+                if trade_clicked:
+                    log_entry = {
+                        "date": datetime.now().strftime("%m/%d"),
+                        "ticker": ticker,
+                        "action": t["action"],
+                        "result": "open",
+                        "closed": False,
+                        "entry": round(t["entry"], 2),
+                    }
+                    st.session_state.store["log"].insert(0, log_entry)
+                    save_store(st.session_state.store)
+                    st.success(f"Added {ticker} to Trade Tracker.")
 
         # 6. Technical details — footer, collapsed
         with st.expander("Technical details"):
