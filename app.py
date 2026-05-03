@@ -2381,6 +2381,43 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button p {
     font-size: var(--fs-base) !important;
     margin: 0 !important;
 }
+
+/* Sidebar ticker buttons (wl_select_NVDA, etc.) — strip box, render as
+   compact text rows. Active state via .desk-wl-active-marker wrapper. */
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-left: 2px solid transparent !important;
+    box-shadow: none !important;
+    padding: 4px 10px !important;
+    font-family: var(--font-sans) !important;
+    font-size: var(--fs-base) !important;
+    font-weight: 500 !important;
+    color: var(--color-text) !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    min-height: 26px !important;
+    height: 26px !important;
+    line-height: 1.1 !important;
+    border-radius: 2px !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button p {
+    font-size: var(--fs-base) !important;
+    margin: 0 !important;
+    line-height: 1.1 !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
+    background: var(--color-surface-soft) !important;
+    color: var(--color-text) !important;
+    border-left-color: var(--color-border) !important;
+}
+/* Active ticker — wrapper sets a marker class via Python, CSS targets it */
+section[data-testid='stSidebar'] .desk-wl-active-marker + div [class*="st-key-wl_select_"] button,
+section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
+    background: var(--color-surface-soft) !important;
+    border-left-color: var(--color-text) !important;
+    font-weight: 600 !important;
+}
 </style>""",
             unsafe_allow_html=True,
         )
@@ -2412,16 +2449,13 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button p {
 
             row_c1, row_c2 = st.columns([10, 1.2], gap="small", vertical_alignment="center")
             with row_c1:
-                # Active row: prefix ticker with ▸ as a visual indicator.
-                # Tried CSS-based highlighting via wrapper divs and primary
-                # buttons — both caused alignment issues because Streamlit's
-                # DOM doesn't let us style buttons differently without
-                # changing their geometry. A character prefix gives us a
-                # visible difference without geometry change.
-                btn_label = f"▸ {tkr}" if is_active else tkr
+                # Active state: use a different key prefix so CSS targets
+                # it specifically. NO label-content change to avoid the
+                # alignment shift from prefix characters.
+                btn_key = f"wl_select_active_{tkr}" if is_active else f"wl_select_{tkr}"
                 if st.button(
-                    btn_label,
-                    key=f"wl_select_{tkr}",
+                    tkr,
+                    key=btn_key,
                     use_container_width=True,
                     help=f"${px_str} ({chg_str} 1d)",
                 ):
@@ -2436,8 +2470,8 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button p {
                     f'<div style="font-family: var(--font-mono);'
                     f'font-size: var(--fs-sm); '
                     f'display:flex; justify-content:space-between; '
-                    f'padding: 0 6px 6px; margin-top: -6px; '
-                    f'color: var(--color-faint); line-height: 1.3;">'
+                    f'padding: 0 10px 4px; margin-top: -4px; '
+                    f'color: var(--color-faint); line-height: 1.2;">'
                     f'<span style="color: var(--color-text);">${px_str}</span>'
                     f'<span style="color: {chg_color};">{chg_str} <span style="color:var(--color-fainter);font-size:9px;">1d</span></span>'
                     f'</div>',
@@ -4334,7 +4368,7 @@ if view == "watchlist":
             )
         with h_c2:
             data_grid = (
-                'grid-template-columns: 1fr 0.8fr 1.4fr 1.3fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
+                'grid-template-columns: 1fr 0.8fr 1.4fr 1.3fr 0.9fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
             )
             st.markdown(
                 f'<div style="display:grid; {data_grid} '
@@ -4348,6 +4382,7 @@ if view == "watchlist":
                 f'<span style="text-align:right;">Chg (1D)</span>'
                 f'<span>Action</span>'
                 f'<span>State</span>'
+                f'<span title="Long-term ownership tier from Claude (A / B / Speculative / Avoid)">Quality ⓘ</span>'
                 f'<span style="text-align:right;" title="Relative strength vs SPY (>1.0 = leader)">RS ⓘ</span>'
                 f'<span style="text-align:right;" title="% above/below 50-day MA">vs MA50 ⓘ</span>'
                 f'<span style="text-align:right;" title="Position in 52-week range (0% = at low, 100% = at high)">52w pos ⓘ</span>'
@@ -4412,15 +4447,10 @@ if view == "watchlist":
                 # Each row is 2 Streamlit columns: ticker button (clickable)
                 # + everything else as HTML grid. The button is styled
                 # minimally to look like the ticker text it's labeled with.
-                ticker_label = f"{row['ticker']}"
-                if row["quality"] in ("A", "B", "Speculative", "Avoid"):
-                    quality_short = row["quality"][0] if row["quality"] != "Speculative" else "S"
-                    ticker_label = f"{row['ticker']} · {quality_short}"
-
                 row_c1, row_c2 = st.columns([1.2, 9.5], gap="small", vertical_alignment="center")
                 with row_c1:
                     if st.button(
-                        ticker_label,
+                        row["ticker"],
                         key=f"wlpro_open_{row['ticker']}",
                         help=f"Open {row['ticker']} in Analyze",
                         use_container_width=True,
@@ -4432,8 +4462,22 @@ if view == "watchlist":
                     # Inline grid for the data columns (ticker now in row_c1).
                     # Re-distributed fr units since ticker column is gone.
                     data_grid = (
-                        'grid-template-columns: 1fr 0.8fr 1.4fr 1.3fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
+                        'grid-template-columns: 1fr 0.8fr 1.4fr 1.3fr 0.9fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
                     )
+                    # Quality tier styling: color by tier, "—" placeholder
+                    # when not yet generated (no API key or pre-cache miss).
+                    q_tier = row.get("quality") or ""
+                    if q_tier == "A":
+                        q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-accent);">A</span>'
+                    elif q_tier == "B":
+                        q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-faint);">B</span>'
+                    elif q_tier == "Speculative":
+                        q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-purple);">Spec</span>'
+                    elif q_tier == "Avoid":
+                        q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-negative);">Avoid</span>'
+                    else:
+                        q_html = '<span style="color:var(--color-fainter);">—</span>'
+
                     st.markdown(
                         f'<div style="display:grid; {data_grid} '
                         f'gap: 6px; padding: 7px 0; '
@@ -4444,6 +4488,7 @@ if view == "watchlist":
                         f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--color-faint);">{row["state"]}</span>'
+                        f'{q_html}'
                         f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
                         f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
                         f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
@@ -4465,13 +4510,13 @@ if view == "watchlist":
             'font-family:var(--font-sans);font-size:var(--fs-sm);'
             'color:var(--color-muted);line-height:1.6;">'
             '<strong>Column key:</strong> '
+            '<span style="font-family:var(--font-mono);">Quality</span> = long-term ownership tier from Claude (— if not yet generated) · '
             '<span style="font-family:var(--font-mono);">vs MA50</span> = % above/below 50-day MA · '
             '<span style="font-family:var(--font-mono);">RS</span> = relative strength vs SPY (>1.0 = leader) · '
             '<span style="font-family:var(--font-mono);">52w pos</span> = position in 52-week range (0% = at low, 100% = at high) · '
             '<span style="font-family:var(--font-mono);">Vol ×</span> = today\'s volume vs 20-day average · '
             '<span style="font-family:var(--font-mono);">Trig</span> = % to logged trigger price · '
-            '<span style="font-family:var(--font-mono);">Earn</span> = days to next earnings · '
-            'Quality badges (A / B / Spec / Avoid) appear next to ticker when cached'
+            '<span style="font-family:var(--font-mono);">Earn</span> = days to next earnings'
             '</div>',
             unsafe_allow_html=True,
         )
