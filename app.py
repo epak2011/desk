@@ -2437,55 +2437,54 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             else:
                 wl_data[tkr] = (None, None)
 
-        # Each row: radio for selection + inline ✕ for delete.
-        # Two-column layout per row keeps the ✕ aligned next to the ticker
-        # without needing custom HTML row styling.
-        for tkr in watchlist:
-            last, chg_pct = wl_data[tkr]
-            is_active = (tkr == current)
-            chg_color = "var(--color-positive)" if (chg_pct or 0) >= 0 else "var(--color-negative)"
-            chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else "—"
-            px_str = f"{last:,.2f}" if last is not None else "—"
+        # Use Streamlit radio with format_func for the ticker labels.
+        # Custom button-CSS approaches kept breaking — radio renders
+        # reliably out of the box. Trade-off: no inline ✕, but at least
+        # the structure works. Removal moved to a small expander below.
+        def _format_ticker(tkr):
+            last, chg_pct = wl_data.get(tkr, (None, None))
+            if last is None:
+                return tkr
+            chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else ""
+            return f"{tkr}   ${last:,.2f}   {chg_str}"
 
-            row_c1, row_c2 = st.columns([10, 1.2], gap="small", vertical_alignment="center")
-            with row_c1:
-                # Active state: use a different key prefix so CSS targets
-                # it specifically. NO label-content change to avoid the
-                # alignment shift from prefix characters.
-                btn_key = f"wl_select_active_{tkr}" if is_active else f"wl_select_{tkr}"
-                if st.button(
-                    tkr,
-                    key=btn_key,
-                    use_container_width=True,
-                    help=f"${px_str} ({chg_str} 1d)",
-                ):
-                    if tkr != current:
-                        st.session_state.current_ticker = tkr
-                        if st.session_state.view != "analyze":
-                            st.session_state.view = "analyze"
-                        st.rerun()
-                # Price + change line below button. (1d) suffix clarifies
-                # this is a daily change, not weekly/intraday/etc.
-                st.markdown(
-                    f'<div style="font-family: var(--font-mono);'
-                    f'font-size: var(--fs-sm); '
-                    f'display:flex; justify-content:space-between; '
-                    f'padding: 0 10px 4px; margin-top: -4px; '
-                    f'color: var(--color-faint); line-height: 1.2;">'
-                    f'<span style="color: var(--color-text);">${px_str}</span>'
-                    f'<span style="color: {chg_color};">{chg_str} <span style="color:var(--color-fainter);font-size:9px;">1d</span></span>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-            with row_c2:
-                if st.button(
-                    "✕",
-                    key=f"wl_del_{tkr}",
-                    help=f"Remove {tkr}",
-                ):
-                    st.session_state.store["watchlist"].remove(tkr)
+        radio_index = watchlist.index(current) if current in watchlist else 0
+        if "_watchlist_radio_last" not in st.session_state:
+            st.session_state["_watchlist_radio_last"] = watchlist[radio_index]
+
+        picked = st.radio(
+            "Watchlist",
+            options=watchlist,
+            index=radio_index,
+            format_func=_format_ticker,
+            label_visibility="collapsed",
+            key="watchlist_radio",
+        )
+        if picked != st.session_state["_watchlist_radio_last"]:
+            st.session_state["_watchlist_radio_last"] = picked
+            st.session_state.current_ticker = picked
+            if st.session_state.view != "analyze":
+                st.session_state.view = "analyze"
+            st.rerun()
+
+        # Removal — small expander at bottom. Less elegant than inline ✕
+        # but reliably renders.
+        with st.expander("Remove a ticker", expanded=False):
+            to_remove = st.selectbox(
+                "Pick one",
+                options=["—"] + watchlist,
+                index=0,
+                label_visibility="collapsed",
+                key="remove_picker",
+            )
+            if to_remove != "—":
+                if st.button(f"Remove {to_remove}", use_container_width=True, key="confirm_remove"):
+                    st.session_state.store["watchlist"].remove(to_remove)
                     save_store(st.session_state.store)
-                    if tkr == current and st.session_state.store["watchlist"]:
+                    for k in ("watchlist_radio", "_watchlist_radio_last", "remove_picker"):
+                        if k in st.session_state:
+                            del st.session_state[k]
+                    if to_remove == current and st.session_state.store["watchlist"]:
                         st.session_state.current_ticker = st.session_state.store["watchlist"][0]
                     st.rerun()
     else:
@@ -3617,27 +3616,30 @@ if view == "analyze":
         if t["action"] in ("enter_now", "watch", "accumulate"):
             st.markdown("<div style='margin-top:24px;'></div>", unsafe_allow_html=True)
             with st.container(border=True):
-                # Header: proper section title size, top-left aligned
-                st.markdown(
-                    '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-lg);font-weight:600;'
-                    'color: var(--color-text);margin-bottom:6px;">'
-                    'Trade Tracker</div>'
-                    '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-base);color: var(--color-body);'
-                    'line-height: 1.5;margin-bottom:12px;">'
-                    f'Log this {sty["label"].lower()} setup with entry price '
-                    f'<b>${t.get("entry", t["price"]):.2f}</b>; close later for P&amp;L.'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
-                # Button: NOT full-width, sized to content. Sits at bottom-left
-                # of the card naturally without column tricks.
-                trade_clicked = st.button(
-                    "Add to Tracker",
-                    key=f"trade_log_{ticker}",
-                    help="Logs to the Trades tab.",
-                )
+                # Two columns: text on left, button on right.
+                # Vertical center alignment lines them up.
+                tt_left, tt_right = st.columns([3, 1], vertical_alignment="center")
+                with tt_left:
+                    st.markdown(
+                        '<div style="font-family: var(--font-sans);'
+                        'font-size: var(--fs-lg);font-weight:600;'
+                        'color: var(--color-text);margin-bottom:4px;">'
+                        'Trade Tracker</div>'
+                        '<div style="font-family: var(--font-sans);'
+                        'font-size: var(--fs-base);color: var(--color-body);'
+                        'line-height: 1.45;">'
+                        f'Log this {sty["label"].lower()} setup with entry price '
+                        f'<b>${t.get("entry", t["price"]):.2f}</b>; close later for P&amp;L.'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
+                with tt_right:
+                    trade_clicked = st.button(
+                        "Add to Tracker",
+                        key=f"trade_log_{ticker}",
+                        help="Logs to the Trades tab.",
+                        use_container_width=True,
+                    )
                 if trade_clicked:
                     log_entry = {
                         "date": datetime.now().strftime("%m/%d"),
@@ -4353,45 +4355,66 @@ if view == "watchlist":
             grouped = [(None, None, rows)]
 
         # ── Header row ──
-        # New layout: 2 Streamlit columns per data row — ticker button
-        # on left (clickable), data grid on right. Header has matching
-        # 2-column structure so columns align visually.
-        h_c1, h_c2 = st.columns([1.2, 9.5], gap="small")
-        with h_c1:
+        # ── Header row + all data rows render as ONE consistent HTML grid ──
+        # Previous approach split into Streamlit columns + grid which never
+        # aligned cleanly. Now: ticker is a column in the grid like every
+        # other field; navigation is via a separate "Open ticker" selectbox.
+
+        # Quick navigation picker — separate from the table so we don't
+        # need to make table rows clickable (which was breaking layout).
+        nav_c1, nav_c2 = st.columns([2, 5])
+        with nav_c1:
+            picked_open = st.selectbox(
+                "Open ticker in Analyze view",
+                options=["—"] + [r["ticker"] for r in rows],
+                index=0,
+                key="wlpro_nav",
+                label_visibility="collapsed",
+            )
+            if picked_open != "—":
+                st.session_state.current_ticker = picked_open
+                st.session_state.view = "analyze"
+                st.session_state["wlpro_nav"] = "—"
+                st.rerun()
+        with nav_c2:
             st.markdown(
-                f'<div style="font-family: var(--font-sans); font-size: var(--fs-xs); '
-                f'font-weight: 600; letter-spacing: var(--ls-caps-md); '
-                f'text-transform: uppercase; color: var(--color-muted); '
-                f'padding: 6px 8px; border-bottom: 1px solid var(--color-border);">'
-                f'Ticker</div>',
+                '<div style="font-family: var(--font-sans); font-size: var(--fs-sm); '
+                'color: var(--color-muted); padding-top: 8px;">'
+                '↑ Pick a ticker to jump to Analyze, or click in the sidebar.'
+                '</div>',
                 unsafe_allow_html=True,
             )
-        with h_c2:
-            data_grid = (
-                'grid-template-columns: 1fr 0.8fr 1.4fr 1.3fr 0.9fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
-            )
-            st.markdown(
-                f'<div style="display:grid; {data_grid} '
-                f'gap: 6px; padding: 6px 0; margin-top: 8px; '
-                f'border-bottom: 1px solid var(--color-border); '
-                f'font-family: var(--font-sans); '
-                f'font-size: var(--fs-xs); font-weight: 600; '
-                f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
-                f'color: var(--color-muted);">'
-                f'<span style="text-align:right;">Last</span>'
-                f'<span style="text-align:right;">Chg (1D)</span>'
-                f'<span>Action</span>'
-                f'<span>State</span>'
-                f'<span title="Long-term ownership tier from Claude (A / B / Speculative / Avoid)">Quality ⓘ</span>'
-                f'<span style="text-align:right;" title="Relative strength vs SPY (>1.0 = leader)">RS ⓘ</span>'
-                f'<span style="text-align:right;" title="% above/below 50-day MA">vs MA50 ⓘ</span>'
-                f'<span style="text-align:right;" title="Position in 52-week range (0% = at low, 100% = at high)">52w pos ⓘ</span>'
-                f'<span style="text-align:right;" title="Today\'s volume vs 20-day average">Vol × ⓘ</span>'
-                f'<span style="text-align:right;" title="% to logged trigger price (— if no trigger)">Trig ⓘ</span>'
-                f'<span style="text-align:right;" title="Days to next earnings">Earn ⓘ</span>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
+
+        # 12-column grid: ticker / last / chg / action / state / quality
+        #                / RS / vsMA50 / 52w / vol / trig / earn
+        grid_cols = (
+            'grid-template-columns: 0.9fr 1fr 0.8fr 1.4fr 1.3fr 0.9fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
+        )
+
+        # Header
+        st.markdown(
+            f'<div style="display:grid; {grid_cols} '
+            f'gap: 6px; padding: 8px; margin-top: 16px; '
+            f'border-bottom: 1px solid var(--color-border); '
+            f'font-family: var(--font-sans); '
+            f'font-size: var(--fs-xs); font-weight: 600; '
+            f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
+            f'color: var(--color-muted);">'
+            f'<span>Ticker</span>'
+            f'<span style="text-align:right;">Last</span>'
+            f'<span style="text-align:right;">Chg (1D)</span>'
+            f'<span>Action</span>'
+            f'<span>State</span>'
+            f'<span title="Long-term ownership tier from Claude (A / B / Speculative / Avoid)">Quality ⓘ</span>'
+            f'<span style="text-align:right;" title="Relative strength vs SPY (>1.0 = leader)">RS ⓘ</span>'
+            f'<span style="text-align:right;" title="% above/below 50-day MA">vs MA50 ⓘ</span>'
+            f'<span style="text-align:right;" title="Position in 52-week range (0% = at low, 100% = at high)">52w pos ⓘ</span>'
+            f'<span style="text-align:right;" title="Today\'s volume vs 20-day average">Vol × ⓘ</span>'
+            f'<span style="text-align:right;" title="% to logged trigger price (— if no trigger)">Trig ⓘ</span>'
+            f'<span style="text-align:right;" title="Days to next earnings">Earn ⓘ</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
         # ── Rows, possibly grouped ──
         for group_label, group_color, group_rows in grouped:
@@ -4435,73 +4458,47 @@ if view == "watchlist":
                     f'{row["earnings_days"]}d' if row["earnings_days"] is not None
                     else "—"
                 )
-                quality_badge = (
-                    f' <span style="font-size:8px;background:var(--color-surface-soft);color:var(--color-muted);padding:1px 4px;border-radius:2px;margin-left:4px;">{row["quality"]}</span>'
-                    if row["quality"] in ("A", "B", "Speculative", "Avoid") else ""
+
+                # Quality tier styling
+                q_tier = row.get("quality") or ""
+                if q_tier == "A":
+                    q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-accent);">A</span>'
+                elif q_tier == "B":
+                    q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-faint);">B</span>'
+                elif q_tier == "Speculative":
+                    q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-purple);">Spec</span>'
+                elif q_tier == "Avoid":
+                    q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-negative);">Avoid</span>'
+                else:
+                    q_html = '<span style="color:var(--color-fainter);">—</span>'
+
+                # Single HTML grid for entire row — same grid_cols as header
+                # so they align perfectly. No more Streamlit columns split.
+                st.markdown(
+                    f'<div style="display:grid; {grid_cols} '
+                    f'gap: 6px; padding: 8px; '
+                    f'border-bottom: 1px dashed var(--color-border-soft); '
+                    f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
+                    f'font-size: var(--fs-base); align-items: baseline;">'
+                    f'<span style="font-weight:600;color:var(--color-text);">{row["ticker"]}</span>'
+                    f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
+                    f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--color-faint);">{row["state"]}</span>'
+                    f'{q_html}'
+                    f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
+                    f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
+                    f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
+                    f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
+                    f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
+                    f'<span style="text-align:right;color:var(--color-faint);">{earn_str}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
                 )
 
-                # The whole row is rendered as visible HTML for layout,
-                # plus a Streamlit button stretched over the ticker cell
-                # that's styled to be invisible but clickable. This way
-                # the ticker text IS the click target — no separate arrow.
-                # Each row is 2 Streamlit columns: ticker button (clickable)
-                # + everything else as HTML grid. The button is styled
-                # minimally to look like the ticker text it's labeled with.
-                row_c1, row_c2 = st.columns([1.2, 9.5], gap="small", vertical_alignment="center")
-                with row_c1:
-                    if st.button(
-                        row["ticker"],
-                        key=f"wlpro_open_{row['ticker']}",
-                        help=f"Open {row['ticker']} in Analyze",
-                        use_container_width=True,
-                    ):
-                        st.session_state.current_ticker = row["ticker"]
-                        st.session_state.view = "analyze"
-                        st.rerun()
-                with row_c2:
-                    # Inline grid for the data columns (ticker now in row_c1).
-                    # Re-distributed fr units since ticker column is gone.
-                    data_grid = (
-                        'grid-template-columns: 1fr 0.8fr 1.4fr 1.3fr 0.9fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
-                    )
-                    # Quality tier styling: color by tier, "—" placeholder
-                    # when not yet generated (no API key or pre-cache miss).
-                    q_tier = row.get("quality") or ""
-                    if q_tier == "A":
-                        q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-accent);">A</span>'
-                    elif q_tier == "B":
-                        q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-faint);">B</span>'
-                    elif q_tier == "Speculative":
-                        q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-purple);">Spec</span>'
-                    elif q_tier == "Avoid":
-                        q_html = '<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:var(--color-negative);">Avoid</span>'
-                    else:
-                        q_html = '<span style="color:var(--color-fainter);">—</span>'
-
-                    st.markdown(
-                        f'<div style="display:grid; {data_grid} '
-                        f'gap: 6px; padding: 7px 0; '
-                        f'border-bottom: 1px dashed var(--color-border-soft); '
-                        f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
-                        f'font-size: var(--fs-base); align-items: baseline;">'
-                        f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
-                        f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--color-faint);">{row["state"]}</span>'
-                        f'{q_html}'
-                        f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
-                        f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
-                        f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
-                        f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
-                        f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
-                        f'<span style="text-align:right;color:var(--color-faint);">{earn_str}</span>'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-
-        # Note: navigation to Analyze view happens via the sidebar
-        # watchlist (always visible). Watchlist Pro is for scanning,
-        # not for navigation, so per-row buttons would be redundant.
+        # Note: navigation to Analyze view happens via the selectbox above
+        # or via the sidebar watchlist (always visible). Watchlist Pro is
+        # for scanning, not for navigation, so per-row buttons aren't needed.
 
         # ── Legend / column key ──
         st.markdown(
