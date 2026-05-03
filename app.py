@@ -2332,6 +2332,51 @@ section[data-testid='stSidebar'] div[data-testid="stButton"] button:has(p:only-c
 
    We use [class*="st-key-wl_del_"] to match any wl_del_NVDA, wl_del_META etc.
    This is the reliable way to style specific Streamlit buttons. */
+
+/* Sidebar ticker SELECT button — wl_select_{TKR} for inactive,
+   wl_select_active_{TKR} for the currently-active ticker.
+   The black highlight is on the BUTTON only, not on the row. */
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    padding: 5px 10px !important;
+    font-family: var(--font-sans) !important;
+    font-size: var(--fs-base) !important;
+    font-weight: 600 !important;
+    color: var(--color-text) !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    line-height: 1.1 !important;
+    border-radius: 3px !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button p {
+    font-size: var(--fs-base) !important;
+    margin: 0 !important;
+    line-height: 1.1 !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
+    background: var(--color-surface-soft) !important;
+    color: var(--color-text) !important;
+}
+/* ACTIVE ticker — black background, white text, ONLY on the button.
+   Distinct key prefix wl_select_active_ so this rule beats the generic
+   wl_select_ rule above. */
+section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
+    background: var(--color-text) !important;
+    color: var(--color-bg) !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button p {
+    color: var(--color-bg) !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button:hover {
+    background: var(--color-text) !important;
+    color: var(--color-bg) !important;
+}
+
+/* Sidebar ticker DELETE ✕ — small, transparent, red on hover. */
 section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button {
     padding: 0 !important;
     min-height: 28px !important;
@@ -2344,20 +2389,18 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button {
     box-shadow: none !important;
     line-height: 1 !important;
 }
-section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button:hover {
-    color: var(--color-negative) !important;
-    background: transparent !important;
-    border-color: var(--color-border) !important;
-}
 section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button p {
     font-size: var(--fs-base) !important;
     line-height: 1 !important;
     margin: 0 !important;
 }
+section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button:hover {
+    color: var(--color-negative) !important;
+    background: transparent !important;
+    border-color: var(--color-border) !important;
+}
 
-/* Watchlist Pro ticker buttons — main content area, style as bold
-   text rather than a chunky button. Each row's ticker is the click
-   target to open the ticker in Analyze view. */
+/* Watchlist Pro ticker buttons — same style pattern but in main content */
 .main [class*="st-key-wlpro_open_"] button {
     background: transparent !important;
     border: 1px solid transparent !important;
@@ -2381,43 +2424,6 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button p {
     font-size: var(--fs-base) !important;
     margin: 0 !important;
 }
-
-/* Sidebar ticker buttons (wl_select_NVDA, etc.) — strip box, render as
-   compact text rows. Active state via .desk-wl-active-marker wrapper. */
-section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    border-left: 2px solid transparent !important;
-    box-shadow: none !important;
-    padding: 4px 10px !important;
-    font-family: var(--font-sans) !important;
-    font-size: var(--fs-base) !important;
-    font-weight: 500 !important;
-    color: var(--color-text) !important;
-    text-align: left !important;
-    justify-content: flex-start !important;
-    min-height: 26px !important;
-    height: 26px !important;
-    line-height: 1.1 !important;
-    border-radius: 2px !important;
-}
-section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button p {
-    font-size: var(--fs-base) !important;
-    margin: 0 !important;
-    line-height: 1.1 !important;
-}
-section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
-    background: var(--color-surface-soft) !important;
-    color: var(--color-text) !important;
-    border-left-color: var(--color-border) !important;
-}
-/* Active ticker — wrapper sets a marker class via Python, CSS targets it */
-section[data-testid='stSidebar'] .desk-wl-active-marker + div [class*="st-key-wl_select_"] button,
-section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
-    background: var(--color-surface-soft) !important;
-    border-left-color: var(--color-text) !important;
-    font-weight: 600 !important;
-}
 </style>""",
             unsafe_allow_html=True,
         )
@@ -2437,54 +2443,60 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             else:
                 wl_data[tkr] = (None, None)
 
-        # Use Streamlit radio with format_func for the ticker labels.
-        # Custom button-CSS approaches kept breaking — radio renders
-        # reliably out of the box. Trade-off: no inline ✕, but at least
-        # the structure works. Removal moved to a small expander below.
-        def _format_ticker(tkr):
-            last, chg_pct = wl_data.get(tkr, (None, None))
-            if last is None:
-                return tkr
-            chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else ""
-            return f"{tkr}   ${last:,.2f}   {chg_str}"
-
-        radio_index = watchlist.index(current) if current in watchlist else 0
-        if "_watchlist_radio_last" not in st.session_state:
-            st.session_state["_watchlist_radio_last"] = watchlist[radio_index]
-
-        picked = st.radio(
-            "Watchlist",
-            options=watchlist,
-            index=radio_index,
-            format_func=_format_ticker,
-            label_visibility="collapsed",
-            key="watchlist_radio",
-        )
-        if picked != st.session_state["_watchlist_radio_last"]:
-            st.session_state["_watchlist_radio_last"] = picked
-            st.session_state.current_ticker = picked
-            if st.session_state.view != "analyze":
-                st.session_state.view = "analyze"
-            st.rerun()
-
-        # Removal — small expander at bottom. Less elegant than inline ✕
-        # but reliably renders.
-        with st.expander("Remove a ticker", expanded=False):
-            to_remove = st.selectbox(
-                "Pick one",
-                options=["—"] + watchlist,
-                index=0,
-                label_visibility="collapsed",
-                key="remove_picker",
+        # Each watchlist row: 3 columns
+        #   1. Ticker button (clickable, black-bg when active)
+        #   2. Price + colored change %, right-aligned
+        #   3. Tiny ✕ delete button
+        # The black highlight is on the BUTTON only, not the whole row,
+        # because the button uses a different `st-key-` prefix when active
+        # which the CSS targets.
+        for tkr in watchlist:
+            last, chg_pct = wl_data[tkr]
+            is_active = (tkr == current)
+            chg_color = (
+                "var(--color-positive)" if (chg_pct or 0) >= 0
+                else "var(--color-negative)"
             )
-            if to_remove != "—":
-                if st.button(f"Remove {to_remove}", use_container_width=True, key="confirm_remove"):
-                    st.session_state.store["watchlist"].remove(to_remove)
+            chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else "—"
+            px_str = f"{last:,.2f}" if last is not None else "—"
+
+            # Active ticker uses a different key prefix so CSS can style
+            # it differently (black background) without affecting other rows.
+            btn_key = f"wl_select_active_{tkr}" if is_active else f"wl_select_{tkr}"
+
+            c_tkr, c_px, c_del = st.columns([2.2, 3.5, 0.8], gap="small",
+                                            vertical_alignment="center")
+            with c_tkr:
+                if st.button(
+                    tkr,
+                    key=btn_key,
+                    use_container_width=True,
+                ):
+                    if not is_active:
+                        st.session_state.current_ticker = tkr
+                        if st.session_state.view != "analyze":
+                            st.session_state.view = "analyze"
+                        st.rerun()
+            with c_px:
+                # Price on top, colored change below — right aligned
+                st.markdown(
+                    f'<div style="font-family: var(--font-mono); '
+                    f'font-variant-numeric: tabular-nums; '
+                    f'text-align: right; line-height: 1.15; padding: 2px 4px;">'
+                    f'<div style="font-size: var(--fs-base); color: var(--color-text); font-weight: 500;">${px_str}</div>'
+                    f'<div style="font-size: var(--fs-sm); color: {chg_color};">{chg_str}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with c_del:
+                if st.button(
+                    "✕",
+                    key=f"wl_del_{tkr}",
+                    help=f"Remove {tkr}",
+                ):
+                    st.session_state.store["watchlist"].remove(tkr)
                     save_store(st.session_state.store)
-                    for k in ("watchlist_radio", "_watchlist_radio_last", "remove_picker"):
-                        if k in st.session_state:
-                            del st.session_state[k]
-                    if to_remove == current and st.session_state.store["watchlist"]:
+                    if tkr == current and st.session_state.store["watchlist"]:
                         st.session_state.current_ticker = st.session_state.store["watchlist"][0]
                     st.rerun()
     else:
@@ -4354,36 +4366,25 @@ if view == "watchlist":
         else:
             grouped = [(None, None, rows)]
 
-        # ── Header row ──
         # ── Header row + all data rows render as ONE consistent HTML grid ──
-        # Previous approach split into Streamlit columns + grid which never
-        # aligned cleanly. Now: ticker is a column in the grid like every
-        # other field; navigation is via a separate "Open ticker" selectbox.
+        # Ticker cells are clickable anchor tags using query params for
+        # navigation. When clicked, the URL adds ?open=TICKER, the page
+        # reruns, we read the param and switch to Analyze view. This is
+        # Streamlit's documented way to make non-widget HTML clickable.
 
-        # Quick navigation picker — separate from the table so we don't
-        # need to make table rows clickable (which was breaking layout).
-        nav_c1, nav_c2 = st.columns([2, 5])
-        with nav_c1:
-            picked_open = st.selectbox(
-                "Open ticker in Analyze view",
-                options=["—"] + [r["ticker"] for r in rows],
-                index=0,
-                key="wlpro_nav",
-                label_visibility="collapsed",
-            )
-            if picked_open != "—":
-                st.session_state.current_ticker = picked_open
-                st.session_state.view = "analyze"
-                st.session_state["wlpro_nav"] = "—"
+        # Handle incoming click — read the query param and switch ticker.
+        try:
+            qp = st.query_params
+            if "open" in qp:
+                tkr_to_open = qp["open"]
+                if tkr_to_open and tkr_to_open != st.session_state.current_ticker:
+                    st.session_state.current_ticker = tkr_to_open
+                    st.session_state.view = "analyze"
+                # Clear the param so a refresh doesn't keep firing
+                del qp["open"]
                 st.rerun()
-        with nav_c2:
-            st.markdown(
-                '<div style="font-family: var(--font-sans); font-size: var(--fs-sm); '
-                'color: var(--color-muted); padding-top: 8px;">'
-                '↑ Pick a ticker to jump to Analyze, or click in the sidebar.'
-                '</div>',
-                unsafe_allow_html=True,
-            )
+        except Exception:
+            pass
 
         # 12-column grid: ticker / last / chg / action / state / quality
         #                / RS / vsMA50 / 52w / vol / trig / earn
@@ -4472,15 +4473,24 @@ if view == "watchlist":
                 else:
                     q_html = '<span style="color:var(--color-fainter);">—</span>'
 
-                # Single HTML grid for entire row — same grid_cols as header
-                # so they align perfectly. No more Streamlit columns split.
+                # Ticker cell is a clickable <a> with ?open=TICKER param.
+                # Streamlit picks up the param on rerun (handler at top of
+                # this block) and switches the active ticker.
+                ticker_link = (
+                    f'<a href="?open={row["ticker"]}" target="_self" '
+                    f'style="font-weight:600;color:var(--color-text);'
+                    f'text-decoration:none;cursor:pointer;'
+                    f'border-bottom:1px dotted var(--color-fainter);">'
+                    f'{row["ticker"]}</a>'
+                )
+
                 st.markdown(
                     f'<div style="display:grid; {grid_cols} '
                     f'gap: 6px; padding: 8px; '
                     f'border-bottom: 1px dashed var(--color-border-soft); '
                     f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
                     f'font-size: var(--fs-base); align-items: baseline;">'
-                    f'<span style="font-weight:600;color:var(--color-text);">{row["ticker"]}</span>'
+                    f'{ticker_link}'
                     f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
                     f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
@@ -4496,9 +4506,9 @@ if view == "watchlist":
                     unsafe_allow_html=True,
                 )
 
-        # Note: navigation to Analyze view happens via the selectbox above
-        # or via the sidebar watchlist (always visible). Watchlist Pro is
-        # for scanning, not for navigation, so per-row buttons aren't needed.
+        # Note: navigation to Analyze view happens by clicking a ticker name
+        # in the table (uses ?open=TICKER query param) or via the sidebar
+        # watchlist (always visible).
 
         # ── Legend / column key ──
         st.markdown(
