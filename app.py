@@ -2325,16 +2325,18 @@ section[data-testid='stSidebar'] button[data-testid^="stBaseButton-secondary"]:n
 section[data-testid='stSidebar'] div[data-testid="stButton"] button:has(p:only-child) {
     /* Transparent default, left-aligned, tight padding */
 }
-/* Target the ✕ delete button: it's always in the SECOND column of
-   the watchlist rows. Streamlit gives each column data-testid="stColumn"
-   in source order, so we target the 2nd one inside any horizontal block.
-   This is stable across Streamlit versions because column order is part
-   of the public API. */
-section[data-testid='stSidebar'] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stButton"] > button {
-    padding: 4px !important;
-    min-height: 32px !important;
-    height: 32px !important;
-    width: 32px !important;
+/* Target the ✕ delete buttons by their st-key-* class wrapper.
+   Streamlit 1.36+ adds a CSS class `st-key-{key}` to the element-container
+   wrapping each widget when a key is set. This is documented stable DOM,
+   unlike data-testid which can shift between versions.
+
+   We use [class*="st-key-wl_del_"] to match any wl_del_NVDA, wl_del_META etc.
+   This is the reliable way to style specific Streamlit buttons. */
+section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button {
+    padding: 0 !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    width: 28px !important;
     font-size: var(--fs-base) !important;
     color: var(--color-fainter) !important;
     background: transparent !important;
@@ -2342,10 +2344,42 @@ section[data-testid='stSidebar'] div[data-testid="stHorizontalBlock"] > div[data
     box-shadow: none !important;
     line-height: 1 !important;
 }
-section[data-testid='stSidebar'] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stButton"] > button:hover {
+section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button:hover {
     color: var(--color-negative) !important;
     background: transparent !important;
     border-color: var(--color-border) !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button p {
+    font-size: var(--fs-base) !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+}
+
+/* Watchlist Pro ticker buttons — main content area, style as bold
+   text rather than a chunky button. Each row's ticker is the click
+   target to open the ticker in Analyze view. */
+.main [class*="st-key-wlpro_open_"] button {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    padding: 4px 8px !important;
+    font-family: var(--font-mono) !important;
+    font-size: var(--fs-base) !important;
+    font-weight: 600 !important;
+    color: var(--color-text) !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    min-height: 28px !important;
+    line-height: 1.3 !important;
+}
+.main [class*="st-key-wlpro_open_"] button:hover {
+    background: var(--color-surface-soft) !important;
+    border-color: var(--color-border) !important;
+    color: var(--color-text) !important;
+}
+.main [class*="st-key-wlpro_open_"] button p {
+    font-size: var(--fs-base) !important;
+    margin: 0 !important;
 }
 </style>""",
             unsafe_allow_html=True,
@@ -3549,36 +3583,27 @@ if view == "analyze":
         if t["action"] in ("enter_now", "watch", "accumulate"):
             st.markdown("<div style='margin-top:24px;'></div>", unsafe_allow_html=True)
             with st.container(border=True):
-                # Three columns: text / button / empty buffer.
-                # The empty 3rd column needs explicit content to actually
-                # take up width — without it, Streamlit may collapse the
-                # column and the button ends up at the right edge anyway.
-                tt_c1, tt_c2, tt_c3 = st.columns([5, 2, 1], vertical_alignment="center")
-                with tt_c1:
-                    st.markdown(
-                        '<div style="font-family: var(--font-sans);'
-                        'font-size: var(--fs-xs);font-weight:600;'
-                        'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                        'color: var(--color-muted);margin-bottom:4px;">Trade tracker</div>'
-                        '<div style="font-family: var(--font-sans);'
-                        'font-size: var(--fs-base);color: var(--color-body);'
-                        'line-height: 1.45;">'
-                        f'Log this {sty["label"].lower()} setup with entry price '
-                        f'${t.get("entry", t["price"]):.2f}; close later for P&amp;L.'
-                        '</div>',
-                        unsafe_allow_html=True,
-                    )
-                with tt_c2:
-                    trade_clicked = st.button(
-                        "Add to Tracker",
-                        key=f"trade_log_{ticker}",
-                        help="Logs to the Trades tab.",
-                        use_container_width=True,
-                    )
-                with tt_c3:
-                    # Force the column to have content so it takes width.
-                    # Empty columns get collapsed by Streamlit.
-                    st.markdown("&nbsp;", unsafe_allow_html=True)
+                # Header: proper section title size, top-left aligned
+                st.markdown(
+                    '<div style="font-family: var(--font-sans);'
+                    'font-size: var(--fs-lg);font-weight:600;'
+                    'color: var(--color-text);margin-bottom:6px;">'
+                    'Trade Tracker</div>'
+                    '<div style="font-family: var(--font-sans);'
+                    'font-size: var(--fs-base);color: var(--color-body);'
+                    'line-height: 1.5;margin-bottom:12px;">'
+                    f'Log this {sty["label"].lower()} setup with entry price '
+                    f'<b>${t.get("entry", t["price"]):.2f}</b>; close later for P&amp;L.'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+                # Button: NOT full-width, sized to content. Sits at bottom-left
+                # of the card naturally without column tricks.
+                trade_clicked = st.button(
+                    "Add to Tracker",
+                    key=f"trade_log_{ticker}",
+                    help="Logs to the Trades tab.",
+                )
                 if trade_clicked:
                     log_entry = {
                         "date": datetime.now().strftime("%m/%d"),
@@ -4294,35 +4319,44 @@ if view == "watchlist":
             grouped = [(None, None, rows)]
 
         # ── Header row ──
-        # Grid: ticker / last / chg / action / state / RS / vs MA50 / 52w / vol / trig / earn
-        # Uses fractional units (fr) so columns expand to fill the
-        # available width — fixed pixels left a large empty space on the
-        # right because the actual container is wider than 760px.
-        header_grid = (
-            'grid-template-columns: 1.2fr 1fr 0.8fr 1.4fr 1.3fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
-        )
-        st.markdown(
-            f'<div style="display:grid; {header_grid} '
-            f'gap: 6px; padding: 6px 8px; margin-top: 8px; '
-            f'border-bottom: 1px solid var(--color-border); '
-            f'font-family: var(--font-sans); '
-            f'font-size: var(--fs-xs); font-weight: 600; '
-            f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
-            f'color: var(--color-muted);">'
-            f'<span>Ticker</span>'
-            f'<span style="text-align:right;">Last</span>'
-            f'<span style="text-align:right;">Chg (1D)</span>'
-            f'<span>Action</span>'
-            f'<span>State</span>'
-            f'<span style="text-align:right;">RS</span>'
-            f'<span style="text-align:right;">vs MA50</span>'
-            f'<span style="text-align:right;">52w pos</span>'
-            f'<span style="text-align:right;">Vol ×</span>'
-            f'<span style="text-align:right;">Trig</span>'
-            f'<span style="text-align:right;">Earn</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+        # New layout: 2 Streamlit columns per data row — ticker button
+        # on left (clickable), data grid on right. Header has matching
+        # 2-column structure so columns align visually.
+        h_c1, h_c2 = st.columns([1.2, 9.5], gap="small")
+        with h_c1:
+            st.markdown(
+                f'<div style="font-family: var(--font-sans); font-size: var(--fs-xs); '
+                f'font-weight: 600; letter-spacing: var(--ls-caps-md); '
+                f'text-transform: uppercase; color: var(--color-muted); '
+                f'padding: 6px 8px; border-bottom: 1px solid var(--color-border);">'
+                f'Ticker</div>',
+                unsafe_allow_html=True,
+            )
+        with h_c2:
+            data_grid = (
+                'grid-template-columns: 1fr 0.8fr 1.4fr 1.3fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
+            )
+            st.markdown(
+                f'<div style="display:grid; {data_grid} '
+                f'gap: 6px; padding: 6px 0; margin-top: 8px; '
+                f'border-bottom: 1px solid var(--color-border); '
+                f'font-family: var(--font-sans); '
+                f'font-size: var(--fs-xs); font-weight: 600; '
+                f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
+                f'color: var(--color-muted);">'
+                f'<span style="text-align:right;">Last</span>'
+                f'<span style="text-align:right;">Chg (1D)</span>'
+                f'<span>Action</span>'
+                f'<span>State</span>'
+                f'<span style="text-align:right;" title="Relative strength vs SPY (>1.0 = leader)">RS ⓘ</span>'
+                f'<span style="text-align:right;" title="% above/below 50-day MA">vs MA50 ⓘ</span>'
+                f'<span style="text-align:right;" title="Position in 52-week range (0% = at low, 100% = at high)">52w pos ⓘ</span>'
+                f'<span style="text-align:right;" title="Today\'s volume vs 20-day average">Vol × ⓘ</span>'
+                f'<span style="text-align:right;" title="% to logged trigger price (— if no trigger)">Trig ⓘ</span>'
+                f'<span style="text-align:right;" title="Days to next earnings">Earn ⓘ</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
         # ── Rows, possibly grouped ──
         for group_label, group_color, group_rows in grouped:
@@ -4348,14 +4382,12 @@ if view == "watchlist":
                     else ("var(--color-positive)" if row["pct_ma50"] > 2
                           else "var(--color-faint)")
                 )
-                # 52w position colored: near low = green (potential), near high = orange (extended)
                 pct_52w = row["pct_52w_range"]
                 pos_color = (
                     "var(--color-negative)" if pct_52w >= 90
                     else ("var(--color-positive)" if pct_52w <= 25
                           else "var(--color-faint)")
                 )
-                # Volume ratio: >1.5x = high (yellow/positive depending on direction); <0.6x = light
                 vol_color = (
                     "var(--color-text)" if row["vol_ratio"] >= 1.5
                     else ("var(--color-fainter)" if row["vol_ratio"] < 0.7
@@ -4373,15 +4405,41 @@ if view == "watchlist":
                     if row["quality"] in ("A", "B", "Speculative", "Avoid") else ""
                 )
 
-                row_c1, row_c2 = st.columns([14, 1], vertical_alignment="center")
+                # The whole row is rendered as visible HTML for layout,
+                # plus a Streamlit button stretched over the ticker cell
+                # that's styled to be invisible but clickable. This way
+                # the ticker text IS the click target — no separate arrow.
+                # Each row is 2 Streamlit columns: ticker button (clickable)
+                # + everything else as HTML grid. The button is styled
+                # minimally to look like the ticker text it's labeled with.
+                ticker_label = f"{row['ticker']}"
+                if row["quality"] in ("A", "B", "Speculative", "Avoid"):
+                    quality_short = row["quality"][0] if row["quality"] != "Speculative" else "S"
+                    ticker_label = f"{row['ticker']} · {quality_short}"
+
+                row_c1, row_c2 = st.columns([1.2, 9.5], gap="small", vertical_alignment="center")
                 with row_c1:
+                    if st.button(
+                        ticker_label,
+                        key=f"wlpro_open_{row['ticker']}",
+                        help=f"Open {row['ticker']} in Analyze",
+                        use_container_width=True,
+                    ):
+                        st.session_state.current_ticker = row["ticker"]
+                        st.session_state.view = "analyze"
+                        st.rerun()
+                with row_c2:
+                    # Inline grid for the data columns (ticker now in row_c1).
+                    # Re-distributed fr units since ticker column is gone.
+                    data_grid = (
+                        'grid-template-columns: 1fr 0.8fr 1.4fr 1.3fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
+                    )
                     st.markdown(
-                        f'<div style="display:grid; {header_grid} '
-                        f'gap: 6px; padding: 7px 8px; '
+                        f'<div style="display:grid; {data_grid} '
+                        f'gap: 6px; padding: 7px 0; '
                         f'border-bottom: 1px dashed var(--color-border-soft); '
                         f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
                         f'font-size: var(--fs-base); align-items: baseline;">'
-                        f'<span style="font-weight:600;color:var(--color-text);">{row["ticker"]}{quality_badge}</span>'
                         f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
                         f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
@@ -4395,12 +4453,10 @@ if view == "watchlist":
                         f'</div>',
                         unsafe_allow_html=True,
                     )
-                with row_c2:
-                    if st.button("→", key=f"wlpro_open_{row['ticker']}",
-                                 help=f"Open {row['ticker']} in Analyze"):
-                        st.session_state.current_ticker = row["ticker"]
-                        st.session_state.view = "analyze"
-                        st.rerun()
+
+        # Note: navigation to Analyze view happens via the sidebar
+        # watchlist (always visible). Watchlist Pro is for scanning,
+        # not for navigation, so per-row buttons would be redundant.
 
         # ── Legend / column key ──
         st.markdown(
