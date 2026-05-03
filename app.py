@@ -2197,6 +2197,35 @@ def technical_commentary(t):
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Global query-param handlers — run before any view renders
+# ─────────────────────────────────────────────────────────────────────
+# These handle anchor-link clicks from anywhere in the app, sidestepping
+# Streamlit's column layout system which has caused persistent alignment
+# bugs. Each <a href="?param=value"> click triggers a rerun, the param
+# is consumed here, and the page state updates accordingly.
+try:
+    qp_global = st.query_params
+    if "open" in qp_global:
+        tkr_to_open = qp_global.get("open")
+        del qp_global["open"]
+        if tkr_to_open and tkr_to_open != st.session_state.current_ticker:
+            st.session_state.current_ticker = tkr_to_open
+            st.session_state.view = "analyze"
+            st.rerun()
+    if "wldel" in qp_global:
+        tkr_to_del = qp_global.get("wldel")
+        del qp_global["wldel"]
+        if tkr_to_del and tkr_to_del in st.session_state.store.get("watchlist", []):
+            st.session_state.store["watchlist"].remove(tkr_to_del)
+            save_store(st.session_state.store)
+            if tkr_to_del == st.session_state.current_ticker and st.session_state.store["watchlist"]:
+                st.session_state.current_ticker = st.session_state.store["watchlist"][0]
+            st.rerun()
+except Exception:
+    pass
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Sidebar
 # ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -2454,13 +2483,11 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button:hover {
             else:
                 wl_data[tkr] = (None, None)
 
-        # Each watchlist row: 3 columns
-        #   1. Ticker button (clickable, black-bg when active)
-        #   2. Price + colored change %, right-aligned
-        #   3. Tiny ✕ delete button
-        # The black highlight is on the BUTTON only, not the whole row,
-        # because the button uses a different `st-key-` prefix when active
-        # which the CSS targets.
+        # Each watchlist row rendered as ONE HTML markdown block.
+        # No st.columns — flex layout in pure HTML, fully aligned, no
+        # Streamlit padding interference. Ticker click → ?open=TICKER,
+        # ✕ click → ?wldel=TICKER, both handled by the global handler.
+        rows_html = []
         for tkr in watchlist:
             last, chg_pct = wl_data[tkr]
             is_active = (tkr == current)
@@ -2471,45 +2498,51 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button:hover {
             chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else "—"
             px_str = f"{last:,.2f}" if last is not None else "—"
 
-            # Active ticker uses a different key prefix so CSS can style
-            # it differently (black background) without affecting other rows.
-            btn_key = f"wl_select_active_{tkr}" if is_active else f"wl_select_{tkr}"
+            # Active ticker: black bg + white text on the ticker label only
+            active_bg = "var(--color-text)" if is_active else "transparent"
+            active_fg = "var(--color-bg)" if is_active else "var(--color-text)"
+            active_hover = "" if is_active else (
+                "onmouseover=\"this.style.background='var(--color-surface-soft)'\" "
+                "onmouseout=\"this.style.background='transparent'\""
+            )
 
-            c_tkr, c_px, c_del = st.columns([2.2, 3.5, 0.8], gap="small",
-                                            vertical_alignment="center")
-            with c_tkr:
-                if st.button(
-                    tkr,
-                    key=btn_key,
-                    use_container_width=True,
-                ):
-                    if not is_active:
-                        st.session_state.current_ticker = tkr
-                        if st.session_state.view != "analyze":
-                            st.session_state.view = "analyze"
-                        st.rerun()
-            with c_px:
-                # Price on top, colored change below — right aligned
-                st.markdown(
-                    f'<div style="font-family: var(--font-mono); '
-                    f'font-variant-numeric: tabular-nums; '
-                    f'text-align: right; line-height: 1.15; padding: 2px 4px;">'
-                    f'<div style="font-size: var(--fs-base); color: var(--color-text); font-weight: 500;">${px_str}</div>'
-                    f'<div style="font-size: var(--fs-sm); color: {chg_color};">{chg_str}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-            with c_del:
-                if st.button(
-                    "✕",
-                    key=f"wl_del_{tkr}",
-                    help=f"Remove {tkr}",
-                ):
-                    st.session_state.store["watchlist"].remove(tkr)
-                    save_store(st.session_state.store)
-                    if tkr == current and st.session_state.store["watchlist"]:
-                        st.session_state.current_ticker = st.session_state.store["watchlist"][0]
-                    st.rerun()
+            rows_html.append(
+                f'<div style="display: flex; align-items: center;'
+                f'gap: 4px; padding: 2px 0; width: 100%;">'
+                # Ticker label — clickable, takes ~40% of row width
+                f'<a href="?open={tkr}" target="_self" '
+                f'style="flex: 0 0 38%; min-width: 0;'
+                f'font-family: var(--font-sans); font-size: var(--fs-base);'
+                f'font-weight: 600; color: {active_fg};'
+                f'background: {active_bg}; padding: 6px 8px;'
+                f'border-radius: 3px; text-decoration: none;'
+                f'text-align: left; cursor: pointer;'
+                f'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" '
+                f'{active_hover}>'
+                f'{tkr}</a>'
+                # Price + change — right aligned in middle area
+                f'<div style="flex: 1 1 auto; min-width: 0;'
+                f'display: flex; flex-direction: column; align-items: flex-end;'
+                f'font-family: var(--font-mono); font-variant-numeric: tabular-nums;'
+                f'line-height: 1.15; padding: 0 4px;">'
+                f'<span style="font-size: var(--fs-base); color: var(--color-text); font-weight: 500;">${px_str}</span>'
+                f'<span style="font-size: var(--fs-sm); color: {chg_color};">{chg_str}</span>'
+                f'</div>'
+                # ✕ delete — clickable
+                f'<a href="?wldel={tkr}" target="_self" title="Remove {tkr}" '
+                f'style="flex: 0 0 22px; height: 22px;'
+                f'display: flex; align-items: center; justify-content: center;'
+                f'font-family: var(--font-sans); font-size: var(--fs-base);'
+                f'color: var(--color-fainter); text-decoration: none;'
+                f'border: 1px solid transparent; border-radius: 3px;'
+                f'cursor: pointer;" '
+                f'onmouseover="this.style.color=\'var(--color-negative)\';'
+                f'this.style.borderColor=\'var(--color-border)\'" '
+                f'onmouseout="this.style.color=\'var(--color-fainter)\';'
+                f'this.style.borderColor=\'transparent\'">✕</a>'
+                f'</div>'
+            )
+        st.markdown("".join(rows_html), unsafe_allow_html=True)
     else:
         st.caption("Empty — type a ticker above and add it.")
 
@@ -2702,6 +2735,34 @@ if view == "analyze":
     if not ticker:
         st.info("Type a ticker in the sidebar.")
         st.stop()
+
+    # Handle ?track=TICKER&entry=PRICE&action=ACTION query param.
+    # This is how the "Add to Tracker" anchor-button fires its action.
+    # Using query-param navigation instead of st.columns + st.button
+    # because the column layout has caused 8+ rounds of misalignment.
+    try:
+        qp = st.query_params
+        if "track" in qp:
+            track_tkr = qp.get("track")
+            track_entry = float(qp.get("entry", "0") or "0")
+            track_action = qp.get("action", "watch")
+            del qp["track"]
+            if "entry" in qp: del qp["entry"]
+            if "action" in qp: del qp["action"]
+            if track_tkr:
+                log_entry = {
+                    "date": datetime.now().strftime("%m/%d"),
+                    "ticker": track_tkr,
+                    "action": track_action,
+                    "result": "open",
+                    "closed": False,
+                    "entry": round(track_entry, 2),
+                }
+                st.session_state.store["log"].insert(0, log_entry)
+                save_store(st.session_state.store)
+                st.toast(f"Added {track_tkr} to Trade Tracker.", icon="✅")
+    except Exception:
+        pass
 
     with st.spinner(f"Loading {ticker}…"):
         hist, name, err_reason = fetch_history(ticker)
@@ -3637,49 +3698,46 @@ if view == "analyze":
         # Avoid as an open trade. Separate from decisions_log on the
         # comparison panel which logs all states for the calibration trial.
         if t["action"] in ("enter_now", "watch", "accumulate"):
-            # No box — Streamlit can't reliably wrap columns inside HTML
-            # divs, every attempt at this has the button escape the
-            # container. Use a top-border separator instead, which
-            # visually delineates the section without needing a wrapper.
+            # Single-block HTML rendering. The button is an <a> link that
+            # fires ?track=TICKER&entry=PRICE&action=ACTION which the
+            # query-param handler at the top of this view picks up.
+            # No st.columns, no st.button — sidesteps every alignment bug.
+            entry_price = t.get("entry", t["price"])
+            action_label = sty["label"].lower()
+            track_url = f"?track={ticker}&entry={entry_price:.2f}&action={t['action']}"
             st.markdown(
-                '<div style="margin-top:32px; padding-top: 20px;'
-                'border-top: 1px solid var(--color-border);"></div>',
+                f'<div style="margin-top:24px; padding: 14px 16px;'
+                f'border: 1px solid var(--color-border);'
+                f'border-radius: 4px; display: flex; align-items: center;'
+                f'justify-content: space-between; gap: 16px; flex-wrap: wrap;">'
+                f'<div style="flex: 1 1 60%; min-width: 240px;">'
+                f'<div style="font-family: var(--font-sans);'
+                f'font-size: var(--fs-lg); font-weight: 600;'
+                f'color: var(--color-text); margin-bottom: 4px;">'
+                f'Trade Tracker</div>'
+                f'<div style="font-family: var(--font-sans);'
+                f'font-size: var(--fs-base); color: var(--color-body);'
+                f'line-height: 1.45;">'
+                f'Log this {action_label} setup with entry price '
+                f'<b>${entry_price:.2f}</b>; close later for P&amp;L.'
+                f'</div></div>'
+                f'<a href="{track_url}" target="_self" '
+                f'style="font-family: var(--font-sans);'
+                f'font-size: var(--fs-base); font-weight: 500;'
+                f'padding: 8px 16px;'
+                f'background: var(--color-bg);'
+                f'color: var(--color-text);'
+                f'border: 1px solid var(--color-border);'
+                f'border-radius: 4px;'
+                f'text-decoration: none; cursor: pointer;'
+                f'white-space: nowrap; flex-shrink: 0;'
+                f'transition: background 0.15s;"'
+                f'onmouseover="this.style.background=\'var(--color-surface-soft)\'" '
+                f'onmouseout="this.style.background=\'var(--color-bg)\'">'
+                f'Add to Tracker</a>'
+                f'</div>',
                 unsafe_allow_html=True,
             )
-            tt_left, tt_right = st.columns([3, 1], vertical_alignment="center")
-            with tt_left:
-                st.markdown(
-                    '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-lg);font-weight:600;'
-                    'color: var(--color-text);margin-bottom:4px;">'
-                    'Trade Tracker</div>'
-                    '<div style="font-family: var(--font-sans);'
-                    'font-size: var(--fs-base);color: var(--color-body);'
-                    'line-height: 1.45;">'
-                    f'Log this {sty["label"].lower()} setup with entry price '
-                    f'<b>${t.get("entry", t["price"]):.2f}</b>; close later for P&amp;L.'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
-            with tt_right:
-                trade_clicked = st.button(
-                    "Add to Tracker",
-                    key=f"trade_log_{ticker}",
-                    help="Logs to the Trades tab.",
-                    use_container_width=True,
-                )
-            if trade_clicked:
-                log_entry = {
-                    "date": datetime.now().strftime("%m/%d"),
-                    "ticker": ticker,
-                    "action": t["action"],
-                    "result": "open",
-                    "closed": False,
-                    "entry": round(t["entry"], 2),
-                }
-                st.session_state.store["log"].insert(0, log_entry)
-                save_store(st.session_state.store)
-                st.success(f"Added {ticker} to Trade Tracker.")
 
         # 6. Technical details — footer, collapsed
         with st.expander("Technical details"):
@@ -4383,24 +4441,10 @@ if view == "watchlist":
             grouped = [(None, None, rows)]
 
         # ── Header row + all data rows render as ONE consistent HTML grid ──
-        # Ticker cells are clickable anchor tags using query params for
-        # navigation. When clicked, the URL adds ?open=TICKER, the page
-        # reruns, we read the param and switch to Analyze view. This is
-        # Streamlit's documented way to make non-widget HTML clickable.
-
-        # Handle incoming click — read the query param and switch ticker.
-        try:
-            qp = st.query_params
-            if "open" in qp:
-                tkr_to_open = qp["open"]
-                if tkr_to_open and tkr_to_open != st.session_state.current_ticker:
-                    st.session_state.current_ticker = tkr_to_open
-                    st.session_state.view = "analyze"
-                # Clear the param so a refresh doesn't keep firing
-                del qp["open"]
-                st.rerun()
-        except Exception:
-            pass
+        # Ticker cells are clickable anchor tags using ?open=TICKER query
+        # params. The global handler at the top of the app picks up the
+        # click and switches the active ticker — works universally without
+        # needing Streamlit columns.
 
         # 12-column grid: ticker / last / chg / action / state / quality
         #                / RS / vsMA50 / 52w / vol / trig / earn
