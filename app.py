@@ -2333,6 +2333,17 @@ section[data-testid='stSidebar'] div[data-testid="stButton"] button:has(p:only-c
    We use [class*="st-key-wl_del_"] to match any wl_del_NVDA, wl_del_META etc.
    This is the reliable way to style specific Streamlit buttons. */
 
+/* Tighten sidebar horizontal blocks (watchlist rows) so they align
+   left with the WATCHLIST header rather than being indented inward. */
+section[data-testid='stSidebar'] [data-testid="stHorizontalBlock"] {
+    gap: 4px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+section[data-testid='stSidebar'] [data-testid="stHorizontalBlock"] [data-testid="stColumn"] {
+    padding: 0 !important;
+}
+
 /* Sidebar ticker SELECT button — wl_select_{TKR} for inactive,
    wl_select_active_{TKR} for the currently-active ticker.
    The black highlight is on the BUTTON only, not on the row. */
@@ -3626,44 +3637,49 @@ if view == "analyze":
         # Avoid as an open trade. Separate from decisions_log on the
         # comparison panel which logs all states for the calibration trial.
         if t["action"] in ("enter_now", "watch", "accumulate"):
-            st.markdown("<div style='margin-top:24px;'></div>", unsafe_allow_html=True)
-            with st.container(border=True):
-                # Two columns: text on left, button on right.
-                # Vertical center alignment lines them up.
-                tt_left, tt_right = st.columns([3, 1], vertical_alignment="center")
-                with tt_left:
-                    st.markdown(
-                        '<div style="font-family: var(--font-sans);'
-                        'font-size: var(--fs-lg);font-weight:600;'
-                        'color: var(--color-text);margin-bottom:4px;">'
-                        'Trade Tracker</div>'
-                        '<div style="font-family: var(--font-sans);'
-                        'font-size: var(--fs-base);color: var(--color-body);'
-                        'line-height: 1.45;">'
-                        f'Log this {sty["label"].lower()} setup with entry price '
-                        f'<b>${t.get("entry", t["price"]):.2f}</b>; close later for P&amp;L.'
-                        '</div>',
-                        unsafe_allow_html=True,
-                    )
-                with tt_right:
-                    trade_clicked = st.button(
-                        "Add to Tracker",
-                        key=f"trade_log_{ticker}",
-                        help="Logs to the Trades tab.",
-                        use_container_width=True,
-                    )
-                if trade_clicked:
-                    log_entry = {
-                        "date": datetime.now().strftime("%m/%d"),
-                        "ticker": ticker,
-                        "action": t["action"],
-                        "result": "open",
-                        "closed": False,
-                        "entry": round(t["entry"], 2),
-                    }
-                    st.session_state.store["log"].insert(0, log_entry)
-                    save_store(st.session_state.store)
-                    st.success(f"Added {ticker} to Trade Tracker.")
+            # No box — Streamlit can't reliably wrap columns inside HTML
+            # divs, every attempt at this has the button escape the
+            # container. Use a top-border separator instead, which
+            # visually delineates the section without needing a wrapper.
+            st.markdown(
+                '<div style="margin-top:32px; padding-top: 20px;'
+                'border-top: 1px solid var(--color-border);"></div>',
+                unsafe_allow_html=True,
+            )
+            tt_left, tt_right = st.columns([3, 1], vertical_alignment="center")
+            with tt_left:
+                st.markdown(
+                    '<div style="font-family: var(--font-sans);'
+                    'font-size: var(--fs-lg);font-weight:600;'
+                    'color: var(--color-text);margin-bottom:4px;">'
+                    'Trade Tracker</div>'
+                    '<div style="font-family: var(--font-sans);'
+                    'font-size: var(--fs-base);color: var(--color-body);'
+                    'line-height: 1.45;">'
+                    f'Log this {sty["label"].lower()} setup with entry price '
+                    f'<b>${t.get("entry", t["price"]):.2f}</b>; close later for P&amp;L.'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+            with tt_right:
+                trade_clicked = st.button(
+                    "Add to Tracker",
+                    key=f"trade_log_{ticker}",
+                    help="Logs to the Trades tab.",
+                    use_container_width=True,
+                )
+            if trade_clicked:
+                log_entry = {
+                    "date": datetime.now().strftime("%m/%d"),
+                    "ticker": ticker,
+                    "action": t["action"],
+                    "result": "open",
+                    "closed": False,
+                    "entry": round(t["entry"], 2),
+                }
+                st.session_state.store["log"].insert(0, log_entry)
+                save_store(st.session_state.store)
+                st.success(f"Added {ticker} to Trade Tracker.")
 
         # 6. Technical details — footer, collapsed
         with st.expander("Technical details"):
@@ -4479,8 +4495,7 @@ if view == "watchlist":
                 ticker_link = (
                     f'<a href="?open={row["ticker"]}" target="_self" '
                     f'style="font-weight:600;color:var(--color-text);'
-                    f'text-decoration:none;cursor:pointer;'
-                    f'border-bottom:1px dotted var(--color-fainter);">'
+                    f'text-decoration:none;cursor:pointer;">'
                     f'{row["ticker"]}</a>'
                 )
 
