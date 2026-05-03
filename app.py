@@ -3550,9 +3550,9 @@ if view == "analyze":
             st.markdown("<div style='margin-top:24px;'></div>", unsafe_allow_html=True)
             with st.container(border=True):
                 # Three columns: text / button / empty buffer.
-                # The empty 3rd column is the trick — without it, the button
-                # (with use_container_width) always anchors to the page edge.
-                # Adding a buffer column gives the button visual breathing room.
+                # The empty 3rd column needs explicit content to actually
+                # take up width — without it, Streamlit may collapse the
+                # column and the button ends up at the right edge anyway.
                 tt_c1, tt_c2, tt_c3 = st.columns([5, 2, 1], vertical_alignment="center")
                 with tt_c1:
                     st.markdown(
@@ -3575,6 +3575,10 @@ if view == "analyze":
                         help="Logs to the Trades tab.",
                         use_container_width=True,
                     )
+                with tt_c3:
+                    # Force the column to have content so it takes width.
+                    # Empty columns get collapsed by Streamlit.
+                    st.markdown("&nbsp;", unsafe_allow_html=True)
                 if trade_clicked:
                     log_entry = {
                         "date": datetime.now().strftime("%m/%d"),
@@ -4290,9 +4294,12 @@ if view == "watchlist":
             grouped = [(None, None, rows)]
 
         # ── Header row ──
-        # Grid: ticker / last / chg / action / state / RS / vs MA50 / 52w / vol / trig / earn / →
+        # Grid: ticker / last / chg / action / state / RS / vs MA50 / 52w / vol / trig / earn
+        # Uses fractional units (fr) so columns expand to fill the
+        # available width — fixed pixels left a large empty space on the
+        # right because the actual container is wider than 760px.
         header_grid = (
-            'grid-template-columns: 70px 75px 60px 100px 100px 55px 70px 60px 60px 60px 50px;'
+            'grid-template-columns: 1.2fr 1fr 0.8fr 1.4fr 1.3fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
         )
         st.markdown(
             f'<div style="display:grid; {header_grid} '
