@@ -269,13 +269,23 @@ def clear_pm_cache(ticker):
 
 
 def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name):
-    """Cache decision dossiers separately from PM views — they share the
-    same 7-day TTL but key independently so a PM-view ↻ refresh doesn't
-    cost a dossier regeneration too.
+    """Cache decision dossiers with staleness rules + live-value substitution.
 
-    Caches the FULL result (dossier + narratives + bullets) so cache hits
-    don't lose data. Backward-compatible with old cache entries that only
-    stored {text: ...}.
+    Cost-saving design:
+    - Claude generates prose ONCE with placeholder tokens like {{price}},
+      {{rs}}, {{pct_ma200}} instead of hardcoded numbers.
+    - On every render, we substitute live values from the tactical engine
+      (free; uses already-cached yfinance data).
+    - We only regenerate (paid Claude call) when:
+        - The cached prose is older than PM_CACHE_TTL_DAYS, OR
+        - Price has moved >10% since generation (qualitative read may have
+          shifted), OR
+        - The action label has changed (e.g. Watch → Avoid means the
+          interpretation needs to flip).
+
+    This keeps narrative numbers always-current while spending Claude
+    budget only when the qualitative interpretation might genuinely have
+    shifted. Target cost: ~$5-8/month at 30 tickers/regular use.
     """
     if not api_key:
         return {"dossier": None, "technical_narrative": None,
@@ -284,12 +294,27 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
     ticker = ticker.upper()
     cache = st.session_state.store.setdefault("dossier_cache", {})
     entry = cache.get(ticker)
+    current_price = t_state.get("price") if isinstance(t_state, dict) else None
+    current_action = t_state.get("action") if isinstance(t_state, dict) else None
+
     if entry:
         try:
             age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
-            if age < timedelta(days=PM_CACHE_TTL_DAYS):
-                # New format: full result stored under "result"
-                # Old format: just {text: ..., source: ...} — back-compat
+            cached_price = entry.get("price_at_generation")
+            cached_action = entry.get("action_at_generation")
+
+            staleness_failed = age >= timedelta(days=PM_CACHE_TTL_DAYS)
+
+            if not staleness_failed and cached_price and current_price:
+                pct_moved = abs(current_price - cached_price) / cached_price
+                if pct_moved >= 0.10:
+                    staleness_failed = True
+
+            if not staleness_failed and cached_action and current_action:
+                if cached_action != current_action:
+                    staleness_failed = True
+
+            if not staleness_failed:
                 full = entry.get("result") or {
                     "dossier": entry.get("text"),
                     "technical_narrative": None,
@@ -298,26 +323,47 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
                     "quality": {},
                     "tactical_call": {},
                 }
-                # Defensive: ensure all keys exist for older cached entries
                 full.setdefault("quality", {})
                 full.setdefault("tactical_call", {})
+
+                # Live-value substitution. Free — uses already-cached
+                # yfinance data via the tactical engine output we already
+                # have. Replaces {{price}}, {{rs}}, etc. with current.
+                from pm_view import substitute_live_values
+                substituted = {**full}
+                if isinstance(t_state, dict):
+                    for k in ("dossier", "technical_narrative", "pm_narrative"):
+                        if substituted.get(k):
+                            substituted[k] = substitute_live_values(
+                                substituted[k], t_state
+                            )
+
+                age_label = "today" if age.days == 0 else f"{age.days}d ago"
                 return {
-                    **full,
-                    "_source": (entry.get("source", "claude") + f" · {age.days}d old"),
+                    **substituted,
+                    "_source": entry.get("source", "claude") + f" · {age_label}",
+                    "_freshness": {
+                        "age_days": age.days,
+                        "price_at_generation": cached_price,
+                        "current_price": current_price,
+                    },
                 }
         except Exception:
             pass
+
+    # Cache miss or staleness failed — regenerate via Claude.
     result = get_decision_dossier(
         ticker, t_state, modifiers, meta, pm_data,
         api_key=api_key, company_name=company_name,
     )
     if result.get("dossier"):
-        # Count this fresh Claude call for the session usage tracker.
         st.session_state["claude_calls_this_session"] = (
             st.session_state.get("claude_calls_this_session", 0) + 1
         )
         cache[ticker] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
+            "price_at_generation": current_price,
+            "action_at_generation": current_action,
             "result": {
                 "dossier": result.get("dossier"),
                 "technical_narrative": result.get("technical_narrative"),
@@ -329,6 +375,14 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
             "source": result.get("_source", "claude"),
         }
         save_store(st.session_state.store)
+
+    # Substitute on freshly-generated result too. If Claude used tokens,
+    # this replaces them with current values. If not, this is a no-op.
+    from pm_view import substitute_live_values
+    if isinstance(t_state, dict) and result.get("dossier"):
+        for k in ("dossier", "technical_narrative", "pm_narrative"):
+            if result.get(k):
+                result[k] = substitute_live_values(result[k], t_state)
     return result
 
 
@@ -1006,8 +1060,11 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     color: var(--color-fainter); font-weight: 400;
 }
 .desk-pm-deep {
-    margin-top: 20px; padding-top: 20px;
+    margin-top: 20px;
+    padding-top: 20px;
+    padding-left: 24px;
     border-top: 1px dashed #D9D5CC;
+    border-left: 1px solid var(--color-border);
 }
 .desk-pm-deep .sub-lb {
     font-family: var(--font-sans);
@@ -3102,6 +3159,43 @@ if view == "analyze":
         dossier_text = dossier_result.get("dossier") if dossier_result else None
         if dossier_text:
             src = dossier_result.get("_source", "claude")
+
+            # Freshness caption — only shown when the cached prose is from
+            # a previous day. Tells the user "this analysis is N days old
+            # but numbers shown are current". Helps build trust in the
+            # substitution layer.
+            freshness = (dossier_result or {}).get("_freshness") or {}
+            freshness_caption = ""
+            if freshness.get("age_days", 0) > 0:
+                age_days = freshness["age_days"]
+                cached_p = freshness.get("price_at_generation")
+                live_p = freshness.get("current_price")
+                if cached_p and live_p and cached_p != live_p:
+                    pct_moved = (live_p - cached_p) / cached_p * 100
+                    pct_color = (
+                        "var(--color-positive)" if pct_moved >= 0
+                        else "var(--color-negative)"
+                    )
+                    freshness_caption = (
+                        f'<div style="font-family: var(--font-sans);'
+                        f'font-size: var(--fs-sm); color: var(--color-faint);'
+                        f'margin-top: 8px; padding-top: 8px;'
+                        f'border-top: 1px dashed var(--color-border-soft);">'
+                        f'Analysis from {age_days}d ago. Current numbers shown. '
+                        f'Price has moved <span style="color:{pct_color};">'
+                        f'{pct_moved:+.1f}%</span> since (${cached_p:,.2f} → ${live_p:,.2f}).'
+                        f'</div>'
+                    )
+                else:
+                    freshness_caption = (
+                        f'<div style="font-family: var(--font-sans);'
+                        f'font-size: var(--fs-sm); color: var(--color-faint);'
+                        f'margin-top: 8px; padding-top: 8px;'
+                        f'border-top: 1px dashed var(--color-border-soft);">'
+                        f'Analysis from {age_days}d ago. Current numbers shown.'
+                        f'</div>'
+                    )
+
             st.markdown(f"""
 <div class="desk-dossier">
   <div class="desk-dossier-label">
@@ -3109,6 +3203,7 @@ if view == "analyze":
     <span class="src">{src}</span>
   </div>
   <div class="desk-dossier-text">{dossier_text}</div>
+  {freshness_caption}
 </div>
 """, unsafe_allow_html=True)
 
