@@ -9,6 +9,80 @@ Both layers generated in a single Claude call to keep cost at one request per ti
 """
 
 import json
+import re
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Live-value substitution
+# ─────────────────────────────────────────────────────────────────────
+# Claude generates prose with placeholder tokens ({{price}}, {{rs}}, etc.)
+# instead of hardcoded numbers. At render time, we substitute the live
+# tactical engine output. This means narrative numbers stay current
+# without regenerating the whole prose. Cost: zero per refresh.
+#
+# Tokens are defined in the dossier prompt (see the LIVE-VALUE TOKENS
+# section). Add new tokens here and in the prompt simultaneously.
+def substitute_live_values(text, tactical_output):
+    """Replace {{token}} placeholders with current values from tactical engine.
+
+    Args:
+      text: prose string that may contain {{token}} placeholders
+      tactical_output: dict from tactical.compute() with current price,
+        RS, MA values, etc.
+
+    Returns the prose with all known tokens substituted. Unknown tokens
+    are left as-is so they're visible (and we can debug them).
+
+    Free operation — no Claude call.
+    """
+    if not text or not tactical_output:
+        return text or ""
+
+    t = tactical_output
+    price = t.get("price")
+    ma50 = t.get("ma50")
+    ma100 = t.get("ma100")
+    ma200 = t.get("ma200")
+    high_52w = t.get("high_52w")
+    low_52w = t.get("low_52w")
+    rs = t.get("rs")
+    rsi = t.get("rsi14")
+
+    def _pct_signed(curr, ref):
+        if curr is None or ref is None or ref == 0:
+            return None
+        return (curr - ref) / ref * 100
+
+    def _pct_unsigned(curr, ref):
+        v = _pct_signed(curr, ref)
+        return abs(v) if v is not None else None
+
+    pct_ma50 = _pct_signed(price, ma50)
+    pct_ma100 = _pct_signed(price, ma100)
+    pct_ma200 = _pct_signed(price, ma200)
+    pct_52w_high = _pct_unsigned(price, high_52w)
+    pct_52w_low_v = _pct_signed(price, low_52w)  # signed for "x% above low"
+
+    # Build substitution map. Every value formatted to its display form.
+    substitutions = {
+        "price":         f"${price:,.2f}" if price is not None else "—",
+        "pct_ma50":      f"{pct_ma50:+.1f}%" if pct_ma50 is not None else "—",
+        "pct_ma100":     f"{pct_ma100:+.1f}%" if pct_ma100 is not None else "—",
+        "pct_ma200":     f"{pct_ma200:+.1f}%" if pct_ma200 is not None else "—",
+        "pct_52w_high":  f"{pct_52w_high:.1f}%" if pct_52w_high is not None else "—",
+        "pct_52w_low":   f"{pct_52w_low_v:+.1f}%" if pct_52w_low_v is not None else "—",
+        "rs":            f"{rs:.2f}" if rs is not None else "—",
+        "rsi":           f"{int(rsi)}" if rsi is not None else "—",
+    }
+
+    # Substitute via regex — pattern matches {{token}} with optional
+    # whitespace inside the braces (Claude is sometimes inconsistent).
+    def _replacer(match):
+        token = match.group(1).strip().lower()
+        return substitutions.get(token, match.group(0))
+
+    return re.sub(r"\{\{\s*(\w+)\s*\}\}", _replacer, text)
+
 
 # Static snapshot views for common tickers — used when no API key is set.
 STATIC_SNAPSHOTS = {
@@ -131,7 +205,7 @@ Voice: senior PM, confident, specific, opinionated. No hedging, no consultantese
 Return ONLY the JSON, nothing else."""
 
         message = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-sonnet-4-6",
             max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -278,15 +352,38 @@ DELIVERABLES — return ONLY a JSON object with these six keys:
 
 Each field's content rules:
 
-dossier: 4-6 sentences. Single paragraph. Top-of-page brief tying tactical + fundamental into one decision. Reference exact prices. End with the action condition.
+LIVE-VALUE TOKENS (CRITICAL):
+The dossier, technical_narrative, and pm_narrative are cached for up to 7 days, but PRICES MOVE DAILY. To keep narrative numbers current without regenerating the whole prose, you MUST use these literal token strings instead of hardcoding the values:
 
-technical_narrative: 2-4 paragraphs (4 only if needed). Senior-trader voice. Walk through:
-- Para 1: trend posture and chart setup. Where price sits relative to 50d/200d in dollar terms, what the MA stack signals, recent price action character.
-- Para 2: momentum + volume + relative strength as a connected read. Is the tape supporting or fading the move? What's the volume saying about conviction? Is RSI extended or coiled? Reference the 10-day deltas and vol ratio.
+- {{price}}                — current price in dollars (e.g., "$192.34")
+- {{pct_ma50}}             — % above/below 50-day MA, signed (e.g., "+4.2%" or "-3.1%")
+- {{pct_ma200}}            — % above/below 200-day MA, signed
+- {{pct_52w_high}}         — % below 52-week high, unsigned (e.g., "12.4%")
+- {{pct_52w_low}}          — % above 52-week low, unsigned
+- {{rs}}                   — relative strength vs SPY, two decimals (e.g., "0.81")
+- {{rsi}}                  — RSI(14) value, integer (e.g., "47")
+
+Examples of CORRECT usage:
+- "DASH at {{price}} sits {{pct_ma200}} from its 200-day MA, with RS at {{rs}}..."
+- "NVDA trading near {{price}} has pulled back {{pct_52w_high}} from highs..."
+- "PLTR at {{price}} ({{pct_ma50}} from MA50) shows momentum..."
+
+Examples of INCORRECT usage (DO NOT do this):
+- "DASH at $171.97" — hardcoded; will be stale tomorrow
+- "RS at 0.81" — hardcoded; should be "{{rs}}"
+- "12% below MA200" — hardcoded; should be "{{pct_ma200}}"
+
+Use tokens ONLY for the headline current values. Historical anchors ("rallied from $80 in March", "broke out above $150 in October") should remain as literal numbers — those refer to past events, not live state.
+
+dossier: 4-6 sentences. Single paragraph. Top-of-page brief tying tactical + fundamental into one decision. Use {{price}} for the headline price. End with the action condition.
+
+technical_narrative: 2-4 paragraphs (4 only if needed). Senior-trader voice. Use tokens for ALL current-state numbers. Walk through:
+- Para 1: trend posture and chart setup. Where price ({{price}}) sits relative to 50d/200d ({{pct_ma50}}, {{pct_ma200}}), what the MA stack signals, recent price action character.
+- Para 2: momentum + volume + relative strength as a connected read. RS at {{rs}}, RSI at {{rsi}}. Is the tape supporting or fading the move? What's the volume saying about conviction? Reference the 10-day deltas and vol ratio.
 - Para 3 (optional): historical pattern context if useful — how this stock typically behaves at this kind of level. Use the ma50_history line if it adds signal.
 - Para 4 (optional, if relevant): how the broader regime ({regime} SPY) affects this read.
 
-pm_narrative: 2-4 paragraphs. Senior PM voice. Walk through:
+pm_narrative: 2-4 paragraphs. Senior PM voice. Use {{price}} for current-price references. Walk through:
 - Para 1: what the business actually does and how it makes money. Specific to this name, not boilerplate.
 - Para 2: variant view — what consensus believes vs what the bull/bear case actually requires. Be specific about which view you find more convincing and why.
 - Para 3: valuation context — what's priced in at current multiples, how the math compares to the growth rate, what would have to be true for this to work from current levels.
@@ -396,7 +493,7 @@ Style across all three:
 Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
 
         message = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-sonnet-4-6",
             max_tokens=3000,
             messages=[{"role": "user", "content": prompt}],
         )
