@@ -4687,189 +4687,103 @@ if view == "watchlist":
 # TRACKER
 # ─────────────────────────────────────────────────────────────────────
 if view == "tracker":
-    tab_trades, tab_decisions = st.tabs(["Trades", "Decisions (rules vs Claude vs you)"])
+    # Decision comparison log
+    # Trial-period banner — explicit timeline + progress.
+    # Date math: trial starts when the FIRST entry was logged. Target
+    # is N days from there. Goal is volume of comparisons to evaluate.
+    decisions_log_for_banner = st.session_state.store.get("decisions_log", [])
+    TRIAL_DAYS = 14
+    TARGET_COMPARISONS = 15
 
-    # ─── TAB 1: Trade tracker (existing behavior) ────────────────
-    with tab_trades:
-        log = st.session_state.store["log"]
-        closed = [l for l in log if l.get("closed")]
-
-        if closed:
-            # Tracker math by action type:
-            # - enter_now / watch entries: success = positive result_pct after close
-            # - avoid entries: success = "correct" flag (you avoided, was it right?)
-            # - hold_off entries: NEITHER — these are "didn't act" decisions, not
-            #   trades. Excluding them keeps hit_rate and avg_edge honest.
-            scoreable = [l for l in closed if l["action"] != "hold_off"]
-            wins = [
-                l for l in scoreable
-                if (l.get("correct") if l["action"] == "avoid" else l.get("result_pct", 0) > 0)
-            ]
-            hit_rate = round(100 * len(wins) / len(scoreable)) if scoreable else 0
-            entry_trades = [l for l in scoreable if l["action"] in ("enter_now", "watch", "accumulate")]
-            avg_edge = (sum(l.get("result_pct", 0) for l in entry_trades) / len(entry_trades)) if entry_trades else 0
-        else:
-            hit_rate = 0
-            avg_edge = 0
-
-        c1, c2 = st.columns(2)
-        c1.markdown(f"""
-<div style="border:1px solid var(--color-border);border-radius:4px;padding:12px 14px;">
-  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Hit rate</div>
-  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:3px;letter-spacing:-0.02em;">{hit_rate}%</div>
-</div>
-""", unsafe_allow_html=True)
-        c2.markdown(f"""
-<div style="border:1px solid var(--color-border);border-radius:4px;padding:12px 14px;">
-  <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Average edge</div>
-  <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:3px;letter-spacing:-0.02em;">{'+' if avg_edge >= 0 else ''}{avg_edge:.1f}%</div>
-</div>
-""", unsafe_allow_html=True)
-
-        st.markdown("&nbsp;", unsafe_allow_html=True)
-        st.markdown('<div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin:6px 0;">Log</div>', unsafe_allow_html=True)
-
-        if not log:
-            st.markdown('<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);">No decisions logged yet.</div>', unsafe_allow_html=True)
-        else:
-            for i, entry in enumerate(log):
-                sty = STATE_STYLES[entry["action"]]
-                result_color = "#B4ADA0"
-                if entry.get("closed"):
-                    if entry["action"] == "avoid":
-                        result_color = "#2E7D4F" if entry.get("correct") else "#D14545"
-                    else:
-                        result_color = "#2E7D4F" if entry.get("result_pct", 0) > 0 else "#D14545"
-
-                result_text = entry.get("result", "open")
-                if entry.get("closed") and "result_pct" in entry and entry["action"] != "avoid":
-                    result_text = f"{'+' if entry['result_pct'] >= 0 else ''}{entry['result_pct']:.1f}%"
-
-                cols = st.columns([1, 1, 2, 2, 1, 1])
-                cols[0].markdown(f'<div style="font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-faintest);padding-top:9px;">{entry["date"]}</div>', unsafe_allow_html=True)
-                cols[1].markdown(f'<div style="font-size:var(--fs-base);font-weight:600;padding-top:9px;">{entry["ticker"]}</div>', unsafe_allow_html=True)
-                cols[2].markdown(f'<div style="font-family: var(--font-mono);font-size:var(--fs-sm);color:{sty["color"]};letter-spacing: var(--ls-caps-xs);text-transform:uppercase;padding-top:9px;">{sty["emoji"]} {sty["label"]}</div>', unsafe_allow_html=True)
-                cols[3].markdown(f'<div style="font-family: var(--font-mono);font-size:var(--fs-sm);color:{result_color};padding-top:9px;">{result_text}</div>', unsafe_allow_html=True)
-                if not entry.get("closed"):
-                    if cols[4].button("Close", key=f"close_{i}", use_container_width=True):
-                        cur_hist, _, _err = fetch_history(entry["ticker"])
-                        if cur_hist is not None and "entry" in entry:
-                            cur_price = float(cur_hist["Close"].iloc[-1])
-                            pct = (cur_price / entry["entry"] - 1) * 100
-                            entry["result_pct"] = pct
-                            entry["closed"] = True
-                            save_store(st.session_state.store)
-                            st.rerun()
-                else:
-                    cols[4].markdown(
-                        '<div style="font-size:var(--fs-xs);color:var(--color-fainter);padding-top:11px;text-align:center;">closed</div>',
-                        unsafe_allow_html=True,
-                    )
-                # Delete button always available (open or closed)
-                if cols[5].button("✕", key=f"del_{i}", help="Delete this entry", use_container_width=True):
-                    st.session_state.store["log"].pop(i)
-                    save_store(st.session_state.store)
-                    st.rerun()
-                st.markdown('<div style="border-top:1px dashed var(--color-border);"></div>', unsafe_allow_html=True)
-
-    # ─── TAB 2: Decision comparison log ─────────────────────────
-    with tab_decisions:
-        # Trial-period banner — explicit timeline + progress.
-        # Date math: trial starts when the FIRST entry was logged. Target
-        # is N days from there. Goal is volume of comparisons to evaluate.
-        decisions_log_for_banner = st.session_state.store.get("decisions_log", [])
-        TRIAL_DAYS = 14
-        TARGET_COMPARISONS = 15
-
-        if decisions_log_for_banner:
-            try:
-                first_ts = min(
-                    datetime.fromisoformat(d["ts"])
-                    for d in decisions_log_for_banner if d.get("ts")
-                )
-                trial_end = first_ts + timedelta(days=TRIAL_DAYS)
-                days_in = (datetime.now() - first_ts).days
-                days_remaining = max(0, (trial_end - datetime.now()).days)
-                progress_pct = min(100, round(100 * len(decisions_log_for_banner) / TARGET_COMPARISONS))
-                trial_status = (
-                    f"Day {days_in} of {TRIAL_DAYS} · "
-                    f"{len(decisions_log_for_banner)}/{TARGET_COMPARISONS} comparisons logged · "
-                    f"{days_remaining}d remaining"
-                )
-                if days_remaining == 0:
-                    trial_status += " · trial complete — evaluate below"
-            except Exception:
-                trial_status = f"{len(decisions_log_for_banner)} comparisons logged"
-                progress_pct = 0
-        else:
-            trial_status = (
-                f"Trial period: {TRIAL_DAYS} days from first log · "
-                f"target {TARGET_COMPARISONS} comparisons · "
-                f"not started yet"
+    if decisions_log_for_banner:
+        try:
+            first_ts = min(
+                datetime.fromisoformat(d["ts"])
+                for d in decisions_log_for_banner if d.get("ts")
             )
+            trial_end = first_ts + timedelta(days=TRIAL_DAYS)
+            days_in = (datetime.now() - first_ts).days
+            days_remaining = max(0, (trial_end - datetime.now()).days)
+            progress_pct = min(100, round(100 * len(decisions_log_for_banner) / TARGET_COMPARISONS))
+            trial_status = (
+                f"Day {days_in} of {TRIAL_DAYS} · "
+                f"{len(decisions_log_for_banner)}/{TARGET_COMPARISONS} comparisons logged · "
+                f"{days_remaining}d remaining"
+            )
+            if days_remaining == 0:
+                trial_status += " · trial complete — evaluate below"
+        except Exception:
+            trial_status = f"{len(decisions_log_for_banner)} comparisons logged"
             progress_pct = 0
+    else:
+        trial_status = (
+            f"Trial period: {TRIAL_DAYS} days from first log · "
+            f"target {TARGET_COMPARISONS} comparisons · "
+            f"not started yet"
+        )
+        progress_pct = 0
 
-        st.markdown(f"""
+    st.markdown(f"""
 <div style="background:linear-gradient(90deg,#F4F0FB 0%, var(--color-bg) {progress_pct}%, var(--color-bg) 100%);
-            border:1px solid #D9D5CC;border-radius:4px;padding:10px 14px;
-            margin-bottom:14px;">
+        border:1px solid #D9D5CC;border-radius:4px;padding:10px 14px;
+        margin-bottom:14px;">
   <div style="font-family: var(--font-sans);font-size:var(--fs-xs);font-weight:600;
-              letter-spacing: var(--ls-caps-xl);text-transform:uppercase;color:var(--color-purple);
-              margin-bottom:4px;">Calibration trial</div>
+          letter-spacing: var(--ls-caps-xl);text-transform:uppercase;color:var(--color-purple);
+          margin-bottom:4px;">Calibration trial</div>
   <div style="font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-body);">
     {trial_status}
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-        st.markdown(
-            '<div style="font-size:var(--fs-base);color:var(--color-body);line-height:1.55;'
-            'margin-bottom:18px;max-width:720px;">'
-            'Side-by-side log of rule engine action vs Claude\'s tactical_call vs '
-            'your call at the time of viewing each ticker. Use this to evaluate '
-            'which decision source produces better calls over a 2-week trial. '
-            'Add an outcome to a logged entry once the setup plays out (right / '
-            'wrong / unclear) — that\'s the data we use for the final eval.</div>',
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        '<div style="font-size:var(--fs-base);color:var(--color-body);line-height:1.55;'
+        'margin-bottom:18px;max-width:720px;">'
+        'Side-by-side log of rule engine action vs Claude\'s tactical_call vs '
+        'your call at the time of viewing each ticker. Use this to evaluate '
+        'which decision source produces better calls over a 2-week trial. '
+        'Add an outcome to a logged entry once the setup plays out (right / '
+        'wrong / unclear) — that\'s the data we use for the final eval.</div>',
+        unsafe_allow_html=True,
+    )
 
-        decisions_log = st.session_state.store.get("decisions_log", [])
-        unscored = [d for d in decisions_log if d.get("outcome") is None]
-        scored = [d for d in decisions_log if d.get("outcome") is not None]
+    decisions_log = st.session_state.store.get("decisions_log", [])
+    unscored = [d for d in decisions_log if d.get("outcome") is None]
+    scored = [d for d in decisions_log if d.get("outcome") is not None]
 
-        # ─── Summary metrics (only meaningful once we have scored entries) ──
-        def _agreement(entries, source_a, source_b):
-            """Return (agree_count, total) for two action source keys.
-            Normalizes 'enter_now' (rules) vs 'ENTER' (Claude) so they match."""
-            n = 0
-            agree = 0
-            for d in entries:
-                a = (d.get(source_a) or "").upper().replace("_NOW", "")
-                b = (d.get(source_b) or "").upper().replace("_NOW", "")
-                if a and b:
-                    n += 1
-                    if a == b:
-                        agree += 1
-            return agree, n
+    # ─── Summary metrics (only meaningful once we have scored entries) ──
+    def _agreement(entries, source_a, source_b):
+        """Return (agree_count, total) for two action source keys.
+        Normalizes 'enter_now' (rules) vs 'ENTER' (Claude) so they match."""
+        n = 0
+        agree = 0
+        for d in entries:
+            a = (d.get(source_a) or "").upper().replace("_NOW", "")
+            b = (d.get(source_b) or "").upper().replace("_NOW", "")
+            if a and b:
+                n += 1
+                if a == b:
+                    agree += 1
+        return agree, n
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.markdown(f"""
+    m1, m2, m3, m4 = st.columns(4)
+    m1.markdown(f"""
 <div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
   <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Total logged</div>
   <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{len(decisions_log)}</div>
 </div>
 """, unsafe_allow_html=True)
-        m2.markdown(f"""
+    m2.markdown(f"""
 <div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
   <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Outcome scored</div>
   <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{len(scored)}</div>
 </div>
 """, unsafe_allow_html=True)
 
-        # Agreement: rules vs claude — does not require outcomes
-        rc_agree, rc_total = _agreement(decisions_log, "rule_action", "claude_action")
-        rc_pct = round(100 * rc_agree / rc_total) if rc_total else 0
-        m3.markdown(f"""
+    # Agreement: rules vs claude — does not require outcomes
+    rc_agree, rc_total = _agreement(decisions_log, "rule_action", "claude_action")
+    rc_pct = round(100 * rc_agree / rc_total) if rc_total else 0
+    m3.markdown(f"""
 <div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
   <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Rules ≡ Claude</div>
   <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{rc_pct}%</div>
@@ -4877,10 +4791,10 @@ if view == "tracker":
 </div>
 """, unsafe_allow_html=True)
 
-        # Agreement: claude vs user
-        cu_agree, cu_total = _agreement(decisions_log, "claude_action", "user_action")
-        cu_pct = round(100 * cu_agree / cu_total) if cu_total else 0
-        m4.markdown(f"""
+    # Agreement: claude vs user
+    cu_agree, cu_total = _agreement(decisions_log, "claude_action", "user_action")
+    cu_pct = round(100 * cu_agree / cu_total) if cu_total else 0
+    m4.markdown(f"""
 <div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
   <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Claude ≡ You</div>
   <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{cu_pct}%</div>
@@ -4888,36 +4802,36 @@ if view == "tracker":
 </div>
 """, unsafe_allow_html=True)
 
-        # ─── Per-source accuracy (only shows once outcomes are scored) ──
-        # For each source (rules / claude / user), count how many times they
-        # were marked "right" out of total scored entries. This is the
-        # actual evaluation metric the trial period is designed to produce.
-        if scored:
-            def _right_count(source_key):
-                return sum(
-                    1 for d in scored
-                    if source_key in (d.get("outcome") or {}).get("right_sources", [])
-                )
-            rules_right = _right_count("rules")
-            claude_right = _right_count("claude")
-            user_right = _right_count("user")
-            total_scored = len(scored)
-
-            st.markdown(
-                '<div style="margin-top:14px;"></div>'
-                '<div style="font-family: var(--font-sans);font-size:var(--fs-xs);'
-                'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                'color:var(--color-muted);margin-bottom:6px;">Accuracy by source — scored entries only</div>',
-                unsafe_allow_html=True,
+    # ─── Per-source accuracy (only shows once outcomes are scored) ──
+    # For each source (rules / claude / user), count how many times they
+    # were marked "right" out of total scored entries. This is the
+    # actual evaluation metric the trial period is designed to produce.
+    if scored:
+        def _right_count(source_key):
+            return sum(
+                1 for d in scored
+                if source_key in (d.get("outcome") or {}).get("right_sources", [])
             )
-            a1, a2, a3 = st.columns(3)
-            for col, label, count in [
-                (a1, "Rules", rules_right),
-                (a2, "Claude", claude_right),
-                (a3, "You", user_right),
-            ]:
-                pct = round(100 * count / total_scored) if total_scored else 0
-                col.markdown(f"""
+        rules_right = _right_count("rules")
+        claude_right = _right_count("claude")
+        user_right = _right_count("user")
+        total_scored = len(scored)
+
+        st.markdown(
+            '<div style="margin-top:14px;"></div>'
+            '<div style="font-family: var(--font-sans);font-size:var(--fs-xs);'
+            'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+            'color:var(--color-muted);margin-bottom:6px;">Accuracy by source — scored entries only</div>',
+            unsafe_allow_html=True,
+        )
+        a1, a2, a3 = st.columns(3)
+        for col, label, count in [
+            (a1, "Rules", rules_right),
+            (a2, "Claude", claude_right),
+            (a3, "You", user_right),
+        ]:
+            pct = round(100 * count / total_scored) if total_scored else 0
+            col.markdown(f"""
 <div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
   <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">{label}</div>
   <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{pct}%</div>
@@ -4925,179 +4839,180 @@ if view == "tracker":
 </div>
 """, unsafe_allow_html=True)
 
-        st.markdown("&nbsp;", unsafe_allow_html=True)
+    st.markdown("&nbsp;", unsafe_allow_html=True)
 
-        if not decisions_log:
+    if not decisions_log:
+        st.markdown(
+            '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
+            'padding:20px 0;">No decisions logged yet. Open a ticker on '
+            'the Analyze tab and click "Log my call (decision comparison '
+            'study)" to start collecting data.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        # Sub-tabs: Open (no outcome) vs Resolved (outcome scored)
+        sub_open, sub_resolved = st.tabs([
+            f"Open ({len(unscored)})", f"Resolved ({len(scored)})"
+        ])
+
+        def _render_decision_row(entry, idx, scored_view):
+            """Render one decision-log row with all three actions visible
+            and an outcome-scoring widget if not yet scored."""
+            import html as _html
+            _act_map = {
+                "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
+                "AVOID": "avoid", "ACCUMULATE": "accumulate",
+            }
+            rule_sty   = STATE_STYLES.get(entry.get("rule_action"), {})
+            claude_sty = STATE_STYLES.get(_act_map.get(entry.get("claude_action") or "", ""), {})
+            user_sty   = STATE_STYLES.get(_act_map.get(entry.get("user_action") or "", ""), {})
+
+            ts_short = entry.get("ts", "")[:10]
+            ticker   = _html.escape(str(entry.get("ticker", "")))
+            price    = entry.get("price", 0)
+            entry_id = _html.escape(str(entry.get("id", "")))
+
+            # ── Card header ──────────────────────────────────────────
             st.markdown(
-                '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
-                'padding:20px 0;">No decisions logged yet. Open a ticker on '
-                'the Analyze tab and click "Log my call (decision comparison '
-                'study)" to start collecting data.</div>',
+                f'<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 14px 6px;margin-bottom:2px;">'
+                f'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
+                f'<div><span style="font-size:var(--fs-base);font-weight:600;">{ticker}</span>'
+                f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);margin-left:8px;">${price:.2f}</span></div>'
+                f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-fainter);">{ts_short} · {entry_id}</span>'
+                f'</div></div>',
                 unsafe_allow_html=True,
             )
-        else:
-            # Sub-tabs: Open (no outcome) vs Resolved (outcome scored)
-            sub_open, sub_resolved = st.tabs([
-                f"Open ({len(unscored)})", f"Resolved ({len(scored)})"
-            ])
 
-            def _render_decision_row(entry, idx, scored_view):
-                """Render one decision-log row with all three actions visible
-                and an outcome-scoring widget if not yet scored."""
-                rule_sty = STATE_STYLES.get(entry.get("rule_action"), {})
-                claude_act_key = {
-                    "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
-                    "AVOID": "avoid", "ACCUMULATE": "accumulate",
-                }.get(entry.get("claude_action", ""), "")
-                claude_sty = STATE_STYLES.get(claude_act_key, {})
-                user_act_key = {
-                    "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
-                    "AVOID": "avoid", "ACCUMULATE": "accumulate",
-                }.get(entry.get("user_action", ""), "")
-                user_sty = STATE_STYLES.get(user_act_key, {})
+            # ── 3-column action row via st.columns ───────────────────
+            col_r, col_c, col_u = st.columns(3)
 
-                ts_short = entry.get("ts", "")[:10]
-                ticker = entry.get("ticker", "")
-                price = entry.get("price", 0)
+            rule_color  = rule_sty.get("color", "var(--color-text)")
+            rule_emoji  = rule_sty.get("emoji", "")
+            rule_label  = rule_sty.get("label", entry.get("rule_action", "—"))
+            rule_state  = _html.escape(str(entry.get("rule_state", "")))
+            col_r.markdown(
+                f'<div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">Rules</div>'
+                f'<div style="color:{rule_color};font-weight:600;font-size:var(--fs-base);">{rule_emoji} {rule_label}</div>'
+                f'<div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">{rule_state}</div>',
+                unsafe_allow_html=True,
+            )
 
-                st.markdown(f"""
-<div style="border:1px solid var(--color-border);border-radius:4px;padding:12px 14px;
-            margin-bottom:10px;">
-  <div style="display:flex;justify-content:space-between;align-items:baseline;
-              margin-bottom:8px;">
-    <div>
-      <span style="font-size:var(--fs-base);font-weight:600;">{ticker}</span>
-      <span style="font-family: var(--font-mono);font-size:var(--fs-sm);
-                   color:var(--color-muted);margin-left:8px;">${price:.2f}</span>
-    </div>
-    <span style="font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-fainter);">
-      {ts_short} · {entry.get("id", "")}
-    </span>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;
-              padding:8px 0;border-top:1px dashed var(--color-border);">
-    <div>
-      <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);
-                  text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">
-        Rules
-      </div>
-      <div style="color:{rule_sty.get('color', 'var(--color-text)')};font-weight:600;
-                  font-size:var(--fs-base);">
-        {rule_sty.get('emoji', '')} {rule_sty.get('label', entry.get('rule_action', '—'))}
-      </div>
-      <div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">
-        {entry.get("rule_state", "")}
-      </div>
-    </div>
-    <div>
-      <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);
-                  text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">
-        Claude
-      </div>
-      <div style="color:{claude_sty.get('color', 'var(--color-text)')};font-weight:600;
-                  font-size:var(--fs-base);">
-        {claude_sty.get('emoji', '')} {entry.get('claude_action', '—').replace('_', ' ').title()}
-      </div>
-      <div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">
-        Conf {entry.get('claude_confidence', 0)}/10
-      </div>
-    </div>
-    <div>
-      <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);
-                  text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">
-        You
-      </div>
-      <div style="color:{user_sty.get('color', 'var(--color-text)')};font-weight:600;
-                  font-size:var(--fs-base);">
-        {user_sty.get('emoji', '')} {user_sty.get('label', entry.get('user_action', '—'))}
-      </div>
-    </div>
-  </div>
-  {f'<div style="font-size:var(--fs-sm);color:var(--color-body);line-height:1.5;padding-top:6px;border-top:1px dashed var(--color-border);font-style:italic;">"{entry.get("claude_reasoning", "")}"</div>' if entry.get("claude_reasoning") else ''}
-  {f'<div style="font-size:var(--fs-sm);color:var(--color-body);line-height:1.5;padding-top:6px;"><span style="color:var(--color-faint);">Your note:</span> {entry.get("user_note", "")}</div>' if entry.get("user_note") else ''}
-</div>
-""", unsafe_allow_html=True)
+            claude_color  = claude_sty.get("color", "var(--color-text)")
+            claude_emoji  = claude_sty.get("emoji", "")
+            claude_action_raw = entry.get("claude_action") or "—"
+            claude_label  = claude_action_raw.replace("_", " ").title()
+            claude_conf   = entry.get("claude_confidence", 0)
+            col_c.markdown(
+                f'<div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">Claude</div>'
+                f'<div style="color:{claude_color};font-weight:600;font-size:var(--fs-base);">{claude_emoji} {claude_label}</div>'
+                f'<div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">Conf {claude_conf}/10</div>',
+                unsafe_allow_html=True,
+            )
 
-                # Outcome scoring widget — shown only on Open tab
-                if not scored_view:
-                    with st.expander("Score this outcome", expanded=False):
-                        outcome_choice = st.radio(
-                            "Which source got it right?",
-                            options=["Rules", "Claude", "You", "All three", "None / unclear"],
-                            horizontal=True,
-                            key=f"outcome_choice_{entry['id']}",
-                        )
-                        outcome_pct = st.text_input(
-                            "Result % (optional, e.g. +5.2 or -3.1)",
-                            key=f"outcome_pct_{entry['id']}",
-                        )
-                        outcome_note = st.text_input(
-                            "Note (optional)",
-                            key=f"outcome_note_{entry['id']}",
-                        )
-                        if st.button("Save outcome", key=f"save_outcome_{entry['id']}"):
-                            right_sources = []
-                            if outcome_choice == "Rules": right_sources = ["rules"]
-                            elif outcome_choice == "Claude": right_sources = ["claude"]
-                            elif outcome_choice == "You": right_sources = ["user"]
-                            elif outcome_choice == "All three": right_sources = ["rules", "claude", "user"]
-                            try:
-                                pct_val = float(outcome_pct) if outcome_pct else None
-                            except ValueError:
-                                pct_val = None
-                            entry["outcome"] = {
-                                "ts": datetime.now().isoformat(timespec="seconds"),
-                                "result": "right" if right_sources else "unclear",
-                                "right_sources": right_sources,
-                                "result_pct": pct_val,
-                                "note": outcome_note.strip() if outcome_note else "",
-                            }
-                            save_store(st.session_state.store)
-                            st.rerun()
+            user_color = user_sty.get("color", "var(--color-text)")
+            user_emoji = user_sty.get("emoji", "")
+            user_label = user_sty.get("label", _html.escape(str(entry.get("user_action", "—"))))
+            col_u.markdown(
+                f'<div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">You</div>'
+                f'<div style="color:{user_color};font-weight:600;font-size:var(--fs-base);">{user_emoji} {user_label}</div>',
+                unsafe_allow_html=True,
+            )
 
-                # Delete button on resolved entries
-                if scored_view:
-                    if st.button("✕ Delete this entry", key=f"del_decision_{entry['id']}"):
-                        st.session_state.store["decisions_log"] = [
-                            d for d in st.session_state.store["decisions_log"]
-                            if d.get("id") != entry["id"]
-                        ]
+            # ── Optional reasoning / note ────────────────────────────
+            reasoning = entry.get("claude_reasoning", "")
+            user_note = entry.get("user_note", "")
+            if reasoning:
+                st.markdown(
+                    f'<div style="font-size:var(--fs-sm);color:var(--color-body);line-height:1.5;padding:6px 14px;border-top:1px dashed var(--color-border);font-style:italic;">&ldquo;{_html.escape(str(reasoning))}&rdquo;</div>',
+                    unsafe_allow_html=True,
+                )
+            if user_note:
+                st.markdown(
+                    f'<div style="font-size:var(--fs-sm);color:var(--color-body);line-height:1.5;padding:4px 14px 8px;"><span style="color:var(--color-faint);">Your note:</span> {_html.escape(str(user_note))}</div>',
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown('<div style="margin-bottom:14px;"></div>', unsafe_allow_html=True)
+
+            # ── Outcome scoring widget — open tab only ───────────────
+            if not scored_view:
+                with st.expander("Score this outcome", expanded=False):
+                    outcome_choice = st.radio(
+                        "Which source got it right?",
+                        options=["Rules", "Claude", "You", "All three", "None / unclear"],
+                        horizontal=True,
+                        key=f"outcome_choice_{entry['id']}",
+                    )
+                    outcome_pct = st.text_input(
+                        "Result % (optional, e.g. +5.2 or -3.1)",
+                        key=f"outcome_pct_{entry['id']}",
+                    )
+                    outcome_note = st.text_input(
+                        "Note (optional)",
+                        key=f"outcome_note_{entry['id']}",
+                    )
+                    if st.button("Save outcome", key=f"save_outcome_{entry['id']}"):
+                        right_sources = []
+                        if outcome_choice == "Rules": right_sources = ["rules"]
+                        elif outcome_choice == "Claude": right_sources = ["claude"]
+                        elif outcome_choice == "You": right_sources = ["user"]
+                        elif outcome_choice == "All three": right_sources = ["rules", "claude", "user"]
+                        try:
+                            pct_val = float(outcome_pct) if outcome_pct else None
+                        except ValueError:
+                            pct_val = None
+                        entry["outcome"] = {
+                            "ts": datetime.now().isoformat(timespec="seconds"),
+                            "result": "right" if right_sources else "unclear",
+                            "right_sources": right_sources,
+                            "result_pct": pct_val,
+                            "note": outcome_note.strip() if outcome_note else "",
+                        }
                         save_store(st.session_state.store)
                         st.rerun()
 
-            with sub_open:
-                if not unscored:
-                    st.markdown(
-                        '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
-                        'padding:14px 0;">No open decisions.</div>',
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    for idx, entry in enumerate(unscored):
-                        _render_decision_row(entry, idx, scored_view=False)
+            # ── Delete — available on both open and resolved entries ──
+            if st.button("✕ Delete this entry", key=f"del_decision_{entry['id']}"):
+                st.session_state.store["decisions_log"] = [
+                    d for d in st.session_state.store["decisions_log"]
+                    if d.get("id") != entry["id"]
+                ]
+                save_store(st.session_state.store)
+                st.rerun()
 
-            with sub_resolved:
-                if not scored:
-                    st.markdown(
-                        '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
-                        'padding:14px 0;">No outcomes scored yet.</div>',
-                        unsafe_allow_html=True,
+        with sub_open:
+            if not unscored:
+                st.markdown(
+                    '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
+                    'padding:14px 0;">No open decisions.</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                for idx, entry in enumerate(unscored):
+                    _render_decision_row(entry, idx, scored_view=False)
+
+        with sub_resolved:
+            if not scored:
+                st.markdown(
+                    '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
+                    'padding:14px 0;">No outcomes scored yet.</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                # Per-source accuracy
+                sources = ["rules", "claude", "user"]
+                sac1, sac2, sac3 = st.columns(3)
+                for col, src in zip([sac1, sac2, sac3], sources):
+                    right_n = sum(
+                        1 for d in scored
+                        if src in (d.get("outcome") or {}).get("right_sources", [])
                     )
-                else:
-                    # Per-source accuracy
-                    sources = ["rules", "claude", "user"]
-                    sac1, sac2, sac3 = st.columns(3)
-                    for col, src in zip([sac1, sac2, sac3], sources):
-                        right_n = sum(
-                            1 for d in scored
-                            if src in (d.get("outcome") or {}).get("right_sources", [])
-                        )
-                        total = sum(
-                            1 for d in scored
-                            if (d.get("outcome") or {}).get("right_sources")
-                        )
-                        pct = round(100 * right_n / total) if total else 0
-                        col.markdown(f"""
+                    total = sum(
+                        1 for d in scored
+                        if (d.get("outcome") or {}).get("right_sources")
+                    )
+                    pct = round(100 * right_n / total) if total else 0
+                    col.markdown(f"""
 <div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 12px;">
   <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">{src.title()} accuracy</div>
   <div style="font-family: var(--font-mono);font-size:var(--fs-xl);font-weight:500;margin-top:2px;">{pct}%</div>
@@ -5105,6 +5020,6 @@ if view == "tracker":
 </div>
 """, unsafe_allow_html=True)
 
-                    st.markdown("&nbsp;", unsafe_allow_html=True)
-                    for idx, entry in enumerate(scored):
-                        _render_decision_row(entry, idx, scored_view=True)
+                st.markdown("&nbsp;", unsafe_allow_html=True)
+                for idx, entry in enumerate(scored):
+                    _render_decision_row(entry, idx, scored_view=True)
