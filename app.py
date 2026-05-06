@@ -3158,7 +3158,8 @@ if view == "analyze":
         # first, then see the side-by-side comparison and log their call.
         dossier_text = dossier_result.get("dossier") if dossier_result else None
         # Auto-clear cache if it still contains raw {token} placeholders
-        if dossier_text and re.search(r"\{[a-z_]+\}", dossier_text):
+        import re as _re
+        if dossier_text and _re.search(r"\{[a-z_]+\}", dossier_text):
             clear_dossier_cache(ticker)
             dossier_result = None
             dossier_text   = None
