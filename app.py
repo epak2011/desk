@@ -3421,6 +3421,75 @@ if view == "analyze":
                     save_store(st.session_state.store)
                     st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
 
+        # 1b-chat. Follow-up chat panel ──────────────────────────────────
+        # Per-ticker chat history lives in session state (not persisted to
+        # disk — clears on page reload, which is fine for quick Q&A).
+        chat_key = f"chat_{ticker}"
+        if chat_key not in st.session_state:
+            st.session_state[chat_key] = []  # list of {role, content}
+
+        with st.expander("💬 Ask a follow-up question", expanded=False):
+            # Render existing messages
+            for msg in st.session_state[chat_key]:
+                role_label = "**You**" if msg["role"] == "user" else "**Claude**"
+                st.markdown(f"{role_label}: {msg['content']}")
+
+            user_q = st.chat_input("Ask anything about this ticker…", key=f"chat_input_{ticker}")
+            if user_q:
+                if not api_key:
+                    st.warning("Paste an Anthropic API key in the sidebar to use the chat.")
+                else:
+                    st.session_state[chat_key].append({"role": "user", "content": user_q})
+
+                    # Build system context from live tactical state + dossier
+                    dossier_ctx = (dossier_result or {}).get("dossier") or "Not yet generated."
+                    tech_ctx    = (dossier_result or {}).get("technical_narrative") or ""
+                    pm_ctx      = (dossier_result or {}).get("pm_narrative") or ""
+                    sys_prompt = (
+                        f"You are a sharp, concise portfolio analyst assistant. "
+                        f"The user is looking at {ticker} right now. Here is the live context:\n\n"
+                        f"Price: ${t.get('price', 0):.2f}\n"
+                        f"Action: {t.get('action', '').replace('_', ' ').upper()}\n"
+                        f"MA50: ${t.get('ma50', 0):.2f} | MA200: ${t.get('ma200', 0):.2f}\n"
+                        f"RSI: {t.get('rsi', 0):.0f} | RS: {t.get('rs', 0):.2f}\n"
+                        f"ATR%: {t.get('atr_pct', 0):.1f}%\n"
+                        f"Support: ${t.get('support', 0):.2f} | Resistance: ${t.get('resistance', 0):.2f}\n\n"
+                        f"Decision dossier:\n{dossier_ctx}\n\n"
+                        + (f"Technical narrative:\n{tech_ctx}\n\n" if tech_ctx else "")
+                        + (f"PM narrative:\n{pm_ctx}\n\n" if pm_ctx else "")
+                        + "Answer the user's follow-up question concisely. "
+                        "Be direct and specific. No fluff. 2–4 sentences unless a longer answer is clearly needed."
+                    )
+
+                    import anthropic as _anthropic
+                    with st.spinner("Thinking…"):
+                        try:
+                            _client = _anthropic.Anthropic(api_key=api_key)
+                            _resp = _client.messages.create(
+                                model="claude-sonnet-4-6",
+                                max_tokens=400,
+                                system=sys_prompt,
+                                messages=st.session_state[chat_key],
+                            )
+                            reply = _resp.content[0].text.strip()
+                            # Track cost
+                            _in  = _resp.usage.input_tokens
+                            _out = _resp.usage.output_tokens
+                            _cost = (_in * 3 + _out * 15) / 1_000_000
+                            st.session_state["session_cost"] = (
+                                st.session_state.get("session_cost", 0.0) + _cost
+                            )
+                        except Exception as e:
+                            reply = f"Error: {e}"
+
+                    st.session_state[chat_key].append({"role": "assistant", "content": reply})
+                    st.rerun()
+
+            if st.session_state[chat_key]:
+                if st.button("Clear chat", key=f"clear_chat_{ticker}"):
+                    st.session_state[chat_key] = []
+                    st.rerun()
+
         # 1b. Decision modifiers — badges that nudge conviction up or down
         # on top of the same nominal decision (earnings proximity, market
         # regime, leadership/lag versus the index). Replaces the old
