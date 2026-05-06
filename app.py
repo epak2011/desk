@@ -3157,6 +3157,12 @@ if view == "analyze":
         # the comparison panel so users read Claude's full reasoning
         # first, then see the side-by-side comparison and log their call.
         dossier_text = dossier_result.get("dossier") if dossier_result else None
+        # Auto-clear cache if it still contains raw {token} placeholders
+        if dossier_text and re.search(r"\{[a-z_]+\}", dossier_text):
+            clear_dossier_cache(ticker)
+            dossier_result = None
+            dossier_text   = None
+            st.rerun()
         if dossier_text:
             src = dossier_result.get("_source", "claude")
 
@@ -3421,77 +3427,95 @@ if view == "analyze":
                     save_store(st.session_state.store)
                     st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
 
-    # 1b-chat. Follow-up chat panel ──────────────────────────────────
-    # Per-ticker chat history lives in session state (not persisted to
-    # disk — clears on page reload, which is fine for quick Q&A).
-    chat_key = f"chat_{ticker}"
-    if chat_key not in st.session_state:
-        st.session_state[chat_key] = []  # list of {role, content}
+    # 1b-chat. Follow-up chat — floating bubble style ────────────────
+    chat_key   = f"chat_{ticker}"
+    chat_open  = f"chat_open_{ticker}"
+    if chat_key  not in st.session_state: st.session_state[chat_key]  = []
+    if chat_open not in st.session_state: st.session_state[chat_open] = False
 
-    with st.expander("💬 Ask a follow-up question", expanded=False):
-        # Render existing messages
+    # Bubble toggle button
+    unread_dot = " 🟢" if st.session_state[chat_key] else ""
+    bubble_label = f"{'✕ Close' if st.session_state[chat_open] else '💬 Ask Claude'}{unread_dot}"
+    st.markdown(
+        '<div style="display:flex;justify-content:flex-end;margin:6px 0 2px;">',
+        unsafe_allow_html=True,
+    )
+    if st.button(bubble_label, key=f"chat_toggle_{ticker}",
+                 help="Ask Claude a follow-up about this ticker"):
+        st.session_state[chat_open] = not st.session_state[chat_open]
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.session_state[chat_open]:
+        st.markdown(
+            '<div style="border:1px solid var(--color-border);border-radius:8px;'
+            'padding:14px 16px 10px;margin-bottom:12px;background:var(--color-bg-card);">',
+            unsafe_allow_html=True,
+        )
+
+        # Render message history
         for msg in st.session_state[chat_key]:
-            role_label = "**You**" if msg["role"] == "user" else "**Claude**"
-            st.markdown(f"{role_label}: {msg['content']}")
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
 
-        user_q = st.chat_input("Ask anything about this ticker…", key=f"chat_input_{ticker}")
+        # Input
+        user_q = st.chat_input(f"Ask anything about {ticker}…", key=f"chat_input_{ticker}")
         if user_q:
             if not api_key:
-                st.warning("Paste an Anthropic API key in the sidebar to use the chat.")
+                st.warning("Add an Anthropic API key in the sidebar to use chat.")
             else:
                 st.session_state[chat_key].append({"role": "user", "content": user_q})
+                with st.chat_message("user"):
+                    st.markdown(user_q)
 
-                # Build system context from live tactical state + dossier
                 dossier_ctx = (dossier_result or {}).get("dossier") or "Not yet generated."
                 tech_ctx    = (dossier_result or {}).get("technical_narrative") or ""
                 pm_ctx      = (dossier_result or {}).get("pm_narrative") or ""
                 sys_prompt = (
                     f"You are a sharp, concise portfolio analyst assistant. "
-                    f"The user is looking at {ticker} right now. Here is the live context:\n\n"
+                    f"The user is looking at {ticker} right now. Live context:\n\n"
                     f"Price: ${t.get('price', 0):.2f}\n"
                     f"Action: {t.get('action', '').replace('_', ' ').upper()}\n"
                     f"MA50: ${t.get('ma50', 0):.2f} | MA200: ${t.get('ma200', 0):.2f}\n"
-                    f"RSI: {t.get('rsi', 0):.0f} | RS: {t.get('rs', 0):.2f}\n"
+                    f"RSI: {t.get('rsi14', t.get('rsi', 0)):.0f} | RS: {t.get('rs', 0):.2f}\n"
                     f"ATR%: {t.get('atr_pct', 0):.1f}%\n"
                     f"Support: ${t.get('support', 0):.2f} | Resistance: ${t.get('resistance', 0):.2f}\n\n"
                     f"Decision dossier:\n{dossier_ctx}\n\n"
                     + (f"Technical narrative:\n{tech_ctx}\n\n" if tech_ctx else "")
                     + (f"PM narrative:\n{pm_ctx}\n\n" if pm_ctx else "")
-                    + "Answer the user's follow-up question concisely. "
-                    "Be direct and specific. No fluff. 2–4 sentences unless a longer answer is clearly needed."
+                    + "Answer concisely and directly. 2–4 sentences unless more is clearly needed. No fluff."
                 )
-
                 import anthropic as _anthropic
-                with st.spinner("Thinking…"):
-                    try:
-                        _client = _anthropic.Anthropic(api_key=api_key)
-                        _resp = _client.messages.create(
-                            model="claude-sonnet-4-6",
-                            max_tokens=400,
-                            system=sys_prompt,
-                            messages=st.session_state[chat_key],
-                        )
-                        reply = _resp.content[0].text.strip()
-                        # Track cost
-                        _in  = _resp.usage.input_tokens
-                        _out = _resp.usage.output_tokens
-                        _cost = (_in * 3 + _out * 15) / 1_000_000
-                        st.session_state["session_cost"] = (
-                            st.session_state.get("session_cost", 0.0) + _cost
-                        )
-                    except Exception as e:
-                        reply = f"Error: {e}"
-
+                with st.chat_message("assistant"):
+                    with st.spinner(""):
+                        try:
+                            _client = _anthropic.Anthropic(api_key=api_key)
+                            _resp   = _client.messages.create(
+                                model="claude-sonnet-4-6",
+                                max_tokens=400,
+                                system=sys_prompt,
+                                messages=st.session_state[chat_key],
+                            )
+                            reply = _resp.content[0].text.strip()
+                            _in   = _resp.usage.input_tokens
+                            _out  = _resp.usage.output_tokens
+                            st.session_state["session_cost"] = (
+                                st.session_state.get("session_cost", 0.0)
+                                + (_in * 3 + _out * 15) / 1_000_000
+                            )
+                        except Exception as e:
+                            reply = f"Error: {e}"
+                    st.markdown(reply)
                 st.session_state[chat_key].append({"role": "assistant", "content": reply})
-                st.rerun()
 
         if st.session_state[chat_key]:
-            if st.button("Clear chat", key=f"clear_chat_{ticker}"):
+            if st.button("🗑 Clear chat", key=f"clear_chat_{ticker}"):
                 st.session_state[chat_key] = []
                 st.rerun()
 
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        # 1b. Decision modifiers — badges that nudge conviction up or down
+    # 1b. Decision modifiers — badges that nudge conviction up or down
         # on top of the same nominal decision (earnings proximity, market
         # regime, leadership/lag versus the index). Replaces the old
         # earnings-only banner.
