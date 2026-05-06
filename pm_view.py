@@ -81,7 +81,10 @@ def substitute_live_values(text, tactical_output):
         token = match.group(1).strip().lower()
         return substitutions.get(token, match.group(0))
 
-    return re.sub(r"\{\{\s*(\w+)\s*\}\}", _replacer, text)
+    # Match both {{token}} and {token} — Claude sometimes generates single braces
+    text = re.sub(r"\{\{\s*(\w+)\s*\}\}", _replacer, text)
+    text = re.sub(r"\{(\w+)\}", _replacer, text)
+    return text
 
 
 # Static snapshot views for common tickers — used when no API key is set.
