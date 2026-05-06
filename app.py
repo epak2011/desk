@@ -3405,9 +3405,21 @@ if view == "analyze":
                     "user_note": user_note.strip() if user_note else "",
                     "outcome": None,
                 }
-                st.session_state.store.setdefault("decisions_log", []).insert(0, entry)
-                save_store(st.session_state.store)
-                st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
+                dlog = st.session_state.store.setdefault("decisions_log", [])
+                existing_open = next(
+                    (i for i, d in enumerate(dlog)
+                     if d.get("ticker") == entry["ticker"] and d.get("outcome") is None),
+                    None,
+                )
+                if existing_open is not None:
+                    dlog.pop(existing_open)
+                    dlog.insert(0, entry)
+                    save_store(st.session_state.store)
+                    st.toast(f"Replaced existing open {entry['ticker']} entry ({entry['id']}).", icon="🔄")
+                else:
+                    dlog.insert(0, entry)
+                    save_store(st.session_state.store)
+                    st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
 
         # 1b. Decision modifiers — badges that nudge conviction up or down
         # on top of the same nominal decision (earnings proximity, market
