@@ -3470,22 +3470,54 @@ if view == "analyze":
                     with st.spinner(""):
                         try:
                             _client = _anthropic.Anthropic(api_key=api_key)
-                            _resp   = _client.messages.create(
-                                model="claude-sonnet-4-6",
-                                max_tokens=600,
-                                system=sys_prompt,
-                                tools=[{"type": "web_search_20250305", "name": "web_search"}],
-                                messages=st.session_state[chat_key],
-                            )
-                            reply = " ".join(
-                                b.text for b in _resp.content
-                                if hasattr(b, "text") and b.text
-                            ).strip()
-                            _in   = _resp.usage.input_tokens
-                            _out  = _resp.usage.output_tokens
+                            _tools  = [{"type": "web_search_20250305", "name": "web_search"}]
+                            _messages = list(st.session_state[chat_key])
+                            _total_in, _total_out = 0, 0
+                            reply = ""
+
+                            # Multi-turn loop for web_search tool use
+                            for _ in range(6):
+                                _resp = _client.messages.create(
+                                    model="claude-sonnet-4-6",
+                                    max_tokens=600,
+                                    system=sys_prompt,
+                                    tools=_tools,
+                                    messages=_messages,
+                                )
+                                _total_in  += _resp.usage.input_tokens
+                                _total_out += _resp.usage.output_tokens
+
+                                text_parts = [
+                                    b.text for b in _resp.content
+                                    if hasattr(b, "text") and b.text
+                                ]
+                                if _resp.stop_reason == "end_turn":
+                                    reply = " ".join(text_parts).strip()
+                                    break
+                                if _resp.stop_reason == "tool_use":
+                                    _messages.append({"role": "assistant", "content": _resp.content})
+                                    _results = []
+                                    for _b in _resp.content:
+                                        if _b.type == "tool_use":
+                                            _rc = getattr(_b, "content", "") or ""
+                                            if isinstance(_rc, list):
+                                                _rc = " ".join(
+                                                    c.get("text","") if isinstance(c,dict) else str(c)
+                                                    for c in _rc
+                                                )
+                                            _results.append({
+                                                "type": "tool_result",
+                                                "tool_use_id": _b.id,
+                                                "content": str(_rc),
+                                            })
+                                    _messages.append({"role": "user", "content": _results})
+                                else:
+                                    reply = " ".join(text_parts).strip()
+                                    break
+
                             st.session_state["session_cost"] = (
                                 st.session_state.get("session_cost", 0.0)
-                                + (_in * 3 + _out * 15) / 1_000_000
+                                + (_total_in * 3 + _total_out * 15) / 1_000_000
                             )
                         except Exception as e:
                             reply = f"Error: {e}"
@@ -4198,13 +4230,19 @@ chart.applyOptions({{ width: container.clientWidth }});
             eps = meta.get("expected_eps")
             days = meta.get("earnings_days")
             date_str = meta["earnings_date"].strftime("%b %d")
-            days_str = ""
-            if days is not None and days >= 0:
-                days_str = f"Today" if days == 0 else f"In {days} day{'s' if days != 1 else ''}"
-            eps_str = f"Expected EPS ${eps:.2f}" if eps else "EPS estimate not available"
-            st.markdown(f"""
+            # Only show if upcoming OR reported within the last 45 days
+            if days is not None and days >= -45:
+                if days < 0:
+                    label = "📅 Last earnings"
+                    days_str = f"Reported {abs(days)} day{'s' if abs(days) != 1 else ''} ago"
+                    eps_str = f"Expected EPS ${eps:.2f}" if eps else ""
+                else:
+                    label = "📅 Next earnings"
+                    days_str = "Today" if days == 0 else f"In {days} day{'s' if days != 1 else ''}"
+                    eps_str = f"Expected EPS ${eps:.2f}" if eps else "EPS estimate not available"
+                st.markdown(f"""
 <div class="desk-stat-card">
-  <div class="label">📅 Next earnings</div>
+  <div class="label">{label}</div>
   <div class="row"><span>{date_str}{' · ' + days_str if days_str else ''}</span><span class="v">{eps_str}</span></div>
 </div>
 """, unsafe_allow_html=True)

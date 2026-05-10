@@ -150,30 +150,63 @@ def _generic_snapshot(ticker):
 
 
 def _fetch_recent_news(client, ticker, company_name):
-    """One web-search call to get recent earnings + news. Returns a
-    formatted block ready to inject into any prompt, or empty string."""
+    """Web-search call to get recent earnings + news.
+    Handles the multi-turn tool-use loop that web_search requires.
+    Returns a formatted block ready to inject into any prompt, or empty string."""
+    name = company_name or ticker
+    query = (
+        f"Search for: {name} ({ticker}) most recent earnings report — "
+        f"EPS reported vs expected, revenue beat or miss, full-year guidance, "
+        f"and any major analyst moves or news in the past 60 days. "
+        f"Include specific numbers. Be factual and concise."
+    )
+    messages = [{"role": "user", "content": query}]
+    tools = [{"type": "web_search_20250305", "name": "web_search"}]
+
     try:
-        name = company_name or ticker
-        resp = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=700,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
-            messages=[{"role": "user", "content":
-                f"Search for the most recent news for {name} ({ticker}): "
-                f"latest earnings (EPS reported vs expected, revenue beat/miss, guidance), "
-                f"any analyst upgrades/downgrades, major corporate events, or macro news "
-                f"directly affecting this company in the past 60 days. "
-                f"Return 4-6 specific bullet points with actual numbers. Be factual."
-            }],
-        )
-        text = " ".join(
-            b.text for b in resp.content if hasattr(b, "text") and b.text
-        ).strip()
-        if text:
-            return (
-                f"\n\nRECENT NEWS & EARNINGS (live web search — treat as more "
-                f"current than your training data; incorporate this into your analysis):\n{text}\n"
+        # Agentic loop — web_search may require multiple turns
+        for _ in range(5):  # max 5 turns
+            resp = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1000,
+                tools=tools,
+                messages=messages,
             )
+            # Collect any text from this turn
+            text_parts = [b.text for b in resp.content if hasattr(b, "text") and b.text]
+
+            if resp.stop_reason == "end_turn":
+                # Done — extract final text
+                final = " ".join(text_parts).strip()
+                if final:
+                    return (
+                        f"\n\nRECENT NEWS & EARNINGS (live web search — this is "
+                        f"more current than your training data; you MUST incorporate "
+                        f"these facts into your analysis):\n{final}\n"
+                    )
+                return ""
+
+            if resp.stop_reason == "tool_use":
+                # Append assistant turn and provide tool results
+                messages.append({"role": "assistant", "content": resp.content})
+                tool_results = []
+                for block in resp.content:
+                    if block.type == "tool_use":
+                        # web_search results come back in block.content for server-side tools
+                        result_content = getattr(block, "content", "") or ""
+                        if isinstance(result_content, list):
+                            result_content = " ".join(
+                                c.get("text", "") if isinstance(c, dict) else str(c)
+                                for c in result_content
+                            )
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": str(result_content),
+                        })
+                messages.append({"role": "user", "content": tool_results})
+            else:
+                break  # unexpected stop_reason
     except Exception:
         pass
     return ""
