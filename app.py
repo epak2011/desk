@@ -3452,7 +3452,8 @@ if view == "analyze":
                 pm_ctx      = (dossier_result or {}).get("pm_narrative") or ""
                 sys_prompt = (
                     f"You are a sharp, concise portfolio analyst assistant. "
-                    f"The user is looking at {ticker} right now. Live context:\n\n"
+                    f"The user is looking at {ticker} ({name}) right now. "
+                    f"IMPORTANT: {ticker} is EXACTLY {name} — do not confuse it with any other security. Live context:\n\n"
                     f"Price: ${t.get('price', 0):.2f}\n"
                     f"Action: {t.get('action', '').replace('_', ' ').upper()}\n"
                     f"MA50: ${t.get('ma50', 0):.2f} | MA200: ${t.get('ma200', 0):.2f}\n"
@@ -3471,11 +3472,15 @@ if view == "analyze":
                             _client = _anthropic.Anthropic(api_key=api_key)
                             _resp   = _client.messages.create(
                                 model="claude-sonnet-4-6",
-                                max_tokens=400,
+                                max_tokens=600,
                                 system=sys_prompt,
+                                tools=[{"type": "web_search_20250305", "name": "web_search"}],
                                 messages=st.session_state[chat_key],
                             )
-                            reply = _resp.content[0].text.strip()
+                            reply = " ".join(
+                                b.text for b in _resp.content
+                                if hasattr(b, "text") and b.text
+                            ).strip()
                             _in   = _resp.usage.input_tokens
                             _out  = _resp.usage.output_tokens
                             st.session_state["session_cost"] = (
@@ -4123,6 +4128,9 @@ chart.applyOptions({{ width: container.clientWidth }});
         with refresh_col:
             if st.button("↻", help="Regenerate Claude analysis (~$0.05). Refreshes thesis AND tactical_call comparison."):
                 clear_pm_cache(ticker)
+                clear_dossier_cache(ticker)
+                fetch_quote_meta.clear()
+                fetch_history.clear()
                 st.rerun()
 
         # Quality tier badge — informational, NOT a gate. Sourced from the

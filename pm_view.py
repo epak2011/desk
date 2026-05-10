@@ -149,6 +149,36 @@ def _generic_snapshot(ticker):
     }
 
 
+def _fetch_recent_news(client, ticker, company_name):
+    """One web-search call to get recent earnings + news. Returns a
+    formatted block ready to inject into any prompt, or empty string."""
+    try:
+        name = company_name or ticker
+        resp = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=700,
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            messages=[{"role": "user", "content":
+                f"Search for the most recent news for {name} ({ticker}): "
+                f"latest earnings (EPS reported vs expected, revenue beat/miss, guidance), "
+                f"any analyst upgrades/downgrades, major corporate events, or macro news "
+                f"directly affecting this company in the past 60 days. "
+                f"Return 4-6 specific bullet points with actual numbers. Be factual."
+            }],
+        )
+        text = " ".join(
+            b.text for b in resp.content if hasattr(b, "text") and b.text
+        ).strip()
+        if text:
+            return (
+                f"\n\nRECENT NEWS & EARNINGS (live web search — treat as more "
+                f"current than your training data; incorporate this into your analysis):\n{text}\n"
+            )
+    except Exception:
+        pass
+    return ""
+
+
 def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
     """Return a dict with BOTH snapshot fields and deep_dive nested.
 
@@ -176,8 +206,10 @@ def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
 
         client = Anthropic(api_key=api_key)
         t = tactical_output or {}
+        recent_news = _fetch_recent_news(client, ticker, company_name)
         prompt = f"""You are a senior portfolio manager at a long-biased hedge fund. Write a full investment note on {ticker}{' (' + company_name + ')' if company_name else ''}.
 
+CRITICAL: The ticker {ticker} refers EXACTLY to "{company_name if company_name else ticker}". Do not confuse it with any other company, fund, or entity that may share a similar name or ticker. All analysis must be about this specific security only.{recent_news}
 Current tactical state from the system (for context, not the focus):
 - Directional bias: {t.get('bias') or 'unclear'}
 - Action: {t.get('action', 'unknown')}
@@ -257,6 +289,8 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         import json as _json
         client = Anthropic(api_key=api_key)
 
+        recent_news_block = _fetch_recent_news(client, ticker, company_name)
+
         bias = t_state.get("bias") or t_state.get("raw_bias") or "unclear"
         action = t_state.get("action", "unknown")
         trigger = t_state.get("trigger") or {}
@@ -286,6 +320,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
 
         prompt = f"""You are a senior portfolio manager and trader. Generate THREE pieces of analysis on {ticker}{f' ({company_name})' if company_name else ''}.
 
+CRITICAL: The ticker {ticker} refers EXACTLY to "{company_name if company_name else ticker}". Do not confuse it with any other company, fund, or entity. All analysis must be about this specific security only.{recent_news_block}
 DATA YOU HAVE:
 
 Tactical state:
