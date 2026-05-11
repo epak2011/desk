@@ -633,14 +633,18 @@ html, body, .main, .main p, .main li {
 .main p:not([class*="desk-"]):not([class*="stMarkdown"]) {
     font-size: var(--fs-lg);
 }
-#MainMenu, header, footer { visibility: hidden; }
-/* Sidebar collapse/expand toggle — keep visible regardless of header hiding */
+#MainMenu, footer { visibility: hidden; }
+/* Hide header chrome but NOT the sidebar toggle button */
+header { visibility: hidden; }
+header [data-testid="stSidebarCollapsedControl"],
+header [data-testid="stSidebarCollapsedControl"] *,
 [data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapsedControl"] button,
-header [data-testid="stSidebarCollapsedControl"] {
+[data-testid="stSidebarCollapsedControl"] *,
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapseButton"] * {
     visibility: visible !important;
-    display: flex !important;
     opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
 /* ────────────────────────────────────────────────────────────── */
