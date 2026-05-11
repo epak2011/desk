@@ -634,15 +634,11 @@ html, body, .main, .main p, .main li {
     font-size: var(--fs-lg);
 }
 #MainMenu, footer { visibility: hidden; }
-/* Hide header chrome but keep sidebar toggle visible */
-header { visibility: hidden; }
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapsedControl"] *,
-[data-testid="stSidebarCollapseButton"],
-[data-testid="stSidebarCollapseButton"] * {
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
+/* Hide only deploy/share toolbar inside header — leave sidebar toggle untouched */
+header [data-testid="stToolbar"],
+header [data-testid="stStatusWidget"],
+header [data-testid="stDecoration"] {
+    visibility: hidden !important;
 }
 
 /* ────────────────────────────────────────────────────────────── */
