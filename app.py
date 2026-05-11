@@ -634,6 +634,10 @@ html, body, .main, .main p, .main li {
     font-size: var(--fs-lg);
 }
 #MainMenu, header, footer { visibility: hidden; }
+/* Sidebar collapse/expand toggle lives inside header in newer Streamlit — keep it visible */
+header [data-testid="stSidebarCollapsedControl"],
+header [data-testid="stSidebarNav"],
+button[kind="header"] { visibility: visible !important; }
 
 /* ────────────────────────────────────────────────────────────── */
 /*  Decision Dossier — synthesis paragraph below the decision     */
@@ -2498,12 +2502,19 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button:hover {
 }
 
 /* Add-to-watchlist button — full width, flush with watchlist rows */
-section[data-testid='stSidebar'] [data-testid="stButton"][class*="st-key-add_to_watchlist"] button,
-section[data-testid='stSidebar'] .st-key-add_to_watchlist button {
+section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"],
+section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] > div {
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
     width: 100% !important;
     margin: 0 !important;
     border-radius: 4px !important;
     font-size: var(--fs-sm) !important;
+    text-align: center !important;
+    justify-content: center !important;
 }
 
 /* Watchlist Pro ticker buttons — same style pattern but in main content */
