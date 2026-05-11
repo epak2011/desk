@@ -634,12 +634,6 @@ html, body, .main, .main p, .main li {
     font-size: var(--fs-lg);
 }
 #MainMenu, footer { visibility: hidden; }
-/* Hide only deploy/share toolbar inside header — leave sidebar toggle untouched */
-header [data-testid="stToolbar"],
-header [data-testid="stStatusWidget"],
-header [data-testid="stDecoration"] {
-    visibility: hidden !important;
-}
 
 /* ────────────────────────────────────────────────────────────── */
 /*  Decision Dossier — synthesis paragraph below the decision     */
