@@ -4097,92 +4097,92 @@ chart.applyOptions({{ width: container.clientWidth }});
         user_has_levels = (
             bool(user_lvls.get("support")) or bool(user_lvls.get("resistance"))
         )
-        with st.expander(
-            "Mark a custom level" + (
-                f" ({len(user_lvls.get('support',[])) + len(user_lvls.get('resistance',[]))} marked)"
-                if user_has_levels else ""
-            ),
-            expanded=user_has_levels,
-        ):
+    with st.expander(
+        "Mark a custom level" + (
+            f" ({len(user_lvls.get('support',[])) + len(user_lvls.get('resistance',[]))} marked)"
+            if user_has_levels else ""
+        ),
+        expanded=user_has_levels,
+    ):
+        st.markdown(
+            '<div style="font-size:var(--fs-sm);color:var(--color-muted);margin-bottom:10px;">'
+            'Manually-marked levels override auto-detection and bypass '
+            'quality gating in the support-test trigger.</div>',
+            unsafe_allow_html=True,
+        )
+
+        mc1, mc2 = st.columns(2)
+        with mc1:
             st.markdown(
-                '<div style="font-size:var(--fs-sm);color:var(--color-muted);margin-bottom:10px;">'
-                'Manually-marked levels override auto-detection and bypass '
-                'quality gating in the support-test trigger.</div>',
+                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
+                'font-weight:600;color:var(--color-accent);margin-bottom:4px;">Support</div>',
                 unsafe_allow_html=True,
             )
-
-            mc1, mc2 = st.columns(2)
-            with mc1:
-                st.markdown(
-                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
-                    'font-weight:600;color:var(--color-accent);margin-bottom:4px;">Support</div>',
+            for i, lv_price in enumerate(list(user_lvls.get("support", []))):
+                sub_c1, sub_c2 = st.columns([3, 1])
+                sub_c1.markdown(
+                    f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
+                    f"color:var(--color-accent);padding-top:7px;'>${float(lv_price):.2f}</div>",
                     unsafe_allow_html=True,
                 )
-                for i, lv_price in enumerate(list(user_lvls.get("support", []))):
-                    sub_c1, sub_c2 = st.columns([3, 1])
-                    sub_c1.markdown(
-                        f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
-                        f"color:var(--color-accent);padding-top:7px;'>${float(lv_price):.2f}</div>",
-                        unsafe_allow_html=True,
-                    )
-                    if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
-                        user_lvls["support"].pop(i)
+                if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
+                    user_lvls["support"].pop(i)
+                    st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                    save_store(st.session_state.store)
+                    st.rerun()
+            new_support = st.text_input(
+                "Add support",
+                key=f"new_sup_{ticker}",
+                placeholder="e.g. 145",
+                label_visibility="collapsed",
+            )
+            if st.button("Add", key=f"btn_sup_{ticker}", use_container_width=True):
+                try:
+                    v = float(new_support)
+                    if v > 0:
+                        user_lvls.setdefault("support", []).append(round(v, 2))
+                        user_lvls["support"] = sorted(set(user_lvls["support"]), reverse=True)
                         st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
                         save_store(st.session_state.store)
                         st.rerun()
-                new_support = st.text_input(
-                    "Add support",
-                    key=f"new_sup_{ticker}",
-                    placeholder="e.g. 145",
-                    label_visibility="collapsed",
-                )
-                if st.button("Add", key=f"btn_sup_{ticker}", use_container_width=True):
-                    try:
-                        v = float(new_support)
-                        if v > 0:
-                            user_lvls.setdefault("support", []).append(round(v, 2))
-                            user_lvls["support"] = sorted(set(user_lvls["support"]), reverse=True)
-                            st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
-                            save_store(st.session_state.store)
-                            st.rerun()
-                    except (ValueError, TypeError):
-                        st.warning("Enter a positive number.")
+                except (ValueError, TypeError):
+                    st.warning("Enter a positive number.")
 
-            with mc2:
-                st.markdown(
-                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
-                    'font-weight:600;color:var(--color-negative);margin-bottom:4px;">Resistance</div>',
+        with mc2:
+            st.markdown(
+                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
+                'font-weight:600;color:var(--color-negative);margin-bottom:4px;">Resistance</div>',
+                unsafe_allow_html=True,
+            )
+            for i, lv_price in enumerate(list(user_lvls.get("resistance", []))):
+                sub_c1, sub_c2 = st.columns([3, 1])
+                sub_c1.markdown(
+                    f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
+                    f"color:var(--color-negative);padding-top:7px;'>${float(lv_price):.2f}</div>",
                     unsafe_allow_html=True,
                 )
-                for i, lv_price in enumerate(list(user_lvls.get("resistance", []))):
-                    sub_c1, sub_c2 = st.columns([3, 1])
-                    sub_c1.markdown(
-                        f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
-                        f"color:var(--color-negative);padding-top:7px;'>${float(lv_price):.2f}</div>",
-                        unsafe_allow_html=True,
-                    )
-                    if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
-                        user_lvls["resistance"].pop(i)
+                if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
+                    user_lvls["resistance"].pop(i)
+                    st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                    save_store(st.session_state.store)
+                    st.rerun()
+            new_res = st.text_input(
+                "Add resistance",
+                key=f"new_res_{ticker}",
+                placeholder="e.g. 213",
+                label_visibility="collapsed",
+            )
+            if st.button("Add", key=f"btn_res_{ticker}", use_container_width=True):
+                try:
+                    v = float(new_res)
+                    if v > 0:
+                        user_lvls.setdefault("resistance", []).append(round(v, 2))
+                        user_lvls["resistance"] = sorted(set(user_lvls["resistance"]))
                         st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
                         save_store(st.session_state.store)
                         st.rerun()
-                new_res = st.text_input(
-                    "Add resistance",
-                    key=f"new_res_{ticker}",
-                    placeholder="e.g. 213",
-                    label_visibility="collapsed",
-                )
-                if st.button("Add", key=f"btn_res_{ticker}", use_container_width=True):
-                    try:
-                        v = float(new_res)
-                        if v > 0:
-                            user_lvls.setdefault("resistance", []).append(round(v, 2))
-                            user_lvls["resistance"] = sorted(set(user_lvls["resistance"]))
-                            st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
-                            save_store(st.session_state.store)
-                            st.rerun()
-                    except (ValueError, TypeError):
-                        st.warning("Enter a positive number.")
+                except (ValueError, TypeError):
+                    st.warning("Enter a positive number.")
 
     # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
