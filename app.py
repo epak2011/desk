@@ -4079,13 +4079,18 @@ chart.applyOptions({{ width: container.clientWidth }});
                 unsafe_allow_html=True,
             )
 
-        # Distant levels — context, not action. Collapsed sub-expander.
+        # Distant levels — show inline, not nested expander (Streamlit forbids nested expanders)
         if distant:
-            with st.expander(f"Other tested levels ({len(distant)})"):
-                st.markdown(
-                    "".join(_fmt_level_row(lv) for lv in distant[:8]),
-                    unsafe_allow_html=True,
-                )
+            st.markdown(
+                '<div style="font-size:var(--fs-xs);color:var(--color-faint);'
+                'text-transform:uppercase;letter-spacing:0.06em;margin:8px 0 4px;">'
+                f'Other tested levels ({len(distant)})</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "".join(_fmt_level_row(lv) for lv in distant[:8]),
+                unsafe_allow_html=True,
+            )
 
         # Manual override section — collapsed by default. Most users
         # never need it; the auto-detection is usually right.
