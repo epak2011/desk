@@ -634,10 +634,20 @@ html, body, .main, .main p, .main li {
     font-size: var(--fs-lg);
 }
 #MainMenu, header, footer { visibility: hidden; }
-/* Sidebar collapse/expand toggle lives inside header in newer Streamlit — keep it visible */
-header [data-testid="stSidebarCollapsedControl"],
-header [data-testid="stSidebarNav"],
-button[kind="header"] { visibility: visible !important; }
+/* Sidebar collapse/expand toggle — keep visible regardless of header hiding */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapsedControl"] button,
+header [data-testid="stSidebarCollapsedControl"] {
+    visibility: visible !important;
+    display: flex !important;
+    opacity: 1 !important;
+}
+/* Force sidebar always visible */
+section[data-testid="stSidebar"] {
+    display: flex !important;
+    visibility: visible !important;
+    transform: none !important;
+}
 
 /* ────────────────────────────────────────────────────────────── */
 /*  Decision Dossier — synthesis paragraph below the decision     */
