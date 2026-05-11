@@ -634,10 +634,8 @@ html, body, .main, .main p, .main li {
     font-size: var(--fs-lg);
 }
 #MainMenu, footer { visibility: hidden; }
-/* Hide header chrome but NOT the sidebar toggle button */
+/* Hide header chrome but keep sidebar toggle visible */
 header { visibility: hidden; }
-header [data-testid="stSidebarCollapsedControl"],
-header [data-testid="stSidebarCollapsedControl"] *,
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stSidebarCollapsedControl"] *,
 [data-testid="stSidebarCollapseButton"],
