@@ -50,16 +50,21 @@ PM_CACHE_TTL_DAYS = 7
 import os
 
 def _get_database_url():
-    """Read DATABASE_URL from env first, then Streamlit secrets if available."""
+    """Read DATABASE_URL from env first, then Streamlit secrets if available.
+    Also strips literal [brackets] that Supabase sometimes wraps around the
+    password and host in the connection string."""
     url = os.environ.get("DATABASE_URL", "").strip()
-    if url:
-        return url
-    try:
-        # st.secrets only exists when running in Streamlit Cloud (or with
-        # a local secrets.toml). Falls through silently if not configured.
-        return st.secrets.get("DATABASE_URL", "").strip()
-    except Exception:
-        return ""
+    if not url:
+        try:
+            url = st.secrets.get("DATABASE_URL", "").strip()
+        except Exception:
+            return ""
+    # Strip literal [ ] brackets that appear in some Supabase connection strings
+    # e.g. postgresql://user:[password]@[host]:port/db
+    import re as _re
+    url = _re.sub(r'(?<=:)\[([^\]@]*)\](?=@)', r'\1', url)    # [password]
+    url = _re.sub(r'(?<=@)\[([^\]/:]*)\]', r'\1', url)         # @[host]
+    return url
 
 USE_POSTGRES = bool(_get_database_url())
 
@@ -131,15 +136,10 @@ def load_store():
             # CRITICAL: When DATABASE_URL is set but unreachable, do NOT fall
             # through to the local file. On Streamlit Cloud the container
             # filesystem gets wiped on every reboot, so a "save" to the file
-            # appears to succeed but vanishes — silent data loss. Surface the
-            # error and return defaults so the user sees something but knows
-            # to fix the DB.
+            # appears to succeed but vanishes — silent data loss. Store the
+            # error for a prominent banner and return defaults.
             try:
-                st.error(
-                    f"⚠️ Database load failed: {e}. "
-                    f"Using temporary defaults — your data will NOT persist this session. "
-                    f"Check the DATABASE_URL secret format."
-                )
+                st.session_state["_db_error"] = str(e)
             except Exception:
                 pass
             return _store_default()
@@ -2497,6 +2497,15 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button:hover {
     border-color: var(--color-border) !important;
 }
 
+/* Add-to-watchlist button — full width, flush with watchlist rows */
+section[data-testid='stSidebar'] [data-testid="stButton"][class*="st-key-add_to_watchlist"] button,
+section[data-testid='stSidebar'] .st-key-add_to_watchlist button {
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 4px !important;
+    font-size: var(--fs-sm) !important;
+}
+
 /* Watchlist Pro ticker buttons — same style pattern but in main content */
 .main [class*="st-key-wlpro_open_"] button {
     background: transparent !important;
@@ -2604,10 +2613,13 @@ section[data-testid='stSidebar'] [class*="st-key-wl_del_"] button:hover {
         st.caption("Empty — type a ticker above and add it.")
 
     if st.session_state.current_ticker and st.session_state.current_ticker not in watchlist:
-        if st.button(f"+ Add {st.session_state.current_ticker} to watchlist", use_container_width=True):
+        st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
+        if st.button(f"+ Add {st.session_state.current_ticker} to watchlist",
+                     use_container_width=True, key="add_to_watchlist_btn"):
             st.session_state.store["watchlist"].append(st.session_state.current_ticker)
             save_store(st.session_state.store)
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown("### Sizing")
@@ -2783,6 +2795,16 @@ st.markdown(f"""
 
 view = st.session_state.view
 
+
+# ── Database error banner — shown on every page if DB is unreachable ──
+if st.session_state.get("_db_error"):
+    st.error(
+        "🚨 **Database connection failed — your watchlist and tracker are NOT being saved this session.**\n\n"
+        "Fix: Go to Streamlit Cloud → Settings → Secrets and check your `DATABASE_URL`. "
+        "The password must not contain literal `[brackets]`. Reset your Supabase password, "
+        'paste the new URL wrapped in double quotes: `DATABASE_URL = "postgresql://..."`\n\n'
+        f"Error detail: `{st.session_state['_db_error']}`"
+    )
 
 # ─────────────────────────────────────────────────────────────────────
 # ANALYZE — decision-first
