@@ -642,12 +642,6 @@ header [data-testid="stSidebarCollapsedControl"] {
     display: flex !important;
     opacity: 1 !important;
 }
-/* Force sidebar always visible */
-section[data-testid="stSidebar"] {
-    display: flex !important;
-    visibility: visible !important;
-    transform: none !important;
-}
 
 /* ────────────────────────────────────────────────────────────── */
 /*  Decision Dossier — synthesis paragraph below the decision     */
