@@ -3457,728 +3457,729 @@ if view == "analyze":
                     save_store(st.session_state.store)
                     st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
 
-    # 1b-chat. Follow-up chat ────────────────────────────────────────
-    chat_key = f"chat_{ticker}"
-    if chat_key not in st.session_state:
-        st.session_state[chat_key] = []
+        # 1b-chat. Follow-up chat ────────────────────────────────────────
+        chat_key = f"chat_{ticker}"
+        if chat_key not in st.session_state:
+            st.session_state[chat_key] = []
 
-    with st.expander("💬 Ask a follow-up question", expanded=bool(st.session_state[chat_key])):
-        if not api_key:
-            st.caption("Add an Anthropic API key in the sidebar to use chat.")
-        else:
-            for msg in st.session_state[chat_key]:
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
+        with st.expander("💬 Ask a follow-up question", expanded=bool(st.session_state[chat_key])):
+            if not api_key:
+                st.caption("Add an Anthropic API key in the sidebar to use chat.")
+            else:
+                # Render message history with simple markdown (no st.chat_message)
+                for msg in st.session_state[chat_key]:
+                    role_style = (
+                        "font-weight:600;color:var(--color-text);" if msg["role"] == "user"
+                        else "color:var(--color-body);"
+                    )
+                    prefix = "You" if msg["role"] == "user" else "Claude"
+                    st.markdown(
+                        f'<div style="margin-bottom:8px;font-size:var(--fs-base);line-height:1.5;">'
+                        f'<span style="{role_style}">{prefix}:</span> {msg["content"]}</div>',
+                        unsafe_allow_html=True,
+                    )
 
-            user_q = st.chat_input(f"Ask anything about {ticker}…", key=f"chat_input_{ticker}")
-            if user_q:
-                st.session_state[chat_key].append({"role": "user", "content": user_q})
-                with st.chat_message("user"):
-                    st.markdown(user_q)
-
-                dossier_ctx = (dossier_result or {}).get("dossier") or "Not yet generated."
-                tech_ctx    = (dossier_result or {}).get("technical_narrative") or ""
-                pm_ctx      = (dossier_result or {}).get("pm_narrative") or ""
-                sys_prompt = (
-                    f"You are a sharp, concise portfolio analyst assistant. "
-                    f"The user is looking at {ticker} ({name}) right now. "
-                    f"IMPORTANT: {ticker} is EXACTLY {name} — do not confuse it with any other security. Live context:\n\n"
-                    f"Price: ${t.get('price', 0):.2f}\n"
-                    f"Action: {t.get('action', '').replace('_', ' ').upper()}\n"
-                    f"MA50: ${t.get('ma50', 0):.2f} | MA200: ${t.get('ma200', 0):.2f}\n"
-                    f"RSI: {t.get('rsi14', t.get('rsi', 0)):.0f} | RS: {t.get('rs', 0):.2f}\n"
-                    f"ATR%: {t.get('atr_pct', 0):.1f}%\n"
-                    f"Support: ${t.get('support', 0):.2f} | Resistance: ${t.get('resistance', 0):.2f}\n\n"
-                    f"Decision dossier:\n{dossier_ctx}\n\n"
-                    + (f"Technical narrative:\n{tech_ctx}\n\n" if tech_ctx else "")
-                    + (f"PM narrative:\n{pm_ctx}\n\n" if pm_ctx else "")
-                    + "Answer concisely and directly. 2–4 sentences unless more is clearly needed. No fluff."
+                # Input row
+                user_q = st.text_input(
+                    "Ask anything about this ticker",
+                    key=f"chat_input_{ticker}",
+                    label_visibility="collapsed",
+                    placeholder=f"Ask anything about {ticker}…",
                 )
-                import anthropic as _anthropic
-                with st.chat_message("assistant"):
-                    with st.spinner(""):
+                ask_col, clear_col = st.columns([3, 1])
+                send = ask_col.button("Ask", key=f"chat_send_{ticker}", use_container_width=True)
+
+                if send and user_q.strip():
+                    q = user_q.strip()
+                    st.session_state[chat_key].append({"role": "user", "content": q})
+
+                    dossier_ctx = (dossier_result or {}).get("dossier") or "Not yet generated."
+                    tech_ctx    = (dossier_result or {}).get("technical_narrative") or ""
+                    pm_ctx      = (dossier_result or {}).get("pm_narrative") or ""
+                    sys_prompt = (
+                        f"You are a sharp, concise portfolio analyst assistant. "
+                        f"The user is looking at {ticker} ({name}) right now. "
+                        f"IMPORTANT: {ticker} is EXACTLY {name}. Live context:\n\n"
+                        f"Price: ${t.get('price', 0):.2f}\n"
+                        f"Action: {t.get('action', '').replace('_', ' ').upper()}\n"
+                        f"MA50: ${t.get('ma50', 0):.2f} | MA200: ${t.get('ma200', 0):.2f}\n"
+                        f"RSI: {t.get('rsi14', t.get('rsi', 0)):.0f} | RS: {t.get('rs', 0):.2f}\n"
+                        f"ATR%: {t.get('atr_pct', 0):.1f}%\n"
+                        f"Support: ${t.get('support', 0):.2f} | Resistance: ${t.get('resistance', 0):.2f}\n\n"
+                        f"Decision dossier:\n{dossier_ctx}\n\n"
+                        + (f"Technical narrative:\n{tech_ctx}\n\n" if tech_ctx else "")
+                        + (f"PM narrative:\n{pm_ctx}\n\n" if pm_ctx else "")
+                        + "Answer concisely. 2–4 sentences unless more is clearly needed."
+                    )
+                    import anthropic as _anthropic
+                    with st.spinner("Thinking…"):
                         try:
                             _client = _anthropic.Anthropic(api_key=api_key)
                             _tools  = [{"type": "web_search_20250305", "name": "web_search"}]
-                            _messages = list(st.session_state[chat_key])
-                            _total_in, _total_out = 0, 0
+                            _msgs   = list(st.session_state[chat_key])
+                            _in, _out = 0, 0
                             reply = ""
-
-                            # Multi-turn loop for web_search tool use
                             for _ in range(6):
                                 _resp = _client.messages.create(
                                     model="claude-sonnet-4-6",
                                     max_tokens=600,
                                     system=sys_prompt,
                                     tools=_tools,
-                                    messages=_messages,
+                                    messages=_msgs,
                                 )
-                                _total_in  += _resp.usage.input_tokens
-                                _total_out += _resp.usage.output_tokens
-
-                                text_parts = [
-                                    b.text for b in _resp.content
-                                    if hasattr(b, "text") and b.text
-                                ]
+                                _in  += _resp.usage.input_tokens
+                                _out += _resp.usage.output_tokens
+                                text_parts = [b.text for b in _resp.content if hasattr(b, "text") and b.text]
                                 if _resp.stop_reason == "end_turn":
                                     reply = " ".join(text_parts).strip()
                                     break
                                 if _resp.stop_reason == "tool_use":
-                                    _messages.append({"role": "assistant", "content": _resp.content})
+                                    _msgs.append({"role": "assistant", "content": _resp.content})
                                     _results = []
                                     for _b in _resp.content:
                                         if _b.type == "tool_use":
                                             _rc = getattr(_b, "content", "") or ""
                                             if isinstance(_rc, list):
-                                                _rc = " ".join(
-                                                    c.get("text","") if isinstance(c,dict) else str(c)
-                                                    for c in _rc
-                                                )
-                                            _results.append({
-                                                "type": "tool_result",
-                                                "tool_use_id": _b.id,
-                                                "content": str(_rc),
-                                            })
-                                    _messages.append({"role": "user", "content": _results})
+                                                _rc = " ".join(c.get("text","") if isinstance(c,dict) else str(c) for c in _rc)
+                                            _results.append({"type": "tool_result", "tool_use_id": _b.id, "content": str(_rc)})
+                                    _msgs.append({"role": "user", "content": _results})
                                 else:
                                     reply = " ".join(text_parts).strip()
                                     break
-
                             st.session_state["session_cost"] = (
-                                st.session_state.get("session_cost", 0.0)
-                                + (_total_in * 3 + _total_out * 15) / 1_000_000
+                                st.session_state.get("session_cost", 0.0) + (_in * 3 + _out * 15) / 1_000_000
                             )
                         except Exception as e:
                             reply = f"Error: {e}"
-                    st.markdown(reply)
-                st.session_state[chat_key].append({"role": "assistant", "content": reply})
-
-            if st.session_state[chat_key]:
-                if st.button("🗑 Clear chat", key=f"clear_chat_{ticker}"):
-                    st.session_state[chat_key] = []
+                    st.session_state[chat_key].append({"role": "assistant", "content": reply})
                     st.rerun()
 
-    # 1b. Decision modifiers — badges that nudge conviction up or down
-        # on top of the same nominal decision (earnings proximity, market
-        # regime, leadership/lag versus the index). Replaces the old
-        # earnings-only banner.
-    if modifiers:
-        mod_icons = {"earnings": "📅", "regime": "🌐", "rs": "📊"}
-        badges_html = "".join(
-            f'<div class="desk-mod desk-mod-{m["severity"]}">'
-            f'<span class="icon">{mod_icons.get(m["kind"], "•")}</span>'
-            f'<span>{m["text"]}</span>'
+                if st.session_state[chat_key]:
+                    if clear_col.button("Clear", key=f"clear_chat_{ticker}"):
+                        st.session_state[chat_key] = []
+                        st.rerun()
+
+        # 1b. Decision modifiers — badges that nudge conviction up or down
+            # on top of the same nominal decision (earnings proximity, market
+            # regime, leadership/lag versus the index). Replaces the old
+            # earnings-only banner.
+        if modifiers:
+            mod_icons = {"earnings": "📅", "regime": "🌐", "rs": "📊"}
+            badges_html = "".join(
+                f'<div class="desk-mod desk-mod-{m["severity"]}">'
+                f'<span class="icon">{mod_icons.get(m["kind"], "•")}</span>'
+                f'<span>{m["text"]}</span>'
+                f'</div>'
+                for m in modifiers
+            )
+            st.markdown(
+                f'<div class="desk-modifiers">{badges_html}</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Read of the tape — always visible, anchors every screen with the
+        # current technical state in concrete numbers.
+        tape_rows = tape_read(t)
+        color_map = {"pos": "#2E7D4F", "neg": "#D14545", "": "#3F3B34"}
+        tape_html = "".join(
+            f'<div class="row">'
+            f'  <span class="k">{label}</span>'
+            f'  <span class="v" style="color:{color_map.get(sev, "var(--color-body)")};">{bold_numbers(value)}</span>'
             f'</div>'
-            for m in modifiers
+            for label, value, sev in tape_rows
         )
-        st.markdown(
-            f'<div class="desk-modifiers">{badges_html}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"""
+    <div class="desk-tape-read">
+      <div class="label"><span class="em">📊</span>Read of the tape</div>
+      {tape_html}
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Read of the tape — always visible, anchors every screen with the
-    # current technical state in concrete numbers.
-    tape_rows = tape_read(t)
-    color_map = {"pos": "#2E7D4F", "neg": "#D14545", "": "#3F3B34"}
-    tape_html = "".join(
-        f'<div class="row">'
-        f'  <span class="k">{label}</span>'
-        f'  <span class="v" style="color:{color_map.get(sev, "var(--color-body)")};">{bold_numbers(value)}</span>'
-        f'</div>'
-        for label, value, sev in tape_rows
-    )
-    st.markdown(f"""
-<div class="desk-tape-read">
-  <div class="label"><span class="em">📊</span>Read of the tape</div>
-  {tape_html}
-</div>
-""", unsafe_allow_html=True)
-
-    # Technical narrative — 2-4 paragraphs, behind an expander.
-    # Defaults closed so the page stays scannable; one click reveals.
-    # The expander now ALSO contains the technical-read commentary
-    # lines (previously rendered separately on the right column) so
-    # all detailed technical content lives in one place.
-    tech_narrative = dossier_result.get("technical_narrative") if dossier_result else None
-    commentary_lines = technical_commentary(t)
-    has_detailed_tech = bool(tech_narrative) or bool(commentary_lines)
-    if has_detailed_tech:
-        with st.expander("Detailed technical view ↓", expanded=False):
-            # First: the structured commentary lines (tape detail).
-            # Same Geist font + size as narrative below for visual unity.
-            if commentary_lines:
-                commentary_html = "".join(
-                    f'<p style="margin: 0 0 8px; font-size: var(--fs-base); line-height: 1.55; '
-                    f'color: var(--color-body); font-family: Geist, sans-serif;">'
-                    f'{bold_numbers(line)}</p>'
-                    for line in commentary_lines
-                )
-                # Sub-label so users know what this section is
-                st.markdown(
-                    f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                    f'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
-                    f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
-                    unsafe_allow_html=True,
-                )
-
-            # Then: the prose narrative (if available)
-            if tech_narrative:
+        # Technical narrative — 2-4 paragraphs, behind an expander.
+        # Defaults closed so the page stays scannable; one click reveals.
+        # The expander now ALSO contains the technical-read commentary
+        # lines (previously rendered separately on the right column) so
+        # all detailed technical content lives in one place.
+        tech_narrative = dossier_result.get("technical_narrative") if dossier_result else None
+        commentary_lines = technical_commentary(t)
+        has_detailed_tech = bool(tech_narrative) or bool(commentary_lines)
+        if has_detailed_tech:
+            with st.expander("Detailed technical view ↓", expanded=False):
+                # First: the structured commentary lines (tape detail).
+                # Same Geist font + size as narrative below for visual unity.
                 if commentary_lines:
-                    # Visual divider between sections inside the expander
+                    commentary_html = "".join(
+                        f'<p style="margin: 0 0 8px; font-size: var(--fs-base); line-height: 1.55; '
+                        f'color: var(--color-body); font-family: Geist, sans-serif;">'
+                        f'{bold_numbers(line)}</p>'
+                        for line in commentary_lines
+                    )
+                    # Sub-label so users know what this section is
                     st.markdown(
-                        '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                        '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                        'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                        'color:var(--color-muted);margin-bottom:8px;">Narrative</div>',
+                        f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                        f'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                        f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
+                        f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
                         unsafe_allow_html=True,
                     )
-                paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
-                paras_html = "".join(
-                    f'<p style="margin: 0 0 12px; font-size: var(--fs-base); line-height: 1.55; '
-                    f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
-                    for p in paragraphs
-                )
-                st.markdown(
-                    f'<div style="padding: 0 2px;">{paras_html}</div>',
-                    unsafe_allow_html=True,
-                )
 
-    # 4. IF TRIGGER HITS — conditional trade plan
-    if t["action"] in ("enter_now", "watch"):
-        when_label = "If trigger hits" if t["action"] == "watch" else "Entering now"
-        st.markdown(f"""
-<div class="desk-plan-label">
-  <span class="em">📊</span>{when_label} · Trade plan
-</div>
-""", unsafe_allow_html=True)
+                # Then: the prose narrative (if available)
+                if tech_narrative:
+                    if commentary_lines:
+                        # Visual divider between sections inside the expander
+                        st.markdown(
+                            '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                            '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                            'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                            'color:var(--color-muted);margin-bottom:8px;">Narrative</div>',
+                            unsafe_allow_html=True,
+                        )
+                    paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
+                    paras_html = "".join(
+                        f'<p style="margin: 0 0 12px; font-size: var(--fs-base); line-height: 1.55; '
+                        f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
+                        for p in paragraphs
+                    )
+                    st.markdown(
+                        f'<div style="padding: 0 2px;">{paras_html}</div>',
+                        unsafe_allow_html=True,
+                    )
 
-        def plan_row(label, value, delta=None, delta_color=None, note=None):
-            delta_html = ""
-            if delta is not None:
-                delta_html = f'<span class="d" style="color:{delta_color};">{"+" if delta >= 0 else ""}{delta:.1f}%</span>'
-            note_html = f'<span class="sub">{note}</span>' if note else ""
+        # 4. IF TRIGGER HITS — conditional trade plan
+        if t["action"] in ("enter_now", "watch"):
+            when_label = "If trigger hits" if t["action"] == "watch" else "Entering now"
             st.markdown(f"""
-<div class="desk-plan-row">
-  <span class="k">{label}</span>
-  <span style="text-align:right;line-height:1.2;">
-<span class="v">${value:.2f}</span>{delta_html}
-{note_html}
-  </span>
-</div>
-""", unsafe_allow_html=True)
+    <div class="desk-plan-label">
+      <span class="em">📊</span>{when_label} · Trade plan
+    </div>
+    """, unsafe_allow_html=True)
 
-        # ATR in $ terms for distance calculations
-        atr_dollars = t["atr_pct"] * t["entry"]
-        stop_atrs = abs(t["entry"] - t["stop"]) / atr_dollars if atr_dollars > 0 else 0
-        t1_atrs = abs(t["t1"] - t["entry"]) / atr_dollars if atr_dollars > 0 else 0
-        risk_per_share = t["entry"] - t["stop"]
-        reward_per_share = t["t1"] - t["entry"]
-        rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
+            def plan_row(label, value, delta=None, delta_color=None, note=None):
+                delta_html = ""
+                if delta is not None:
+                    delta_html = f'<span class="d" style="color:{delta_color};">{"+" if delta >= 0 else ""}{delta:.1f}%</span>'
+                note_html = f'<span class="sub">{note}</span>' if note else ""
+                st.markdown(f"""
+    <div class="desk-plan-row">
+      <span class="k">{label}</span>
+      <span style="text-align:right;line-height:1.2;">
+    <span class="v">${value:.2f}</span>{delta_html}
+    {note_html}
+      </span>
+    </div>
+    """, unsafe_allow_html=True)
 
-        plan_row("Entry", t["entry"])
-        plan_row(
-            "Stop",
-            t["stop"],
-            (t["stop"]/t["entry"] - 1)*100,
-            "#D14545",
-            note=f"{stop_atrs:.1f}× ATR away" if stop_atrs > 0 else None,
-        )
-        plan_row(
-            "Target 1",
-            t["t1"],
-            (t["t1"]/t["entry"] - 1)*100,
-            "#2E7D4F",
-            note=f"{t1_atrs:.1f}× ATR away · reward/risk {rr_ratio:.2f}:1" if t1_atrs > 0 else None,
-        )
-        plan_row("Target 2", t["t2"], (t["t2"]/t["entry"] - 1)*100, "#2E7D4F")
+            # ATR in $ terms for distance calculations
+            atr_dollars = t["atr_pct"] * t["entry"]
+            stop_atrs = abs(t["entry"] - t["stop"]) / atr_dollars if atr_dollars > 0 else 0
+            t1_atrs = abs(t["t1"] - t["entry"]) / atr_dollars if atr_dollars > 0 else 0
+            risk_per_share = t["entry"] - t["stop"]
+            reward_per_share = t["t1"] - t["entry"]
+            rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
 
-        # Position sizing — risk-based shares vs max-position cap, take min.
-        # Label is rewritten to show four numbers in a clear order:
-        #   risk $X (Y% of account) · N shares · position $Z (W% of account)
-        # The "binding constraint" gets a short note when the cap is active.
-        account = st.session_state.store.get("account_size", 100000)
-        risk_pct = st.session_state.store.get("risk_per_trade", 0.01)
-        max_pos_pct = st.session_state.store.get("max_position_pct", 0.25)
+            plan_row("Entry", t["entry"])
+            plan_row(
+                "Stop",
+                t["stop"],
+                (t["stop"]/t["entry"] - 1)*100,
+                "#D14545",
+                note=f"{stop_atrs:.1f}× ATR away" if stop_atrs > 0 else None,
+            )
+            plan_row(
+                "Target 1",
+                t["t1"],
+                (t["t1"]/t["entry"] - 1)*100,
+                "#2E7D4F",
+                note=f"{t1_atrs:.1f}× ATR away · reward/risk {rr_ratio:.2f}:1" if t1_atrs > 0 else None,
+            )
+            plan_row("Target 2", t["t2"], (t["t2"]/t["entry"] - 1)*100, "#2E7D4F")
 
-        risk_dollars = account * risk_pct
-        per_share_risk = t["entry"] - t["stop"]
+            # Position sizing — risk-based shares vs max-position cap, take min.
+            # Label is rewritten to show four numbers in a clear order:
+            #   risk $X (Y% of account) · N shares · position $Z (W% of account)
+            # The "binding constraint" gets a short note when the cap is active.
+            account = st.session_state.store.get("account_size", 100000)
+            risk_pct = st.session_state.store.get("risk_per_trade", 0.01)
+            max_pos_pct = st.session_state.store.get("max_position_pct", 0.25)
 
-        if per_share_risk > 0 and t["entry"] > 0:
-            # 1. Shares the risk math says
-            risk_shares = int(risk_dollars // per_share_risk)
-            # 2. Shares the position cap allows
-            cap_dollars = account * max_pos_pct
-            cap_shares = int(cap_dollars // t["entry"])
-            # 3. Use the smaller — risk math AND the cap must both be satisfied
-            shares = min(risk_shares, cap_shares)
-            cap_active = cap_shares < risk_shares
+            risk_dollars = account * risk_pct
+            per_share_risk = t["entry"] - t["stop"]
 
-            position_value = shares * t["entry"]
-            pos_pct = (position_value / account) * 100 if account > 0 else 0
-            # Effective risk after the cap kicks in
-            effective_risk = shares * per_share_risk
-            effective_risk_pct = (effective_risk / account) * 100 if account > 0 else 0
+            if per_share_risk > 0 and t["entry"] > 0:
+                # 1. Shares the risk math says
+                risk_shares = int(risk_dollars // per_share_risk)
+                # 2. Shares the position cap allows
+                cap_dollars = account * max_pos_pct
+                cap_shares = int(cap_dollars // t["entry"])
+                # 3. Use the smaller — risk math AND the cap must both be satisfied
+                shares = min(risk_shares, cap_shares)
+                cap_active = cap_shares < risk_shares
 
-            cap_note = ""
-            if cap_active:
-                cap_note = (
-                    f'<div style="font-family: var(--font-sans);font-style:italic;'
-                    f'font-size:var(--fs-sm);color:#8B6914;margin-top:4px;">'
-                    f'Capped by max position size ({max_pos_pct*100:.0f}%). '
-                    f'Risk math alone wanted {risk_shares:,} shares.'
+                position_value = shares * t["entry"]
+                pos_pct = (position_value / account) * 100 if account > 0 else 0
+                # Effective risk after the cap kicks in
+                effective_risk = shares * per_share_risk
+                effective_risk_pct = (effective_risk / account) * 100 if account > 0 else 0
+
+                cap_note = ""
+                if cap_active:
+                    cap_note = (
+                        f'<div style="font-family: var(--font-sans);font-style:italic;'
+                        f'font-size:var(--fs-sm);color:#8B6914;margin-top:4px;">'
+                        f'Capped by max position size ({max_pos_pct*100:.0f}%). '
+                        f'Risk math alone wanted {risk_shares:,} shares.'
+                        f'</div>'
+                    )
+
+                st.markdown(f"""
+    <div style="margin-top:12px;padding:10px 12px;background:var(--color-surface-soft);border-radius:3px;
+            font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-body);line-height:1.45;">
+      <div>
+    <span style="color:var(--color-faint);">Risk</span>
+    <b style="color:var(--color-text);">${effective_risk:,.0f}</b>
+    <span style="color:var(--color-fainter);">({effective_risk_pct:.2f}% of ${account:,.0f})</span>
+      </div>
+      <div>
+    <span style="color:var(--color-faint);">Shares</span>
+    <b style="color:var(--color-text);">{shares:,}</b>
+    <span style="color:var(--color-fainter);">at ${t['entry']:.2f} entry</span>
+      </div>
+      <div>
+    <span style="color:var(--color-faint);">Position</span>
+    <b style="color:var(--color-text);">${position_value:,.0f}</b>
+    <span style="color:var(--color-fainter);">({pos_pct:.1f}% of account)</span>
+      </div>
+      {cap_note}
+    </div>
+    """, unsafe_allow_html=True)
+
+        # 4. Chart — TradingView Lightweight Charts (open-source, ~40KB).
+        # Renders client-side from our existing OHLCV data. Replaces the
+        # earlier Plotly attempt because Lightweight Charts produces a
+        # professional-looking trading chart (matches the paid TradingView
+        # widget aesthetic) with full styling control — the free TradingView
+        # embed widget doesn't allow per-MA color overrides, which is why
+        # we own the rendering ourselves.
+        st.markdown(f"""
+    <div class="desk-chart-label">
+      <span style="color:var(--color-muted);">📈 Chart · </span>
+      <span style="color:#F97316;font-weight:700;">MA 20</span>
+      <span style="color:var(--color-muted);"> · </span>
+      <span style="color:#2563EB;font-weight:700;">MA 50</span>
+      <span style="color:var(--color-muted);"> · </span>
+      <span style="color:#9333EA;font-weight:700;">MA 100</span>
+      <span style="color:var(--color-muted);"> · </span>
+      <span style="color:#DC2626;font-weight:700;">MA 200</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+        try:
+            import json as _chart_json
+
+            # Build the data payload for Lightweight Charts.
+            # Show 1 year so MA200 has proper context. MAs are computed
+            # on the FULL hist series so they're valid even at the start
+            # of the visible window.
+            chart_hist = hist.iloc[-252:].copy()
+            chart_hist["MA20"] = hist["Close"].rolling(20).mean().iloc[-252:]
+            chart_hist["MA50"] = hist["Close"].rolling(50).mean().iloc[-252:]
+            chart_hist["MA100"] = hist["Close"].rolling(100).mean().iloc[-252:]
+            chart_hist["MA200"] = hist["Close"].rolling(200).mean().iloc[-252:]
+
+            # Lightweight Charts wants seconds-since-epoch (UTCTimestamp)
+            # for time values. The hist index is daily DatetimeIndex.
+            def _ts(idx):
+                return int(idx.timestamp())
+
+            candles = [
+                {
+                    "time": _ts(idx),
+                    "open": round(float(row["Open"]), 4),
+                    "high": round(float(row["High"]), 4),
+                    "low": round(float(row["Low"]), 4),
+                    "close": round(float(row["Close"]), 4),
+                }
+                for idx, row in chart_hist.iterrows()
+            ]
+            volume = [
+                {
+                    "time": _ts(idx),
+                    "value": float(row["Volume"]),
+                    "color": ("rgba(22,163,74,0.45)" if row["Close"] >= row["Open"]
+                              else "rgba(220,38,38,0.45)"),
+                }
+                for idx, row in chart_hist.iterrows()
+            ]
+
+            def _ma_series(col):
+                out = []
+                for idx, val in chart_hist[col].items():
+                    # Lightweight Charts skips points with None/null
+                    if val is None:
+                        continue
+                    try:
+                        if val != val:  # NaN check
+                            continue
+                    except Exception:
+                        continue
+                    out.append({"time": _ts(idx), "value": round(float(val), 4)})
+                return out
+
+            ma_data = {
+                "MA20":  _ma_series("MA20"),
+                "MA50":  _ma_series("MA50"),
+                "MA100": _ma_series("MA100"),
+                "MA200": _ma_series("MA200"),
+            }
+
+            payload = _chart_json.dumps({
+                "candles": candles,
+                "volume": volume,
+                "ma": ma_data,
+            })
+
+            chart_html = f"""
+    <div id="lwchart_{ticker}" style="width:100%;height:480px;background:#FBFAF7;"></div>
+    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+    (function() {{
+      const data = {payload};
+      const container = document.getElementById('lwchart_{ticker}');
+      if (!container) return;
+
+      const chart = LightweightCharts.createChart(container, {{
+    width: container.clientWidth,
+    height: 480,
+    layout: {{
+      background: {{ type: 'solid', color: '#FBFAF7' }},
+      textColor: '#3F3B34',
+      fontFamily: 'Geist Mono, monospace',
+      fontSize: 11,
+    }},
+    grid: {{
+      vertLines: {{ color: '#EFEDE7' }},
+      horzLines: {{ color: '#EFEDE7' }},
+    }},
+    rightPriceScale: {{
+      borderColor: '#E5E3DE',
+      scaleMargins: {{ top: 0.08, bottom: 0.28 }},
+    }},
+    timeScale: {{
+      borderColor: '#E5E3DE',
+      timeVisible: false,
+      secondsVisible: false,
+    }},
+    crosshair: {{
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: {{ color: '#8A857C', width: 1, style: 2 }},
+      horzLine: {{ color: '#8A857C', width: 1, style: 2 }},
+    }},
+    handleScroll: true,
+    handleScale: true,
+      }});
+
+      // Candlesticks
+      const candleSeries = chart.addCandlestickSeries({{
+    upColor: '#16A34A',
+    downColor: '#DC2626',
+    borderUpColor: '#16A34A',
+    borderDownColor: '#DC2626',
+    wickUpColor: '#16A34A',
+    wickDownColor: '#DC2626',
+    priceLineVisible: true,
+    priceLineColor: '#8A857C',
+    priceLineWidth: 1,
+    priceLineStyle: 2,
+      }});
+      candleSeries.setData(data.candles);
+
+      // Four colored MA lines — the whole reason we're not using the
+      // free TradingView embed widget, which doesn't allow per-study colors.
+      const maConfigs = [
+    {{ key: 'MA20',  color: '#F97316' }},
+    {{ key: 'MA50',  color: '#2563EB' }},
+    {{ key: 'MA100', color: '#9333EA' }},
+    {{ key: 'MA200', color: '#DC2626' }},
+      ];
+      for (const cfg of maConfigs) {{
+    const series = chart.addLineSeries({{
+      color: cfg.color,
+      lineWidth: 1.5,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      title: cfg.key,
+      crosshairMarkerVisible: false,
+    }});
+    series.setData(data.ma[cfg.key]);
+      }}
+
+      // Volume on a separate price scale at the bottom (overlay)
+      const volumeSeries = chart.addHistogramSeries({{
+    priceFormat: {{ type: 'volume' }},
+    priceScaleId: 'volume',
+    color: 'rgba(107, 101, 91, 0.4)',
+      }});
+      volumeSeries.priceScale().applyOptions({{
+    scaleMargins: {{ top: 0.78, bottom: 0 }},
+      }});
+      volumeSeries.setData(data.volume);
+
+      chart.timeScale().fitContent();
+
+      // Re-fit on window resize so the chart stays full-width
+      const resize = () => {{
+    chart.applyOptions({{ width: container.clientWidth }});
+      }};
+      window.addEventListener('resize', resize);
+    }})();
+    </script>
+    """
+            st.components.v1.html(chart_html, height=500)
+        except Exception as _chart_err:
+            st.warning(f"Chart could not render: {_chart_err}")
+
+        # 5. Trade tracker log button — only shown for actionable states
+        # (Enter/Watch/Accumulate), since you don't "track" a Hold off or
+        # Avoid as an open trade. Separate from decisions_log on the
+        # comparison panel which logs all states for the calibration trial.
+        if t["action"] in ("enter_now", "watch", "accumulate"):
+            # Single-block HTML rendering. The button is an <a> link that
+            # fires ?track=TICKER&entry=PRICE&action=ACTION which the
+            # query-param handler at the top of this view picks up.
+            # No st.columns, no st.button — sidesteps every alignment bug.
+            entry_price = t.get("entry", t["price"])
+            action_label = sty["label"].lower()
+            track_url = f"?track={ticker}&entry={entry_price:.2f}&action={t['action']}"
+            st.markdown(
+                f'<div style="margin-top:24px; padding: 14px 16px;'
+                f'border: 1px solid var(--color-border);'
+                f'border-radius: 4px; display: flex; align-items: center;'
+                f'justify-content: space-between; gap: 16px; flex-wrap: wrap;">'
+                f'<div style="flex: 1 1 60%; min-width: 240px;">'
+                f'<div style="font-family: var(--font-sans);'
+                f'font-size: var(--fs-lg); font-weight: 600;'
+                f'color: var(--color-text); margin-bottom: 4px;">'
+                f'Trade Tracker</div>'
+                f'<div style="font-family: var(--font-sans);'
+                f'font-size: var(--fs-base); color: var(--color-body);'
+                f'line-height: 1.45;">'
+                f'Log this {action_label} setup with entry price '
+                f'<b>${entry_price:.2f}</b>; close later for P&amp;L.'
+                f'</div></div>'
+                f'<a href="{track_url}" target="_self" '
+                f'style="font-family: var(--font-sans);'
+                f'font-size: var(--fs-base); font-weight: 500;'
+                f'padding: 8px 16px;'
+                f'background: var(--color-bg);'
+                f'color: var(--color-text);'
+                f'border: 1px solid var(--color-border);'
+                f'border-radius: 4px;'
+                f'text-decoration: none; cursor: pointer;'
+                f'white-space: nowrap; flex-shrink: 0;'
+                f'transition: background 0.15s;"'
+                f'onmouseover="this.style.background=\'var(--color-surface-soft)\'" '
+                f'onmouseout="this.style.background=\'var(--color-bg)\'">'
+                f'Add to Tracker</a>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        # 6. Technical details — footer, collapsed
+        with st.expander("Technical details"):
+            rows = [
+                ("Bias", f"{t['bias'].capitalize() if t['bias'] else '—'} ({t['bias_score']:+d} on ±10 scale)"),
+                ("Technical score", f"{t['setup_score']:.1f} / 10"),
+                ("50-day moving average", f"${t['ma50']:.2f}"),
+                ("200-day moving average", f"${t['ma200']:.2f}"),
+                ("Average true range", f"{t['atr_pct']*100:.2f}%" + (" · below 1.5% gate" if not t['atr_ok'] else "")),
+                ("Relative strength vs S&P 500", f"{t['rs']:.3f} · 10d {'+' if t['rs_delta'] >= 0 else ''}{t['rs_delta']:.3f}"),
+                ("52-week high", f"${t['high_52w']:.2f}"),
+                ("20-day average volume", f"{t['avg_vol_20d']:,.0f}"),
+                ("Today volume / average", f"{t['vol_ratio']:.2f}×"),
+                ("Structure quality", f"{t['structure_quality']:.1f} / 10"),
+            ]
+            for label, value in rows:
+                st.markdown(f"""
+    <div style="display:flex;justify-content:space-between;font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);padding:3px 0;">
+      <span>{label}</span><span style="color:var(--color-text);">{value}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+        # 7. Key Levels — auto-detected support/resistance, focused on
+        # proximate actionable levels. Collapsed by default; opens to show
+        # nearby levels first with cleaner language than the prior version.
+        with st.expander("🎯 Key levels — support / resistance"):
+            auto_lvls = t.get("key_levels") or []
+            user_lvls = st.session_state.store.setdefault("manual_levels", {}).setdefault(
+                ticker.upper(), {"support": [], "resistance": []}
+            )
+            current_price = t["price"]
+
+            # Helper: format one auto level as a readable row
+            def _fmt_level_row(lv):
+                level = lv["level"]
+                pct = (level - current_price) / current_price * 100
+                kind = lv["kind"]
+                color = "#00A870" if kind == "support" else "#D14545"
+                # Direction language matters more than the +/- sign
+                if abs(pct) < 0.5:
+                    distance = "at current price"
+                elif pct > 0:
+                    distance = f"{pct:.1f}% above"
+                else:
+                    distance = f"{abs(pct):.1f}% below"
+                # Touches and flip context, in plain English
+                touches_text = f"{lv['touches']}× tested"
+                flip_text = " · also tested as resistance" if (kind == "support" and lv["is_flip"]) else (
+                    " · former support" if (kind == "resistance" and lv["is_flip"]) else ""
+                )
+                return (
+                    f'<div style="display:flex;justify-content:space-between;align-items:baseline;'
+                    f'font-family:Geist,sans-serif;font-size:var(--fs-base);color:var(--color-text);'
+                    f'padding:7px 0;border-bottom:1px solid var(--color-border-soft);">'
+                    f'<span><span style="font-family: var(--font-mono);font-weight:600;'
+                    f'color:{color};">${level:.2f}</span> '
+                    f'<span style="color:var(--color-muted);font-size:var(--fs-sm);margin-left:8px;">{kind}</span></span>'
+                    f'<span style="color:var(--color-muted);font-size:var(--fs-sm);">'
+                    f'{distance} · {touches_text}{flip_text}</span>'
                     f'</div>'
                 )
 
-            st.markdown(f"""
-<div style="margin-top:12px;padding:10px 12px;background:var(--color-surface-soft);border-radius:3px;
-        font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-body);line-height:1.45;">
-  <div>
-<span style="color:var(--color-faint);">Risk</span>
-<b style="color:var(--color-text);">${effective_risk:,.0f}</b>
-<span style="color:var(--color-fainter);">({effective_risk_pct:.2f}% of ${account:,.0f})</span>
-  </div>
-  <div>
-<span style="color:var(--color-faint);">Shares</span>
-<b style="color:var(--color-text);">{shares:,}</b>
-<span style="color:var(--color-fainter);">at ${t['entry']:.2f} entry</span>
-  </div>
-  <div>
-<span style="color:var(--color-faint);">Position</span>
-<b style="color:var(--color-text);">${position_value:,.0f}</b>
-<span style="color:var(--color-fainter);">({pos_pct:.1f}% of account)</span>
-  </div>
-  {cap_note}
-</div>
-""", unsafe_allow_html=True)
+            # Split into proximate (within 15%) vs distant
+            proximate = [
+                lv for lv in auto_lvls
+                if abs((lv["level"] - current_price) / current_price) <= 0.15
+            ]
+            distant = [lv for lv in auto_lvls if lv not in proximate]
 
-    # 4. Chart — TradingView Lightweight Charts (open-source, ~40KB).
-    # Renders client-side from our existing OHLCV data. Replaces the
-    # earlier Plotly attempt because Lightweight Charts produces a
-    # professional-looking trading chart (matches the paid TradingView
-    # widget aesthetic) with full styling control — the free TradingView
-    # embed widget doesn't allow per-MA color overrides, which is why
-    # we own the rendering ourselves.
-    st.markdown(f"""
-<div class="desk-chart-label">
-  <span style="color:var(--color-muted);">📈 Chart · </span>
-  <span style="color:#F97316;font-weight:700;">MA 20</span>
-  <span style="color:var(--color-muted);"> · </span>
-  <span style="color:#2563EB;font-weight:700;">MA 50</span>
-  <span style="color:var(--color-muted);"> · </span>
-  <span style="color:#9333EA;font-weight:700;">MA 100</span>
-  <span style="color:var(--color-muted);"> · </span>
-  <span style="color:#DC2626;font-weight:700;">MA 200</span>
-</div>
-""", unsafe_allow_html=True)
-
-    try:
-        import json as _chart_json
-
-        # Build the data payload for Lightweight Charts.
-        # Show 1 year so MA200 has proper context. MAs are computed
-        # on the FULL hist series so they're valid even at the start
-        # of the visible window.
-        chart_hist = hist.iloc[-252:].copy()
-        chart_hist["MA20"] = hist["Close"].rolling(20).mean().iloc[-252:]
-        chart_hist["MA50"] = hist["Close"].rolling(50).mean().iloc[-252:]
-        chart_hist["MA100"] = hist["Close"].rolling(100).mean().iloc[-252:]
-        chart_hist["MA200"] = hist["Close"].rolling(200).mean().iloc[-252:]
-
-        # Lightweight Charts wants seconds-since-epoch (UTCTimestamp)
-        # for time values. The hist index is daily DatetimeIndex.
-        def _ts(idx):
-            return int(idx.timestamp())
-
-        candles = [
-            {
-                "time": _ts(idx),
-                "open": round(float(row["Open"]), 4),
-                "high": round(float(row["High"]), 4),
-                "low": round(float(row["Low"]), 4),
-                "close": round(float(row["Close"]), 4),
-            }
-            for idx, row in chart_hist.iterrows()
-        ]
-        volume = [
-            {
-                "time": _ts(idx),
-                "value": float(row["Volume"]),
-                "color": ("rgba(22,163,74,0.45)" if row["Close"] >= row["Open"]
-                          else "rgba(220,38,38,0.45)"),
-            }
-            for idx, row in chart_hist.iterrows()
-        ]
-
-        def _ma_series(col):
-            out = []
-            for idx, val in chart_hist[col].items():
-                # Lightweight Charts skips points with None/null
-                if val is None:
-                    continue
-                try:
-                    if val != val:  # NaN check
-                        continue
-                except Exception:
-                    continue
-                out.append({"time": _ts(idx), "value": round(float(val), 4)})
-            return out
-
-        ma_data = {
-            "MA20":  _ma_series("MA20"),
-            "MA50":  _ma_series("MA50"),
-            "MA100": _ma_series("MA100"),
-            "MA200": _ma_series("MA200"),
-        }
-
-        payload = _chart_json.dumps({
-            "candles": candles,
-            "volume": volume,
-            "ma": ma_data,
-        })
-
-        chart_html = f"""
-<div id="lwchart_{ticker}" style="width:100%;height:480px;background:#FBFAF7;"></div>
-<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-<script>
-(function() {{
-  const data = {payload};
-  const container = document.getElementById('lwchart_{ticker}');
-  if (!container) return;
-
-  const chart = LightweightCharts.createChart(container, {{
-width: container.clientWidth,
-height: 480,
-layout: {{
-  background: {{ type: 'solid', color: '#FBFAF7' }},
-  textColor: '#3F3B34',
-  fontFamily: 'Geist Mono, monospace',
-  fontSize: 11,
-}},
-grid: {{
-  vertLines: {{ color: '#EFEDE7' }},
-  horzLines: {{ color: '#EFEDE7' }},
-}},
-rightPriceScale: {{
-  borderColor: '#E5E3DE',
-  scaleMargins: {{ top: 0.08, bottom: 0.28 }},
-}},
-timeScale: {{
-  borderColor: '#E5E3DE',
-  timeVisible: false,
-  secondsVisible: false,
-}},
-crosshair: {{
-  mode: LightweightCharts.CrosshairMode.Normal,
-  vertLine: {{ color: '#8A857C', width: 1, style: 2 }},
-  horzLine: {{ color: '#8A857C', width: 1, style: 2 }},
-}},
-handleScroll: true,
-handleScale: true,
-  }});
-
-  // Candlesticks
-  const candleSeries = chart.addCandlestickSeries({{
-upColor: '#16A34A',
-downColor: '#DC2626',
-borderUpColor: '#16A34A',
-borderDownColor: '#DC2626',
-wickUpColor: '#16A34A',
-wickDownColor: '#DC2626',
-priceLineVisible: true,
-priceLineColor: '#8A857C',
-priceLineWidth: 1,
-priceLineStyle: 2,
-  }});
-  candleSeries.setData(data.candles);
-
-  // Four colored MA lines — the whole reason we're not using the
-  // free TradingView embed widget, which doesn't allow per-study colors.
-  const maConfigs = [
-{{ key: 'MA20',  color: '#F97316' }},
-{{ key: 'MA50',  color: '#2563EB' }},
-{{ key: 'MA100', color: '#9333EA' }},
-{{ key: 'MA200', color: '#DC2626' }},
-  ];
-  for (const cfg of maConfigs) {{
-const series = chart.addLineSeries({{
-  color: cfg.color,
-  lineWidth: 1.5,
-  priceLineVisible: false,
-  lastValueVisible: true,
-  title: cfg.key,
-  crosshairMarkerVisible: false,
-}});
-series.setData(data.ma[cfg.key]);
-  }}
-
-  // Volume on a separate price scale at the bottom (overlay)
-  const volumeSeries = chart.addHistogramSeries({{
-priceFormat: {{ type: 'volume' }},
-priceScaleId: 'volume',
-color: 'rgba(107, 101, 91, 0.4)',
-  }});
-  volumeSeries.priceScale().applyOptions({{
-scaleMargins: {{ top: 0.78, bottom: 0 }},
-  }});
-  volumeSeries.setData(data.volume);
-
-  chart.timeScale().fitContent();
-
-  // Re-fit on window resize so the chart stays full-width
-  const resize = () => {{
-chart.applyOptions({{ width: container.clientWidth }});
-  }};
-  window.addEventListener('resize', resize);
-}})();
-</script>
-"""
-        st.components.v1.html(chart_html, height=500)
-    except Exception as _chart_err:
-        st.warning(f"Chart could not render: {_chart_err}")
-
-    # 5. Trade tracker log button — only shown for actionable states
-    # (Enter/Watch/Accumulate), since you don't "track" a Hold off or
-    # Avoid as an open trade. Separate from decisions_log on the
-    # comparison panel which logs all states for the calibration trial.
-    if t["action"] in ("enter_now", "watch", "accumulate"):
-        # Single-block HTML rendering. The button is an <a> link that
-        # fires ?track=TICKER&entry=PRICE&action=ACTION which the
-        # query-param handler at the top of this view picks up.
-        # No st.columns, no st.button — sidesteps every alignment bug.
-        entry_price = t.get("entry", t["price"])
-        action_label = sty["label"].lower()
-        track_url = f"?track={ticker}&entry={entry_price:.2f}&action={t['action']}"
-        st.markdown(
-            f'<div style="margin-top:24px; padding: 14px 16px;'
-            f'border: 1px solid var(--color-border);'
-            f'border-radius: 4px; display: flex; align-items: center;'
-            f'justify-content: space-between; gap: 16px; flex-wrap: wrap;">'
-            f'<div style="flex: 1 1 60%; min-width: 240px;">'
-            f'<div style="font-family: var(--font-sans);'
-            f'font-size: var(--fs-lg); font-weight: 600;'
-            f'color: var(--color-text); margin-bottom: 4px;">'
-            f'Trade Tracker</div>'
-            f'<div style="font-family: var(--font-sans);'
-            f'font-size: var(--fs-base); color: var(--color-body);'
-            f'line-height: 1.45;">'
-            f'Log this {action_label} setup with entry price '
-            f'<b>${entry_price:.2f}</b>; close later for P&amp;L.'
-            f'</div></div>'
-            f'<a href="{track_url}" target="_self" '
-            f'style="font-family: var(--font-sans);'
-            f'font-size: var(--fs-base); font-weight: 500;'
-            f'padding: 8px 16px;'
-            f'background: var(--color-bg);'
-            f'color: var(--color-text);'
-            f'border: 1px solid var(--color-border);'
-            f'border-radius: 4px;'
-            f'text-decoration: none; cursor: pointer;'
-            f'white-space: nowrap; flex-shrink: 0;'
-            f'transition: background 0.15s;"'
-            f'onmouseover="this.style.background=\'var(--color-surface-soft)\'" '
-            f'onmouseout="this.style.background=\'var(--color-bg)\'">'
-            f'Add to Tracker</a>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-    # 6. Technical details — footer, collapsed
-    with st.expander("Technical details"):
-        rows = [
-            ("Bias", f"{t['bias'].capitalize() if t['bias'] else '—'} ({t['bias_score']:+d} on ±10 scale)"),
-            ("Technical score", f"{t['setup_score']:.1f} / 10"),
-            ("50-day moving average", f"${t['ma50']:.2f}"),
-            ("200-day moving average", f"${t['ma200']:.2f}"),
-            ("Average true range", f"{t['atr_pct']*100:.2f}%" + (" · below 1.5% gate" if not t['atr_ok'] else "")),
-            ("Relative strength vs S&P 500", f"{t['rs']:.3f} · 10d {'+' if t['rs_delta'] >= 0 else ''}{t['rs_delta']:.3f}"),
-            ("52-week high", f"${t['high_52w']:.2f}"),
-            ("20-day average volume", f"{t['avg_vol_20d']:,.0f}"),
-            ("Today volume / average", f"{t['vol_ratio']:.2f}×"),
-            ("Structure quality", f"{t['structure_quality']:.1f} / 10"),
-        ]
-        for label, value in rows:
-            st.markdown(f"""
-<div style="display:flex;justify-content:space-between;font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);padding:3px 0;">
-  <span>{label}</span><span style="color:var(--color-text);">{value}</span>
-</div>
-""", unsafe_allow_html=True)
-
-    # 7. Key Levels — auto-detected support/resistance, focused on
-    # proximate actionable levels. Collapsed by default; opens to show
-    # nearby levels first with cleaner language than the prior version.
-    with st.expander("🎯 Key levels — support / resistance"):
-        auto_lvls = t.get("key_levels") or []
-        user_lvls = st.session_state.store.setdefault("manual_levels", {}).setdefault(
-            ticker.upper(), {"support": [], "resistance": []}
-        )
-        current_price = t["price"]
-
-        # Helper: format one auto level as a readable row
-        def _fmt_level_row(lv):
-            level = lv["level"]
-            pct = (level - current_price) / current_price * 100
-            kind = lv["kind"]
-            color = "#00A870" if kind == "support" else "#D14545"
-            # Direction language matters more than the +/- sign
-            if abs(pct) < 0.5:
-                distance = "at current price"
-            elif pct > 0:
-                distance = f"{pct:.1f}% above"
+            if proximate:
+                st.markdown(
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin:4px 0 6px;">Nearby — within 15% of current price</div>'
+                    + "".join(_fmt_level_row(lv) for lv in proximate[:6]),
+                    unsafe_allow_html=True,
+                )
+            elif auto_lvls:
+                st.markdown(
+                    '<div style="font-size:var(--fs-sm);color:var(--color-muted);font-style:italic;'
+                    'margin:4px 0 8px;">No tested levels within 15% of current price '
+                    '— price has run away from established support/resistance zones.</div>',
+                    unsafe_allow_html=True,
+                )
             else:
-                distance = f"{abs(pct):.1f}% below"
-            # Touches and flip context, in plain English
-            touches_text = f"{lv['touches']}× tested"
-            flip_text = " · also tested as resistance" if (kind == "support" and lv["is_flip"]) else (
-                " · former support" if (kind == "resistance" and lv["is_flip"]) else ""
-            )
-            return (
-                f'<div style="display:flex;justify-content:space-between;align-items:baseline;'
-                f'font-family:Geist,sans-serif;font-size:var(--fs-base);color:var(--color-text);'
-                f'padding:7px 0;border-bottom:1px solid var(--color-border-soft);">'
-                f'<span><span style="font-family: var(--font-mono);font-weight:600;'
-                f'color:{color};">${level:.2f}</span> '
-                f'<span style="color:var(--color-muted);font-size:var(--fs-sm);margin-left:8px;">{kind}</span></span>'
-                f'<span style="color:var(--color-muted);font-size:var(--fs-sm);">'
-                f'{distance} · {touches_text}{flip_text}</span>'
-                f'</div>'
-            )
-
-        # Split into proximate (within 15%) vs distant
-        proximate = [
-            lv for lv in auto_lvls
-            if abs((lv["level"] - current_price) / current_price) <= 0.15
-        ]
-        distant = [lv for lv in auto_lvls if lv not in proximate]
-
-        if proximate:
-            st.markdown(
-                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                'color:var(--color-muted);margin:4px 0 6px;">Nearby — within 15% of current price</div>'
-                + "".join(_fmt_level_row(lv) for lv in proximate[:6]),
-                unsafe_allow_html=True,
-            )
-        elif auto_lvls:
-            st.markdown(
-                '<div style="font-size:var(--fs-sm);color:var(--color-muted);font-style:italic;'
-                'margin:4px 0 8px;">No tested levels within 15% of current price '
-                '— price has run away from established support/resistance zones.</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                '<div style="font-size:var(--fs-sm);color:var(--color-faintest);font-style:italic;'
-                'margin:4px 0 8px;">No significant clusters in price history yet.</div>',
-                unsafe_allow_html=True,
-            )
-
-        # Distant levels — show inline, not nested expander (Streamlit forbids nested expanders)
-        if distant:
-            st.markdown(
-                '<div style="font-size:var(--fs-xs);color:var(--color-faint);'
-                'text-transform:uppercase;letter-spacing:0.06em;margin:8px 0 4px;">'
-                f'Other tested levels ({len(distant)})</div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                "".join(_fmt_level_row(lv) for lv in distant[:8]),
-                unsafe_allow_html=True,
-            )
-
-        # Manual override section — collapsed by default. Most users
-        # never need it; the auto-detection is usually right.
-        user_has_levels = (
-            bool(user_lvls.get("support")) or bool(user_lvls.get("resistance"))
-        )
-    with st.expander(
-        "Mark a custom level" + (
-            f" ({len(user_lvls.get('support',[])) + len(user_lvls.get('resistance',[]))} marked)"
-            if user_has_levels else ""
-        ),
-        expanded=user_has_levels,
-    ):
-        st.markdown(
-            '<div style="font-size:var(--fs-sm);color:var(--color-muted);margin-bottom:10px;">'
-            'Manually-marked levels override auto-detection and bypass '
-            'quality gating in the support-test trigger.</div>',
-            unsafe_allow_html=True,
-        )
-
-        mc1, mc2 = st.columns(2)
-        with mc1:
-            st.markdown(
-                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
-                'font-weight:600;color:var(--color-accent);margin-bottom:4px;">Support</div>',
-                unsafe_allow_html=True,
-            )
-            for i, lv_price in enumerate(list(user_lvls.get("support", []))):
-                sub_c1, sub_c2 = st.columns([3, 1])
-                sub_c1.markdown(
-                    f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
-                    f"color:var(--color-accent);padding-top:7px;'>${float(lv_price):.2f}</div>",
+                st.markdown(
+                    '<div style="font-size:var(--fs-sm);color:var(--color-faintest);font-style:italic;'
+                    'margin:4px 0 8px;">No significant clusters in price history yet.</div>',
                     unsafe_allow_html=True,
                 )
-                if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
-                    user_lvls["support"].pop(i)
-                    st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
-                    save_store(st.session_state.store)
-                    st.rerun()
-            new_support = st.text_input(
-                "Add support",
-                key=f"new_sup_{ticker}",
-                placeholder="e.g. 145",
-                label_visibility="collapsed",
+
+            # Distant levels — show inline, not nested expander (Streamlit forbids nested expanders)
+            if distant:
+                st.markdown(
+                    '<div style="font-size:var(--fs-xs);color:var(--color-faint);'
+                    'text-transform:uppercase;letter-spacing:0.06em;margin:8px 0 4px;">'
+                    f'Other tested levels ({len(distant)})</div>',
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    "".join(_fmt_level_row(lv) for lv in distant[:8]),
+                    unsafe_allow_html=True,
+                )
+
+            # Manual override section — collapsed by default. Most users
+            # never need it; the auto-detection is usually right.
+            user_has_levels = (
+                bool(user_lvls.get("support")) or bool(user_lvls.get("resistance"))
             )
-            if st.button("Add", key=f"btn_sup_{ticker}", use_container_width=True):
-                try:
-                    v = float(new_support)
-                    if v > 0:
-                        user_lvls.setdefault("support", []).append(round(v, 2))
-                        user_lvls["support"] = sorted(set(user_lvls["support"]), reverse=True)
+        with st.expander(
+            "Mark a custom level" + (
+                f" ({len(user_lvls.get('support',[])) + len(user_lvls.get('resistance',[]))} marked)"
+                if user_has_levels else ""
+            ),
+            expanded=user_has_levels,
+        ):
+            st.markdown(
+                '<div style="font-size:var(--fs-sm);color:var(--color-muted);margin-bottom:10px;">'
+                'Manually-marked levels override auto-detection and bypass '
+                'quality gating in the support-test trigger.</div>',
+                unsafe_allow_html=True,
+            )
+
+            mc1, mc2 = st.columns(2)
+            with mc1:
+                st.markdown(
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
+                    'font-weight:600;color:var(--color-accent);margin-bottom:4px;">Support</div>',
+                    unsafe_allow_html=True,
+                )
+                for i, lv_price in enumerate(list(user_lvls.get("support", []))):
+                    sub_c1, sub_c2 = st.columns([3, 1])
+                    sub_c1.markdown(
+                        f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
+                        f"color:var(--color-accent);padding-top:7px;'>${float(lv_price):.2f}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
+                        user_lvls["support"].pop(i)
                         st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
                         save_store(st.session_state.store)
                         st.rerun()
-                except (ValueError, TypeError):
-                    st.warning("Enter a positive number.")
+                new_support = st.text_input(
+                    "Add support",
+                    key=f"new_sup_{ticker}",
+                    placeholder="e.g. 145",
+                    label_visibility="collapsed",
+                )
+                if st.button("Add", key=f"btn_sup_{ticker}", use_container_width=True):
+                    try:
+                        v = float(new_support)
+                        if v > 0:
+                            user_lvls.setdefault("support", []).append(round(v, 2))
+                            user_lvls["support"] = sorted(set(user_lvls["support"]), reverse=True)
+                            st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                            save_store(st.session_state.store)
+                            st.rerun()
+                    except (ValueError, TypeError):
+                        st.warning("Enter a positive number.")
 
-        with mc2:
-            st.markdown(
-                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
-                'font-weight:600;color:var(--color-negative);margin-bottom:4px;">Resistance</div>',
-                unsafe_allow_html=True,
-            )
-            for i, lv_price in enumerate(list(user_lvls.get("resistance", []))):
-                sub_c1, sub_c2 = st.columns([3, 1])
-                sub_c1.markdown(
-                    f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
-                    f"color:var(--color-negative);padding-top:7px;'>${float(lv_price):.2f}</div>",
+            with mc2:
+                st.markdown(
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-sm);'
+                    'font-weight:600;color:var(--color-negative);margin-bottom:4px;">Resistance</div>',
                     unsafe_allow_html=True,
                 )
-                if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
-                    user_lvls["resistance"].pop(i)
-                    st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
-                    save_store(st.session_state.store)
-                    st.rerun()
-            new_res = st.text_input(
-                "Add resistance",
-                key=f"new_res_{ticker}",
-                placeholder="e.g. 213",
-                label_visibility="collapsed",
-            )
-            if st.button("Add", key=f"btn_res_{ticker}", use_container_width=True):
-                try:
-                    v = float(new_res)
-                    if v > 0:
-                        user_lvls.setdefault("resistance", []).append(round(v, 2))
-                        user_lvls["resistance"] = sorted(set(user_lvls["resistance"]))
+                for i, lv_price in enumerate(list(user_lvls.get("resistance", []))):
+                    sub_c1, sub_c2 = st.columns([3, 1])
+                    sub_c1.markdown(
+                        f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
+                        f"color:var(--color-negative);padding-top:7px;'>${float(lv_price):.2f}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
+                        user_lvls["resistance"].pop(i)
                         st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
                         save_store(st.session_state.store)
                         st.rerun()
-                except (ValueError, TypeError):
-                    st.warning("Enter a positive number.")
+                new_res = st.text_input(
+                    "Add resistance",
+                    key=f"new_res_{ticker}",
+                    placeholder="e.g. 213",
+                    label_visibility="collapsed",
+                )
+                if st.button("Add", key=f"btn_res_{ticker}", use_container_width=True):
+                    try:
+                        v = float(new_res)
+                        if v > 0:
+                            user_lvls.setdefault("resistance", []).append(round(v, 2))
+                            user_lvls["resistance"] = sorted(set(user_lvls["resistance"]))
+                            st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                            save_store(st.session_state.store)
+                            st.rerun()
+                    except (ValueError, TypeError):
+                        st.warning("Enter a positive number.")
 
-    # ───── RIGHT COLUMN: PM view (two layers) ─────
+        # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
         # PM data was fetched above (before column split) — use it directly.
         src_note = pm.get("_source", "the thesis")
