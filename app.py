@@ -1036,7 +1036,24 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     text-transform: uppercase; color: var(--color-muted);
     margin-bottom: 14px; padding-bottom: 6px;
     border-bottom: 1px solid var(--color-border);
-    display: flex; justify-content: space-between; align-items: baseline;
+    display: flex; justify-content: space-between; align-items: flex-end;
+    min-height: 52px;  /* matches desk-ticker-row height (sym line + meta line + padding) */
+}
+/* PM refresh button — right-aligned, small, doesn't add layout height */
+[class*="st-key-pm_refresh_btn"] {
+    margin-top: -44px !important;
+    margin-bottom: 10px !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+}
+[class*="st-key-pm_refresh_btn"] button {
+    padding: 4px 8px !important;
+    font-size: var(--fs-sm) !important;
+    min-height: 0 !important;
+    height: 28px !important;
+    background: transparent !important;
+    border: 1px solid var(--color-border) !important;
+    color: var(--color-muted) !important;
 }
 .desk-pm-header .em { font-size: var(--fs-base); margin-right: 6px; }
 .desk-pm-header .src {
@@ -1099,9 +1116,26 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-size: var(--fs-base); line-height: 1.45; color: var(--color-body);
 }
 
-/* Deep-dive expand button — aligned with stat cards */
-.desk-pm-container ~ div.stButton,
-.desk-stat-card ~ div.stButton {
+/* View full thesis / Collapse analysis buttons — strip Streamlit margins */
+[class*="st-key-pm_expand_"] > div,
+[class*="st-key-pm_collapse_"] > div {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+[class*="st-key-pm_expand_"] button,
+[class*="st-key-pm_collapse_"] button {
+    margin: 0 !important;
+    padding: 6px 12px !important;
+    font-family: var(--font-serif) !important;
+    font-size: var(--fs-base) !important;
+    font-weight: 400 !important;
+    color: var(--color-body) !important;
+    background: transparent !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 3px !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+}
     margin-left: 24px;
 }
 div.stButton > button {
@@ -1191,7 +1225,7 @@ div.streamlit-expanderHeader {
 /*  Stat cards — earnings, analyst consensus, Lynch check          */
 /* ────────────────────────────────────────────────────────────── */
 .desk-stat-card {
-    margin: 14px 0 0 24px;
+    margin: 12px 0;
     padding: 12px 14px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -4234,20 +4268,23 @@ if view == "analyze":
     with col_pm:
         # PM data was fetched above (before column split) — use it directly.
         src_note = pm.get("_source", "the thesis")
-        # Render PM header + refresh button as a single flex row (no nested
-        # st.columns which breaks alignment with the left ticker row)
         st.markdown(f"""
 <div class="desk-pm-header">
   <span><span class="em">🧠</span>Portfolio manager</span>
-  <span class="src">{src_note}</span>
+  <span style="display:flex;align-items:center;gap:10px;">
+    <span class="src">{src_note}</span>
+  </span>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("↻", key="pm_refresh_btn", help="Regenerate Claude analysis (~$0.05). Refreshes thesis AND tactical_call comparison."):
-            clear_pm_cache(ticker)
-            clear_dossier_cache(ticker)
-            fetch_quote_meta.clear()
-            fetch_history.clear()
-            st.rerun()
+        # ↻ refresh — sits just below header, right-aligned
+        _, refresh_col = st.columns([6, 1])
+        with refresh_col:
+            if st.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
+                clear_pm_cache(ticker)
+                clear_dossier_cache(ticker)
+                fetch_quote_meta.clear()
+                fetch_history.clear()
+                st.rerun()
 
         # Quality tier badge — informational, NOT a gate. Sourced from the
         # dossier Claude call (5th field). Shows long-term ownership read
@@ -4435,7 +4472,6 @@ if view == "analyze":
 
         btn_label = "View full thesis →"
         if not expanded:
-            st.markdown('<div style="margin-top:16px;"></div>', unsafe_allow_html=True)
             if st.button(btn_label, key=f"pm_expand_{ticker_key}", use_container_width=False):
                 st.session_state.pm_expanded[ticker_key] = not expanded
                 st.rerun()
