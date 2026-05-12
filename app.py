@@ -3046,8 +3046,7 @@ if view == "analyze":
 
     col_decision, col_pm = st.columns([5, 3])
 
-    # ── Unified header row — spans full width ABOVE the columns ──────
-    # Rendered outside both columns so left and right borders always align.
+    # ── Single full-width header row ──────────────────────────────────
     chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
     mcap       = format_market_cap(meta.get("market_cap"))
     spf        = meta.get("short_pct_float")
@@ -3063,35 +3062,37 @@ if view == "analyze":
     src_note   = pm.get("_source", "the thesis")
     chg_sign   = "+" if t["change"] >= 0 else ""
 
-    hdr_l, hdr_r = st.columns([5, 3])
-    with hdr_l:
-        st.markdown(f"""
-<div class="desk-ticker-row">
+    st.markdown(f"""
+<div style="display:flex;justify-content:space-between;align-items:flex-end;
+            padding-bottom:10px;margin-bottom:16px;
+            border-bottom:1px solid var(--color-border);">
   <div>
-    <div>
-      <span class="sym">{ticker}</span>
-      <span class="name">{name}</span>
+    <div style="display:flex;align-items:baseline;gap:10px;">
+      <span style="font-family:var(--font-sans);font-size:var(--fs-2xl);font-weight:700;letter-spacing:-0.01em;">{ticker}</span>
+      <span style="font-size:var(--fs-base);color:var(--color-muted);">{name}</span>
     </div>
-    <div class="meta-inline">{meta_line}</div>
+    <div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-faint);margin-top:3px;">{meta_line}</div>
   </div>
-  <div>
+  <div style="display:flex;align-items:flex-end;gap:32px;">
     <div style="text-align:right;">
-      <span class="price">${t['price']:,.2f}</span>
-      <span class="chg" style="color:{chg_color};">
-        {chg_sign}{t['change']:.2f}%
-      </span>
+      <span style="font-family:var(--font-mono);font-size:var(--fs-xl);font-weight:600;">${t['price']:,.2f}</span>
+      <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:{chg_color};margin-left:6px;">{chg_sign}{t['change']:.2f}%</span>
+    </div>
+    <div style="text-align:right;padding-bottom:2px;">
+      <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-muted);">
+        🧠 Portfolio manager
+      </div>
+      <div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-fainter);margin-top:2px;">{src_note}</div>
     </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
-    with hdr_r:
-        st.markdown(f"""
-<div class="desk-pm-header">
-  <span><span class="em">🧠</span>Portfolio manager</span>
-  <span class="src">{src_note}</span>
-</div>
-""", unsafe_allow_html=True)
-        if st.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
+
+    # ↻ refresh button — right-aligned above PM column
+    _, pm_refresh_col = st.columns([5, 3])
+    with pm_refresh_col:
+        _, rb = st.columns([4, 1])
+        if rb.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
             clear_pm_cache(ticker)
             clear_dossier_cache(ticker)
             fetch_quote_meta.clear()
