@@ -690,17 +690,12 @@ html, body, .main, .main p, .main li {
     font-size: var(--fs-base); line-height: 1;
 }
 
-/* Navbar — fixed so it stays on scroll regardless of Streamlit's overflow containers */
+/* Navbar */
 .desk-bar {
     background: var(--color-text); color: var(--color-bg);
     padding: 11px 20px;
     display: flex; justify-content: space-between; align-items: center;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 9999;
-    height: 44px;
+    margin: -1.2rem -1rem 1.5rem;
 }
 /* Push content below the fixed bar */
 .main .block-container {
