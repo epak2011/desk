@@ -615,6 +615,15 @@ st.markdown("""
 }
 
 .stApp { background: var(--color-bg); }
+
+/* Fix sticky header — Streamlit's overflow:auto on .main breaks position:sticky */
+.stApp > section, .stApp > div, section[data-testid="stMain"],
+section[data-testid="stMain"] > div {
+    overflow: visible !important;
+}
+/* Keep horizontal overflow hidden to avoid scrollbars */
+body { overflow-x: hidden !important; }
+
 .main .block-container {
     padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1400px;
     font-size: var(--fs-lg);
@@ -1039,18 +1048,22 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     display: flex; justify-content: space-between; align-items: flex-end;
     min-height: 52px;  /* matches desk-ticker-row height (sym line + meta line + padding) */
 }
-/* PM refresh button — right-aligned, small, doesn't add layout height */
+/* PM refresh button — pulled up into the header row */
 [class*="st-key-pm_refresh_btn"] {
-    margin-top: -44px !important;
-    margin-bottom: 10px !important;
+    margin-top: -40px !important;
+    margin-bottom: 0 !important;
+    float: right !important;
+    width: auto !important;
+}
+[class*="st-key-pm_refresh_btn"] > div {
     display: flex !important;
     justify-content: flex-end !important;
 }
 [class*="st-key-pm_refresh_btn"] button {
-    padding: 4px 8px !important;
-    font-size: var(--fs-sm) !important;
+    padding: 2px 8px !important;
+    font-size: var(--fs-base) !important;
     min-height: 0 !important;
-    height: 28px !important;
+    height: 26px !important;
     background: transparent !important;
     border: 1px solid var(--color-border) !important;
     color: var(--color-muted) !important;
@@ -1116,7 +1129,19 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-size: var(--fs-base); line-height: 1.45; color: var(--color-body);
 }
 
-/* View full thesis / Collapse analysis buttons — strip Streamlit margins */
+/* Ask → button in chat expander */
+[class*="st-key-chat_send_"] button {
+    text-align: center !important;
+    justify-content: center !important;
+    background: var(--color-text) !important;
+    color: var(--color-bg) !important;
+    border: none !important;
+    font-family: var(--font-sans) !important;
+    font-size: var(--fs-base) !important;
+    font-weight: 500 !important;
+    border-radius: 4px !important;
+    letter-spacing: 0.02em !important;
+}
 [class*="st-key-pm_expand_"] > div,
 [class*="st-key-pm_collapse_"] > div {
     margin: 0 !important;
@@ -3021,27 +3046,25 @@ if view == "analyze":
 
     col_decision, col_pm = st.columns([5, 3])
 
-    # ───── LEFT COLUMN: decision + trading logic ─────
-    with col_decision:
-        # 0. Compact ticker line with inline meta (sector · mcap · short · earnings)
-        chg_color = "#2E7D4F" if t["change"] >= 0 else "#D14545"
-        mcap = format_market_cap(meta.get("market_cap"))
-        spf = meta.get("short_pct_float")
-        earn_banner, earn_footer = format_earnings(meta)
-        meta_bits = []
-        if meta.get("sector"):
-            meta_bits.append(meta["sector"])
-        if mcap:
-            meta_bits.append(mcap)
-        if spf is not None:
-            meta_bits.append(f"{spf:.1f}% short")
-        dy = meta.get("dividend_yield")
-        if dy is not None and dy > 0.05:
-            meta_bits.append(f"{dy:.2f}% yield")
-        if earn_footer and not earn_banner:
-            meta_bits.append(f"Earnings {earn_footer}")
-        meta_line = " · ".join(meta_bits)
+    # ── Unified header row — spans full width ABOVE the columns ──────
+    # Rendered outside both columns so left and right borders always align.
+    chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
+    mcap       = format_market_cap(meta.get("market_cap"))
+    spf        = meta.get("short_pct_float")
+    earn_banner, earn_footer = format_earnings(meta)
+    meta_bits  = []
+    if meta.get("sector"):      meta_bits.append(meta["sector"])
+    if mcap:                    meta_bits.append(mcap)
+    if spf is not None:         meta_bits.append(f"{spf:.1f}% short")
+    dy = meta.get("dividend_yield")
+    if dy is not None and dy > 0.05: meta_bits.append(f"{dy:.2f}% yield")
+    if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
+    meta_line  = " · ".join(meta_bits)
+    src_note   = pm.get("_source", "the thesis")
+    chg_sign   = "+" if t["change"] >= 0 else ""
 
+    hdr_l, hdr_r = st.columns([5, 3])
+    with hdr_l:
         st.markdown(f"""
 <div class="desk-ticker-row">
   <div>
@@ -3055,13 +3078,28 @@ if view == "analyze":
     <div style="text-align:right;">
       <span class="price">${t['price']:,.2f}</span>
       <span class="chg" style="color:{chg_color};">
-        {'+' if t['change'] >= 0 else ''}{t['change']:.2f}%
+        {chg_sign}{t['change']:.2f}%
       </span>
     </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
+    with hdr_r:
+        st.markdown(f"""
+<div class="desk-pm-header">
+  <span><span class="em">🧠</span>Portfolio manager</span>
+  <span class="src">{src_note}</span>
+</div>
+""", unsafe_allow_html=True)
+        if st.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
+            clear_pm_cache(ticker)
+            clear_dossier_cache(ticker)
+            fetch_quote_meta.clear()
+            fetch_history.clear()
+            st.rerun()
 
+    # ───── LEFT COLUMN: decision + trading logic ─────
+    with col_decision:
         # 1. DECISION — hero
         # Structure state copy maps action+state to a one-line rationale
         # that appears under the giant decision word per the 2026-04-28
@@ -4266,25 +4304,7 @@ if view == "analyze":
 
         # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
-        # PM data was fetched above (before column split) — use it directly.
         src_note = pm.get("_source", "the thesis")
-        st.markdown(f"""
-<div class="desk-pm-header">
-  <span><span class="em">🧠</span>Portfolio manager</span>
-  <span style="display:flex;align-items:center;gap:10px;">
-    <span class="src">{src_note}</span>
-  </span>
-</div>
-""", unsafe_allow_html=True)
-        # ↻ refresh — sits just below header, right-aligned
-        _, refresh_col = st.columns([6, 1])
-        with refresh_col:
-            if st.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
-                clear_pm_cache(ticker)
-                clear_dossier_cache(ticker)
-                fetch_quote_meta.clear()
-                fetch_history.clear()
-                st.rerun()
 
         # Quality tier badge — informational, NOT a gate. Sourced from the
         # dossier Claude call (5th field). Shows long-term ownership read
