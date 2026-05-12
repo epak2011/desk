@@ -1628,7 +1628,7 @@ def format_market_cap(cap):
     if not cap:
         return None
     if cap >= 1e12:
-        return f"${cap/1e12:.2f}T"
+        return f"${cap/1e12:,.2f}T"
     if cap >= 1e9:
         return f"${cap/1e9:.1f}B"
     if cap >= 1e6:
@@ -1738,7 +1738,7 @@ def decision_context(t):
             src = "user-marked" if meta.get("source") == "manual" else (
                 "key support level"
             )
-            return f"Approaching {src} at ${level:.2f} — buy on a hold."
+            return f"Approaching {src} at ${level:,.2f} — buy on a hold."
         return f"{bias} — needs confirmation."
     if a == "hold_off":
         # Universal fall-through state. Several distinct shapes can land
@@ -1805,19 +1805,19 @@ def bold_numbers(s):
 def trigger_text(t):
     """Short, price-based, single-condition."""
     if t["action"] == "enter_now":
-        return f"Enter long at market — ${t['price']:.2f}."
+        return f"Enter long at market — ${t['price']:,.2f}."
     if t["action"] == "watch" and t.get("trigger"):
         trg = t["trigger"]
         kind = trg["kind"]
         buy = trg.get("levels", {}).get("buy_above")
         if kind == "reclaim_ma50" and buy:
-            return f"Reclaim above ${buy:.2f} (the 50-day MA)."
+            return f"Reclaim above ${buy:,.2f} (the 50-day MA)."
         if kind in ("fast_momentum", "breakout") and buy:
-            return f"Break above ${buy:.2f} on strong volume."
+            return f"Break above ${buy:,.2f} on strong volume."
         if kind == "coil_break" and buy:
-            return f"Break above ${buy:.2f} on expanding volume."
+            return f"Break above ${buy:,.2f} on expanding volume."
         if kind == "pullback" and buy:
-            return f"Pullback to ${buy:.2f} that holds."
+            return f"Pullback to ${buy:,.2f} that holds."
         if kind == "rs_catchup":
             return "Relative strength vs S&P 500 back above 1.00."
         if kind == "historical_support_test" and buy:
@@ -1825,9 +1825,9 @@ def trigger_text(t):
             descriptor = "user-marked support" if meta.get("source") == "manual" else (
                 "key support level"
             )
-            return f"Hold of ${buy:.2f} — {descriptor}, wait for tap-and-bounce."
+            return f"Hold of ${buy:,.2f} — {descriptor}, wait for tap-and-bounce."
         if buy:
-            return f"Close above ${buy:.2f}."
+            return f"Close above ${buy:,.2f}."
         return trg.get("summary", "").capitalize()
     if t["action"] == "avoid":
         if t["raw_bias"] == "bearish":
@@ -1840,11 +1840,11 @@ def trigger_text(t):
 
 def invalidation_text(t):
     if t["action"] == "enter_now":
-        return f"Below ${t['stop']:.2f}, setup is invalid."
+        return f"Below ${t['stop']:,.2f}, setup is invalid."
     if t["action"] == "watch" and t.get("trigger"):
         abort = t["trigger"].get("levels", {}).get("abort_below")
         if abort:
-            return f"Below ${abort:.2f}, setup is invalid."
+            return f"Below ${abort:,.2f}, setup is invalid."
     return None
 
 
@@ -1870,13 +1870,13 @@ def tape_read(t):
     ma50_gap_pct = (price - ma50) / ma50 * 100
     ma200_gap_pct = (price - ma200) / ma200 * 100
     if price > ma50 and price > ma200:
-        rows.append(("Trend", f"Above 50d (${ma50:.2f}, +{ma50_gap_pct:.1f}%) and 200d (${ma200:.2f}, +{ma200_gap_pct:.1f}%)", "pos"))
+        rows.append(("Trend", f"Above 50d (${ma50:,.2f}, +{ma50_gap_pct:.1f}%) and 200d (${ma200:,.2f}, +{ma200_gap_pct:.1f}%)", "pos"))
     elif price < ma50 and price < ma200:
-        rows.append(("Trend", f"Below 50d (${ma50:.2f}, {ma50_gap_pct:.1f}%) and 200d (${ma200:.2f}, {ma200_gap_pct:.1f}%)", "neg"))
+        rows.append(("Trend", f"Below 50d (${ma50:,.2f}, {ma50_gap_pct:.1f}%) and 200d (${ma200:,.2f}, {ma200_gap_pct:.1f}%)", "neg"))
     elif price < ma50:
-        rows.append(("Trend", f"Below 50d (${ma50:.2f}, {ma50_gap_pct:.1f}%), above 200d (${ma200:.2f}, +{ma200_gap_pct:.1f}%)", ""))
+        rows.append(("Trend", f"Below 50d (${ma50:,.2f}, {ma50_gap_pct:.1f}%), above 200d (${ma200:,.2f}, +{ma200_gap_pct:.1f}%)", ""))
     else:
-        rows.append(("Trend", f"Above 50d (${ma50:.2f}, +{ma50_gap_pct:.1f}%), below 200d (${ma200:.2f}, {ma200_gap_pct:.1f}%)", ""))
+        rows.append(("Trend", f"Above 50d (${ma50:,.2f}, +{ma50_gap_pct:.1f}%), below 200d (${ma200:,.2f}, {ma200_gap_pct:.1f}%)", ""))
 
     # 2. Momentum
     if tech_delta >= 1.5:
@@ -1929,14 +1929,14 @@ def why_avoid_reasons(t):
         # Shape 1: pullback in uptrend (above ma200, below ma50)
         if price > ma200 and price < ma50:
             reasons.append(
-                f"Below the 50-day (${ma50:.2f}) but holding above the 200-day "
-                f"(${ma200:.2f}) — short-term pullback in an intact long-term trend."
+                f"Below the 50-day (${ma50:,.2f}) but holding above the 200-day "
+                f"(${ma200:,.2f}) — short-term pullback in an intact long-term trend."
             )
 
         # Shape 2: below ma200 but tape still loyal
         if price < ma200 and rs >= 0.95:
             reasons.append(
-                f"Below the 200-day (${ma200:.2f}) but relative strength "
+                f"Below the 200-day (${ma200:,.2f}) but relative strength "
                 f"{rs:.2f} suggests the tape is still respecting this name — "
                 f"long-term structure is breaking, leadership isn't yet."
             )
@@ -1967,7 +1967,7 @@ def why_avoid_reasons(t):
         reasons.append(f"Average true range is {atr_pct*100:.2f}% — below the 1.5% floor this system needs to work.")
 
     if price < ma200:
-        reasons.append(f"Below the 200-day moving average (${ma200:.2f}) — long-term structure has broken.")
+        reasons.append(f"Below the 200-day moving average (${ma200:,.2f}) — long-term structure has broken.")
 
     if rs < 0.9:
         reasons.append(f"Relative strength {rs:.2f} — tape is actively rejecting this name (vs 0.9 threshold).")
@@ -2076,12 +2076,12 @@ def reconsider_when(t):
         name, level, dist, _ = lead
         if dist == "near":
             conditions.append(
-                f"A clean break above the {name} at ${level:.2f} on rising volume."
+                f"A clean break above the {name} at ${level:,.2f} on rising volume."
             )
         else:
             pct = (level / price - 1) * 100
             conditions.append(
-                f"A reclaim of the {name} at ${level:.2f} ({pct:+.0f}% from here) "
+                f"A reclaim of the {name} at ${level:,.2f} ({pct:+.0f}% from here) "
                 f"on rising volume."
             )
         leading_with_price_level = True
@@ -2128,7 +2128,7 @@ def reconsider_when(t):
             name, level, _, _ = far_or_ref[0]
             pct = (level / price - 1) * 100
             conditions.append(
-                f"Eventually, a reclaim of the {name} at ${level:.2f} ({pct:+.0f}% away) — "
+                f"Eventually, a reclaim of the {name} at ${level:,.2f} ({pct:+.0f}% away) — "
                 f"but treat that as a long-horizon target, not a near-term trigger."
             )
 
@@ -2738,7 +2738,7 @@ section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
             f'color:var(--color-muted);line-height:1.5;">'
             f'<div style="font-size:var(--fs-xs);letter-spacing: var(--ls-caps-md);text-transform:uppercase;'
             f'color:var(--color-faint);margin-bottom:3px;">Session usage</div>'
-            f'<div>{_calls} fresh call{"s" if _calls != 1 else ""} \u00b7 ~${_est_cost:.2f}</div>'
+            f'<div>{_calls} fresh call{"s" if _calls != 1 else ""} \u00b7 ~${_est_cost:,.2f}</div>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -3015,7 +3015,7 @@ if view == "analyze":
   </div>
   <div>
     <div style="text-align:right;">
-      <span class="price">${t['price']:.2f}</span>
+      <span class="price">${t['price']:,.2f}</span>
       <span class="chg" style="color:{chg_color};">
         {'+' if t['change'] >= 0 else ''}{t['change']:.2f}%
       </span>
@@ -3118,13 +3118,13 @@ if view == "analyze":
                     f"relative strength improving ({t['rs_delta']:+.3f} over 10 days)"
                 )
             stabilizing_reasons.append(
-                f"price ${t['price']:.2f} sits {drawdown_pct:.0f}% below the 52-week high "
-                f"${t['high_52w']:.2f} and only {above_low_pct:.0f}% above the 52-week low "
-                f"${t['low_52w']:.2f}"
+                f"price ${t['price']:,.2f} sits {drawdown_pct:.0f}% below the 52-week high "
+                f"${t['high_52w']:,.2f} and only {above_low_pct:.0f}% above the 52-week low "
+                f"${t['low_52w']:,.2f}"
             )
             if t["price"] > t.get("ma20", t["price"]):
                 stabilizing_reasons.append(
-                    f"holding above the 20-day MA at ${t.get('ma20', 0):.2f}"
+                    f"holding above the 20-day MA at ${t.get('ma20', 0):,.2f}"
                 )
 
             reasons_html = "".join(f'<li>{bold_numbers(r)}</li>' for r in stabilizing_reasons)
@@ -3466,28 +3466,37 @@ if view == "analyze":
             if not api_key:
                 st.caption("Add an Anthropic API key in the sidebar to use chat.")
             else:
-                # Render message history with simple markdown (no st.chat_message)
+                # Render message history
                 for msg in st.session_state[chat_key]:
-                    role_style = (
-                        "font-weight:600;color:var(--color-text);" if msg["role"] == "user"
-                        else "color:var(--color-body);"
-                    )
-                    prefix = "You" if msg["role"] == "user" else "Claude"
-                    st.markdown(
-                        f'<div style="margin-bottom:8px;font-size:var(--fs-base);line-height:1.5;">'
-                        f'<span style="{role_style}">{prefix}:</span> {msg["content"]}</div>',
-                        unsafe_allow_html=True,
-                    )
+                    if msg["role"] == "user":
+                        st.markdown(
+                            f'<div style="margin-bottom:6px;font-size:var(--fs-sm);'
+                            f'color:var(--color-faint);line-height:1.4;">'
+                            f'<span style="font-weight:600;text-transform:uppercase;'
+                            f'letter-spacing:0.05em;font-size:var(--fs-xs);">You</span> '
+                            f'{msg["content"]}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            f'<div style="margin-bottom:16px;padding:12px 14px;'
+                            f'background:var(--color-surface);border-radius:4px;'
+                            f'border-left:2px solid var(--color-border);'
+                            f'font-size:var(--fs-md);line-height:1.65;color:var(--color-body);">'
+                            f'{msg["content"]}</div>',
+                            unsafe_allow_html=True,
+                        )
 
-                # Input row
-                user_q = st.text_input(
+                # Input row — text_area for taller box
+                user_q = st.text_area(
                     "Ask anything about this ticker",
                     key=f"chat_input_{ticker}",
                     label_visibility="collapsed",
                     placeholder=f"Ask anything about {ticker}…",
+                    height=90,
                 )
-                ask_col, clear_col = st.columns([3, 1])
-                send = ask_col.button("Ask", key=f"chat_send_{ticker}", use_container_width=True)
+                btn_col, clear_col = st.columns([1, 1])
+                send = btn_col.button("Ask →", key=f"chat_send_{ticker}", use_container_width=True)
 
                 if send and user_q.strip():
                     q = user_q.strip()
@@ -3500,12 +3509,12 @@ if view == "analyze":
                         f"You are a sharp, concise portfolio analyst assistant. "
                         f"The user is looking at {ticker} ({name}) right now. "
                         f"IMPORTANT: {ticker} is EXACTLY {name}. Live context:\n\n"
-                        f"Price: ${t.get('price', 0):.2f}\n"
+                        f"Price: ${t.get('price', 0):,.2f}\n"
                         f"Action: {t.get('action', '').replace('_', ' ').upper()}\n"
-                        f"MA50: ${t.get('ma50', 0):.2f} | MA200: ${t.get('ma200', 0):.2f}\n"
+                        f"MA50: ${t.get('ma50', 0):,.2f} | MA200: ${t.get('ma200', 0):,.2f}\n"
                         f"RSI: {t.get('rsi14', t.get('rsi', 0)):.0f} | RS: {t.get('rs', 0):.2f}\n"
                         f"ATR%: {t.get('atr_pct', 0):.1f}%\n"
-                        f"Support: ${t.get('support', 0):.2f} | Resistance: ${t.get('resistance', 0):.2f}\n\n"
+                        f"Support: ${t.get('support', 0):,.2f} | Resistance: ${t.get('resistance', 0):,.2f}\n\n"
                         f"Decision dossier:\n{dossier_ctx}\n\n"
                         + (f"Technical narrative:\n{tech_ctx}\n\n" if tech_ctx else "")
                         + (f"PM narrative:\n{pm_ctx}\n\n" if pm_ctx else "")
@@ -3605,16 +3614,13 @@ if view == "analyze":
         has_detailed_tech = bool(tech_narrative) or bool(commentary_lines)
         if has_detailed_tech:
             with st.expander("Detailed technical view ↓", expanded=False):
-                # First: the structured commentary lines (tape detail).
-                # Same Geist font + size as narrative below for visual unity.
                 if commentary_lines:
                     commentary_html = "".join(
-                        f'<p style="margin: 0 0 8px; font-size: var(--fs-base); line-height: 1.55; '
+                        f'<p style="margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.65; '
                         f'color: var(--color-body); font-family: Geist, sans-serif;">'
                         f'{bold_numbers(line)}</p>'
                         for line in commentary_lines
                     )
-                    # Sub-label so users know what this section is
                     st.markdown(
                         f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
                         f'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
@@ -3623,10 +3629,8 @@ if view == "analyze":
                         unsafe_allow_html=True,
                     )
 
-                # Then: the prose narrative (if available)
                 if tech_narrative:
                     if commentary_lines:
-                        # Visual divider between sections inside the expander
                         st.markdown(
                             '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
                             '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
@@ -3636,7 +3640,7 @@ if view == "analyze":
                         )
                     paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
                     paras_html = "".join(
-                        f'<p style="margin: 0 0 12px; font-size: var(--fs-base); line-height: 1.55; '
+                        f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.65; '
                         f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
                         for p in paragraphs
                     )
@@ -3663,7 +3667,7 @@ if view == "analyze":
     <div class="desk-plan-row">
       <span class="k">{label}</span>
       <span style="text-align:right;line-height:1.2;">
-    <span class="v">${value:.2f}</span>{delta_html}
+    <span class="v">${value:,.2f}</span>{delta_html}
     {note_html}
       </span>
     </div>
@@ -3742,7 +3746,7 @@ if view == "analyze":
       <div>
     <span style="color:var(--color-faint);">Shares</span>
     <b style="color:var(--color-text);">{shares:,}</b>
-    <span style="color:var(--color-fainter);">at ${t['entry']:.2f} entry</span>
+    <span style="color:var(--color-fainter);">at ${t['entry']:,.2f} entry</span>
       </div>
       <div>
     <span style="color:var(--color-faint);">Position</span>
@@ -3964,7 +3968,7 @@ if view == "analyze":
                 f'font-size: var(--fs-base); color: var(--color-body);'
                 f'line-height: 1.45;">'
                 f'Log this {action_label} setup with entry price '
-                f'<b>${entry_price:.2f}</b>; close later for P&amp;L.'
+                f'<b>${entry_price:,.2f}</b>; close later for P&amp;L.'
                 f'</div></div>'
                 f'<a href="{track_url}" target="_self" '
                 f'style="font-family: var(--font-sans);'
@@ -3989,11 +3993,11 @@ if view == "analyze":
             rows = [
                 ("Bias", f"{t['bias'].capitalize() if t['bias'] else '—'} ({t['bias_score']:+d} on ±10 scale)"),
                 ("Technical score", f"{t['setup_score']:.1f} / 10"),
-                ("50-day moving average", f"${t['ma50']:.2f}"),
-                ("200-day moving average", f"${t['ma200']:.2f}"),
+                ("50-day moving average", f"${t['ma50']:,.2f}"),
+                ("200-day moving average", f"${t['ma200']:,.2f}"),
                 ("Average true range", f"{t['atr_pct']*100:.2f}%" + (" · below 1.5% gate" if not t['atr_ok'] else "")),
                 ("Relative strength vs S&P 500", f"{t['rs']:.3f} · 10d {'+' if t['rs_delta'] >= 0 else ''}{t['rs_delta']:.3f}"),
-                ("52-week high", f"${t['high_52w']:.2f}"),
+                ("52-week high", f"${t['high_52w']:,.2f}"),
                 ("20-day average volume", f"{t['avg_vol_20d']:,.0f}"),
                 ("Today volume / average", f"{t['vol_ratio']:.2f}×"),
                 ("Structure quality", f"{t['structure_quality']:.1f} / 10"),
@@ -4019,7 +4023,8 @@ if view == "analyze":
             def _fmt_level_row(lv):
                 level = lv["level"]
                 pct = (level - current_price) / current_price * 100
-                kind = lv["kind"]
+                # Override kind based on position — support must be below, resistance above
+                kind = "support" if level <= current_price else "resistance"
                 color = "#00A870" if kind == "support" else "#D14545"
                 # Direction language matters more than the +/- sign
                 if abs(pct) < 0.5:
@@ -4035,12 +4040,12 @@ if view == "analyze":
                 )
                 return (
                     f'<div style="display:flex;justify-content:space-between;align-items:baseline;'
-                    f'font-family:Geist,sans-serif;font-size:var(--fs-base);color:var(--color-text);'
-                    f'padding:7px 0;border-bottom:1px solid var(--color-border-soft);">'
+                    f'font-family:Geist,sans-serif;font-size:var(--fs-md);color:var(--color-text);'
+                    f'padding:8px 0;border-bottom:1px solid var(--color-border-soft);">'
                     f'<span><span style="font-family: var(--font-mono);font-weight:600;'
-                    f'color:{color};">${level:.2f}</span> '
-                    f'<span style="color:var(--color-muted);font-size:var(--fs-sm);margin-left:8px;">{kind}</span></span>'
-                    f'<span style="color:var(--color-muted);font-size:var(--fs-sm);">'
+                    f'color:{color};">${level:,.2f}</span> '
+                    f'<span style="color:var(--color-muted);font-size:var(--fs-base);margin-left:8px;">{kind}</span></span>'
+                    f'<span style="color:var(--color-muted);font-size:var(--fs-base);">'
                     f'{distance} · {touches_text}{flip_text}</span>'
                     f'</div>'
                 )
@@ -4117,7 +4122,7 @@ if view == "analyze":
                     sub_c1, sub_c2 = st.columns([3, 1])
                     sub_c1.markdown(
                         f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
-                        f"color:var(--color-accent);padding-top:7px;'>${float(lv_price):.2f}</div>",
+                        f"color:var(--color-accent);padding-top:7px;'>${float(lv_price):,.2f}</div>",
                         unsafe_allow_html=True,
                     )
                     if sub_c2.button("✕", key=f"rm_sup_{ticker}_{i}"):
@@ -4153,7 +4158,7 @@ if view == "analyze":
                     sub_c1, sub_c2 = st.columns([3, 1])
                     sub_c1.markdown(
                         f"<div style='font-family:\"Geist Mono\",monospace;font-size:var(--fs-base);"
-                        f"color:var(--color-negative);padding-top:7px;'>${float(lv_price):.2f}</div>",
+                        f"color:var(--color-negative);padding-top:7px;'>${float(lv_price):,.2f}</div>",
                         unsafe_allow_html=True,
                     )
                     if sub_c2.button("✕", key=f"rm_res_{ticker}_{i}"):
@@ -4270,11 +4275,11 @@ if view == "analyze":
                 if days < 0:
                     label = "📅 Last earnings"
                     days_str = f"Reported {abs(days)} day{'s' if abs(days) != 1 else ''} ago"
-                    eps_str = f"Expected EPS ${eps:.2f}" if eps else ""
+                    eps_str = f"Expected EPS ${eps:,.2f}" if eps else ""
                 else:
                     label = "📅 Next earnings"
                     days_str = "Today" if days == 0 else f"In {days} day{'s' if days != 1 else ''}"
-                    eps_str = f"Expected EPS ${eps:.2f}" if eps else "EPS estimate not available"
+                    eps_str = f"Expected EPS ${eps:,.2f}" if eps else "EPS estimate not available"
                 st.markdown(f"""
 <div class="desk-stat-card">
   <div class="label">{label}</div>
@@ -4290,7 +4295,7 @@ if view == "analyze":
             if target:
                 pct = (target / t["price"] - 1) * 100
                 color = "#2E7D4F" if pct >= 0 else "#D14545"
-                target_html = f'<span class="v">${target:.2f} <span style="color:{color};">({"+" if pct >= 0 else ""}{pct:.1f}%)</span></span>'
+                target_html = f'<span class="v">${target:,.2f} <span style="color:{color};">({"+" if pct >= 0 else ""}{pct:.1f}%)</span></span>'
             st.markdown(f"""
 <div class="desk-stat-card">
   <div class="label">🧑‍💼 Analyst consensus</div>
@@ -4384,42 +4389,36 @@ if view == "analyze":
         ticker_key = ticker.upper()
         expanded = st.session_state.pm_expanded.get(ticker_key, False)
 
-        btn_label = "Collapse analysis ↑" if expanded else "View full thesis →"
-        # The PM stat cards above (Earnings, Analyst, Lynch) sit with a 24px
-        # left margin from the .desk-stat-card class. We match that exactly
-        # by wrapping the button in a div that absorbs the same offset.
-        # Using st.markdown for the wrapper + a column trick to ensure
-        # Streamlit doesn't re-flow the button outside the wrapper.
-        st.markdown(
-            '<style>'
-            'div[data-testid="stButton"]:has(button[kind="secondary"]) {'
-            '  margin-left: 24px;'
-            '}'
-            '.pm-thesis-btn-wrap div[data-testid="stButton"] > button {'
-            '  width: auto !important;'
-            '  font-family: Geist, sans-serif !important;'
-            '  font-size: var(--fs-base) !important;'
-            '  font-weight: 500 !important;'
-            '  letter-spacing: var(--ls-tight) !important;'
-            '  padding: 8px 14px !important;'
-            '  border: 1px solid var(--color-border) !important;'
-            '  background: var(--color-surface) !important;'
-            '  color: var(--color-body) !important;'
-            '  margin-top: 14px !important;'
-            '  margin-left: 24px !important;'
-            '}'
-            '.pm-thesis-btn-wrap div[data-testid="stButton"] > button:hover {'
-            '  background: var(--color-text) !important;'
-            '  color: var(--color-bg) !important;'
-            '  border-color: var(--color-text) !important;'
-            '}'
-            '</style>'
-            '<div class="pm-thesis-btn-wrap"></div>',
-            unsafe_allow_html=True
-        )
-        if st.button(btn_label, key=f"pm_expand_{ticker_key}"):
-            st.session_state.pm_expanded[ticker_key] = not expanded
-            st.rerun()
+        btn_label = "View full thesis →"
+        # Only show the View button when collapsed
+        if not expanded:
+            st.markdown(
+                '<style>'
+                '.pm-thesis-btn-wrap div[data-testid="stButton"] > button {'
+                '  width: auto !important;'
+                '  font-family: Geist, sans-serif !important;'
+                '  font-size: var(--fs-base) !important;'
+                '  font-weight: 500 !important;'
+                '  letter-spacing: var(--ls-tight) !important;'
+                '  padding: 8px 14px !important;'
+                '  border: 1px solid var(--color-border) !important;'
+                '  background: var(--color-surface) !important;'
+                '  color: var(--color-body) !important;'
+                '  margin-top: 14px !important;'
+                '  margin-left: 24px !important;'
+                '}'
+                '.pm-thesis-btn-wrap div[data-testid="stButton"] > button:hover {'
+                '  background: var(--color-text) !important;'
+                '  color: var(--color-bg) !important;'
+                '  border-color: var(--color-text) !important;'
+                '}'
+                '</style>'
+                '<div class="pm-thesis-btn-wrap"></div>',
+                unsafe_allow_html=True
+            )
+            if st.button(btn_label, key=f"pm_expand_{ticker_key}"):
+                st.session_state.pm_expanded[ticker_key] = not expanded
+                st.rerun()
 
         if expanded:
             if not has_full_thesis_content:
@@ -4509,6 +4508,11 @@ if view == "analyze":
 
                     html_parts.append('</div>')
                     st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+            # Collapse button at bottom after content
+            if st.button("Collapse analysis ↑", key=f"pm_collapse_{ticker_key}"):
+                st.session_state.pm_expanded[ticker_key] = False
+                st.rerun()
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -5041,7 +5045,7 @@ if view == "tracker":
                 f'<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 14px 6px;margin-bottom:2px;">'
                 f'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
                 f'<div><span style="font-size:var(--fs-base);font-weight:600;">{ticker}</span>'
-                f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);margin-left:8px;">${price:.2f}</span></div>'
+                f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);margin-left:8px;">${price:,.2f}</span></div>'
                 f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-fainter);">{ts_short} · {entry_id}</span>'
                 f'</div></div>',
                 unsafe_allow_html=True,
