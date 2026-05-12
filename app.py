@@ -117,6 +117,7 @@ def _store_default():
         #                       "result_pct": float, "note": "..." }
         # }
         "decisions_log": [],
+        "chat_history": {},  # {ticker: [{role, content}, ...]}
     }
 
 
@@ -507,18 +508,18 @@ st.markdown("""
 }
 .desk-cmp-action {
     font-family: var(--font-serif);
-    font-size: var(--fs-lg) !important;
+    font-size: var(--fs-xl) !important;
     font-weight: 600;
     line-height: 1.2;
 }
 .desk-cmp-meta {
-    font-size: var(--fs-sm) !important;
+    font-size: var(--fs-base) !important;
     color: var(--color-muted);
     margin-top: 4px;
 }
 .desk-cmp-fallback {
     font-family: var(--font-serif);
-    font-size: var(--fs-base) !important;
+    font-size: var(--fs-md) !important;
     font-weight: 400;
     color: var(--color-fainter);
     font-style: italic;
@@ -528,8 +529,8 @@ st.markdown("""
     margin-top: 14px;
     padding-top: 12px;
     border-top: 1px dashed var(--color-border-soft);
-    font-size: var(--fs-base) !important;
-    line-height: 1.55;
+    font-size: var(--fs-md) !important;
+    line-height: 1.65;
     color: var(--color-body);
 }
 .desk-cmp-reasoning-label {
@@ -3365,6 +3366,30 @@ if view == "analyze":
             if trigger_html:
                 st.markdown(trigger_html, unsafe_allow_html=True)
 
+            # ── Already logged? Show status ───────────────────────────
+            dlog_check = st.session_state.store.get("decisions_log", [])
+            existing_entry = next(
+                (d for d in dlog_check
+                 if d.get("ticker") == ticker.upper() and d.get("outcome") is None),
+                None,
+            )
+            if existing_entry:
+                logged_ts = existing_entry.get("ts", "")[:10]
+                logged_price = existing_entry.get("price", 0)
+                logged_action = (existing_entry.get("user_action") or "").replace("_", " ").title()
+                logged_note = existing_entry.get("user_note", "")
+                st.markdown(
+                    f'<div style="background:var(--color-surface);border:1px solid var(--color-border);'
+                    f'border-left:3px solid var(--color-positive);border-radius:4px;'
+                    f'padding:8px 12px;margin-bottom:8px;font-size:var(--fs-base);">'
+                    f'<span style="font-weight:600;color:var(--color-positive);">✓ Logged</span>'
+                    f' — {logged_action} at <span style="font-family:var(--font-mono);">'
+                    f'${logged_price:,.2f}</span> on {logged_ts}'
+                    + (f' · <span style="color:var(--color-muted);font-style:italic;">{logged_note}</span>' if logged_note else '')
+                    + '</div>',
+                    unsafe_allow_html=True,
+                )
+
             # "Your call" header with info-icon hover
             _action_help = (
                 "Enter — high-conviction setup, buy now (bullish + setup ≥ 9, no extension). "
@@ -3444,7 +3469,7 @@ if view == "analyze":
                 dlog = st.session_state.store.setdefault("decisions_log", [])
                 existing_open = next(
                     (i for i, d in enumerate(dlog)
-                     if d.get("ticker") == entry["ticker"] and d.get("outcome") is None),
+                     if d.get("ticker", "").upper() == entry["ticker"].upper() and d.get("outcome") is None),
                     None,
                 )
                 if existing_open is not None:
@@ -3458,16 +3483,20 @@ if view == "analyze":
                     st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
 
         # 1b-chat. Follow-up chat ────────────────────────────────────────
-        chat_key = f"chat_{ticker}"
-        if chat_key not in st.session_state:
-            st.session_state[chat_key] = []
+        # Chat history is persisted in the store so it survives page reloads.
+        if "chat_history" not in st.session_state.store:
+            st.session_state.store["chat_history"] = {}
+        chat_store = st.session_state.store["chat_history"]
+        chat_key = ticker.upper()
+        if chat_key not in chat_store:
+            chat_store[chat_key] = []
 
-        with st.expander("💬 Ask a follow-up question", expanded=bool(st.session_state[chat_key])):
+        with st.expander("💬 Ask a follow-up question", expanded=bool(chat_store[chat_key])):
             if not api_key:
                 st.caption("Add an Anthropic API key in the sidebar to use chat.")
             else:
                 # Render message history
-                for msg in st.session_state[chat_key]:
+                for msg in chat_store[chat_key]:
                     if msg["role"] == "user":
                         st.markdown(
                             f'<div style="margin-bottom:6px;font-size:var(--fs-sm);'
@@ -3487,7 +3516,7 @@ if view == "analyze":
                             unsafe_allow_html=True,
                         )
 
-                # Input row — text_area for taller box
+                # Input row
                 user_q = st.text_area(
                     "Ask anything about this ticker",
                     key=f"chat_input_{ticker}",
@@ -3495,12 +3524,17 @@ if view == "analyze":
                     placeholder=f"Ask anything about {ticker}…",
                     height=90,
                 )
-                btn_col, clear_col = st.columns([1, 1])
-                send = btn_col.button("Ask →", key=f"chat_send_{ticker}", use_container_width=True)
+                send = st.button("Ask →", key=f"chat_send_{ticker}", use_container_width=True)
+
+                if chat_store[chat_key]:
+                    if st.button("Clear conversation", key=f"clear_chat_{ticker}", type="secondary"):
+                        chat_store[chat_key] = []
+                        save_store(st.session_state.store)
+                        st.rerun()
 
                 if send and user_q.strip():
                     q = user_q.strip()
-                    st.session_state[chat_key].append({"role": "user", "content": q})
+                    chat_store[chat_key].append({"role": "user", "content": q})
 
                     dossier_ctx = (dossier_result or {}).get("dossier") or "Not yet generated."
                     tech_ctx    = (dossier_result or {}).get("technical_narrative") or ""
@@ -3525,7 +3559,7 @@ if view == "analyze":
                         try:
                             _client = _anthropic.Anthropic(api_key=api_key)
                             _tools  = [{"type": "web_search_20250305", "name": "web_search"}]
-                            _msgs   = list(st.session_state[chat_key])
+                            _msgs   = list(chat_store[chat_key])
                             _in, _out = 0, 0
                             reply = ""
                             for _ in range(6):
@@ -3560,13 +3594,9 @@ if view == "analyze":
                             )
                         except Exception as e:
                             reply = f"Error: {e}"
-                    st.session_state[chat_key].append({"role": "assistant", "content": reply})
+                    chat_store[chat_key].append({"role": "assistant", "content": reply})
+                    save_store(st.session_state.store)
                     st.rerun()
-
-                if st.session_state[chat_key]:
-                    if clear_col.button("Clear", key=f"clear_chat_{ticker}"):
-                        st.session_state[chat_key] = []
-                        st.rerun()
 
         # 1b. Decision modifiers — badges that nudge conviction up or down
             # on top of the same nominal decision (earnings proximity, market
@@ -4390,33 +4420,9 @@ if view == "analyze":
         expanded = st.session_state.pm_expanded.get(ticker_key, False)
 
         btn_label = "View full thesis →"
-        # Only show the View button when collapsed
         if not expanded:
-            st.markdown(
-                '<style>'
-                '.pm-thesis-btn-wrap div[data-testid="stButton"] > button {'
-                '  width: auto !important;'
-                '  font-family: Geist, sans-serif !important;'
-                '  font-size: var(--fs-base) !important;'
-                '  font-weight: 500 !important;'
-                '  letter-spacing: var(--ls-tight) !important;'
-                '  padding: 8px 14px !important;'
-                '  border: 1px solid var(--color-border) !important;'
-                '  background: var(--color-surface) !important;'
-                '  color: var(--color-body) !important;'
-                '  margin-top: 14px !important;'
-                '  margin-left: 24px !important;'
-                '}'
-                '.pm-thesis-btn-wrap div[data-testid="stButton"] > button:hover {'
-                '  background: var(--color-text) !important;'
-                '  color: var(--color-bg) !important;'
-                '  border-color: var(--color-text) !important;'
-                '}'
-                '</style>'
-                '<div class="pm-thesis-btn-wrap"></div>',
-                unsafe_allow_html=True
-            )
-            if st.button(btn_label, key=f"pm_expand_{ticker_key}"):
+            st.markdown('<div style="margin-top:16px;"></div>', unsafe_allow_html=True)
+            if st.button(btn_label, key=f"pm_expand_{ticker_key}", use_container_width=False):
                 st.session_state.pm_expanded[ticker_key] = not expanded
                 st.rerun()
 
@@ -5024,8 +5030,6 @@ if view == "tracker":
         ])
 
         def _render_decision_row(entry, idx, scored_view):
-            """Render one decision-log row with all three actions visible
-            and an outcome-scoring widget if not yet scored."""
             import html as _html
             _act_map = {
                 "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
@@ -5035,118 +5039,89 @@ if view == "tracker":
             claude_sty = STATE_STYLES.get(_act_map.get(entry.get("claude_action") or "", ""), {})
             user_sty   = STATE_STYLES.get(_act_map.get(entry.get("user_action") or "", ""), {})
 
-            ts_short = entry.get("ts", "")[:10]
-            ticker   = _html.escape(str(entry.get("ticker", "")))
-            price    = entry.get("price", 0)
-            entry_id = _html.escape(str(entry.get("id", "")))
+            ts_short   = entry.get("ts", "")[:10]
+            tkr        = _html.escape(str(entry.get("ticker", "")))
+            price      = entry.get("price", 0)
+            entry_id   = entry.get("id", "")
+            user_note  = entry.get("user_note", "")
+            reasoning  = entry.get("claude_reasoning", "")
 
-            # ── Card header ──────────────────────────────────────────
+            rule_color   = rule_sty.get("color", "var(--color-text)")
+            rule_emoji   = rule_sty.get("emoji", "")
+            rule_label   = rule_sty.get("label", (entry.get("rule_action") or "—").replace("_"," ").title())
+            claude_color = claude_sty.get("color", "var(--color-text)")
+            claude_emoji = claude_sty.get("emoji", "")
+            claude_label = (entry.get("claude_action") or "—").replace("_"," ").title()
+            claude_conf  = entry.get("claude_confidence", 0)
+            user_color   = user_sty.get("color", "var(--color-text)")
+            user_emoji   = user_sty.get("emoji", "")
+            user_label   = user_sty.get("label", (entry.get("user_action") or "—").replace("_"," ").title())
+
+            # ── Compact row ──────────────────────────────────────────
             st.markdown(
-                f'<div style="border:1px solid var(--color-border);border-radius:4px;padding:10px 14px 6px;margin-bottom:2px;">'
-                f'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
-                f'<div><span style="font-size:var(--fs-base);font-weight:600;">{ticker}</span>'
-                f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);margin-left:8px;">${price:,.2f}</span></div>'
-                f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-fainter);">{ts_short} · {entry_id}</span>'
-                f'</div></div>',
+                f'<div style="padding:10px 0 4px;border-top:1px solid var(--color-border);">'
+                f'<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">'
+                f'<div style="display:flex;align-items:baseline;gap:10px;">'
+                f'<span style="font-weight:700;font-size:var(--fs-md);">{tkr}</span>'
+                f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);">${price:,.2f}</span>'
+                + (f'<span style="font-size:var(--fs-sm);color:var(--color-faint);font-style:italic;">{_html.escape(user_note)}</span>' if user_note else '')
+                + f'</div>'
+                f'<span style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-fainter);">{ts_short}</span>'
+                f'</div>'
+                f'<div style="display:flex;gap:28px;padding:2px 0 4px;">'
+                f'<div><div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-faint);margin-bottom:1px;">Rules</div>'
+                f'<div style="font-size:var(--fs-base);font-weight:600;color:{rule_color};">{rule_emoji} {rule_label}</div></div>'
+                f'<div><div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-faint);margin-bottom:1px;">Claude <span style="font-weight:400;opacity:0.7;">{claude_conf}/10</span></div>'
+                f'<div style="font-size:var(--fs-base);font-weight:600;color:{claude_color};">{claude_emoji} {claude_label}</div></div>'
+                f'<div><div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-faint);margin-bottom:1px;">You</div>'
+                f'<div style="font-size:var(--fs-base);font-weight:600;color:{user_color};">{user_emoji} {user_label}</div></div>'
+                f'</div>'
+                + (f'<div style="font-size:var(--fs-sm);color:var(--color-faint);font-style:italic;padding:0 0 4px;line-height:1.4;">&ldquo;{_html.escape(str(reasoning[:200]))}{"\u2026" if len(reasoning)>200 else ""}&rdquo;</div>' if reasoning else '')
+                + '</div>',
                 unsafe_allow_html=True,
             )
 
-            # ── 3-column action row via st.columns ───────────────────
-            col_r, col_c, col_u = st.columns(3)
-
-            rule_color  = rule_sty.get("color", "var(--color-text)")
-            rule_emoji  = rule_sty.get("emoji", "")
-            rule_label  = rule_sty.get("label", entry.get("rule_action", "—"))
-            rule_state  = _html.escape(str(entry.get("rule_state", "")))
-            col_r.markdown(
-                f'<div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">Rules</div>'
-                f'<div style="color:{rule_color};font-weight:600;font-size:var(--fs-base);">{rule_emoji} {rule_label}</div>'
-                f'<div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">{rule_state}</div>',
-                unsafe_allow_html=True,
-            )
-
-            claude_color  = claude_sty.get("color", "var(--color-text)")
-            claude_emoji  = claude_sty.get("emoji", "")
-            claude_action_raw = entry.get("claude_action") or "—"
-            claude_label  = claude_action_raw.replace("_", " ").title()
-            claude_conf   = entry.get("claude_confidence", 0)
-            col_c.markdown(
-                f'<div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">Claude</div>'
-                f'<div style="color:{claude_color};font-weight:600;font-size:var(--fs-base);">{claude_emoji} {claude_label}</div>'
-                f'<div style="font-size:var(--fs-xs);color:var(--color-faint);margin-top:1px;">Conf {claude_conf}/10</div>',
-                unsafe_allow_html=True,
-            )
-
-            user_color = user_sty.get("color", "var(--color-text)")
-            user_emoji = user_sty.get("emoji", "")
-            user_label = user_sty.get("label", _html.escape(str(entry.get("user_action", "—"))))
-            col_u.markdown(
-                f'<div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;color:var(--color-faint);margin-bottom:3px;">You</div>'
-                f'<div style="color:{user_color};font-weight:600;font-size:var(--fs-base);">{user_emoji} {user_label}</div>',
-                unsafe_allow_html=True,
-            )
-
-            # ── Optional reasoning / note ────────────────────────────
-            reasoning = entry.get("claude_reasoning", "")
-            user_note = entry.get("user_note", "")
-            if reasoning:
-                st.markdown(
-                    f'<div style="font-size:var(--fs-sm);color:var(--color-body);line-height:1.5;padding:6px 14px;border-top:1px dashed var(--color-border);font-style:italic;">&ldquo;{_html.escape(str(reasoning))}&rdquo;</div>',
-                    unsafe_allow_html=True,
-                )
-            if user_note:
-                st.markdown(
-                    f'<div style="font-size:var(--fs-sm);color:var(--color-body);line-height:1.5;padding:4px 14px 8px;"><span style="color:var(--color-faint);">Your note:</span> {_html.escape(str(user_note))}</div>',
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown('<div style="margin-bottom:14px;"></div>', unsafe_allow_html=True)
-
-            # ── Outcome scoring widget — open tab only ───────────────
+            # ── Inline actions ───────────────────────────────────────
             if not scored_view:
-                with st.expander("Score this outcome", expanded=False):
-                    outcome_choice = st.radio(
-                        "Which source got it right?",
-                        options=["Rules", "Claude", "You", "All three", "None / unclear"],
-                        horizontal=True,
-                        key=f"outcome_choice_{entry['id']}",
-                    )
-                    outcome_pct = st.text_input(
-                        "Result % (optional, e.g. +5.2 or -3.1)",
-                        key=f"outcome_pct_{entry['id']}",
-                    )
-                    outcome_note = st.text_input(
-                        "Note (optional)",
-                        key=f"outcome_note_{entry['id']}",
-                    )
-                    if st.button("Save outcome", key=f"save_outcome_{entry['id']}"):
-                        right_sources = []
-                        if outcome_choice == "Rules": right_sources = ["rules"]
-                        elif outcome_choice == "Claude": right_sources = ["claude"]
-                        elif outcome_choice == "You": right_sources = ["user"]
-                        elif outcome_choice == "All three": right_sources = ["rules", "claude", "user"]
-                        try:
-                            pct_val = float(outcome_pct) if outcome_pct else None
-                        except ValueError:
-                            pct_val = None
-                        entry["outcome"] = {
-                            "ts": datetime.now().isoformat(timespec="seconds"),
-                            "result": "right" if right_sources else "unclear",
-                            "right_sources": right_sources,
-                            "result_pct": pct_val,
-                            "note": outcome_note.strip() if outcome_note else "",
-                        }
-                        save_store(st.session_state.store)
-                        st.rerun()
-
-            # ── Delete — available on both open and resolved entries ──
-            if st.button("✕ Delete this entry", key=f"del_decision_{entry['id']}"):
-                st.session_state.store["decisions_log"] = [
-                    d for d in st.session_state.store["decisions_log"]
-                    if d.get("id") != entry["id"]
-                ]
-                save_store(st.session_state.store)
-                st.rerun()
+                act_cols = st.columns([3, 1])
+                with act_cols[0]:
+                    with st.expander("Score outcome", expanded=False):
+                        outcome_choice = st.radio(
+                            "Who was right?",
+                            options=["Rules", "Claude", "You", "All three", "None / unclear"],
+                            horizontal=True,
+                            key=f"outcome_choice_{entry_id}",
+                            label_visibility="collapsed",
+                        )
+                        c1, c2 = st.columns(2)
+                        outcome_pct  = c1.text_input("Result %", placeholder="+5.2", key=f"outcome_pct_{entry_id}", label_visibility="collapsed")
+                        outcome_note = c2.text_input("Note", placeholder="Optional", key=f"outcome_note_{entry_id}", label_visibility="collapsed")
+                        if st.button("Save", key=f"save_outcome_{entry_id}", use_container_width=True):
+                            right_sources = {"Rules":["rules"],"Claude":["claude"],"You":["user"],"All three":["rules","claude","user"]}.get(outcome_choice,[])
+                            try: pct_val = float(outcome_pct) if outcome_pct else None
+                            except ValueError: pct_val = None
+                            entry["outcome"] = {
+                                "ts": datetime.now().isoformat(timespec="seconds"),
+                                "result": "right" if right_sources else "unclear",
+                                "right_sources": right_sources,
+                                "result_pct": pct_val,
+                                "note": outcome_note.strip() if outcome_note else "",
+                            }
+                            save_store(st.session_state.store)
+                            st.rerun()
+                if act_cols[1].button("Delete", key=f"del_decision_{entry_id}"):
+                    st.session_state.store["decisions_log"] = [
+                        d for d in st.session_state.store["decisions_log"] if d.get("id") != entry_id
+                    ]
+                    save_store(st.session_state.store)
+                    st.rerun()
+            else:
+                if st.button("Delete", key=f"del_decision_{entry_id}"):
+                    st.session_state.store["decisions_log"] = [
+                        d for d in st.session_state.store["decisions_log"] if d.get("id") != entry_id
+                    ]
+                    save_store(st.session_state.store)
+                    st.rerun()
 
         with sub_open:
             if not unscored:
