@@ -693,6 +693,9 @@ html, body, .main, .main p, .main li {
     padding: 11px 20px;
     display: flex; justify-content: space-between; align-items: center;
     margin: -1.2rem -1rem 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 999;
 }
 .desk-bar .wordmark {
     font-family: var(--font-serif); font-weight: 500;
@@ -3291,6 +3294,17 @@ if view == "analyze":
         reasoning = (claude_call.get("reasoning") or "").strip()
         claude_trigger = (claude_call.get("trigger") or "").strip()
 
+        # Substitute live tokens ({price}, {pct_ma50}, etc.) in reasoning/trigger
+        try:
+            from pm_view import substitute_live_values as _sub
+            _t_state_for_sub = {**t, "price": t.get("price", 0)}
+            if reasoning:
+                reasoning = _sub(reasoning, _t_state_for_sub)
+            if claude_trigger:
+                claude_trigger = _sub(claude_trigger, _t_state_for_sub)
+        except Exception:
+            pass
+
         # Claude side content varies based on whether data is present.
         if claude_action_raw:
             _claude_label = claude_action_raw.replace("_", " ").title()
@@ -4220,22 +4234,20 @@ if view == "analyze":
     with col_pm:
         # PM data was fetched above (before column split) — use it directly.
         src_note = pm.get("_source", "the thesis")
-
-        head_col, refresh_col = st.columns([5, 1])
-        with head_col:
-            st.markdown(f"""
+        # Render PM header + refresh button as a single flex row (no nested
+        # st.columns which breaks alignment with the left ticker row)
+        st.markdown(f"""
 <div class="desk-pm-header">
   <span><span class="em">🧠</span>Portfolio manager</span>
   <span class="src">{src_note}</span>
 </div>
 """, unsafe_allow_html=True)
-        with refresh_col:
-            if st.button("↻", help="Regenerate Claude analysis (~$0.05). Refreshes thesis AND tactical_call comparison."):
-                clear_pm_cache(ticker)
-                clear_dossier_cache(ticker)
-                fetch_quote_meta.clear()
-                fetch_history.clear()
-                st.rerun()
+        if st.button("↻", key="pm_refresh_btn", help="Regenerate Claude analysis (~$0.05). Refreshes thesis AND tactical_call comparison."):
+            clear_pm_cache(ticker)
+            clear_dossier_cache(ticker)
+            fetch_quote_meta.clear()
+            fetch_history.clear()
+            st.rerun()
 
         # Quality tier badge — informational, NOT a gate. Sourced from the
         # dossier Claude call (5th field). Shows long-term ownership read
