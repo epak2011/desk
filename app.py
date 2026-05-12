@@ -615,17 +615,11 @@ st.markdown("""
 }
 
 .stApp { background: var(--color-bg); }
-
-/* Fix sticky header — Streamlit's overflow:auto on .main breaks position:sticky */
-.stApp > section, .stApp > div, section[data-testid="stMain"],
-section[data-testid="stMain"] > div {
-    overflow: visible !important;
-}
 /* Keep horizontal overflow hidden to avoid scrollbars */
 body { overflow-x: hidden !important; }
 
 .main .block-container {
-    padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1400px;
+    padding-top: 0; padding-bottom: 3rem; max-width: 1400px;
     font-size: var(--fs-lg);
 }
 
@@ -696,15 +690,21 @@ html, body, .main, .main p, .main li {
     font-size: var(--fs-base); line-height: 1;
 }
 
-/* Navbar */
+/* Navbar — fixed so it stays on scroll regardless of Streamlit's overflow containers */
 .desk-bar {
     background: var(--color-text); color: var(--color-bg);
     padding: 11px 20px;
     display: flex; justify-content: space-between; align-items: center;
-    margin: -1.2rem -1rem 1.5rem;
-    position: sticky;
+    position: fixed;
     top: 0;
-    z-index: 999;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    height: 44px;
+}
+/* Push content below the fixed bar */
+.main .block-container {
+    padding-top: 60px !important;
 }
 .desk-bar .wordmark {
     font-family: var(--font-serif); font-weight: 500;
