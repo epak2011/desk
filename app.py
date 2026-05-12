@@ -3542,7 +3542,8 @@ if view == "analyze":
                     sys_prompt = (
                         f"You are a sharp, concise portfolio analyst assistant. "
                         f"The user is looking at {ticker} ({name}) right now. "
-                        f"IMPORTANT: {ticker} is EXACTLY {name}. Live context:\n\n"
+                        f"IMPORTANT: {ticker} is the US-listed stock ({name}) on NYSE/NASDAQ. "
+                        f"Do NOT confuse with any foreign company sharing this ticker. Live context:\n\n"
                         f"Price: ${t.get('price', 0):,.2f}\n"
                         f"Action: {t.get('action', '').replace('_', ' ').upper()}\n"
                         f"MA50: ${t.get('ma50', 0):,.2f} | MA200: ${t.get('ma200', 0):,.2f}\n"
@@ -3569,6 +3570,7 @@ if view == "analyze":
                                     system=sys_prompt,
                                     tools=_tools,
                                     messages=_msgs,
+                                    betas=["web-search-2025-03-05"],
                                 )
                                 _in  += _resp.usage.input_tokens
                                 _out += _resp.usage.output_tokens

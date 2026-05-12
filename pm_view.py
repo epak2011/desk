@@ -154,63 +154,58 @@ def _fetch_recent_news(client, ticker, company_name):
     Handles the multi-turn tool-use loop that web_search requires.
     Returns a formatted block ready to inject into any prompt, or empty string."""
     name = company_name or ticker
-    query = (
-        f"Search for: {name} ({ticker}) most recent earnings report — "
-        f"EPS reported vs expected, revenue beat or miss, full-year guidance, "
-        f"and any major analyst moves or news in the past 60 days. "
-        f"Include specific numbers. Be factual and concise."
-    )
-    messages = [{"role": "user", "content": query}]
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
+    # Run two targeted searches: recent earnings + analyst/news
+    search_queries = [
+        (f"US stock {ticker} most recent quarterly earnings EPS revenue guidance beat miss 2025 2026 "
+         f"site:bloomberg.com OR site:reuters.com OR site:seekingalpha.com OR site:cnbc.com"),
+        (f"{ticker} stock analyst upgrade downgrade price target news 2025 2026"),
+    ]
+    all_results = []
 
     try:
-        # Agentic loop — web_search may require multiple turns
-        for _ in range(5):  # max 5 turns
-            resp = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=1000,
-                tools=tools,
-                messages=messages,
+        def _run_search(query_text):
+            """Run one search query through the agentic loop, return text."""
+            msgs = [{"role": "user", "content": query_text}]
+            for _ in range(5):
+                resp = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=800,
+                    tools=tools,
+                    messages=msgs,
+                    betas=["web-search-2025-03-05"],
+                )
+                text_parts = [b.text for b in resp.content if hasattr(b, "text") and b.text]
+                if resp.stop_reason == "end_turn":
+                    return " ".join(text_parts).strip()
+                if resp.stop_reason == "tool_use":
+                    msgs.append({"role": "assistant", "content": resp.content})
+                    tool_results = []
+                    for block in resp.content:
+                        if block.type == "tool_use":
+                            rc = getattr(block, "content", "") or ""
+                            if isinstance(rc, list):
+                                rc = " ".join(c.get("text","") if isinstance(c,dict) else str(c) for c in rc)
+                            tool_results.append({"type":"tool_result","tool_use_id":block.id,"content":str(rc)})
+                    msgs.append({"role": "user", "content": tool_results})
+                else:
+                    return " ".join(text_parts).strip()
+            return ""
+
+        for q in search_queries:
+            result = _run_search(q)
+            if result:
+                all_results.append(result)
+
+        if all_results:
+            combined = "\n\n".join(all_results)
+            return (
+                f"\n\nRECENT NEWS & EARNINGS (live web search — more current than training data; "
+                f"you MUST incorporate these specific facts into your analysis):\n{combined}\n"
             )
-            # Collect any text from this turn
-            text_parts = [b.text for b in resp.content if hasattr(b, "text") and b.text]
-
-            if resp.stop_reason == "end_turn":
-                # Done — extract final text
-                final = " ".join(text_parts).strip()
-                if final:
-                    return (
-                        f"\n\nRECENT NEWS & EARNINGS (live web search — this is "
-                        f"more current than your training data; you MUST incorporate "
-                        f"these facts into your analysis):\n{final}\n"
-                    )
-                return ""
-
-            if resp.stop_reason == "tool_use":
-                # Append assistant turn and provide tool results
-                messages.append({"role": "assistant", "content": resp.content})
-                tool_results = []
-                for block in resp.content:
-                    if block.type == "tool_use":
-                        # web_search results come back in block.content for server-side tools
-                        result_content = getattr(block, "content", "") or ""
-                        if isinstance(result_content, list):
-                            result_content = " ".join(
-                                c.get("text", "") if isinstance(c, dict) else str(c)
-                                for c in result_content
-                            )
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": str(result_content),
-                        })
-                messages.append({"role": "user", "content": tool_results})
-            else:
-                break  # unexpected stop_reason
     except Exception:
         pass
     return ""
-
 
 def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
     """Return a dict with BOTH snapshot fields and deep_dive nested.
@@ -235,14 +230,16 @@ def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
         return {**snap, "deep_dive": _empty_deep_dive(ticker), "_source": "static"}
 
     try:
+        import time
         from anthropic import Anthropic
 
         client = Anthropic(api_key=api_key)
         t = tactical_output or {}
         recent_news = _fetch_recent_news(client, ticker, company_name)
+        time.sleep(1)  # brief pause to avoid rate-limiting the main call
         prompt = f"""You are a senior portfolio manager at a long-biased hedge fund. Write a full investment note on {ticker}{' (' + company_name + ')' if company_name else ''}.
 
-CRITICAL: The ticker {ticker} refers EXACTLY to "{company_name if company_name else ticker}". Do not confuse it with any other company, fund, or entity that may share a similar name or ticker. All analysis must be about this specific security only.{recent_news}
+CRITICAL: The ticker {ticker} refers to the US-listed security "{company_name if company_name else ticker}" trading on US stock exchanges (NYSE/NASDAQ). Do NOT confuse it with any foreign company that may share the same ticker symbol on another exchange (e.g. a Singapore, London, or Hong Kong-listed company). If the yfinance name seems wrong, trust the US stock market context — {ticker} is a US-listed security. All analysis must be about the US-listed {ticker} only.{recent_news}
 Current tactical state from the system (for context, not the focus):
 - Directional bias: {t.get('bias') or 'unclear'}
 - Action: {t.get('action', 'unknown')}
@@ -272,11 +269,19 @@ Return ONLY JSON in exactly this shape. No preamble, no code fences.
 Voice: senior PM, confident, specific, opinionated. No hedging, no consultantese, no corporate-speak. Write in complete sentences.
 Return ONLY the JSON, nothing else."""
 
-        message = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        for _attempt in range(2):
+            try:
+                message = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=2000,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                break
+            except Exception as _e:
+                if '429' in str(_e) and _attempt == 0:
+                    time.sleep(8)
+                    continue
+                raise
         text = message.content[0].text.strip()
         if text.startswith("```"):
             text = text.split("```")[1]
@@ -318,11 +323,13 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         return {**empty, "_source": "unavailable"}
 
     try:
+        import time
         from anthropic import Anthropic
         import json as _json
         client = Anthropic(api_key=api_key)
 
         recent_news_block = _fetch_recent_news(client, ticker, company_name)
+        time.sleep(1)  # brief pause to avoid rate-limiting the main call
 
         bias = t_state.get("bias") or t_state.get("raw_bias") or "unclear"
         action = t_state.get("action", "unknown")
@@ -353,7 +360,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
 
         prompt = f"""You are a senior portfolio manager and trader. Generate THREE pieces of analysis on {ticker}{f' ({company_name})' if company_name else ''}.
 
-CRITICAL: The ticker {ticker} refers EXACTLY to "{company_name if company_name else ticker}". Do not confuse it with any other company, fund, or entity. All analysis must be about this specific security only.{recent_news_block}
+CRITICAL: The ticker {ticker} refers to the US-listed security "{company_name if company_name else ticker}" trading on US stock exchanges (NYSE/NASDAQ). Do NOT confuse it with any foreign company sharing the same ticker on another exchange. If the company name seems unfamiliar or foreign, use your knowledge of US-listed stocks to identify the correct company for ticker {ticker}. All analysis must be about the US-listed {ticker} only.{recent_news_block}
 DATA YOU HAVE:
 
 Tactical state:
