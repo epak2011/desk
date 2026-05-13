@@ -696,10 +696,14 @@ html, body, .main, .main p, .main li {
     padding: 11px 20px;
     display: flex; justify-content: space-between; align-items: center;
     margin: -1.2rem -1rem 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.12);
 }
 /* Push content below the fixed bar */
 .main .block-container {
-    padding-top: 60px !important;
+    padding-top: 22px !important;
 }
 .desk-bar .wordmark {
     font-family: var(--font-serif); font-weight: 500;
@@ -1033,15 +1037,17 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 .desk-pm-container {
     border-left: 1px solid var(--color-border);
     padding-left: 24px;
+    min-height: calc(100vh - 132px);
+    height: 100%;
 }
 .desk-pm-header {
     font-family: var(--font-sans);
     font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xl);
     text-transform: uppercase; color: var(--color-muted);
-    margin-bottom: 14px; padding-bottom: 6px;
+    margin-bottom: 14px; padding-bottom: 10px;
     border-bottom: 1px solid var(--color-border);
     display: flex; justify-content: space-between; align-items: flex-end;
-    min-height: 52px;  /* matches desk-ticker-row height (sym line + meta line + padding) */
+    min-height: 40px;
 }
 /* PM refresh button — pulled up into the header row */
 [class*="st-key-pm_refresh_btn"] {
@@ -1902,6 +1908,8 @@ def decision_context(t):
     if a == "enter_now":
         return "High-conviction setup — trend, structure, and volume aligned."
     if a == "watch":
+        if t.get("event_risk_watch"):
+            return "Watch — setup is valid, but earnings are too close for a fresh entry."
         bias = (t.get("bias") or "bullish").capitalize()
         trg = t.get("trigger")
         if not trg:
@@ -1922,6 +1930,8 @@ def decision_context(t):
             return f"Approaching {src} at ${level:,.2f} — buy on a hold."
         return f"{bias} — needs confirmation."
     if a == "hold_off":
+        if t.get("event_risk_hold"):
+            return "Hold off — earnings are imminent, so the setup should reset after the print."
         # Universal fall-through state. Several distinct shapes can land
         # here under the new strict-Avoid model — pick copy that matches
         # the dominant signal.
@@ -2104,6 +2114,12 @@ def why_avoid_reasons(t):
     bias_score = t.get("bias_score", 0)
 
     if action == "hold_off":
+        if t.get("event_risk_hold"):
+            reasons.append(
+                "Earnings are within two trading days — event risk can gap through both trigger and stop."
+            )
+            return reasons
+
         # New universal-fallthrough hold_off covers several distinct shapes.
         # Cite the dominant one(s) — what's MISSING, not what's broken.
 
@@ -3033,6 +3049,29 @@ if view == "analyze":
         st.error(f"Insufficient history for {ticker}.")
         st.stop()
 
+    earnings_days = meta.get("earnings_days") if meta else None
+    if (
+        earnings_days is not None and
+        0 <= earnings_days <= 2 and
+        t.get("action") in ("enter_now", "watch")
+    ):
+        t = {
+            **t,
+            "action": "hold_off",
+            "trigger": None,
+            "event_risk_hold": True,
+        }
+    elif (
+        earnings_days is not None and
+        3 <= earnings_days <= 7 and
+        t.get("action") == "enter_now"
+    ):
+        t = {
+            **t,
+            "action": "watch",
+            "event_risk_watch": True,
+        }
+
     # Compute decision modifiers — earnings proximity, market regime, RS
     modifiers = tactical.decision_modifiers(t, meta, t.get("market_regime", "unknown"))
 
@@ -3050,34 +3089,7 @@ if view == "analyze":
     if dy is not None and dy > 0.05: meta_bits.append(f"{dy:.2f}% yield")
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
-    src_note   = "live thesis" if api_key else "static fallback"
     chg_sign   = "+" if t["change"] >= 0 else ""
-
-    st.markdown(f"""
-<div style="display:flex;justify-content:space-between;align-items:flex-end;
-            padding-bottom:10px;margin-bottom:16px;
-            border-bottom:1px solid var(--color-border);">
-  <div>
-    <div style="display:flex;align-items:baseline;gap:10px;">
-      <span style="font-family:var(--font-sans);font-size:var(--fs-2xl);font-weight:700;letter-spacing:-0.01em;">{ticker}</span>
-      <span style="font-size:var(--fs-base);color:var(--color-muted);">{name}</span>
-    </div>
-    <div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-faint);margin-top:3px;">{meta_line}</div>
-  </div>
-  <div style="display:flex;align-items:flex-end;gap:32px;">
-    <div style="text-align:right;">
-      <span style="font-family:var(--font-mono);font-size:var(--fs-xl);font-weight:600;">${t['price']:,.2f}</span>
-      <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:{chg_color};margin-left:6px;">{chg_sign}{t['change']:.2f}%</span>
-    </div>
-    <div style="text-align:right;padding-bottom:2px;">
-      <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-muted);">
-        Portfolio manager
-      </div>
-      <div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-fainter);margin-top:2px;">{src_note}</div>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
 
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
@@ -3183,6 +3195,18 @@ if view == "analyze":
 
     # ───── LEFT COLUMN: decision + trading logic ─────
     with col_decision:
+        st.markdown(f"""
+<div class="desk-ticker-row">
+  <div>
+    <div style="display:flex;align-items:baseline;gap:10px;">
+      <span class="sym">{ticker}</span>
+      <span class="name">{name}</span>
+    </div>
+    <div class="meta-inline">{meta_line}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
         # 1. DECISION — hero
         # Structure state copy maps action+state to a one-line rationale
         # that appears under the giant decision word per the 2026-04-28
@@ -4390,14 +4414,23 @@ if view == "analyze":
         # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
         src_note = format_source_note(pm.get("_source", "the thesis"))
+        st.markdown('<div class="desk-pm-container">', unsafe_allow_html=True)
 
         # PM header + refresh button
         head_c, refresh_c = st.columns([5, 1])
         with head_c:
             st.markdown(f"""
 <div class="desk-pm-header">
-  <span><span class="em">🧠</span>Portfolio manager</span>
-  <span class="src">{src_note}</span>
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;width:100%;gap:18px;">
+    <div style="white-space:nowrap;">
+      <span style="font-family:var(--font-mono);font-size:var(--fs-lg);font-weight:600;color:var(--color-text);letter-spacing:0;">${t['price']:,.2f}</span>
+      <span style="font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:500;color:{chg_color};letter-spacing:0;margin-left:6px;">{chg_sign}{t['change']:.2f}%</span>
+    </div>
+    <div style="text-align:right;min-width:0;">
+      <div><span class="em">🧠</span>Portfolio manager</div>
+      <div class="src">{src_note}</div>
+    </div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
         with refresh_c:
@@ -4448,7 +4481,7 @@ if view == "analyze":
 
         # Layer 1 — snapshot
         st.markdown(f"""
-<div class="desk-pm-container">
+<div>
   <div class="desk-pm-block">
     <div class="lb">Thesis</div>
     <div class="body">{pm.get('thesis', '')}</div>
@@ -4692,6 +4725,8 @@ if view == "analyze":
                 html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
                 html_parts.append('</div>')
                 st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────
