@@ -1089,12 +1089,25 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     color: var(--color-fainter); font-weight: 400;
 }
 .desk-pm-deep {
-    margin-top: 20px;
-    padding-top: 20px;
-    padding-left: 24px;
+    margin-top: 16px;
+    padding-top: 16px;
+    padding-left: 20px;
     border-top: 1px dashed #D9D5CC;
     border-left: 1px solid var(--color-border);
 }
+.desk-pm-thesis {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px dashed #D9D5CC;
+}
+.desk-pm-thesis p {
+    margin: 0 0 12px;
+    font-family: var(--font-serif);
+    font-size: var(--fs-md);
+    line-height: 1.55;
+    color: var(--color-body);
+}
+.desk-pm-thesis p:last-child { margin-bottom: 0; }
 .desk-pm-deep .sub-lb {
     font-family: var(--font-sans);
     font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--ls-caps-lg);
@@ -1124,7 +1137,32 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-size: var(--fs-base); line-height: 1.45; color: var(--color-body);
 }
 
-/* Ask → button in chat expander */
+/* Follow-up chat */
+[class*="st-key-chat_input_"] textarea {
+    display: block !important;
+    min-height: 92px !important;
+    padding: 14px 16px !important;
+    border-radius: 8px !important;
+    border: 1px solid var(--color-border-soft) !important;
+    background: var(--color-surface-soft) !important;
+    color: var(--color-body) !important;
+    font-family: var(--font-sans) !important;
+    font-size: var(--fs-base) !important;
+    line-height: 1.45 !important;
+    box-shadow: none !important;
+}
+[class*="st-key-chat_input_"] textarea:focus {
+    border-color: var(--color-muted) !important;
+    box-shadow: 0 0 0 1px var(--color-muted) !important;
+}
+[class*="st-key-chat_send_"] {
+    width: auto !important;
+    margin: 8px 0 0 auto !important;
+}
+[class*="st-key-chat_send_"] > div {
+    display: flex !important;
+    justify-content: flex-end !important;
+}
 [class*="st-key-chat_send_"] button {
     text-align: center !important;
     justify-content: center !important;
@@ -1136,27 +1174,85 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-weight: 500 !important;
     border-radius: 4px !important;
     letter-spacing: 0.02em !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    min-width: 68px !important;
+    width: auto !important;
+    padding: 7px 16px !important;
+    white-space: nowrap !important;
+}
+[class*="st-key-chat_send_"] button p {
+    white-space: nowrap !important;
+    margin: 0 !important;
+}
+.desk-chat-history {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    background: var(--color-surface-soft);
+    border: 1px solid var(--color-border-soft);
+    border-radius: 4px;
+}
+.desk-chat-history-title {
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-faint);
+    margin-bottom: 6px;
+}
+.desk-chat-history-item {
+    padding: 6px 0;
+    border-top: 1px dashed var(--color-border);
+}
+.desk-chat-history-item:first-of-type { border-top: none; }
+.desk-chat-history-q {
+    font-size: var(--fs-base);
+    color: var(--color-body);
+    line-height: 1.35;
+}
+.desk-chat-history-a {
+    margin-top: 2px;
+    font-size: var(--fs-sm);
+    color: var(--color-muted);
+    line-height: 1.4;
+}
+[class*="st-key-clear_chat_"] {
+    width: auto !important;
+    margin: 6px 0 0 auto !important;
+}
+[class*="st-key-clear_chat_"] > div {
+    display: flex !important;
+    justify-content: flex-end !important;
 }
 [class*="st-key-pm_expand_"] > div,
 [class*="st-key-pm_collapse_"] > div {
     margin: 0 !important;
     padding: 0 !important;
+    display: flex !important;
+    justify-content: flex-start !important;
 }
 [class*="st-key-pm_expand_"] button,
 [class*="st-key-pm_collapse_"] button {
-    margin: 0 !important;
-    padding: 6px 12px !important;
-    font-family: var(--font-serif) !important;
-    font-size: var(--fs-base) !important;
-    font-weight: 400 !important;
+    margin: 10px 0 0 !important;
+    padding: 7px 12px !important;
+    font-family: var(--font-sans) !important;
+    font-size: var(--fs-sm) !important;
+    font-weight: 600 !important;
     color: var(--color-body) !important;
     background: transparent !important;
     border: 1px solid var(--color-border) !important;
     border-radius: 3px !important;
     letter-spacing: 0 !important;
     text-transform: none !important;
+    min-height: 34px !important;
+    width: auto !important;
 }
-    margin-left: 24px;
+[class*="st-key-pm_expand_"] button:hover,
+[class*="st-key-pm_collapse_"] button:hover {
+    background: var(--color-text) !important;
+    color: var(--color-bg) !important;
+    border-color: var(--color-text) !important;
 }
 div.stButton > button {
     background: transparent; border: 1px solid var(--color-border); color: var(--color-text);
@@ -1176,6 +1272,18 @@ div.stExpander {
     background: var(--color-surface) !important;
     margin-top: 14px !important;
     overflow: hidden;
+}
+div[data-testid="stExpander"]:focus-within,
+details.stExpander:focus-within,
+div.stExpander:focus-within {
+    border-color: var(--color-border) !important;
+    box-shadow: none !important;
+}
+div[data-testid="stExpander"] > details:focus,
+div[data-testid="stExpander"] summary:focus,
+div[data-testid="stExpander"] summary:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
 }
 div[data-testid="stExpander"] > details,
 div[data-testid="stExpander"] details {
@@ -1712,6 +1820,18 @@ def format_earnings(meta):
             return f"Earnings tomorrow ({date_str}) — setup may reset after the print.", None
         return f"Earnings in {days} days ({date_str}) — setup may reset after the print.", None
     return None, f"{date_str} · in {days} days"
+
+
+def format_source_note(source):
+    """Shorten noisy backend/source labels before rendering them in the UI."""
+    source = source or "the thesis"
+    lower = str(source).lower()
+    if "claude call failed" in lower or "authentication_error" in lower:
+        age_suffix = ""
+        if " · " in str(source):
+            age_suffix = " · " + str(source).split(" · ", 1)[1]
+        return "static fallback" + age_suffix
+    return source
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -3054,7 +3174,7 @@ if view == "analyze":
     if dy is not None and dy > 0.05: meta_bits.append(f"{dy:.2f}% yield")
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
-    src_note   = pm.get("_source", "the thesis")
+    src_note   = format_source_note(pm.get("_source", "the thesis"))
     chg_sign   = "+" if t["change"] >= 0 else ""
 
     st.markdown(f"""
@@ -3082,17 +3202,6 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
-
-    # ↻ refresh button — right-aligned above PM column
-    _, pm_refresh_col = st.columns([5, 3])
-    with pm_refresh_col:
-        _, rb = st.columns([4, 1])
-        if rb.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
-            clear_pm_cache(ticker)
-            clear_dossier_cache(ticker)
-            fetch_quote_meta.clear()
-            fetch_history.clear()
-            st.rerun()
 
     # ───── LEFT COLUMN: decision + trading logic ─────
     with col_decision:
@@ -3577,6 +3686,57 @@ if view == "analyze":
             if not api_key:
                 st.caption("Add an Anthropic API key in the sidebar to use chat.")
             else:
+                import html as _html
+
+                def _chat_norm(text):
+                    return " ".join((text or "").strip().lower().split())
+
+                def _saved_chat_answers():
+                    saved = []
+                    seen = set()
+                    history = chat_store[chat_key]
+                    for i, msg in enumerate(history):
+                        if msg.get("role") != "user":
+                            continue
+                        q_text = msg.get("content", "").strip()
+                        q_norm = _chat_norm(q_text)
+                        if not q_norm or q_norm in seen:
+                            continue
+                        answer = ""
+                        for nxt in history[i + 1:]:
+                            if nxt.get("role") == "assistant":
+                                answer = nxt.get("content", "").strip()
+                                break
+                            if nxt.get("role") == "user":
+                                break
+                        if answer:
+                            seen.add(q_norm)
+                            saved.append({"question": q_text, "answer": answer})
+                    return saved
+
+                saved_answers = _saved_chat_answers()
+                if saved_answers:
+                    items_html = []
+                    for item in saved_answers[-5:][::-1]:
+                        q_html = _html.escape(item["question"])
+                        a_preview = item["answer"].replace("\n", " ").strip()
+                        if len(a_preview) > 170:
+                            a_preview = a_preview[:170].rstrip() + "..."
+                        a_html = _html.escape(a_preview)
+                        items_html.append(
+                            f'<div class="desk-chat-history-item">'
+                            f'<div class="desk-chat-history-q">{q_html}</div>'
+                            f'<div class="desk-chat-history-a">{a_html}</div>'
+                            f'</div>'
+                        )
+                    st.markdown(
+                        '<div class="desk-chat-history">'
+                        '<div class="desk-chat-history-title">Previously asked · exact repeats use saved answers</div>'
+                        + "".join(items_html) +
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
+
                 # Render message history
                 for msg in chat_store[chat_key]:
                     if msg["role"] == "user":
@@ -3585,7 +3745,7 @@ if view == "analyze":
                             f'color:var(--color-faint);line-height:1.4;">'
                             f'<span style="font-weight:600;text-transform:uppercase;'
                             f'letter-spacing:0.05em;font-size:var(--fs-xs);">You</span> '
-                            f'{msg["content"]}</div>',
+                            f'{_html.escape(msg["content"])}</div>',
                             unsafe_allow_html=True,
                         )
                     else:
@@ -3594,7 +3754,7 @@ if view == "analyze":
                             f'background:var(--color-surface);border-radius:4px;'
                             f'border-left:2px solid var(--color-border);'
                             f'font-size:var(--fs-md);line-height:1.65;color:var(--color-body);">'
-                            f'{msg["content"]}</div>',
+                            f'{_html.escape(msg["content"])}</div>',
                             unsafe_allow_html=True,
                         )
 
@@ -3606,17 +3766,32 @@ if view == "analyze":
                     placeholder=f"Ask anything about {ticker}…",
                     height=90,
                 )
-                send = st.button("Ask →", key=f"chat_send_{ticker}", use_container_width=True)
+                _, ask_col = st.columns([5, 1])
+                with ask_col:
+                    send = st.button("Ask", key=f"chat_send_{ticker}", use_container_width=True)
 
                 if chat_store[chat_key]:
-                    if st.button("Clear conversation", key=f"clear_chat_{ticker}", type="secondary"):
-                        chat_store[chat_key] = []
-                        save_store(st.session_state.store)
-                        st.rerun()
+                    _, clear_col = st.columns([4, 1])
+                    with clear_col:
+                        if st.button("Clear", key=f"clear_chat_{ticker}", type="secondary", use_container_width=True):
+                            chat_store[chat_key] = []
+                            save_store(st.session_state.store)
+                            st.rerun()
 
                 if send and user_q.strip():
                     q = user_q.strip()
+                    cached_reply = None
+                    for item in saved_answers:
+                        if _chat_norm(item["question"]) == _chat_norm(q):
+                            cached_reply = item["answer"]
+                            break
+
                     chat_store[chat_key].append({"role": "user", "content": q})
+                    if cached_reply:
+                        chat_store[chat_key].append({"role": "assistant", "content": cached_reply})
+                        save_store(st.session_state.store)
+                        st.toast("Used saved answer from chat history.", icon="✓")
+                        st.rerun()
 
                     dossier_ctx = (dossier_result or {}).get("dossier") or "Not yet generated."
                     tech_ctx    = (dossier_result or {}).get("technical_narrative") or ""
@@ -4300,7 +4475,24 @@ if view == "analyze":
 
         # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
-        src_note = pm.get("_source", "the thesis")
+        src_note = format_source_note(pm.get("_source", "the thesis"))
+
+        # PM header + refresh button
+        head_c, refresh_c = st.columns([5, 1])
+        with head_c:
+            st.markdown(f"""
+<div class="desk-pm-header">
+  <span><span class="em">🧠</span>Portfolio manager</span>
+  <span class="src">{src_note}</span>
+</div>
+""", unsafe_allow_html=True)
+        with refresh_c:
+            if st.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
+                clear_pm_cache(ticker)
+                clear_dossier_cache(ticker)
+                fetch_quote_meta.clear()
+                fetch_history.clear()
+                st.rerun()
 
         # Quality tier badge — informational, NOT a gate. Sourced from the
         # dossier Claude call (5th field). Shows long-term ownership read
@@ -4472,119 +4664,120 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        # Layer 2 — Full thesis (combined narrative + deep dive)
-        # Behind one expander button. Shows: PM narrative paragraphs first,
-        # then structured deep-dive (variant perception, catalysts, risks,
-        # what-must-be-true, what-would-change-my-mind). Single click to
-        # see everything investment-related.
+        # Investment thesis is visible by default. The extra structured
+        # deep-dive stays behind one compact button so the PM panel remains
+        # readable on first load.
         pm_narrative = dossier_result.get("pm_narrative") if dossier_result else None
         deep = pm.get("deep_dive") or {}
         has_deep = (deep.get("expanded_thesis") and pm.get("_source", "").startswith("claude")) or deep.get("catalysts")
-        has_full_thesis_content = bool(pm_narrative) or has_deep
 
-        # Track expansion state per ticker
+        if pm_narrative:
+            paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
+            narrative_html = "".join(f"<p>{p}</p>" for p in paragraphs)
+            st.markdown(
+                f'<div class="desk-pm-thesis">'
+                f'<div class="desk-pm-block"><div class="lb">Investment thesis</div></div>'
+                f'{narrative_html}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            fallback_thesis = pm.get("thesis") or "Investment thesis appears here after the PM dossier is generated."
+            st.markdown(
+                f'<div class="desk-pm-thesis">'
+                f'<div class="desk-pm-block"><div class="lb">Investment thesis</div></div>'
+                f'<p>{fallback_thesis}</p>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Track expanded deep-dive state per ticker.
         ticker_key = ticker.upper()
         expanded = st.session_state.pm_expanded.get(ticker_key, False)
 
-        btn_label = "View full thesis →"
-        if not expanded:
+        show_deep_button = has_deep or not pm.get("_source", "").startswith("claude")
+        if show_deep_button:
+            btn_label = "Hide expanded thesis ↑" if expanded else "Expanded thesis ↓"
             if st.button(btn_label, key=f"pm_expand_{ticker_key}", use_container_width=False):
                 st.session_state.pm_expanded[ticker_key] = not expanded
                 st.rerun()
 
-        if expanded:
-            if not has_full_thesis_content:
-                st.markdown(f"""
+        if expanded and not has_deep:
+            st.markdown(f"""
 <div class="desk-pm-deep">
   <div class="sub-body" style="color:var(--color-faint);">
-    Full thesis content is only generated when an Anthropic API key is configured in the sidebar.
+    Expanded thesis is generated when an Anthropic API key is configured in the sidebar.
     Paste a key, then click ↻ next to the Portfolio manager header to regenerate.
   </div>
 </div>
 """, unsafe_allow_html=True)
-            else:
-                # Render PM narrative paragraphs FIRST if available — these
-                # are the prose-form thesis (2-4 paragraphs of senior-PM voice).
-                if pm_narrative:
-                    paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
-                    narrative_html = "".join(
-                        f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.55; '
-                        f'color: var(--color-body); font-family: var(--font-serif); '
-                        f'font-style: normal;">{p}</p>'
-                        for p in paragraphs
-                    )
-                    st.markdown(
-                        f'<div class="desk-pm-deep" style="padding-bottom: 4px;">'
-                        f'<div class="sub-lb">Investment thesis</div>'
-                        f'<div style="padding: 4px 0 8px;">{narrative_html}</div>'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
 
-                # Then the structured deep-dive (variant perception, catalysts,
-                # risks, what-must-be-true, what-would-change-my-mind)
-                if has_deep and deep.get("expanded_thesis"):
-                    html_parts = ['<div class="desk-pm-deep">']
-                    html_parts.append(f'<div class="sub-lb">Expanded thesis</div>')
-                    html_parts.append(f'<div class="sub-body">{deep.get("expanded_thesis", "")}</div>')
+        if expanded and has_deep:
+            # Structured deep-dive: variant perception, catalysts, risks,
+            # what-must-be-true, what-would-change-my-mind.
+            if deep.get("expanded_thesis"):
+                html_parts = ['<div class="desk-pm-deep">']
+                html_parts.append(f'<div class="sub-lb">Expanded thesis</div>')
+                html_parts.append(f'<div class="sub-body">{deep.get("expanded_thesis", "")}</div>')
 
-                    # Business
-                    if deep.get("business"):
-                        html_parts.append(f'<div class="sub-lb">Business</div>')
-                        html_parts.append(f'<div class="sub-body">{deep["business"]}</div>')
+                # Business
+                if deep.get("business"):
+                    html_parts.append(f'<div class="sub-lb">Business</div>')
+                    html_parts.append(f'<div class="sub-body">{deep["business"]}</div>')
 
-                    # Variant perception — bull vs bear, side by side
-                    if deep.get("variant_bull") or deep.get("variant_bear"):
-                        html_parts.append(f'<div class="sub-lb">Variant perception</div>')
-                        html_parts.append('<div class="variant-grid">')
-                        if deep.get("variant_bull"):
-                            html_parts.append(f'''
+                # Variant perception — bull vs bear, side by side
+                if deep.get("variant_bull") or deep.get("variant_bear"):
+                    html_parts.append(f'<div class="sub-lb">Variant perception</div>')
+                    html_parts.append('<div class="variant-grid">')
+                    if deep.get("variant_bull"):
+                        html_parts.append(f'''
 <div class="variant-card">
   <div class="lb lb-bull">Bull case</div>
   <div class="body">{deep["variant_bull"]}</div>
 </div>''')
-                        if deep.get("variant_bear"):
-                            html_parts.append(f'''
+                    if deep.get("variant_bear"):
+                        html_parts.append(f'''
 <div class="variant-card">
   <div class="lb lb-bear">Bear case</div>
   <div class="body">{deep["variant_bear"]}</div>
 </div>''')
-                        html_parts.append('</div>')
-                        if deep.get("variant_needs"):
-                            html_parts.append(f'<div class="sub-body" style="margin-top:8px;"><em>What needs to happen:</em> {deep["variant_needs"]}</div>')
-
-                    # Catalysts
-                    if deep.get("catalysts"):
-                        html_parts.append(f'<div class="sub-lb">Catalysts · next 1–2 quarters</div>')
-                        html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
-
-                    # Risk scenarios
-                    if deep.get("risk_scenarios"):
-                        html_parts.append(f'<div class="sub-lb">Specific risk scenarios</div>')
-                        html_parts.extend(f'<div class="desk-pm-item">{r}</div>' for r in deep["risk_scenarios"])
-
-                    # Valuation context
-                    if deep.get("valuation_context"):
-                        html_parts.append(f'<div class="sub-lb">Valuation context</div>')
-                        html_parts.append(f'<div class="sub-body">{deep["valuation_context"]}</div>')
-
-                    # What must be true
-                    if deep.get("must_be_true"):
-                        html_parts.append(f'<div class="sub-lb">What must be true</div>')
-                        html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["must_be_true"])
-
-                    # What would change my mind
-                    if deep.get("would_change_mind"):
-                        html_parts.append(f'<div class="sub-lb">What would change my mind</div>')
-                        html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["would_change_mind"])
-
                     html_parts.append('</div>')
-                    st.markdown("".join(html_parts), unsafe_allow_html=True)
+                    if deep.get("variant_needs"):
+                        html_parts.append(f'<div class="sub-body" style="margin-top:8px;"><em>What needs to happen:</em> {deep["variant_needs"]}</div>')
 
-            # Collapse button at bottom after content
-            if st.button("Collapse analysis ↑", key=f"pm_collapse_{ticker_key}"):
-                st.session_state.pm_expanded[ticker_key] = False
-                st.rerun()
+                # Catalysts
+                if deep.get("catalysts"):
+                    html_parts.append(f'<div class="sub-lb">Catalysts · next 1–2 quarters</div>')
+                    html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
+
+                # Risk scenarios
+                if deep.get("risk_scenarios"):
+                    html_parts.append(f'<div class="sub-lb">Specific risk scenarios</div>')
+                    html_parts.extend(f'<div class="desk-pm-item">{r}</div>' for r in deep["risk_scenarios"])
+
+                # Valuation context
+                if deep.get("valuation_context"):
+                    html_parts.append(f'<div class="sub-lb">Valuation context</div>')
+                    html_parts.append(f'<div class="sub-body">{deep["valuation_context"]}</div>')
+
+                # What must be true
+                if deep.get("must_be_true"):
+                    html_parts.append(f'<div class="sub-lb">What must be true</div>')
+                    html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["must_be_true"])
+
+                # What would change my mind
+                if deep.get("would_change_mind"):
+                    html_parts.append(f'<div class="sub-lb">What would change my mind</div>')
+                    html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["would_change_mind"])
+
+                html_parts.append('</div>')
+                st.markdown("".join(html_parts), unsafe_allow_html=True)
+            elif deep.get("catalysts"):
+                html_parts = ['<div class="desk-pm-deep">']
+                html_parts.append(f'<div class="sub-lb">Catalysts · next 1–2 quarters</div>')
+                html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
+                html_parts.append('</div>')
+                st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -5122,6 +5315,11 @@ if view == "tracker":
             user_color   = user_sty.get("color", "var(--color-text)")
             user_emoji   = user_sty.get("emoji", "")
             user_label   = user_sty.get("label", (entry.get("user_action") or "—").replace("_"," ").title())
+            reasoning_preview = ""
+            if reasoning:
+                reasoning_preview = _html.escape(str(reasoning[:200]))
+                if len(reasoning) > 200:
+                    reasoning_preview += "…"
 
             # ── Compact row ──────────────────────────────────────────
             st.markdown(
@@ -5142,7 +5340,7 @@ if view == "tracker":
                 f'<div><div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-faint);margin-bottom:1px;">You</div>'
                 f'<div style="font-size:var(--fs-base);font-weight:600;color:{user_color};">{user_emoji} {user_label}</div></div>'
                 f'</div>'
-                + (f'<div style="font-size:var(--fs-sm);color:var(--color-faint);font-style:italic;padding:0 0 4px;line-height:1.4;">&ldquo;{_html.escape(str(reasoning[:200]))}{"\u2026" if len(reasoning)>200 else ""}&rdquo;</div>' if reasoning else '')
+                + (f'<div style="font-size:var(--fs-sm);color:var(--color-faint);font-style:italic;padding:0 0 4px;line-height:1.4;">&ldquo;{reasoning_preview}&rdquo;</div>' if reasoning_preview else '')
                 + '</div>',
                 unsafe_allow_html=True,
             )
