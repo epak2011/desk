@@ -1054,11 +1054,9 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     display: flex; justify-content: space-between; align-items: flex-end;
     min-height: 40px;
 }
-/* PM refresh button — pulled up into the header row */
 [class*="st-key-pm_refresh_btn"] {
-    margin-top: -40px !important;
+    margin-top: 0 !important;
     margin-bottom: 0 !important;
-    float: right !important;
     width: auto !important;
 }
 [class*="st-key-pm_refresh_btn"] > div {
@@ -1069,7 +1067,7 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     padding: 2px 8px !important;
     font-size: var(--fs-base) !important;
     min-height: 0 !important;
-    height: 26px !important;
+    height: 30px !important;
     background: transparent !important;
     border: 1px solid var(--color-border) !important;
     color: var(--color-muted) !important;
@@ -3217,6 +3215,10 @@ if view == "analyze":
     </div>
     <div class="meta-inline">{meta_line}</div>
   </div>
+  <div style="white-space:nowrap;text-align:right;">
+    <span class="price">${t['price']:,.2f}</span>
+    <span class="chg" style="color:{chg_color};">{chg_sign}{t['change']:.2f}%</span>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -4433,15 +4435,9 @@ if view == "analyze":
         with head_c:
             st.markdown(f"""
 <div class="desk-pm-header">
-  <div style="display:flex;align-items:flex-end;justify-content:space-between;width:100%;gap:18px;">
-    <div style="white-space:nowrap;">
-      <span style="font-family:var(--font-mono);font-size:var(--fs-lg);font-weight:600;color:var(--color-text);letter-spacing:0;">${t['price']:,.2f}</span>
-      <span style="font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:500;color:{chg_color};letter-spacing:0;margin-left:6px;">{chg_sign}{t['change']:.2f}%</span>
-    </div>
-    <div style="text-align:right;min-width:0;">
-      <div><span class="em">🧠</span>Portfolio manager</div>
-      <div class="src">{src_note}</div>
-    </div>
+  <div>
+    <div><span class="em">🧠</span>Portfolio manager</div>
+    <div class="src">{src_note}</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
