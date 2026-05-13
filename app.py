@@ -701,7 +701,7 @@ div[data-testid="element-container"]:has(.desk-bar) {
     background: var(--color-text); color: var(--color-bg);
     padding: 11px 20px;
     display: flex; justify-content: space-between; align-items: center;
-    margin: -1.2rem -1rem 1.5rem;
+    margin: 0 -1rem 1.5rem;
     position: sticky;
     top: 0;
     z-index: 999;
@@ -741,8 +741,9 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 
 /* Ticker line */
 .desk-ticker-row {
-    display: flex; justify-content: space-between; align-items: baseline;
-    padding-bottom: 8px; border-bottom: 1px solid var(--color-border); margin-bottom: 18px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    min-height: 48px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--color-border); margin-bottom: 18px;
 }
 .desk-ticker-row .sym {
     font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1;
@@ -1052,20 +1053,27 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     border-left: 1px solid var(--color-border);
     padding-left: 24px;
     min-height: calc(100vh - 132px);
+    position: relative;
 }
 .desk-pm-header {
     font-family: var(--font-sans);
     font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xl);
     text-transform: uppercase; color: var(--color-muted);
-    margin-bottom: 14px; padding-bottom: 10px;
+    min-height: 48px;
+    margin-bottom: 14px; padding: 0 44px 10px 0;
     border-bottom: 1px solid var(--color-border);
-    display: flex; justify-content: space-between; align-items: flex-end;
-    min-height: 40px;
+    display: flex; justify-content: flex-start; align-items: flex-start;
+    width: 100%;
+    box-sizing: border-box;
 }
 [class*="st-key-pm_refresh_btn"] {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
     width: auto !important;
+    z-index: 3 !important;
 }
 [class*="st-key-pm_refresh_btn"] > div {
     display: flex !important;
@@ -1649,6 +1657,8 @@ def fetch_quote_meta(ticker):
     All optional. Cached 1 hour.
     """
     out = {
+        "long_name": None,
+        "short_name": None,
         "sector": None,
         "industry": None,
         "market_cap": None,
@@ -1675,6 +1685,8 @@ def fetch_quote_meta(ticker):
         except Exception:
             info = {}
 
+        out["long_name"] = info.get("longName")
+        out["short_name"] = info.get("shortName")
         out["sector"] = info.get("sector")
         out["industry"] = info.get("industry")
         out["market_cap"] = info.get("marketCap")
@@ -3101,7 +3113,8 @@ if view == "analyze":
     spf        = meta.get("short_pct_float")
     earn_banner, earn_footer = format_earnings(meta)
     meta_bits  = []
-    if meta.get("sector"):      meta_bits.append(meta["sector"])
+    industry_line = meta.get("sector") or meta.get("industry")
+    if industry_line:           meta_bits.append(industry_line)
     if mcap:                    meta_bits.append(mcap)
     if spf is not None:         meta_bits.append(f"{spf:.1f}% short")
     dy = meta.get("dividend_yield")
@@ -3109,6 +3122,12 @@ if view == "analyze":
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
     chg_sign   = "+" if t["change"] >= 0 else ""
+    company_label = (
+        name
+        if name and name.strip().upper() != ticker.upper()
+        else (meta.get("long_name") or meta.get("short_name") or "")
+    )
+    company_html = f'<span class="name">{company_label}</span>' if company_label else ""
 
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
@@ -3219,7 +3238,7 @@ if view == "analyze":
   <div>
     <div style="display:flex;align-items:baseline;gap:10px;">
       <span class="sym">{ticker}</span>
-      <span class="name">{name}</span>
+      {company_html}
     </div>
     <div class="meta-inline">{meta_line}</div>
   </div>
@@ -4439,9 +4458,7 @@ if view == "analyze":
         src_note = format_source_note(pm.get("_source", "the thesis"))
 
         # PM header + refresh button
-        head_c, refresh_c = st.columns([5, 1])
-        with head_c:
-            st.markdown(f"""
+        st.markdown(f"""
 <div class="desk-pm-header">
   <div>
     <div><span class="em">🧠</span>Portfolio manager</div>
@@ -4449,13 +4466,12 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
-        with refresh_c:
-            if st.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
-                clear_pm_cache(ticker)
-                clear_dossier_cache(ticker)
-                fetch_quote_meta.clear()
-                fetch_history.clear()
-                st.rerun()
+        if st.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
+            clear_pm_cache(ticker)
+            clear_dossier_cache(ticker)
+            fetch_quote_meta.clear()
+            fetch_history.clear()
+            st.rerun()
 
         # Quality tier badge — informational, NOT a gate. Sourced from the
         # dossier Claude call (5th field). Shows long-term ownership read
