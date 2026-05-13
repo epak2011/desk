@@ -11,6 +11,7 @@ Hierarchy (strict, top-down):
 """
 
 import json
+import html
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -3127,7 +3128,11 @@ if view == "analyze":
         if name and name.strip().upper() != ticker.upper()
         else (meta.get("long_name") or meta.get("short_name") or "")
     )
-    company_html = f'<span class="name">{company_label}</span>' if company_label else ""
+    company_html = (
+        f'<span class="name">{html.escape(str(company_label))}</span>'
+        if company_label else ""
+    )
+    meta_html = html.escape(meta_line)
 
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
@@ -3233,21 +3238,22 @@ if view == "analyze":
 
     # ───── LEFT COLUMN: decision + trading logic ─────
     with col_decision:
-        st.markdown(f"""
-<div class="desk-ticker-row">
-  <div>
-    <div style="display:flex;align-items:baseline;gap:10px;">
-      <span class="sym">{ticker}</span>
-      {company_html}
-    </div>
-    <div class="meta-inline">{meta_line}</div>
-  </div>
-  <div style="white-space:nowrap;text-align:right;">
-    <span class="price">${t['price']:,.2f}</span>
-    <span class="chg" style="color:{chg_color};">{chg_sign}{t['change']:.2f}%</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+        ticker_header_html = (
+            '<div class="desk-ticker-row">'
+            '<div>'
+            '<div style="display:flex;align-items:baseline;gap:10px;">'
+            f'<span class="sym">{html.escape(str(ticker))}</span>'
+            f'{company_html}'
+            '</div>'
+            f'<div class="meta-inline">{meta_html}</div>'
+            '</div>'
+            '<div style="white-space:nowrap;text-align:right;">'
+            f'<span class="price">${t["price"]:,.2f}</span>'
+            f'<span class="chg" style="color:{chg_color};">{chg_sign}{t["change"]:.2f}%</span>'
+            '</div>'
+            '</div>'
+        )
+        st.markdown(ticker_header_html, unsafe_allow_html=True)
 
         # 1. DECISION — hero
         # Structure state copy maps action+state to a one-line rationale
