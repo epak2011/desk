@@ -44,6 +44,18 @@ if LEGACY_STORE_PATH.exists() and not STORE_PATH.exists():
         pass
 PM_CACHE_TTL_DAYS = 7
 
+# Display-only fallbacks for common watchlist names when Yahoo omits profile
+# metadata during rate-limit windows. Live quote/math still comes from data.
+FALLBACK_PROFILE_META = {
+    "ASTS": {"name": "AST SpaceMobile", "sector": "Communication Services"},
+    "SATS": {"name": "EchoStar Corporation", "sector": "Communication Services"},
+    "NVDA": {"name": "NVIDIA Corporation", "sector": "Technology"},
+    "AVGO": {"name": "Broadcom Inc.", "sector": "Technology"},
+    "PLTR": {"name": "Palantir Technologies", "sector": "Technology"},
+    "COIN": {"name": "Coinbase Global", "sector": "Financial Services"},
+    "BTC-USD": {"name": "Bitcoin", "sector": "Crypto"},
+}
+
 # ─────────────────────────────────────────────────────────────────────
 # STORAGE LAYER — Postgres when DATABASE_URL is set (hosted), local
 # JSON file otherwise (development on your Mac). Same code, same shape.
@@ -695,16 +707,16 @@ html, body, .main, .main p, .main li {
 div[data-testid="stElementContainer"]:has(.desk-bar),
 div[data-testid="element-container"]:has(.desk-bar) {
     position: sticky !important;
-    top: 0 !important;
+    top: 72px !important;
     z-index: 1000 !important;
+    background: var(--color-bg) !important;
 }
 .desk-bar {
     background: var(--color-text); color: var(--color-bg);
     padding: 11px 20px;
     display: flex; justify-content: space-between; align-items: center;
     margin: 0 -1rem 1.5rem;
-    position: sticky;
-    top: 0;
+    position: relative;
     z-index: 999;
     box-shadow: 0 1px 0 rgba(0,0,0,0.12);
 }
@@ -3110,11 +3122,12 @@ if view == "analyze":
     # ── Single full-width header row ──────────────────────────────────
     # Render this before Claude/PM work so the page anchors immediately.
     chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
+    fallback_profile = FALLBACK_PROFILE_META.get(ticker.upper(), {})
     mcap       = format_market_cap(meta.get("market_cap"))
     spf        = meta.get("short_pct_float")
     earn_banner, earn_footer = format_earnings(meta)
     meta_bits  = []
-    industry_line = meta.get("sector") or meta.get("industry")
+    industry_line = meta.get("sector") or meta.get("industry") or fallback_profile.get("sector")
     if industry_line:           meta_bits.append(industry_line)
     if mcap:                    meta_bits.append(mcap)
     if spf is not None:         meta_bits.append(f"{spf:.1f}% short")
@@ -3126,7 +3139,7 @@ if view == "analyze":
     company_label = (
         name
         if name and name.strip().upper() != ticker.upper()
-        else (meta.get("long_name") or meta.get("short_name") or "")
+        else (meta.get("long_name") or meta.get("short_name") or fallback_profile.get("name") or "")
     )
     company_html = (
         f'<span class="name">{html.escape(str(company_label))}</span>'
