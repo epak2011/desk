@@ -244,6 +244,7 @@ Current tactical state from the system (for context, not the focus):
 - Directional bias: {t.get('bias') or 'unclear'}
 - Action: {t.get('action', 'unknown')}
 - Technical score: {t.get('setup_score', 0):.1f} / 10
+- Projected reward/risk: {f"{t.get('reward_risk'):.2f}:1" if t.get('reward_risk') is not None else 'n/a'}
 
 Return ONLY JSON in exactly this shape. No preamble, no code fences.
 
@@ -253,20 +254,20 @@ Return ONLY JSON in exactly this shape. No preamble, no code fences.
   "risks": ["3 short items, no period at end"],
   "valuation": "1 sentence on valuation context",
   "deep_dive": {{
-    "expanded_thesis": "4-6 sentences. Frame what the market currently believes vs what you believe. Include the variant view clearly.",
+    "expanded_thesis": "4-6 sentences. Frame consensus, variant view, what is priced in, and what would prove the view wrong.",
     "business": "2-3 sentences on key segments, where growth comes from, durability of the franchise",
     "variant_bull": "1-2 sentences on the specific bull case that is NOT consensus",
     "variant_bear": "1-2 sentences on the specific bear case that is NOT consensus",
     "variant_needs": "1 sentence on what specifically has to happen for the variant to play out",
     "catalysts": ["3 time-bound catalysts over the next 1-2 quarters, each one line, concrete and dated when possible"],
     "risk_scenarios": ["3 specific failure modes, not generic risks. Each one line."],
-    "valuation_context": "2-3 sentences comparing to historical multiples, peers, and what is priced in today",
-    "must_be_true": ["3 things that must hold for the thesis to work. Each phrased as a specific condition."],
-    "would_change_mind": ["3 things that would invalidate the thesis. Each phrased as a specific trigger."]
+    "valuation_context": "2-3 sentences comparing to history, peers, growth durability, and what is priced in today",
+    "must_be_true": ["3 things that must hold for the thesis to work. Each phrased as a specific measurable condition."],
+    "would_change_mind": ["3 things that would invalidate the thesis. Each phrased as a specific observable trigger."]
   }}
 }}
 
-Voice: senior PM, confident, specific, opinionated. No hedging, no consultantese, no corporate-speak. Write in complete sentences.
+Voice: senior PM, confident, specific, opinionated. No hedging, no consultantese, no corporate-speak. Include both the upside case and the kill criteria; do not write a one-sided bull pitch. Write in complete sentences.
 Return ONLY the JSON, nothing else."""
 
         for _attempt in range(2):
@@ -372,6 +373,7 @@ Tactical state:
 - RSI: {t_state.get('rsi14', 50):.0f}; 52-week range position {t_state.get('pct_of_52w_range', 50):.0f}%
 - Relative strength vs SPX: {t_state.get('rs', 1):.2f} (10d delta {t_state.get('rs_delta', 0):+.3f})
 - ATR: {t_state.get('atr_pct', 0)*100:.2f}%; Volume vs 20d avg: {t_state.get('vol_ratio', 1):.2f}×
+- Projected reward/risk to Target 1: {f"{t_state.get('reward_risk'):.2f}:1" if t_state.get('reward_risk') is not None else 'n/a'}
 - Tech score 10d delta: {t_state.get('tech_delta', 0):+.1f}
 - Structure quality: {t_state.get('structure_quality', 5):.1f}/10
 - Accumulation eligible: {t_state.get('is_accumulation_eligible', False)}
@@ -461,11 +463,11 @@ technical_narrative: 2-4 paragraphs (4 only if needed). Senior-trader voice. Use
 - Para 3 (optional): historical pattern context if useful — how this stock typically behaves at this kind of level. Use the ma50_history line if it adds signal.
 - Para 4 (optional, if relevant): how the broader regime ({regime} SPY) affects this read.
 
-pm_narrative: 2-4 paragraphs. Senior PM voice. Use {{price}} for current-price references. Walk through:
+pm_narrative: 3-4 paragraphs. Senior PM voice. Use {{price}} for current-price references. Walk through:
 - Para 1: what the business actually does and how it makes money. Specific to this name, not boilerplate.
 - Para 2: variant view — what consensus believes vs what the bull/bear case actually requires. Be specific about which view you find more convincing and why.
 - Para 3: valuation context — what's priced in at current multiples, how the math compares to the growth rate, what would have to be true for this to work from current levels.
-- Para 4 (optional): the dominant near-term catalyst or risk and what to watch for.
+- Para 4: portfolio implementation — sizing posture, dominant catalyst, dominant risk, and the concrete evidence that would make you change your mind.
 
 bullets: compact summary that powers the right-hand snapshot panel. Used when the static template doesn't have a thesis for this ticker (DASH, PLTR, COIN, etc.). Rules:
 - thesis: 1-2 sentences. Core investment rationale. Specific to this name, no boilerplate.
@@ -509,13 +511,18 @@ ENTER only if ALL of:
 - tech_score ≥ 9
 - valid trigger exists AND is actionable now
 - NOT extended (price within ~12% above MA50 AND within ~8% above MA100)
+- projected reward/risk is at least ~1.5:1
+- earnings are not within the next 7 calendar days
 
 WATCH if:
 - bullish bias but tech_score < 9 (waiting on confirmation), OR
 - valid trigger exists and is approaching but not fired, OR
 - bullish bias but extended → wait for pullback target
+- clean setup but earnings are 3-7 days away → wait for post-print reset
 
 HOLD_OFF (universal default for ambiguity) if:
+- earnings are within 0-2 days for a fresh entry
+- projected reward/risk is below ~1.2:1
 - pullback in uptrend (above ma200, below ma50)
 - transitioning structure (recovering, no clean confirmation)
 - below ma200 but tape still loyal (RS ≥ 0.95)
@@ -538,6 +545,10 @@ Extension: price >12% above MA50 AND >8% above MA100 → extended → do NOT ENT
 
 Triggers: prefer proximate, actionable levels. A reclaim of MA200 that's 35% away is NOT a trigger — it's a long-horizon target. The trigger must be reachable on a 1-8 week timeframe (typically within 10% of current price).
 
+Reward/risk discipline: Do not recommend a trade just because direction is plausible. If the invalidation is too far from entry relative to Target 1, call it HOLD_OFF and explain that the entry is bad even if the stock is interesting.
+
+Event discipline: Do not recommend a fresh ENTER immediately ahead of earnings. Earnings can gap through both trigger and stop; prefer WATCH for 3-7 days away and HOLD_OFF for 0-2 days away.
+
 QUALITY USAGE — strictly limited:
 - DO use quality to inform reasoning tone and risk framing
 - DO use quality to gate the ACCUMULATE upgrade (A/B only)
@@ -555,10 +566,10 @@ CONFIDENCE SCALE (anchor your number to these):
 OUTPUT for tactical_call:
 - action: one of ENTER/WATCH/HOLD_OFF/AVOID/ACCUMULATE
 - confidence: integer 1-10 anchored to scale above
-- reasoning: 2-3 sentences focused on structure + RS + trigger. Reference specific numbers from inputs. Identify the dominant principle that drove the call.
+- reasoning: 2-3 sentences focused on structure + RS + trigger + reward/risk/event risk. Reference specific numbers from inputs. Identify the dominant principle that drove the call.
 - trigger: concrete price/condition (e.g. "Hold of $145 with volume confirmation") or null if no clear trigger
 - invalidation: specific price level that breaks the setup, or null if action is HOLD_OFF/AVOID
-- notes: optional one-line nuance (e.g. "extended above 50d, want pullback first")
+- notes: optional one-line nuance, including sizing if Speculative or event risk is near
 
 FINAL RULE: if uncertain or the setup is not clearly actionable with favorable risk/reward, default to HOLD_OFF. Do NOT force trades. Do NOT default to optimism. Your job is to avoid bad trades and identify clean setups — not to justify interest.
 
