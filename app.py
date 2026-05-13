@@ -710,6 +710,9 @@ div[data-testid="element-container"]:has(.desk-bar) {
 .main .block-container {
     padding-top: 4px !important;
 }
+[data-testid="stMainBlockContainer"] {
+    padding-top: 4px !important;
+}
 .desk-bar .wordmark {
     font-family: var(--font-serif); font-weight: 500;
     font-size: var(--fs-xl); line-height: 1;
