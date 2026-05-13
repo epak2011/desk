@@ -715,7 +715,7 @@ div[data-testid="element-container"]:has(.desk-bar) {
     background: var(--color-text); color: var(--color-bg);
     padding: 11px 20px;
     display: flex; justify-content: space-between; align-items: center;
-    margin: 0 -1rem 1.5rem;
+    margin: 0 -1rem calc(1.5rem + 52px);
     position: relative;
     z-index: 999;
     box-shadow: 0 1px 0 rgba(0,0,0,0.12);
