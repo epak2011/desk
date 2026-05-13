@@ -912,6 +912,19 @@ def decision_modifiers(t_state, meta, market_reg):
             "text": "Significant lag versus the S&P 500 — tape is not supporting this name.",
         })
 
+    rr = t_state.get("reward_risk")
+    if rr is not None:
+        if rr < 1.2:
+            mods.append({
+                "kind": "reward_risk", "severity": "high",
+                "text": f"Poor projected reward/risk ({rr:.2f}:1) — wait for a better entry or tighter invalidation.",
+            })
+        elif rr < 1.5:
+            mods.append({
+                "kind": "reward_risk", "severity": "med",
+                "text": f"Thin projected reward/risk ({rr:.2f}:1) — setup needs extra confirmation.",
+            })
+
     return mods
 
 
@@ -1078,6 +1091,21 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         stop = anchor * (1 - max(atr_pct * 2, 0.03))
     t1 = anchor * (1 + max(atr_pct * 3, 0.05))
     t2 = anchor * (1 + max(atr_pct * 6, 0.10))
+    risk_per_share = entry - stop
+    reward_per_share = t1 - entry
+    reward_risk = (
+        float(reward_per_share / risk_per_share)
+        if risk_per_share > 0 and reward_per_share > 0
+        else None
+    )
+
+    # Final risk/reward sanity check. If the trigger requires too much
+    # downside versus the first target, the directional read may be right,
+    # but the trade is not clean enough to present as actionable.
+    if action == "watch" and reward_risk is not None and reward_risk < 1.2:
+        action = "hold_off"
+        trigger = None
+        entry_is_projected = False
     change = float((prices.iloc[-1] / prices.iloc[-2] - 1) * 100) if len(prices) >= 2 else 0.0
 
     # ── Historical context: how often has price tested the 50-day, and
@@ -1122,5 +1150,6 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "stop": stop,
         "t1": t1,
         "t2": t2,
+        "reward_risk": reward_risk,
         "change": change,
     }
