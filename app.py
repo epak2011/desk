@@ -1138,11 +1138,15 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 }
 
 /* Follow-up chat */
+[class*="st-key-chat_input_"] {
+    width: 100% !important;
+}
 [class*="st-key-chat_input_"] textarea {
     display: block !important;
+    width: 100% !important;
     min-height: 92px !important;
     padding: 14px 16px !important;
-    border-radius: 8px !important;
+    border-radius: 6px !important;
     border: 1px solid var(--color-border-soft) !important;
     background: var(--color-surface-soft) !important;
     color: var(--color-body) !important;
@@ -1156,12 +1160,12 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     box-shadow: 0 0 0 1px var(--color-muted) !important;
 }
 [class*="st-key-chat_send_"] {
-    width: auto !important;
-    margin: 8px 0 0 auto !important;
+    width: 100% !important;
+    margin: 10px auto 0 !important;
 }
 [class*="st-key-chat_send_"] > div {
     display: flex !important;
-    justify-content: flex-end !important;
+    justify-content: center !important;
 }
 [class*="st-key-chat_send_"] button {
     text-align: center !important;
@@ -1174,11 +1178,10 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-weight: 500 !important;
     border-radius: 4px !important;
     letter-spacing: 0.02em !important;
-    min-height: 38px !important;
-    height: 38px !important;
-    min-width: 68px !important;
-    width: auto !important;
-    padding: 7px 16px !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    width: 100% !important;
+    padding: 7px 14px !important;
     white-space: nowrap !important;
 }
 [class*="st-key-chat_send_"] button p {
@@ -1218,12 +1221,12 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     line-height: 1.4;
 }
 [class*="st-key-clear_chat_"] {
-    width: auto !important;
-    margin: 6px 0 0 auto !important;
+    width: 100% !important;
+    margin: 6px auto 0 !important;
 }
 [class*="st-key-clear_chat_"] > div {
     display: flex !important;
-    justify-content: flex-end !important;
+    justify-content: center !important;
 }
 [class*="st-key-pm_expand_"] > div,
 [class*="st-key-pm_collapse_"] > div {
@@ -2849,16 +2852,22 @@ section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
     # Resolution order for the Anthropic API key:
     #   1. Streamlit secrets (canonical for hosted deployments)
     #   2. ANTHROPIC_API_KEY environment variable (local dev with shell export)
-    #   3. Saved value in store (paste-and-save UI)
-    #   4. Empty (user pastes in the text field)
+    #   3. Session-only pasted key (never persisted)
     secret_key = ""
     try:
         secret_key = st.secrets.get("ANTHROPIC_API_KEY", "").strip()
     except Exception:
         pass
     env_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    stored_key = st.session_state.store.get("anthropic_api_key", "")
-    effective_key = secret_key or env_key or stored_key
+    if st.session_state.store.get("anthropic_api_key"):
+        # Older builds persisted pasted API keys into the app store. Stop
+        # carrying that forward, especially when DATABASE_URL points at
+        # hosted Postgres.
+        st.session_state.store.pop("anthropic_api_key", None)
+        save_store(st.session_state.store)
+
+    session_key = st.session_state.get("session_anthropic_api_key", "").strip()
+    effective_key = secret_key or env_key or session_key
 
     if effective_key:
         masked = effective_key[:7] + "…" + effective_key[-4:] if len(effective_key) > 12 else "saved"
@@ -2867,7 +2876,7 @@ section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
         elif env_key:
             source_note = "from env"
         else:
-            source_note = "saved"
+            source_note = "session only"
         st.markdown(
             f'<div style="font-size:var(--fs-base);color:var(--color-body);'
             f'padding:8px 10px;background:#F0FDF4;border:1px solid #BBF7D0;'
@@ -2876,12 +2885,9 @@ section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
             f'</div>',
             unsafe_allow_html=True,
         )
-        if not env_key and not secret_key:
-            # Only show clear button if the key is from the saved store.
-            # Env vars and cloud secrets aren't user-clearable from the UI.
-            if st.button("Replace or clear key", key="clear_api_key", use_container_width=True):
-                st.session_state.store["anthropic_api_key"] = ""
-                save_store(st.session_state.store)
+        if session_key and not env_key and not secret_key:
+            if st.button("Clear session key", key="clear_api_key", use_container_width=True):
+                st.session_state["session_anthropic_api_key"] = ""
                 st.rerun()
         elif secret_key:
             st.caption("Set via Streamlit Cloud secret. Update in app settings.")
@@ -2892,17 +2898,16 @@ section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
         new_key = st.text_input(
             "Anthropic API key (optional)",
             type="password",
-            help="Paste to generate live PM views. Saved to ~/.desk_store.json. To make it permanent across all sessions, set ANTHROPIC_API_KEY in your shell profile.",
+            help="Paste to generate live PM views for this browser session only. For persistence, use Streamlit secrets or ANTHROPIC_API_KEY.",
             key="api_key_input",
         )
         if new_key:
-            st.session_state.store["anthropic_api_key"] = new_key
+            st.session_state["session_anthropic_api_key"] = new_key.strip()
             if st.session_state.current_ticker:
                 clear_pm_cache(st.session_state.current_ticker)
                 clear_dossier_cache(st.session_state.current_ticker)
-            save_store(st.session_state.store)
             st.rerun()
-        api_key = new_key
+        api_key = session_key
 
     # ── Session usage tracker ──────────────────────────────────────
     # Counts fresh Claude calls this session (cache hits don't count).
@@ -3000,34 +3005,6 @@ if view == "analyze":
         st.info("Type a ticker in the sidebar.")
         st.stop()
 
-    # Handle ?track=TICKER&entry=PRICE&action=ACTION query param.
-    # This is how the "Add to Tracker" anchor-button fires its action.
-    # Using query-param navigation instead of st.columns + st.button
-    # because the column layout has caused 8+ rounds of misalignment.
-    try:
-        qp = st.query_params
-        if "track" in qp:
-            track_tkr = qp.get("track")
-            track_entry = float(qp.get("entry", "0") or "0")
-            track_action = qp.get("action", "watch")
-            del qp["track"]
-            if "entry" in qp: del qp["entry"]
-            if "action" in qp: del qp["action"]
-            if track_tkr:
-                log_entry = {
-                    "date": datetime.now().strftime("%m/%d"),
-                    "ticker": track_tkr,
-                    "action": track_action,
-                    "result": "open",
-                    "closed": False,
-                    "entry": round(track_entry, 2),
-                }
-                st.session_state.store["log"].insert(0, log_entry)
-                save_store(st.session_state.store)
-                st.toast(f"Added {track_tkr} to Trade Tracker.", icon="✅")
-    except Exception:
-        pass
-
     with st.spinner(f"Loading {ticker}…"):
         hist, name, err_reason = fetch_history(ticker)
         bench = fetch_bench()
@@ -3058,6 +3035,49 @@ if view == "analyze":
 
     # Compute decision modifiers — earnings proximity, market regime, RS
     modifiers = tactical.decision_modifiers(t, meta, t.get("market_regime", "unknown"))
+
+    # ── Single full-width header row ──────────────────────────────────
+    # Render this before Claude/PM work so the page anchors immediately.
+    chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
+    mcap       = format_market_cap(meta.get("market_cap"))
+    spf        = meta.get("short_pct_float")
+    earn_banner, earn_footer = format_earnings(meta)
+    meta_bits  = []
+    if meta.get("sector"):      meta_bits.append(meta["sector"])
+    if mcap:                    meta_bits.append(mcap)
+    if spf is not None:         meta_bits.append(f"{spf:.1f}% short")
+    dy = meta.get("dividend_yield")
+    if dy is not None and dy > 0.05: meta_bits.append(f"{dy:.2f}% yield")
+    if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
+    meta_line  = " · ".join(meta_bits)
+    src_note   = "live thesis" if api_key else "static fallback"
+    chg_sign   = "+" if t["change"] >= 0 else ""
+
+    st.markdown(f"""
+<div style="display:flex;justify-content:space-between;align-items:flex-end;
+            padding-bottom:10px;margin-bottom:16px;
+            border-bottom:1px solid var(--color-border);">
+  <div>
+    <div style="display:flex;align-items:baseline;gap:10px;">
+      <span style="font-family:var(--font-sans);font-size:var(--fs-2xl);font-weight:700;letter-spacing:-0.01em;">{ticker}</span>
+      <span style="font-size:var(--fs-base);color:var(--color-muted);">{name}</span>
+    </div>
+    <div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-faint);margin-top:3px;">{meta_line}</div>
+  </div>
+  <div style="display:flex;align-items:flex-end;gap:32px;">
+    <div style="text-align:right;">
+      <span style="font-family:var(--font-mono);font-size:var(--fs-xl);font-weight:600;">${t['price']:,.2f}</span>
+      <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:{chg_color};margin-left:6px;">{chg_sign}{t['change']:.2f}%</span>
+    </div>
+    <div style="text-align:right;padding-bottom:2px;">
+      <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-muted);">
+        Portfolio manager
+      </div>
+      <div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-fainter);margin-top:2px;">{src_note}</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
@@ -3160,48 +3180,6 @@ if view == "analyze":
     sty = STATE_STYLES[t["action"]]
 
     col_decision, col_pm = st.columns([5, 3])
-
-    # ── Single full-width header row ──────────────────────────────────
-    chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
-    mcap       = format_market_cap(meta.get("market_cap"))
-    spf        = meta.get("short_pct_float")
-    earn_banner, earn_footer = format_earnings(meta)
-    meta_bits  = []
-    if meta.get("sector"):      meta_bits.append(meta["sector"])
-    if mcap:                    meta_bits.append(mcap)
-    if spf is not None:         meta_bits.append(f"{spf:.1f}% short")
-    dy = meta.get("dividend_yield")
-    if dy is not None and dy > 0.05: meta_bits.append(f"{dy:.2f}% yield")
-    if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
-    meta_line  = " · ".join(meta_bits)
-    src_note   = format_source_note(pm.get("_source", "the thesis"))
-    chg_sign   = "+" if t["change"] >= 0 else ""
-
-    st.markdown(f"""
-<div style="display:flex;justify-content:space-between;align-items:flex-end;
-            padding-bottom:10px;margin-bottom:16px;
-            border-bottom:1px solid var(--color-border);">
-  <div>
-    <div style="display:flex;align-items:baseline;gap:10px;">
-      <span style="font-family:var(--font-sans);font-size:var(--fs-2xl);font-weight:700;letter-spacing:-0.01em;">{ticker}</span>
-      <span style="font-size:var(--fs-base);color:var(--color-muted);">{name}</span>
-    </div>
-    <div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-faint);margin-top:3px;">{meta_line}</div>
-  </div>
-  <div style="display:flex;align-items:flex-end;gap:32px;">
-    <div style="text-align:right;">
-      <span style="font-family:var(--font-mono);font-size:var(--fs-xl);font-weight:600;">${t['price']:,.2f}</span>
-      <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:{chg_color};margin-left:6px;">{chg_sign}{t['change']:.2f}%</span>
-    </div>
-    <div style="text-align:right;padding-bottom:2px;">
-      <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-muted);">
-        🧠 Portfolio manager
-      </div>
-      <div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-fainter);margin-top:2px;">{src_note}</div>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
 
     # ───── LEFT COLUMN: decision + trading logic ─────
     with col_decision:
@@ -3658,20 +3636,9 @@ if view == "analyze":
                     "outcome": None,
                 }
                 dlog = st.session_state.store.setdefault("decisions_log", [])
-                existing_open = next(
-                    (i for i, d in enumerate(dlog)
-                     if d.get("ticker", "").upper() == entry["ticker"].upper() and d.get("outcome") is None),
-                    None,
-                )
-                if existing_open is not None:
-                    dlog.pop(existing_open)
-                    dlog.insert(0, entry)
-                    save_store(st.session_state.store)
-                    st.toast(f"Replaced existing open {entry['ticker']} entry ({entry['id']}).", icon="🔄")
-                else:
-                    dlog.insert(0, entry)
-                    save_store(st.session_state.store)
-                    st.success(f"Logged ({entry['id']}). View under Tracker → Decisions tab.")
+                dlog.insert(0, entry)
+                save_store(st.session_state.store)
+                st.success(f"Logged ({entry['id']}). View it in Tracker.")
 
         # 1b-chat. Follow-up chat ────────────────────────────────────────
         # Chat history is persisted in the store so it survives page reloads.
@@ -3731,7 +3698,7 @@ if view == "analyze":
                         )
                     st.markdown(
                         '<div class="desk-chat-history">'
-                        '<div class="desk-chat-history-title">Previously asked · exact repeats use saved answers</div>'
+                        '<div class="desk-chat-history-title">Previously asked</div>'
                         + "".join(items_html) +
                         '</div>',
                         unsafe_allow_html=True,
@@ -3758,20 +3725,23 @@ if view == "analyze":
                             unsafe_allow_html=True,
                         )
 
-                # Input row
-                user_q = st.text_area(
-                    "Ask anything about this ticker",
-                    key=f"chat_input_{ticker}",
-                    label_visibility="collapsed",
-                    placeholder=f"Ask anything about {ticker}…",
-                    height=90,
-                )
-                _, ask_col = st.columns([5, 1])
+                # Centered input module. Keep the text area and action button
+                # visually grouped so the control reads as one ask surface.
+                _, chat_col, _ = st.columns([1, 10, 1])
+                with chat_col:
+                    user_q = st.text_area(
+                        "Ask anything about this ticker",
+                        key=f"chat_input_{ticker}",
+                        label_visibility="collapsed",
+                        placeholder=f"Ask anything about {ticker}…",
+                        height=90,
+                    )
+                _, ask_col, _ = st.columns([5, 2, 5])
                 with ask_col:
                     send = st.button("Ask", key=f"chat_send_{ticker}", use_container_width=True)
 
                 if chat_store[chat_key]:
-                    _, clear_col = st.columns([4, 1])
+                    _, clear_col, _ = st.columns([5, 2, 5])
                     with clear_col:
                         if st.button("Clear", key=f"clear_chat_{ticker}", type="secondary", use_container_width=True):
                             chat_store[chat_key] = []
@@ -3780,18 +3750,8 @@ if view == "analyze":
 
                 if send and user_q.strip():
                     q = user_q.strip()
-                    cached_reply = None
-                    for item in saved_answers:
-                        if _chat_norm(item["question"]) == _chat_norm(q):
-                            cached_reply = item["answer"]
-                            break
 
                     chat_store[chat_key].append({"role": "user", "content": q})
-                    if cached_reply:
-                        chat_store[chat_key].append({"role": "assistant", "content": cached_reply})
-                        save_store(st.session_state.store)
-                        st.toast("Used saved answer from chat history.", icon="✓")
-                        st.rerun()
 
                     dossier_ctx = (dossier_result or {}).get("dossier") or "Not yet generated."
                     tech_ctx    = (dossier_result or {}).get("technical_narrative") or ""
@@ -4231,53 +4191,7 @@ if view == "analyze":
         except Exception as _chart_err:
             st.warning(f"Chart could not render: {_chart_err}")
 
-        # 5. Trade tracker log button — only shown for actionable states
-        # (Enter/Watch/Accumulate), since you don't "track" a Hold off or
-        # Avoid as an open trade. Separate from decisions_log on the
-        # comparison panel which logs all states for the calibration trial.
-        if t["action"] in ("enter_now", "watch", "accumulate"):
-            # Single-block HTML rendering. The button is an <a> link that
-            # fires ?track=TICKER&entry=PRICE&action=ACTION which the
-            # query-param handler at the top of this view picks up.
-            # No st.columns, no st.button — sidesteps every alignment bug.
-            entry_price = t.get("entry", t["price"])
-            action_label = sty["label"].lower()
-            track_url = f"?track={ticker}&entry={entry_price:.2f}&action={t['action']}"
-            st.markdown(
-                f'<div style="margin-top:24px; padding: 14px 16px;'
-                f'border: 1px solid var(--color-border);'
-                f'border-radius: 4px; display: flex; align-items: center;'
-                f'justify-content: space-between; gap: 16px; flex-wrap: wrap;">'
-                f'<div style="flex: 1 1 60%; min-width: 240px;">'
-                f'<div style="font-family: var(--font-sans);'
-                f'font-size: var(--fs-lg); font-weight: 600;'
-                f'color: var(--color-text); margin-bottom: 4px;">'
-                f'Trade Tracker</div>'
-                f'<div style="font-family: var(--font-sans);'
-                f'font-size: var(--fs-base); color: var(--color-body);'
-                f'line-height: 1.45;">'
-                f'Log this {action_label} setup with entry price '
-                f'<b>${entry_price:,.2f}</b>; close later for P&amp;L.'
-                f'</div></div>'
-                f'<a href="{track_url}" target="_self" '
-                f'style="font-family: var(--font-sans);'
-                f'font-size: var(--fs-base); font-weight: 500;'
-                f'padding: 8px 16px;'
-                f'background: var(--color-bg);'
-                f'color: var(--color-text);'
-                f'border: 1px solid var(--color-border);'
-                f'border-radius: 4px;'
-                f'text-decoration: none; cursor: pointer;'
-                f'white-space: nowrap; flex-shrink: 0;'
-                f'transition: background 0.15s;"'
-                f'onmouseover="this.style.background=\'var(--color-surface-soft)\'" '
-                f'onmouseout="this.style.background=\'var(--color-bg)\'">'
-                f'Add to Tracker</a>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-
-        # 6. Technical details — footer, collapsed
+        # 5. Technical details — footer, collapsed
         with st.expander("Technical details"):
             rows = [
                 ("Bias", f"{t['bias'].capitalize() if t['bias'] else '—'} ({t['bias_score']:+d} on ±10 scale)"),
@@ -5278,8 +5192,8 @@ if view == "tracker":
         st.markdown(
             '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
             'padding:20px 0;">No decisions logged yet. Open a ticker on '
-            'the Analyze tab and click "Log my call (decision comparison '
-            'study)" to start collecting data.</div>',
+            'the Analyze tab and click "Log" in Decision comparison to '
+            'start collecting data.</div>',
             unsafe_allow_html=True,
         )
     else:
