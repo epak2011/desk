@@ -709,7 +709,6 @@ div[data-testid="element-container"]:has(.desk-bar) {
     position: sticky !important;
     top: 72px !important;
     z-index: 1000 !important;
-    background: var(--color-bg) !important;
 }
 .desk-bar {
     background: var(--color-text); color: var(--color-bg);
