@@ -1040,6 +1040,11 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     min-height: calc(100vh - 132px);
     height: 100%;
 }
+[data-testid="stHorizontalBlock"]:has(.desk-decision) > [data-testid="column"]:nth-child(2) {
+    border-left: 1px solid var(--color-border);
+    padding-left: 24px;
+    min-height: calc(100vh - 132px);
+}
 .desk-pm-header {
     font-family: var(--font-sans);
     font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xl);
@@ -1510,6 +1515,14 @@ div.streamlit-expanderHeader {
     .desk-pm-container {
         border-left: none !important;
         padding-left: 0 !important;
+        margin-top: 24px !important;
+        padding-top: 18px !important;
+        border-top: 1px solid var(--color-border) !important;
+    }
+    [data-testid="stHorizontalBlock"]:has(.desk-decision) > [data-testid="column"]:nth-child(2) {
+        border-left: none !important;
+        padding-left: 0 !important;
+        min-height: 0 !important;
         margin-top: 24px !important;
         padding-top: 18px !important;
         border-top: 1px solid var(--color-border) !important;
@@ -4414,7 +4427,6 @@ if view == "analyze":
         # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
         src_note = format_source_note(pm.get("_source", "the thesis"))
-        st.markdown('<div class="desk-pm-container">', unsafe_allow_html=True)
 
         # PM header + refresh button
         head_c, refresh_c = st.columns([5, 1])
@@ -4725,8 +4737,6 @@ if view == "analyze":
                 html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
                 html_parts.append('</div>')
                 st.markdown("".join(html_parts), unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────
