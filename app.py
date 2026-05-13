@@ -691,6 +691,12 @@ html, body, .main, .main p, .main li {
 }
 
 /* Navbar */
+div[data-testid="stElementContainer"]:has(.desk-bar),
+div[data-testid="element-container"]:has(.desk-bar) {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 1000 !important;
+}
 .desk-bar {
     background: var(--color-text); color: var(--color-bg);
     padding: 11px 20px;
@@ -701,9 +707,8 @@ html, body, .main, .main p, .main li {
     z-index: 999;
     box-shadow: 0 1px 0 rgba(0,0,0,0.12);
 }
-/* Push content below the fixed bar */
 .main .block-container {
-    padding-top: 22px !important;
+    padding-top: 4px !important;
 }
 .desk-bar .wordmark {
     font-family: var(--font-serif); font-weight: 500;
