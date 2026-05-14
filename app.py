@@ -1443,6 +1443,131 @@ div.streamlit-expanderHeader {
     font-variant-numeric: tabular-nums; color: var(--color-text);
     font-size: var(--fs-base);
 }
+.research-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 4px 0 14px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    color: var(--color-text) !important;
+    text-decoration: none !important;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+}
+.research-link:hover { border-color: var(--color-muted); background: var(--color-surface-soft); }
+.research-page {
+    max-width: 1180px;
+    margin: 0 auto 80px;
+}
+.research-page .hero {
+    border-bottom: 1px solid var(--color-border);
+    padding: 14px 0 18px;
+    margin-bottom: 24px;
+}
+.research-page .eyebrow,
+.research-section .eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: var(--ls-caps-xl);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    font-weight: 600;
+}
+.research-page h1 {
+    font-family: var(--font-serif);
+    font-size: 54px;
+    line-height: 1;
+    font-weight: 500;
+    margin: 8px 0 8px;
+}
+.research-page .deck {
+    font-family: var(--font-serif);
+    font-size: var(--fs-xl);
+    line-height: 1.45;
+    color: var(--color-body);
+    max-width: 840px;
+}
+.research-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin: 18px 0 8px;
+}
+.research-kpi {
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    background: var(--color-surface);
+}
+.research-kpi .k {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    font-weight: 600;
+}
+.research-kpi .v {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xl);
+    font-weight: 500;
+    margin-top: 4px;
+}
+.research-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+    gap: 28px;
+}
+.research-section {
+    border-top: 1px solid var(--color-border);
+    padding-top: 16px;
+    margin-top: 18px;
+}
+.research-section h2 {
+    font-family: var(--font-serif);
+    font-size: 28px;
+    line-height: 1.1;
+    font-weight: 500;
+    margin: 8px 0 10px;
+}
+.research-section p,
+.research-section li {
+    font-size: var(--fs-base);
+    line-height: 1.55;
+    color: var(--color-body);
+}
+.research-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+}
+.research-table th,
+.research-table td {
+    border-bottom: 1px solid var(--color-border-soft);
+    padding: 8px 6px;
+    text-align: right;
+}
+.research-table th:first-child,
+.research-table td:first-child { text-align: left; }
+.research-table th {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+.research-table td {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+@media (max-width: 900px) {
+    .research-grid,
+    .research-layout { grid-template-columns: 1fr; }
+    .research-page h1 { font-size: 42px; }
+}
 .desk-chart-label {
     font-family: var(--font-sans);
     font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
@@ -1788,6 +1913,108 @@ def fetch_quote_meta(ticker):
     return out
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_financial_snapshot(ticker):
+    """Compact financial statement snapshot for the research report.
+
+    yfinance statement labels vary by company and release vintage, so every
+    row lookup is best-effort. Missing rows render as — rather than breaking
+    the report.
+    """
+    def _safe_df(getter):
+        try:
+            df = getter()
+            if df is None or getattr(df, "empty", True):
+                return None
+            return df
+        except Exception:
+            return None
+
+    def _row(df, names, idx=0):
+        if df is None:
+            return None
+        for name in names:
+            if name in df.index and len(df.columns) > idx:
+                try:
+                    val = df.loc[name].iloc[idx]
+                    if val == val:
+                        return float(val)
+                except Exception:
+                    pass
+        return None
+
+    def _series(df, names, n=4):
+        if df is None:
+            return []
+        out = []
+        cols = list(df.columns)[:n]
+        for col in cols:
+            val = None
+            for name in names:
+                if name in df.index:
+                    try:
+                        raw = df.loc[name, col]
+                        if raw == raw:
+                            val = float(raw)
+                            break
+                    except Exception:
+                        pass
+            out.append((col, val))
+        return out
+
+    yf_ticker = yf.Ticker(ticker)
+    q_income = _safe_df(lambda: yf_ticker.quarterly_financials)
+    q_cash = _safe_df(lambda: yf_ticker.quarterly_cashflow)
+    q_bal = _safe_df(lambda: yf_ticker.quarterly_balance_sheet)
+    annual_income = _safe_df(lambda: yf_ticker.financials)
+
+    revenue_names = ["Total Revenue", "Operating Revenue"]
+    gross_profit_names = ["Gross Profit"]
+    operating_income_names = ["Operating Income"]
+    net_income_names = ["Net Income", "Net Income Common Stockholders"]
+    ebitda_names = ["EBITDA", "Normalized EBITDA"]
+    ocf_names = ["Operating Cash Flow", "Total Cash From Operating Activities"]
+    capex_names = ["Capital Expenditure", "Capital Expenditures"]
+    cash_names = ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"]
+    debt_names = ["Total Debt", "Long Term Debt And Capital Lease Obligation"]
+
+    latest_revenue = _row(q_income, revenue_names)
+    prev_year_revenue = _row(q_income, revenue_names, 4)
+    revenue_yoy = None
+    if latest_revenue is not None and prev_year_revenue:
+        revenue_yoy = (latest_revenue / prev_year_revenue - 1) * 100
+
+    latest_gross = _row(q_income, gross_profit_names)
+    gross_margin = latest_gross / latest_revenue * 100 if latest_gross and latest_revenue else None
+    latest_op = _row(q_income, operating_income_names)
+    operating_margin = latest_op / latest_revenue * 100 if latest_op is not None and latest_revenue else None
+    latest_ebitda = _row(q_income, ebitda_names)
+    ebitda_margin = latest_ebitda / latest_revenue * 100 if latest_ebitda and latest_revenue else None
+    latest_ocf = _row(q_cash, ocf_names)
+    latest_capex = _row(q_cash, capex_names)
+    latest_fcf = latest_ocf + latest_capex if latest_ocf is not None and latest_capex is not None else None
+    fcf_margin = latest_fcf / latest_revenue * 100 if latest_fcf is not None and latest_revenue else None
+    cash = _row(q_bal, cash_names)
+    debt = _row(q_bal, debt_names)
+    net_cash = cash - debt if cash is not None and debt is not None else None
+
+    return {
+        "quarterly_revenue": _series(q_income, revenue_names),
+        "annual_revenue": _series(annual_income, revenue_names, n=5),
+        "latest_revenue": latest_revenue,
+        "revenue_yoy": revenue_yoy,
+        "gross_margin": gross_margin,
+        "operating_margin": operating_margin,
+        "ebitda_margin": ebitda_margin,
+        "fcf_margin": fcf_margin,
+        "net_income": _row(q_income, net_income_names),
+        "free_cash_flow": latest_fcf,
+        "cash": cash,
+        "debt": debt,
+        "net_cash": net_cash,
+    }
+
+
 def classify_lynch(meta):
     """Put the company into one of Lynch's six buckets based on growth + sector.
 
@@ -1884,6 +2111,192 @@ def format_source_note(source):
             age_suffix = " · " + str(source).split(" · ", 1)[1]
         return "static fallback" + age_suffix
     return source
+
+
+def get_effective_api_key():
+    try:
+        secret_key = st.secrets.get("ANTHROPIC_API_KEY", "").strip()
+    except Exception:
+        secret_key = ""
+    env_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    session_key = st.session_state.get("session_anthropic_api_key", "").strip()
+    return secret_key or env_key or session_key
+
+
+def fmt_big_number(value):
+    if value is None:
+        return "—"
+    v = float(value)
+    sign = "-" if v < 0 else ""
+    v = abs(v)
+    if v >= 1e12:
+        return f"{sign}${v/1e12:,.2f}T"
+    if v >= 1e9:
+        return f"{sign}${v/1e9:,.2f}B"
+    if v >= 1e6:
+        return f"{sign}${v/1e6:,.0f}M"
+    return f"{sign}${v:,.0f}"
+
+
+def fmt_pct(value):
+    if value is None:
+        return "—"
+    return f"{float(value):+.1f}%"
+
+
+def fmt_mult(value):
+    if value is None:
+        return "—"
+    return f"{float(value):.1f}x"
+
+
+def render_research_report(ticker):
+    ticker = (ticker or "").upper().strip()
+    if not ticker:
+        st.error("No ticker supplied.")
+        st.stop()
+
+    hist, name, err_reason = fetch_history(ticker)
+    bench = fetch_bench()
+    meta = fetch_quote_meta(ticker)
+    fin = fetch_financial_snapshot(ticker)
+    fallback_profile = FALLBACK_PROFILE_META.get(ticker, {})
+    company = (
+        (name if name and name.upper() != ticker else None)
+        or meta.get("long_name")
+        or meta.get("short_name")
+        or fallback_profile.get("name")
+        or ticker
+    )
+
+    if hist is None or bench is None:
+        st.error(f"Couldn't build research report for {ticker}. {err_reason or 'Market data unavailable.'}")
+        st.stop()
+
+    t = tactical.compute(hist, bench)
+    api_key = get_effective_api_key()
+    pm = get_cached_pm(ticker, t, api_key=api_key if api_key else None, company_name=company)
+    modifiers = tactical.decision_modifiers(t, meta, t.get("market_regime", "unknown"))
+    dossier = get_cached_dossier(
+        ticker, t, modifiers, meta, pm,
+        api_key=api_key if api_key else None, company_name=company,
+    )
+    quality = (dossier or {}).get("quality") or {}
+    q_label = quality.get("tier") or "Unrated"
+    q_text = quality.get("rationale") or pm.get("thesis") or "No long-form quality note is available yet."
+
+    market_cap = format_market_cap(meta.get("market_cap")) or fmt_big_number(fin.get("latest_revenue"))
+    rec = format_recommendation(meta.get("analyst_rec"), meta.get("analyst_n")) or "—"
+    fpe = meta.get("forward_pe")
+    ev_ebitda = meta.get("ev_ebitda")
+    revenue_yoy = fin.get("revenue_yoy") if fin.get("revenue_yoy") is not None else meta.get("revenue_growth")
+
+    if t.get("action") == "enter_now":
+        timing = "Technicals are supportive enough for immediate action."
+    elif t.get("action") == "watch":
+        timing = "The business may be interesting, but the entry still depends on a cleaner trigger."
+    elif t.get("action") == "hold_off":
+        timing = "The report can support watchlist work, but the trade setup is not clean enough yet."
+    else:
+        timing = "The current setup does not justify fresh exposure."
+
+    kpis = [
+        ("Price", f"${t['price']:,.2f}"),
+        ("Market cap", market_cap or "—"),
+        ("Revenue YoY", fmt_pct(revenue_yoy)),
+        ("FCF margin", fmt_pct(fin.get("fcf_margin"))),
+        ("Forward P/E", fmt_mult(fpe)),
+        ("EV/EBITDA", fmt_mult(ev_ebitda)),
+        ("Analyst view", rec),
+        ("Quality", q_label),
+    ]
+
+    def kpi_html():
+        return "".join(
+            f'<div class="research-kpi"><div class="k">{html.escape(k)}</div>'
+            f'<div class="v">{html.escape(str(v))}</div></div>'
+            for k, v in kpis
+        )
+
+    def table_html(title, rows):
+        body = "".join(
+            f"<tr><td>{html.escape(label)}</td><td>{html.escape(value)}</td></tr>"
+            for label, value in rows
+        )
+        return (
+            f'<div class="research-section"><div class="eyebrow">{html.escape(title)}</div>'
+            f'<table class="research-table"><tbody>{body}</tbody></table></div>'
+        )
+
+    earnings_rows = [
+        ("Latest quarterly revenue", fmt_big_number(fin.get("latest_revenue"))),
+        ("Revenue growth YoY", fmt_pct(revenue_yoy)),
+        ("Gross margin", fmt_pct(fin.get("gross_margin"))),
+        ("Operating margin", fmt_pct(fin.get("operating_margin"))),
+        ("EBITDA margin", fmt_pct(fin.get("ebitda_margin"))),
+        ("Free cash flow", fmt_big_number(fin.get("free_cash_flow"))),
+        ("Free cash flow margin", fmt_pct(fin.get("fcf_margin"))),
+    ]
+    balance_rows = [
+        ("Cash & investments", fmt_big_number(fin.get("cash"))),
+        ("Total debt", fmt_big_number(fin.get("debt"))),
+        ("Net cash / debt", fmt_big_number(fin.get("net_cash"))),
+        ("Debt / equity", fmt_pct(meta.get("debt_to_equity"))),
+    ]
+    valuation_rows = [
+        ("Forward P/E", fmt_mult(fpe)),
+        ("Trailing P/E", fmt_mult(meta.get("trailing_pe"))),
+        ("PEG", fmt_mult(meta.get("peg"))),
+        ("EV/EBITDA", fmt_mult(ev_ebitda)),
+        ("Analyst target", fmt_big_number(meta.get("analyst_target")) if meta.get("analyst_target") else "—"),
+    ]
+
+    st.markdown(f"""
+<div class="research-page">
+  <div class="hero">
+    <div class="eyebrow">Full research report · {html.escape(ticker)}</div>
+    <h1>{html.escape(company)}</h1>
+    <div class="deck">{html.escape(timing)} This report focuses on the business, earnings quality,
+    financial trajectory, balance sheet, valuation, and the main debate; the trading trigger stays on the desk.</div>
+    <div class="research-grid">{kpi_html()}</div>
+  </div>
+  <div class="research-layout">
+    <div>
+      <div class="research-section">
+        <div class="eyebrow">Research read-through</div>
+        <h2>What matters most</h2>
+        <p>{html.escape(q_text)}</p>
+        <p>{html.escape(pm.get("valuation") or "Valuation context is not available yet.")}</p>
+      </div>
+      <div class="research-section">
+        <div class="eyebrow">Business model</div>
+        <h2>How the company makes money</h2>
+        <p>{html.escape(pm.get("thesis") or "Business summary is generated from the PM view and financial profile.")}</p>
+      </div>
+      <div class="research-section">
+        <div class="eyebrow">Drivers</div>
+        <h2>What could make the stock work</h2>
+        <ul>{''.join(f'<li>{html.escape(str(d))}</li>' for d in pm.get('drivers', []))}</ul>
+      </div>
+      <div class="research-section">
+        <div class="eyebrow">Risks</div>
+        <h2>What could break the thesis</h2>
+        <ul>{''.join(f'<li>{html.escape(str(r))}</li>' for r in pm.get('risks', []))}</ul>
+      </div>
+    </div>
+    <div>
+      {table_html("Earnings highlights", earnings_rows)}
+      {table_html("Balance sheet", balance_rows)}
+      {table_html("Valuation", valuation_rows)}
+      <div class="research-section">
+        <div class="eyebrow">Tactical overlay</div>
+        <h2>{html.escape(STATE_STYLES.get(t.get("action"), {}).get("label", t.get("action", "Watch")))} now</h2>
+        <p>{html.escape(decision_context(t))}</p>
+      </div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2502,6 +2915,9 @@ def technical_commentary(t):
 # is consumed here, and the page state updates accordingly.
 try:
     qp_global = st.query_params
+    if "report" in qp_global:
+        render_research_report(qp_global.get("report"))
+        st.stop()
     if "open" in qp_global:
         tkr_to_open = qp_global.get("open")
         del qp_global["open"]
@@ -4494,6 +4910,11 @@ if view == "analyze":
   <a class="pm-refresh-link" href="?pm_refresh={html.escape(ticker.upper())}" title="Regenerate PM view">↻</a>
 </div>
 """, unsafe_allow_html=True)
+        st.markdown(
+            f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
+            f'target="_blank" rel="noopener">Full research report ↗</a>',
+            unsafe_allow_html=True,
+        )
 
         # Quality tier badge — informational, NOT a gate. Sourced from the
         # dossier Claude call (5th field). Shows long-term ownership read
