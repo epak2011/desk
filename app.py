@@ -4150,9 +4150,9 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
     min-height: 0 !important;
     display: flex !important;
     align-items: center !important;
-    justify-content: space-between !important;
-    gap: 12px !important;
-    margin: 0 0 18px 0 !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    margin: 2px 0 22px 0 !important;
     padding: 0 !important;
     background: transparent !important;
     background-color: transparent !important;
@@ -4162,6 +4162,28 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
     border-bottom: 0 !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
+}
+
+.desk-logo {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 9px !important;
+    padding: 0 !important;
+}
+
+.desk-logo-mark {
+    width: 18px !important;
+    height: 18px !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    border: 1px solid #B8C4D0 !important;
+    border-radius: 5px !important;
+    background: #FFFFFF !important;
+    color: var(--desk-green) !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
 }
 
 div[data-testid="stElementContainer"]:has(.desk-bar),
@@ -4180,11 +4202,11 @@ div[data-testid="element-container"]:has(.desk-bar) {
 
 .desk-bar .wordmark {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-    font-size: 11px !important;
+    font-size: 12px !important;
     font-weight: 800 !important;
     letter-spacing: 0.10em !important;
     text-transform: uppercase !important;
-    color: #475569 !important;
+    color: #1F2937 !important;
 }
 
 .desk-bar .arrow {
@@ -4192,11 +4214,7 @@ div[data-testid="element-container"]:has(.desk-bar) {
 }
 
 .desk-bar .meta {
-    color: #94A3B8 !important;
-    font-size: 10px !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.08em !important;
-    text-transform: uppercase !important;
+    display: none !important;
 }
 
 .desk-top,
@@ -4428,7 +4446,10 @@ textarea,
 # ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="desk-bar">
-  <span class="wordmark"><span class="arrow">▸</span> Trading Desk</span>
+  <div class="desk-logo">
+    <span class="desk-logo-mark">▸</span>
+    <span class="wordmark">Trading Desk</span>
+  </div>
   <span class="meta">{st.session_state.current_ticker}</span>
 </div>
 """, unsafe_allow_html=True)
