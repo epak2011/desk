@@ -55,7 +55,12 @@ FALLBACK_PROFILE_META = {
     "DASH": {"name": "DoorDash", "sector": "Consumer Internet"},
     "COIN": {"name": "Coinbase Global", "sector": "Financial Services"},
     "BTC-USD": {"name": "Bitcoin", "sector": "Crypto"},
-    "CQQQ": {"name": "Invesco China Technology ETF", "sector": "ETF", "category": "China technology"},
+    "CQQQ": {
+        "name": "Invesco China Technology ETF",
+        "sector": "ETF",
+        "category": "China technology",
+        "total_assets": 2_700_000_000,
+    },
 }
 
 # ─────────────────────────────────────────────────────────────────────
@@ -4383,8 +4388,13 @@ if view == "analyze":
     # Render this before Claude/PM work so the page anchors immediately.
     chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
     fallback_profile = FALLBACK_PROFILE_META.get(ticker.upper(), {})
-    mcap       = format_market_cap(meta.get("market_cap"))
-    fund_assets = format_market_cap(meta.get("total_assets") or meta.get("net_assets"))
+    mcap       = format_market_cap(meta.get("market_cap") or fallback_profile.get("market_cap"))
+    fund_assets = format_market_cap(
+        meta.get("total_assets") or
+        meta.get("net_assets") or
+        fallback_profile.get("total_assets") or
+        fallback_profile.get("net_assets")
+    )
     spf        = meta.get("short_pct_float")
     earn_banner, earn_footer = format_earnings(meta)
     meta_bits  = []
@@ -4404,8 +4414,12 @@ if view == "analyze":
     elif fund_assets:           meta_bits.append(f"{fund_assets} AUM")
     if spf is not None:         meta_bits.append(f"{spf:.1f}% short")
     dy = meta.get("dividend_yield")
+    if dy is None:
+        dy = fallback_profile.get("dividend_yield")
     if dy is not None and dy > 0.05: meta_bits.append(f"{dy:.2f}% yield")
     er = meta.get("expense_ratio")
+    if er is None:
+        er = fallback_profile.get("expense_ratio")
     if er is not None and er > 0: meta_bits.append(f"{er:.2f}% expense")
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
