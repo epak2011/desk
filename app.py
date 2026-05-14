@@ -4196,6 +4196,32 @@ if view == "analyze":
             else:
                 support_trigger_override = None  # don't render banner
 
+    # Claude is the primary PM read when available; the rule engine is the
+    # deterministic baseline. Keep the rule output for comparison/logging,
+    # but let Claude own the headline unless a hard safety gate fired.
+    rule_t = dict(t)
+    claude_call = (dossier_result or {}).get("tactical_call") or {}
+    claude_action_raw = (claude_call.get("action") or "").upper()
+    _claude_to_engine = {
+        "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
+        "AVOID": "avoid", "ACCUMULATE": "accumulate",
+    }
+    claude_action_key = _claude_to_engine.get(claude_action_raw, "")
+    try:
+        claude_confidence = int(claude_call.get("confidence", 0) or 0)
+    except (TypeError, ValueError):
+        claude_confidence = 0
+    hard_rule_lock = (not t.get("atr_ok", True)) or bool(t.get("event_risk_hold"))
+    if claude_action_key and claude_confidence >= 5 and not hard_rule_lock:
+        t = {
+            **t,
+            "action": claude_action_key,
+            "_primary_source": "claude",
+            "_rule_action": rule_t.get("action"),
+        }
+    else:
+        t = {**t, "_primary_source": "rule", "_rule_action": rule_t.get("action")}
+
     sty = STATE_STYLES[t["action"]]
 
     col_decision, col_pm = st.columns([5, 3])
@@ -4243,6 +4269,11 @@ if view == "analyze":
         }.get((t["action"], _state), "")
         # Treat enter as "deploy" in the state copy per spec language
         _state_action_label = "Deploy" if t["action"] == "enter_now" else sty["label"]
+        _source_note = (
+            "Claude primary"
+            if t.get("_primary_source") == "claude"
+            else "Rule engine primary"
+        )
 
         # Build the criteria tooltip for the current action.
         # Hover the info icon in the corner to reveal it; clicking does
@@ -4273,7 +4304,7 @@ if view == "analyze":
   <div style="font-family: var(--font-mono); font-size:var(--fs-sm); font-weight:600;
               letter-spacing: var(--ls-caps-sm); text-transform:uppercase; color:{sty['color']};
               margin-top:8px; opacity:0.85;">
-    {_state_action_label} — {_state_copy}
+    {_state_action_label} — {_state_copy} · {_source_note}
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -4286,6 +4317,13 @@ if view == "analyze":
         # so they're above the modifier badges, dossier, and tape read.
         if t["action"] in ("enter_now", "watch"):
             trig_line = trigger_text(t)
+            if not trig_line and t.get("_primary_source") == "claude":
+                trig_line = (claude_call.get("trigger") or "Watch for confirmation.").strip()
+                try:
+                    from pm_view import substitute_live_values as _sub_trigger
+                    trig_line = _sub_trigger(trig_line, t)
+                except Exception:
+                    pass
             st.markdown(f"""
 <div class="desk-trigger-block">
   <div class="desk-trigger-label"><span class="em">⚡</span>Trigger</div>
@@ -4352,7 +4390,7 @@ if view == "analyze":
 
             if t["action"] == "hold_off":
                 why_emoji = "🤔"
-                why_label = "What's missing"
+                why_label = "Why wait"
             else:
                 why_emoji = "⛔"
                 why_label = "Why avoid"
@@ -4447,13 +4485,8 @@ if view == "analyze":
         # "regenerate to compare" nudge but the Rules+You logging works.
         claude_call = (dossier_result or {}).get("tactical_call") or {}
         claude_action_raw = (claude_call.get("action") or "").upper()
-        # Map Claude's vocabulary to engine's keys for comparison
-        _claude_to_engine = {
-            "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
-            "AVOID": "avoid", "ACCUMULATE": "accumulate",
-        }
         claude_action_key = _claude_to_engine.get(claude_action_raw, "")
-        rule_action = t["action"]
+        rule_action = rule_t.get("action", t["action"])
         # Three states: agree, disagree, unknown.
         if not claude_action_key:
             agreement_state = "unknown"
