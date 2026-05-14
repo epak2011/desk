@@ -4146,12 +4146,13 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
 .desk-bar {
     position: static !important;
     z-index: auto !important;
-    width: auto !important;
+    width: 100% !important;
     min-height: 0 !important;
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
+    justify-content: space-between !important;
     gap: 12px !important;
-    margin: 0 0 14px 0 !important;
+    margin: 0 0 18px 0 !important;
     padding: 0 !important;
     background: transparent !important;
     background-color: transparent !important;
@@ -4161,6 +4162,20 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
     border-bottom: 0 !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
+}
+
+div[data-testid="stElementContainer"]:has(.desk-bar),
+div[data-testid="element-container"]:has(.desk-bar) {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+    height: auto !important;
+    min-height: 22px !important;
+    margin: 0 0 6px 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
 }
 
 .desk-bar .wordmark {
