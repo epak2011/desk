@@ -1102,7 +1102,11 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     # Final risk/reward sanity check. If the trigger requires too much
     # downside versus the first target, the directional read may be right,
     # but the trade is not clean enough to present as actionable.
-    if action == "watch" and reward_risk is not None and reward_risk < 1.2:
+    # Keep this as a true "bad setup" floor rather than a perfection test:
+    # a Watch can still be useful when the trade is not quite 1.2:1 yet,
+    # because the whole point is waiting for the trigger/pullback to improve
+    # the math. Below 1.0:1, the current setup is still too unfavorable.
+    if action == "watch" and reward_risk is not None and reward_risk < 1.0:
         action = "hold_off"
         trigger = None
         entry_is_projected = False
