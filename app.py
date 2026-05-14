@@ -55,6 +55,7 @@ FALLBACK_PROFILE_META = {
     "DASH": {"name": "DoorDash", "sector": "Consumer Internet"},
     "COIN": {"name": "Coinbase Global", "sector": "Financial Services"},
     "BTC-USD": {"name": "Bitcoin", "sector": "Crypto"},
+    "CQQQ": {"name": "Invesco China Technology ETF", "sector": "ETF", "category": "China technology"},
 }
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1976,9 +1977,15 @@ def fetch_quote_meta(ticker):
     out = {
         "long_name": None,
         "short_name": None,
+        "quote_type": None,
         "sector": None,
         "industry": None,
+        "category": None,
+        "fund_family": None,
         "market_cap": None,
+        "total_assets": None,
+        "net_assets": None,
+        "expense_ratio": None,
         "enterprise_value": None,
         "total_revenue": None,
         "gross_margins": None,
@@ -2015,9 +2022,14 @@ def fetch_quote_meta(ticker):
 
         out["long_name"] = info.get("longName")
         out["short_name"] = info.get("shortName")
+        out["quote_type"] = info.get("quoteType")
         out["sector"] = info.get("sector")
         out["industry"] = info.get("industry")
+        out["category"] = info.get("category")
+        out["fund_family"] = info.get("fundFamily")
         out["market_cap"] = info.get("marketCap")
+        out["total_assets"] = info.get("totalAssets")
+        out["net_assets"] = info.get("netAssets")
         out["enterprise_value"] = info.get("enterpriseValue")
         out["total_revenue"] = info.get("totalRevenue")
         out["free_cashflow"] = info.get("freeCashflow")
@@ -2062,8 +2074,17 @@ def fetch_quote_meta(ticker):
 
         # Dividend yield — yfinance returns 0.015 for 1.5%
         dy = info.get("dividendYield")
+        if dy is None:
+            dy = info.get("yield")
         if dy is not None:
             out["dividend_yield"] = float(dy) * 100 if dy < 1 else float(dy)
+
+        # Fund/ETF expense ratio — yfinance usually returns 0.0065 for 0.65%.
+        er = info.get("annualReportExpenseRatio")
+        if er is None:
+            er = info.get("expenseRatio")
+        if er is not None:
+            out["expense_ratio"] = float(er) * 100 if abs(float(er)) <= 1.5 else float(er)
 
         # Analyst data
         out["analyst_target"] = info.get("targetMeanPrice")
@@ -4068,6 +4089,210 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Final visual skin — intentionally late so older experimental layers
+# cannot leak beige surfaces, black rails, or pill-heavy controls back in.
+# ─────────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+:root {
+    --desk-bg: #F6F8FB;
+    --desk-panel: #FFFFFF;
+    --desk-panel-soft: #F9FBFD;
+    --desk-border: #D8E0E8;
+    --desk-border-strong: #B8C4D0;
+    --desk-text: #151A22;
+    --desk-muted: #64748B;
+    --desk-blue: #2563EB;
+    --desk-green: #0F9F5A;
+    --desk-red: #D43F3A;
+    --desk-amber: #B97705;
+}
+
+.stApp {
+    background:
+        linear-gradient(180deg, #FFFFFF 0, var(--desk-bg) 320px, var(--desk-bg) 100%) !important;
+    color: var(--desk-text) !important;
+}
+
+section[data-testid="stSidebar"] {
+    background: #F1F5F9 !important;
+    border-right: 1px solid var(--desk-border) !important;
+}
+
+section[data-testid="stSidebar"] input,
+section[data-testid="stSidebar"] button,
+section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
+    border-radius: 6px !important;
+}
+
+.desk-bar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 999 !important;
+    width: 100% !important;
+    margin: 0 0 26px 0 !important;
+    padding: 9px 0 10px !important;
+    background: rgba(255,255,255,0.94) !important;
+    color: #233044 !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--desk-border) !important;
+    box-shadow: none !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+.desk-bar .wordmark {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    color: #233044 !important;
+}
+
+.desk-bar .arrow {
+    color: var(--desk-green) !important;
+}
+
+.desk-bar .meta {
+    color: var(--desk-muted) !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+}
+
+.desk-top,
+.desk-hero,
+.desk-ticker-row {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.desk-ticker-row {
+    align-items: flex-start !important;
+    padding-bottom: 13px !important;
+    border-bottom: 1px solid var(--desk-border) !important;
+}
+
+.desk-ticker-row .ticker {
+    font-size: 24px !important;
+    line-height: 1 !important;
+    font-weight: 850 !important;
+    color: var(--desk-text) !important;
+}
+
+.desk-ticker-row .name {
+    color: var(--desk-muted) !important;
+    font-size: 12px !important;
+    font-weight: 650 !important;
+}
+
+.desk-ticker-row .sub,
+.desk-ticker-row .meta-line {
+    margin-top: 8px !important;
+    color: var(--desk-muted) !important;
+    font-size: 12px !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+
+.desk-price {
+    color: var(--desk-text) !important;
+    font-size: 24px !important;
+    font-weight: 850 !important;
+}
+
+.desk-card,
+.desk-cmp,
+.desk-dossier,
+.desk-stat-card,
+.desk-pm-card,
+.desk-pm-thesis,
+.desk-followup,
+.desk-question-history,
+div[data-testid="stExpander"] {
+    background: var(--desk-panel) !important;
+    border: 1px solid var(--desk-border) !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+}
+
+.desk-avoid-reasons,
+.desk-reconsider {
+    border-radius: 8px !important;
+    box-shadow: none !important;
+}
+
+.desk-avoid-reasons {
+    background: #FFF7F8 !important;
+    border: 1px solid #FFD8DE !important;
+    border-left: 4px solid var(--desk-red) !important;
+}
+
+.desk-reconsider {
+    background: #F2FFF8 !important;
+    border: 1px solid #C9F3DA !important;
+    border-left: 4px solid var(--desk-green) !important;
+}
+
+.desk-dossier {
+    border-left: 4px solid var(--desk-blue) !important;
+}
+
+.desk-cmp {
+    background: #FFFFFF !important;
+}
+
+.desk-cmp-badge,
+.desk-logged-badge,
+.research-link,
+.desk-thesis-toggle,
+.stButton > button,
+button[kind="secondary"],
+button[kind="primary"] {
+    border-radius: 6px !important;
+    box-shadow: none !important;
+}
+
+.desk-cmp-badge {
+    padding: 4px 8px !important;
+    border: 1px solid #A7F3D0 !important;
+    background: #ECFDF5 !important;
+    color: #047857 !important;
+}
+
+input,
+textarea,
+[data-baseweb="input"],
+[data-baseweb="textarea"] {
+    border-radius: 6px !important;
+    background: #FFFFFF !important;
+}
+
+.desk-decision .word,
+.decision-word,
+.hero-decision {
+    color: #506176 !important;
+}
+
+.action-enter,
+.decision-enter,
+[data-action="enter"] { color: var(--desk-green) !important; }
+.action-watch,
+.decision-watch,
+[data-action="watch"] { color: var(--desk-amber) !important; }
+.action-avoid,
+.decision-avoid,
+[data-action="avoid"] { color: var(--desk-red) !important; }
+
+.desk-chart-wrap,
+.chart-shell {
+    background: #FFFFFF !important;
+    border: 1px solid var(--desk-border) !important;
+    border-radius: 8px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Navbar
 # ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -4159,15 +4384,29 @@ if view == "analyze":
     chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
     fallback_profile = FALLBACK_PROFILE_META.get(ticker.upper(), {})
     mcap       = format_market_cap(meta.get("market_cap"))
+    fund_assets = format_market_cap(meta.get("total_assets") or meta.get("net_assets"))
     spf        = meta.get("short_pct_float")
     earn_banner, earn_footer = format_earnings(meta)
     meta_bits  = []
-    industry_line = meta.get("sector") or meta.get("industry") or fallback_profile.get("sector")
-    if industry_line:           meta_bits.append(industry_line)
+    quote_type = str(meta.get("quote_type") or "").upper()
+    is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(meta.get("category") or fallback_profile.get("category"))
+    if is_fund:
+        asset_label = "ETF" if quote_type == "ETF" or ticker.upper() == "CQQQ" else "Fund"
+        meta_bits.append(asset_label)
+        category = meta.get("category") or fallback_profile.get("category")
+        if category:
+            meta_bits.append(str(category).title())
+    else:
+        industry_line = meta.get("sector") or meta.get("industry") or fallback_profile.get("sector")
+        if industry_line:
+            meta_bits.append(industry_line)
     if mcap:                    meta_bits.append(mcap)
+    elif fund_assets:           meta_bits.append(f"{fund_assets} AUM")
     if spf is not None:         meta_bits.append(f"{spf:.1f}% short")
     dy = meta.get("dividend_yield")
     if dy is not None and dy > 0.05: meta_bits.append(f"{dy:.2f}% yield")
+    er = meta.get("expense_ratio")
+    if er is not None and er > 0: meta_bits.append(f"{er:.2f}% expense")
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
     chg_sign   = "+" if t["change"] >= 0 else ""
