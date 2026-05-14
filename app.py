@@ -1804,6 +1804,17 @@ def fetch_quote_meta(ticker):
         "sector": None,
         "industry": None,
         "market_cap": None,
+        "enterprise_value": None,
+        "total_revenue": None,
+        "gross_margins": None,
+        "operating_margins": None,
+        "ebitda_margins": None,
+        "profit_margins": None,
+        "free_cashflow": None,
+        "operating_cashflow": None,
+        "total_cash": None,
+        "total_debt": None,
+        "enterprise_to_revenue": None,
         "short_pct_float": None,
         "earnings_date": None,
         "earnings_days": None,
@@ -1832,6 +1843,22 @@ def fetch_quote_meta(ticker):
         out["sector"] = info.get("sector")
         out["industry"] = info.get("industry")
         out["market_cap"] = info.get("marketCap")
+        out["enterprise_value"] = info.get("enterpriseValue")
+        out["total_revenue"] = info.get("totalRevenue")
+        out["free_cashflow"] = info.get("freeCashflow")
+        out["operating_cashflow"] = info.get("operatingCashflow")
+        out["total_cash"] = info.get("totalCash")
+        out["total_debt"] = info.get("totalDebt")
+        out["enterprise_to_revenue"] = info.get("enterpriseToRevenue")
+        for src_key, out_key in [
+            ("grossMargins", "gross_margins"),
+            ("operatingMargins", "operating_margins"),
+            ("ebitdaMargins", "ebitda_margins"),
+            ("profitMargins", "profit_margins"),
+        ]:
+            val = info.get(src_key)
+            if val is not None:
+                out[out_key] = float(val) * 100 if abs(float(val)) <= 1.5 else float(val)
 
         spf = info.get("shortPercentOfFloat")
         if spf is not None:
@@ -2191,10 +2218,25 @@ def render_research_report(ticker):
     q_text = quality.get("rationale") or pm.get("thesis") or "No long-form quality note is available yet."
 
     market_cap = format_market_cap(meta.get("market_cap")) or "—"
+    enterprise_value = format_market_cap(meta.get("enterprise_value")) or "—"
     rec = format_recommendation(meta.get("analyst_rec"), meta.get("analyst_n")) or "—"
     fpe = meta.get("forward_pe")
     ev_ebitda = meta.get("ev_ebitda")
+    revenue = fin.get("latest_revenue") or meta.get("total_revenue")
     revenue_yoy = fin.get("revenue_yoy") if fin.get("revenue_yoy") is not None else meta.get("revenue_growth")
+    gross_margin = fin.get("gross_margin") if fin.get("gross_margin") is not None else meta.get("gross_margins")
+    operating_margin = fin.get("operating_margin") if fin.get("operating_margin") is not None else meta.get("operating_margins")
+    ebitda_margin = fin.get("ebitda_margin") if fin.get("ebitda_margin") is not None else meta.get("ebitda_margins")
+    profit_margin = meta.get("profit_margins")
+    free_cash_flow = fin.get("free_cash_flow") if fin.get("free_cash_flow") is not None else meta.get("free_cashflow")
+    fcf_margin = fin.get("fcf_margin")
+    if fcf_margin is None and free_cash_flow is not None and revenue:
+        fcf_margin = free_cash_flow / revenue * 100
+    cash = fin.get("cash") if fin.get("cash") is not None else meta.get("total_cash")
+    debt = fin.get("debt") if fin.get("debt") is not None else meta.get("total_debt")
+    net_cash = fin.get("net_cash")
+    if net_cash is None and cash is not None and debt is not None:
+        net_cash = cash - debt
 
     if t.get("action") == "enter_now":
         timing = "Technicals are supportive enough for immediate action."
@@ -2208,11 +2250,12 @@ def render_research_report(ticker):
     kpis = [
         ("Price", f"${t['price']:,.2f}"),
         ("Market cap", market_cap or "—"),
+        ("Enterprise value", enterprise_value),
         ("Revenue YoY", fmt_pct(revenue_yoy)),
-        ("FCF margin", fmt_pct(fin.get("fcf_margin"))),
-        ("Forward P/E", fmt_mult(fpe)),
+        ("Gross margin", fmt_pct(gross_margin)),
+        ("FCF margin", fmt_pct(fcf_margin)),
+        ("EV/Sales", fmt_mult(meta.get("enterprise_to_revenue"))),
         ("EV/EBITDA", fmt_mult(ev_ebitda)),
-        ("Analyst view", rec),
         ("Quality", q_label),
     ]
 
@@ -2233,27 +2276,60 @@ def render_research_report(ticker):
             f'<table class="research-table"><tbody>{body}</tbody></table></div>'
         )
 
+    earnings_label = "Next earnings"
+    if meta.get("earnings_date") and meta.get("earnings_days") is not None:
+        d = meta["earnings_days"]
+        earnings_value = meta["earnings_date"].strftime("%b %d") + (f" · in {d}d" if d >= 0 else f" · {abs(d)}d ago")
+    else:
+        earnings_value = "—"
     earnings_rows = [
-        ("Latest quarterly revenue", fmt_big_number(fin.get("latest_revenue"))),
+        (earnings_label, earnings_value),
+        ("Expected EPS", f"${meta.get('expected_eps'):,.2f}" if meta.get("expected_eps") is not None else "—"),
+        ("Latest quarterly revenue", fmt_big_number(revenue)),
         ("Revenue growth YoY", fmt_pct(revenue_yoy)),
-        ("Gross margin", fmt_pct(fin.get("gross_margin"))),
-        ("Operating margin", fmt_pct(fin.get("operating_margin"))),
-        ("EBITDA margin", fmt_pct(fin.get("ebitda_margin"))),
-        ("Free cash flow", fmt_big_number(fin.get("free_cash_flow"))),
-        ("Free cash flow margin", fmt_pct(fin.get("fcf_margin"))),
+        ("Gross margin", fmt_pct(gross_margin)),
+        ("Operating margin", fmt_pct(operating_margin)),
+        ("EBITDA margin", fmt_pct(ebitda_margin)),
+        ("Net income", fmt_big_number(fin.get("net_income"))),
+        ("Free cash flow", fmt_big_number(free_cash_flow)),
+        ("Free cash flow margin", fmt_pct(fcf_margin)),
+    ]
+    growth_rows = [
+        ("Trailing revenue", fmt_big_number(meta.get("total_revenue"))),
+        ("Revenue growth YoY", fmt_pct(revenue_yoy)),
+        ("Earnings growth YoY", fmt_pct(meta.get("earnings_growth"))),
+        ("52-week position", f"{t.get('pct_of_52w_range'):.0f}% of range" if t.get("pct_of_52w_range") is not None else "—"),
+        ("Relative strength", f"{t.get('rs', 1):.2f} vs SPX"),
+        ("Volume", f"{t.get('vol_ratio', 1):.2f}x 20d avg"),
     ]
     balance_rows = [
-        ("Cash & investments", fmt_big_number(fin.get("cash"))),
-        ("Total debt", fmt_big_number(fin.get("debt"))),
-        ("Net cash / debt", fmt_big_number(fin.get("net_cash"))),
+        ("Cash & investments", fmt_big_number(cash)),
+        ("Total debt", fmt_big_number(debt)),
+        ("Net cash / debt", fmt_big_number(net_cash)),
         ("Debt / equity", fmt_pct(meta.get("debt_to_equity"))),
     ]
     valuation_rows = [
+        ("Market cap", market_cap),
+        ("Enterprise value", enterprise_value),
+        ("EV/Sales", fmt_mult(meta.get("enterprise_to_revenue"))),
         ("Forward P/E", fmt_mult(fpe)),
         ("Trailing P/E", fmt_mult(meta.get("trailing_pe"))),
         ("PEG", fmt_mult(meta.get("peg"))),
         ("EV/EBITDA", fmt_mult(ev_ebitda)),
         ("Analyst target", fmt_big_number(meta.get("analyst_target")) if meta.get("analyst_target") else "—"),
+        ("Analyst view", rec),
+    ]
+    ownership_rows = [
+        ("Short interest", f"{meta.get('short_pct_float'):.1f}% of float" if meta.get("short_pct_float") is not None else "—"),
+        ("Dividend yield", fmt_pct(meta.get("dividend_yield")) if meta.get("dividend_yield") is not None else "—"),
+        ("Quality tier", q_label),
+        ("Tactical state", STATE_STYLES.get(t.get("action"), {}).get("label", t.get("action", "—"))),
+    ]
+    watch_items = [
+        f"Reclaim or lose the 50-day moving average at ${t.get('ma50', 0):,.2f}.",
+        f"Hold the 200-day moving average near ${t.get('ma200', 0):,.2f}.",
+        "Watch whether revenue growth is translating into cash flow rather than only headline scale.",
+        "Track whether valuation multiples compress because fundamentals disappoint or because the stock de-risks into the numbers.",
     ]
 
     st.markdown(f"""
@@ -2279,6 +2355,20 @@ def render_research_report(ticker):
         <p>{html.escape(pm.get("thesis") or "Business summary is generated from the PM view and financial profile.")}</p>
       </div>
       <div class="research-section">
+        <div class="eyebrow">Financial trajectory</div>
+        <h2>Scale, growth, and quality of revenue</h2>
+        <p>{html.escape(company)} is currently showing {fmt_pct(revenue_yoy)} revenue growth with
+        {fmt_pct(gross_margin)} gross margins and {fmt_pct(fcf_margin)} free-cash-flow margins. The key question
+        is whether growth is being converted into durable earnings power, or whether the market is paying for scale
+        before the model has proved normalized profitability.</p>
+      </div>
+      <div class="research-section">
+        <div class="eyebrow">Bull / bear debate</div>
+        <h2>The variant perception</h2>
+        <p><b>Bull case:</b> {html.escape((pm.get("drivers") or ["Execution improves and the market assigns a higher-quality multiple."])[0])}</p>
+        <p><b>Bear case:</b> {html.escape((pm.get("risks") or ["Valuation is already discounting too much good news."])[0])}</p>
+      </div>
+      <div class="research-section">
         <div class="eyebrow">Drivers</div>
         <h2>What could make the stock work</h2>
         <ul>{''.join(f'<li>{html.escape(str(d))}</li>' for d in pm.get('drivers', []))}</ul>
@@ -2291,12 +2381,19 @@ def render_research_report(ticker):
     </div>
     <div>
       {table_html("Earnings highlights", earnings_rows)}
+      {table_html("Growth and trading context", growth_rows)}
       {table_html("Balance sheet", balance_rows)}
       {table_html("Valuation", valuation_rows)}
+      {table_html("Ownership and setup", ownership_rows)}
       <div class="research-section">
         <div class="eyebrow">Tactical overlay</div>
         <h2>{html.escape(STATE_STYLES.get(t.get("action"), {}).get("label", t.get("action", "Watch")))} now</h2>
         <p>{html.escape(decision_context(t))}</p>
+      </div>
+      <div class="research-section">
+        <div class="eyebrow">What to watch next</div>
+        <h2>Next proof points</h2>
+        <ul>{''.join(f'<li>{html.escape(str(item))}</li>' for item in watch_items)}</ul>
       </div>
     </div>
   </div>
