@@ -500,8 +500,9 @@ st.markdown("""
 .desk-cmp-grid {
     display: grid;
     grid-template-columns: 1fr 1px 1fr;
-    gap: 14px;
-    align-items: stretch;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 6px;
 }
 .desk-cmp-divider {
     background: var(--color-border);
@@ -515,7 +516,7 @@ st.markdown("""
     letter-spacing: var(--ls-caps-xl);
     text-transform: uppercase;
     color: var(--color-muted);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -530,10 +531,10 @@ st.markdown("""
     margin-bottom: 4px;
 }
 .desk-cmp-action {
-    font-family: var(--font-serif);
-    font-size: var(--fs-xl) !important;
-    font-weight: 600;
-    line-height: 1.2;
+    font-family: var(--font-sans);
+    font-size: 20px !important;
+    font-weight: 750;
+    line-height: 1.15;
 }
 .desk-cmp-meta {
     font-size: var(--fs-base) !important;
@@ -549,11 +550,11 @@ st.markdown("""
     line-height: 1.4;
 }
 .desk-cmp-reasoning {
-    margin-top: 14px;
-    padding-top: 12px;
+    margin-top: 12px;
+    padding-top: 10px;
     border-top: 1px dashed var(--color-border-soft);
     font-size: var(--fs-md) !important;
-    line-height: 1.65;
+    line-height: 1.55;
     color: var(--color-body);
 }
 .desk-cmp-reasoning-label {
@@ -566,8 +567,14 @@ st.markdown("""
     margin-bottom: 4px;
 }
 .desk-cmp-trigger {
-    margin-top: 8px;
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-warning);
+    border-radius: 6px;
+    background: #FFFFFF;
     font-size: var(--fs-base) !important;
+    line-height: 1.45;
     color: var(--color-body);
 }
 .desk-cmp-trigger-label {
@@ -576,10 +583,11 @@ st.markdown("""
     letter-spacing: var(--ls-caps-md);
     text-transform: uppercase;
     color: var(--color-faint);
+    margin-right: 4px;
 }
 .desk-cmp-yourcall-label {
-    margin-top: 14px;
-    padding-top: 12px;
+    margin-top: 12px;
+    padding-top: 10px;
     border-top: 1px dashed var(--color-border-soft);
     font-family: var(--font-sans);
     font-size: var(--fs-xs) !important;
@@ -1136,6 +1144,30 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-family: var(--font-sans);
     font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--ls-caps-lg);
     text-transform: uppercase; color: var(--color-faint); margin-bottom: 5px;
+}
+.desk-quality-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    color: var(--color-faint);
+    background: #FFFFFF;
+    font-family: var(--font-serif);
+    font-size: 12px;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.desk-quality-info:hover {
+    color: var(--color-text);
+    border-color: var(--color-muted);
 }
 .desk-pm-block .body {
     font-family: var(--font-serif); font-style: normal;
@@ -4152,7 +4184,7 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
     align-items: center !important;
     justify-content: center !important;
     gap: 0 !important;
-    margin: 2px 0 22px 0 !important;
+    margin: 34px 0 24px 0 !important;
     padding: 0 !important;
     background: transparent !important;
     background-color: transparent !important;
@@ -4170,6 +4202,7 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
     justify-content: center !important;
     gap: 9px !important;
     padding: 0 !important;
+    opacity: 1 !important;
 }
 
 .desk-logo-mark {
@@ -4180,7 +4213,7 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
     border: 1px solid #B8C4D0 !important;
     border-radius: 5px !important;
     background: #FFFFFF !important;
-    color: var(--desk-green) !important;
+    color: #0F9F5A !important;
     font-size: 11px !important;
     line-height: 1 !important;
     box-shadow: none !important;
@@ -4206,7 +4239,8 @@ div[data-testid="element-container"]:has(.desk-bar) {
     font-weight: 800 !important;
     letter-spacing: 0.10em !important;
     text-transform: uppercase !important;
-    color: #1F2937 !important;
+    color: #111827 !important;
+    opacity: 1 !important;
 }
 
 .desk-bar .arrow {
@@ -5040,7 +5074,7 @@ if view == "analyze":
         )
         trigger_html = (
             f'<div class="desk-cmp-trigger">'
-            f'<span class="desk-cmp-trigger-label">Trigger:</span> {claude_trigger}</div>'
+            f'<span class="desk-cmp-trigger-label">⚡ Trigger</span> {claude_trigger}</div>'
             if claude_trigger else ''
         )
 
@@ -5985,13 +6019,19 @@ if view == "analyze":
                                 "sub": "Structurally weak business · do not engage"},
             }
             ts = tier_styles.get(q_tier, tier_styles["B"])
+            quality_help = (
+                "Quality A — durable category leader, core position candidate. "
+                "Quality B — real moat but timing/execution risk, selective sizing. "
+                "Speculative — real upside with binary risk, size small. "
+                "Quality Avoid — structurally weak business, do not engage."
+            )
             rationale_html = f'<div style="font-size:var(--fs-sm); color:#4A453E; margin-top:4px; line-height:1.4;">{q_rationale}</div>' if q_rationale else ""
             st.markdown(f"""
 <div style="background:{ts['bg']}; border-left:3px solid {ts['color']};
             padding:8px 12px; margin:6px 0 14px 0; border-radius:4px;">
   <div style="font-family: var(--font-mono); font-size:var(--fs-sm); font-weight:600;
               letter-spacing: var(--ls-caps-xs); text-transform:uppercase; color:{ts['color']};">
-    {ts['label']}
+    {ts['label']}<span class="desk-quality-info" title="{quality_help}">i</span>
   </div>
   <div style="font-size:var(--fs-sm); color:var(--color-muted); margin-top:2px;">{ts['sub']}</div>
   {rationale_html}
@@ -6002,19 +6042,19 @@ if view == "analyze":
         st.markdown(f"""
 <div>
   <div class="desk-pm-block">
-    <div class="lb">Thesis</div>
+    <div class="lb">🧭 Thesis</div>
     <div class="body">{pm.get('thesis', '')}</div>
   </div>
   <div class="desk-pm-block">
-    <div class="lb">Drivers</div>
+    <div class="lb">🚀 Drivers</div>
     {''.join(f'<div class="desk-pm-item">{d}</div>' for d in pm.get('drivers', []))}
   </div>
   <div class="desk-pm-block">
-    <div class="lb">Risks</div>
+    <div class="lb">⚠️ Risks</div>
     {''.join(f'<div class="desk-pm-item">{r}</div>' for r in pm.get('risks', []))}
   </div>
   <div class="desk-pm-block">
-    <div class="lb">Valuation</div>
+    <div class="lb">💵 Valuation</div>
     <div class="body">{pm.get('valuation', '')}</div>
   </div>
 </div>
@@ -6142,7 +6182,7 @@ if view == "analyze":
             narrative_html = "".join(f"<p>{p}</p>" for p in paragraphs)
             st.markdown(
                 f'<div class="desk-pm-thesis">'
-                f'<div class="desk-pm-block"><div class="lb">Investment thesis</div></div>'
+                f'<div class="desk-pm-block"><div class="lb">🧠 Investment thesis</div></div>'
                 f'{narrative_html}'
                 f'</div>',
                 unsafe_allow_html=True,
@@ -6151,7 +6191,7 @@ if view == "analyze":
             fallback_thesis = pm.get("thesis") or "Investment thesis appears here after the PM dossier is generated."
             st.markdown(
                 f'<div class="desk-pm-thesis">'
-                f'<div class="desk-pm-block"><div class="lb">Investment thesis</div></div>'
+                f'<div class="desk-pm-block"><div class="lb">🧠 Investment thesis</div></div>'
                 f'<p>{fallback_thesis}</p>'
                 f'</div>',
                 unsafe_allow_html=True,
