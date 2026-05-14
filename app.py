@@ -833,7 +833,7 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .desk-decision-info:hover {
-    background: #F0EDE5;
+    background: #F1F5F9;
     color: var(--color-text);
     border-color: var(--color-muted);
 }
@@ -3316,7 +3316,7 @@ section[data-testid='stSidebar'] [role='radiogroup'] label p {
     line-height: 1.2 !important;
 }
 section[data-testid='stSidebar'] [role='radiogroup'] label:hover {
-    background: #EDE8DD !important;
+    background: #F1F5F9 !important;
 }
 /* Hide the radio dot AND the empty wrapper so text owns the full width */
 section[data-testid='stSidebar'] [role='radiogroup'] label > div:first-child {
@@ -3640,15 +3640,15 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
 
 /* Quiet product skin: current without trying to be cool */
 .stApp {
-    background: #FAFAF8 !important;
+    background: #F8FAFC !important;
 }
 section[data-testid='stSidebar'] {
-    background: #F2F2EE !important;
-    border-right: 1px solid #E2E2DC !important;
+    background: #F1F5F9 !important;
+    border-right: 1px solid #DCE3EA !important;
 }
 section[data-testid='stSidebar'] input {
     border-radius: 8px !important;
-    border: 1px solid #DEDED7 !important;
+    border: 1px solid #DCE3EA !important;
     background: #FFFFFF !important;
 }
 section[data-testid='stSidebar'] div.stButton > button,
