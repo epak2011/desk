@@ -464,7 +464,7 @@ st.markdown("""
     --color-surface:         #FFFFFF;
     --color-surface-soft:    #F4F7FB;
     --color-surface-warning: #FFF2F3;
-    --color-surface-trigger: #FFF7DF;
+    --color-surface-trigger: #EEF6FF;
     --color-border:          #E3E8F0;
     --color-border-soft:     #EEF2F7;
 
@@ -903,7 +903,7 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 .desk-trigger-text b {
     font-family: var(--font-mono); font-style: normal;
     font-weight: 600; font-variant-numeric: tabular-nums;
-    background: #FFF1C4; padding: 0 6px; border-radius: 2px;
+    background: #E8F1FF; padding: 0 6px; border-radius: 2px;
     font-size: 28px;
 }
 
@@ -3729,6 +3729,23 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
     border-radius: 8px !important;
     background: #111111 !important;
 }
+
+/* Kill remaining warm/cream Streamlit input surfaces */
+.main input,
+.main textarea,
+.main [data-baseweb="input"],
+.main [data-baseweb="textarea"],
+.main [data-baseweb="base-input"],
+.main [data-testid="stTextInput"] input,
+.main [data-testid="stTextArea"] textarea {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    border-color: #DCE3EA !important;
+}
+.main input::placeholder,
+.main textarea::placeholder {
+    color: #6B7280 !important;
+}
 </style>""",
             unsafe_allow_html=True,
         )
@@ -4907,7 +4924,7 @@ if view == "analyze":
         # Read of the tape — always visible, anchors every screen with the
         # current technical state in concrete numbers.
         tape_rows = tape_read(t)
-        color_map = {"pos": "#2E7D4F", "neg": "#D14545", "": "#3F3B34"}
+        color_map = {"pos": "#2E7D4F", "neg": "#D14545", "": "#334155"}
         tape_html = "".join(
             f'<div class="row">'
             f'  <span class="k">{label}</span>'
@@ -5161,7 +5178,7 @@ if view == "analyze":
             })
 
             chart_html = f"""
-    <div id="lwchart_{ticker}" style="width:100%;height:480px;background:#FBFAF7;"></div>
+    <div id="lwchart_{ticker}" style="width:100%;height:480px;background:#FFFFFF;"></div>
     <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
     <script>
     (function() {{
@@ -5173,28 +5190,28 @@ if view == "analyze":
     width: container.clientWidth,
     height: 480,
     layout: {{
-      background: {{ type: 'solid', color: '#FBFAF7' }},
-      textColor: '#3F3B34',
+      background: {{ type: 'solid', color: '#FFFFFF' }},
+      textColor: '#334155',
       fontFamily: 'Geist Mono, monospace',
       fontSize: 11,
     }},
     grid: {{
-      vertLines: {{ color: '#EFEDE7' }},
-      horzLines: {{ color: '#EFEDE7' }},
+      vertLines: {{ color: '#E5E7EB' }},
+      horzLines: {{ color: '#E5E7EB' }},
     }},
     rightPriceScale: {{
-      borderColor: '#E5E3DE',
+      borderColor: '#DCE3EA',
       scaleMargins: {{ top: 0.08, bottom: 0.28 }},
     }},
     timeScale: {{
-      borderColor: '#E5E3DE',
+      borderColor: '#DCE3EA',
       timeVisible: false,
       secondsVisible: false,
     }},
     crosshair: {{
       mode: LightweightCharts.CrosshairMode.Normal,
-      vertLine: {{ color: '#8A857C', width: 1, style: 2 }},
-      horzLine: {{ color: '#8A857C', width: 1, style: 2 }},
+      vertLine: {{ color: '#94A3B8', width: 1, style: 2 }},
+      horzLine: {{ color: '#94A3B8', width: 1, style: 2 }},
     }},
     handleScroll: true,
     handleScale: true,
@@ -5209,7 +5226,7 @@ if view == "analyze":
     wickUpColor: '#16A34A',
     wickDownColor: '#DC2626',
     priceLineVisible: true,
-    priceLineColor: '#8A857C',
+    priceLineColor: '#94A3B8',
     priceLineWidth: 1,
     priceLineStyle: 2,
       }});
