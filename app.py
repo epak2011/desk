@@ -1652,12 +1652,13 @@ div.streamlit-expanderHeader {
     background: rgba(255, 255, 255, 0.58);
 }
 .desk-bar {
-    background: #101114 !important;
-    border: none !important;
-    box-shadow: 0 12px 28px rgba(16, 17, 20, 0.12) !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    border: 0 !important;
+    border-bottom: 1px solid #DCE3EA !important;
+    box-shadow: none !important;
 }
 .desk-bar .wordmark {
-    color: #FFFFFF !important;
+    color: #334155 !important;
 }
 .desk-bar .wordmark .arrow {
     color: #18C964 !important;
@@ -3550,17 +3551,17 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
     border-color: #E0E4EA !important;
 }
 .desk-bar {
-    background: #101114 !important;
-    color: #FFFFFF !important;
-    border: none !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    color: #334155 !important;
+    border: 0 !important;
     border-radius: 0 !important;
     border-top: none !important;
-    border-bottom: none !important;
-    box-shadow: 0 12px 28px rgba(16, 17, 20, 0.12) !important;
+    border-bottom: 1px solid #DCE3EA !important;
+    box-shadow: none !important;
 }
 .desk-bar .wordmark,
 .desk-bar .meta {
-    color: #FFFFFF !important;
+    color: #334155 !important;
 }
 .desk-bar .wordmark .arrow {
     color: var(--color-accent) !important;
@@ -3661,17 +3662,18 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
     box-shadow: none !important;
 }
 .desk-bar {
-    background: #111111 !important;
-    color: #FFFFFF !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    color: #334155 !important;
     box-shadow: none !important;
+    border-bottom: 1px solid #DCE3EA !important;
     padding: 7px 0 8px !important;
 }
 .desk-bar .wordmark {
-    color: #FFFFFF !important;
+    color: #334155 !important;
     letter-spacing: 0.12em !important;
 }
 .desk-bar .meta {
-    color: rgba(255,255,255,0.68) !important;
+    color: #64748B !important;
 }
 .desk-ticker-row .sym {
     font-size: 24px !important;
