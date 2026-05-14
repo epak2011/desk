@@ -452,41 +452,44 @@ st.markdown("""
     --ls-caps-xxl: 0.18em;
 
     /* Color palette — text */
-    --color-text:      #0F0E0D;
-    --color-body:      #3F3B34;
-    --color-muted:     #6B655B;
-    --color-faint:     #8A857C;
-    --color-fainter:   #A8A29E;
-    --color-faintest:  #B4ADA0;
+    --color-text:      #101114;
+    --color-body:      #343842;
+    --color-muted:     #69707D;
+    --color-faint:     #8D95A3;
+    --color-fainter:   #A9B1BE;
+    --color-faintest:  #B9C1CC;
 
     /* Color palette — surfaces */
-    --color-bg:              #FBFAF7;
+    --color-bg:              #FCFCFF;
     --color-surface:         #FFFFFF;
-    --color-surface-soft:    #F5F2EB;
-    --color-surface-warning: #FDF5F5;
-    --color-surface-trigger: #FEF7E8;
-    --color-border:          #E5E3DE;
-    --color-border-soft:     #EFEDE7;
+    --color-surface-soft:    #F4F7FB;
+    --color-surface-warning: #FFF2F3;
+    --color-surface-trigger: #FFF7DF;
+    --color-border:          #E3E8F0;
+    --color-border-soft:     #EEF2F7;
 
     /* Color palette — semantic */
-    --color-accent:       #00A870;
-    --color-accent-hover: #008859;
-    --color-positive:     #2E7D4F;
-    --color-negative:     #D14545;
-    --color-warning:      #8B2F2F;
-    --color-warning-text: #6B4E1D;
-    --color-purple:       #7C5DD9;
+    --color-accent:       #18C964;
+    --color-accent-hover: #0A9F4C;
+    --color-positive:     #16A34A;
+    --color-negative:     #FF4D6D;
+    --color-warning:      #D83A5E;
+    --color-warning-text: #9A6700;
+    --color-purple:       #7C3AED;
+    --color-blue:         #2563EB;
+    --color-cyan:         #06B6D4;
 }
 
 /* ────────────────────────────────────────────────────────────── */
 /*  DECISION COMPARISON PANEL — single source of truth            */
 /* ────────────────────────────────────────────────────────────── */
 .desk-cmp {
-    background: var(--color-bg);
+    background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 14px 16px;
+    border-radius: 8px;
+    padding: 16px 18px;
     margin: 8px 0 14px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
 }
 .desk-cmp-grid {
     display: grid;
@@ -628,7 +631,10 @@ st.markdown("""
     color: var(--color-bg) !important;
 }
 
-.stApp { background: var(--color-bg); }
+.stApp {
+    background:
+        linear-gradient(180deg, #FCFCFF 0%, #F7FAFF 48%, #FCFCFF 100%);
+}
 /* Keep horizontal overflow hidden to avoid scrollbars */
 body { overflow-x: hidden !important; }
 
@@ -658,11 +664,12 @@ html, body, .main, .main p, .main li {
 /* ────────────────────────────────────────────────────────────── */
 .desk-dossier {
     margin: 0 0 28px;
-    padding: 18px 22px;
-    background: var(--color-surface);
+    padding: 20px 22px;
+    background: rgba(255, 255, 255, 0.94);
     border: 1px solid var(--color-border);
-    border-left: 4px solid var(--color-text);
-    border-radius: 4px;
+    border-left: 4px solid var(--color-blue);
+    border-radius: 8px;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.055);
 }
 .desk-dossier-label {
     font-family: var(--font-sans);
@@ -693,7 +700,7 @@ html, body, .main, .main p, .main li {
 .desk-mod {
     padding: 7px 12px;
     font-size: var(--fs-base); line-height: 1.35;
-    border-radius: 3px;
+    border-radius: 999px;
     border: 1px solid;
     display: flex; align-items: center; gap: 8px;
 }
@@ -712,7 +719,7 @@ div[data-testid="element-container"]:has(.desk-bar) {
     z-index: 1000 !important;
 }
 .desk-bar {
-    background: rgba(250, 249, 245, 0.96);
+    background: rgba(255, 255, 255, 0.92);
     color: var(--color-text);
     padding: 8px 0 9px;
     display: flex; justify-content: space-between; align-items: center;
@@ -720,7 +727,8 @@ div[data-testid="element-container"]:has(.desk-bar) {
     position: relative;
     z-index: 999;
     border-bottom: 1px solid var(--color-border);
-    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.055);
+    backdrop-filter: blur(12px);
 }
 .main .block-container {
     padding-top: 4px !important;
@@ -741,7 +749,9 @@ div[data-testid="element-container"]:has(.desk-bar) {
 }
 
 /* Sidebar: low visual weight */
-section[data-testid="stSidebar"] { background: var(--color-surface-soft); }
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #F4F7FB 0%, #EFFAF5 100%);
+}
 section[data-testid="stSidebar"] .stMarkdown h3 {
     font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps);
     text-transform: uppercase; color: var(--color-muted); margin-bottom: 6px;
@@ -750,10 +760,11 @@ section[data-testid="stSidebar"] div.stButton > button {
     background: transparent; border: 1px solid transparent;
     color: var(--color-body);
     font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 500;
-    border-radius: 3px; padding: 4px 8px; text-align: left; justify-content: flex-start;
+    border-radius: 8px; padding: 5px 9px; text-align: left; justify-content: flex-start;
 }
 section[data-testid="stSidebar"] div.stButton > button:hover {
-    background: #EDE8DD; color: var(--color-text);
+    background: rgba(24, 201, 100, 0.10); color: var(--color-text);
+    border-color: rgba(24, 201, 100, 0.20);
 }
 
 /* Ticker line */
@@ -966,10 +977,11 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 /* ────────────────────────────────────────────────────────────── */
 .desk-avoid-reasons {
     margin: 8px 0 20px;
-    padding: 12px 16px;
+    padding: 14px 16px;
     background: var(--color-surface-warning);
     border-left: 3px solid var(--color-negative);
-    border-radius: 2px;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(255, 77, 109, 0.06);
 }
 .desk-avoid-reasons .label {
     font-family: var(--font-sans);
@@ -998,15 +1010,16 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 
 .desk-reconsider {
     margin: 4px 0 36px;
-    padding: 12px 16px;
-    background: #F5F8F4;
+    padding: 14px 16px;
+    background: #F0FFF6;
     border-left: 3px solid var(--color-positive);
-    border-radius: 2px;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.07);
 }
 .desk-reconsider .label {
     font-family: var(--font-sans);
     font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xxl);
-    text-transform: uppercase; color: #2E5E3A;
+    text-transform: uppercase; color: var(--color-positive);
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 8px;
 }
@@ -1091,8 +1104,8 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     width: 30px;
     height: 30px;
     flex: 0 0 30px;
-    border-radius: 6px;
-    background: transparent !important;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72) !important;
     border: 1px solid var(--color-border);
     color: var(--color-muted) !important;
     text-decoration: none !important;
@@ -1102,8 +1115,9 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     letter-spacing: var(--ls-normal);
 }
 .pm-refresh-link:hover {
-    border-color: var(--color-muted);
+    border-color: var(--color-blue);
     color: var(--color-text) !important;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.10);
 }
 .desk-pm-header .em { font-size: var(--fs-base); margin-right: 6px; }
 .desk-pm-header .src {
@@ -1134,13 +1148,16 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     margin-top: 16px;
     padding-top: 16px;
     padding-left: 20px;
-    border-top: 1px dashed #D9D5CC;
+    border-top: 1px dashed var(--color-border);
     border-left: 1px solid var(--color-border);
 }
 .desk-pm-thesis {
     margin-top: 18px;
-    padding-top: 16px;
-    border-top: 1px dashed #D9D5CC;
+    padding: 16px 16px 2px;
+    border: 1px solid var(--color-border-soft);
+    border-left: 3px solid var(--color-purple);
+    border-radius: 8px;
+    background: rgba(124, 58, 237, 0.035);
 }
 .desk-pm-thesis p {
     margin: 0 0 12px;
@@ -1164,7 +1181,7 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     margin-top: 4px;
 }
 .desk-pm-deep .variant-card {
-    border: 1px solid var(--color-border); border-radius: 3px;
+    border: 1px solid var(--color-border); border-radius: 8px;
     padding: 9px 11px;
     background: var(--color-surface);
 }
@@ -1188,18 +1205,18 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     width: 100% !important;
     min-height: 92px !important;
     padding: 14px 16px !important;
-    border-radius: 6px !important;
-    border: 1px solid var(--color-border-soft) !important;
-    background: var(--color-surface-soft) !important;
+    border-radius: 10px !important;
+    border: 1px solid var(--color-border) !important;
+    background: rgba(255, 255, 255, 0.86) !important;
     color: var(--color-body) !important;
     font-family: var(--font-sans) !important;
     font-size: var(--fs-base) !important;
     line-height: 1.45 !important;
-    box-shadow: none !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 8px 20px rgba(15, 23, 42, 0.04) !important;
 }
 [class*="st-key-chat_input_"] textarea:focus {
-    border-color: var(--color-muted) !important;
-    box-shadow: 0 0 0 1px var(--color-muted) !important;
+    border-color: var(--color-blue) !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10) !important;
 }
 [class*="st-key-chat_send_"] {
     width: 100% !important;
@@ -1212,18 +1229,19 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 [class*="st-key-chat_send_"] button {
     text-align: center !important;
     justify-content: center !important;
-    background: var(--color-text) !important;
+    background: linear-gradient(135deg, var(--color-text), #263241) !important;
     color: var(--color-bg) !important;
     border: none !important;
     font-family: var(--font-sans) !important;
     font-size: var(--fs-base) !important;
     font-weight: 500 !important;
-    border-radius: 4px !important;
+    border-radius: 999px !important;
     letter-spacing: 0.02em !important;
     min-height: 36px !important;
     height: 36px !important;
-    width: 100% !important;
-    padding: 7px 14px !important;
+    width: auto !important;
+    min-width: 94px !important;
+    padding: 7px 18px !important;
     white-space: nowrap !important;
 }
 [class*="st-key-chat_send_"] button p {
@@ -1232,10 +1250,10 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 }
 .desk-chat-history {
     margin: 0 0 14px;
-    padding: 10px 12px;
-    background: var(--color-surface-soft);
-    border: 1px solid var(--color-border-soft);
-    border-radius: 4px;
+    padding: 12px 14px;
+    background: rgba(244, 247, 251, 0.74);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
 }
 .desk-chat-history-title {
     font-family: var(--font-sans);
@@ -1399,10 +1417,11 @@ div.streamlit-expanderHeader {
 /* ────────────────────────────────────────────────────────────── */
 .desk-stat-card {
     margin: 12px 0;
-    padding: 12px 14px;
-    background: var(--color-surface);
+    padding: 13px 15px;
+    background: rgba(255, 255, 255, 0.94);
     border: 1px solid var(--color-border);
-    border-radius: 4px;
+    border-radius: 8px;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
 }
 .desk-stat-card .label {
     font-family: var(--font-sans);
@@ -1455,22 +1474,30 @@ div.streamlit-expanderHeader {
     margin: 4px 0 14px;
     padding: 8px 12px;
     border: 1px solid var(--color-border);
-    border-radius: 4px;
+    border-radius: 999px;
     color: var(--color-text) !important;
     text-decoration: none !important;
     font-family: var(--font-sans);
     font-size: var(--fs-sm);
     font-weight: 600;
+    background: rgba(255, 255, 255, 0.86);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.045);
 }
-.research-link:hover { border-color: var(--color-muted); background: var(--color-surface-soft); }
+.research-link:hover {
+    border-color: var(--color-blue);
+    background: #EFF6FF;
+}
 .research-page {
     max-width: 1180px;
     margin: 0 auto 80px;
 }
 .research-page .hero {
-    border-bottom: 1px solid var(--color-border);
-    padding: 14px 0 18px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 20px 22px 22px;
     margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.055);
 }
 .research-page .eyebrow,
 .research-section .eyebrow {
@@ -1503,9 +1530,10 @@ div.streamlit-expanderHeader {
 }
 .research-kpi {
     border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 10px 12px;
-    background: var(--color-surface);
+    border-radius: 8px;
+    padding: 12px 13px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
 }
 .research-kpi .k {
     font-family: var(--font-mono);
@@ -1528,7 +1556,7 @@ div.streamlit-expanderHeader {
 }
 .research-section {
     border-top: 1px solid var(--color-border);
-    padding-top: 16px;
+    padding-top: 18px;
     margin-top: 18px;
 }
 .research-section h2 {
@@ -5014,7 +5042,7 @@ if view == "analyze":
 """, unsafe_allow_html=True)
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
-            f'target="_blank" rel="noopener">Full research report ↗</a>',
+            f'target="_blank" rel="noopener">📄 Full research report ↗</a>',
             unsafe_allow_html=True,
         )
 
