@@ -719,16 +719,16 @@ div[data-testid="element-container"]:has(.desk-bar) {
     z-index: 1000 !important;
 }
 .desk-bar {
-    background: #101114;
-    color: #FFFFFF;
-    padding: 8px 0 9px;
+    background: rgba(255, 255, 255, 0.88);
+    color: var(--color-text);
+    padding: 7px 0 8px;
     display: flex; justify-content: space-between; align-items: center;
     margin: 0 0 calc(1.2rem + 52px);
     position: relative;
     z-index: 999;
-    border: none;
-    box-shadow: 0 12px 28px rgba(16, 17, 20, 0.12);
-    backdrop-filter: none;
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: none;
+    backdrop-filter: blur(8px);
 }
 .main .block-container {
     padding-top: 4px !important;
@@ -741,12 +741,12 @@ div[data-testid="element-container"]:has(.desk-bar) {
     font-size: var(--fs-sm); line-height: 1;
     letter-spacing: var(--ls-caps-xl);
     text-transform: uppercase;
-    color: #FFFFFF;
+    color: var(--color-text);
 }
 .desk-bar .wordmark .arrow { color: var(--color-accent); margin-right: 6px; }
 .desk-bar .meta {
     font-family: var(--font-mono); font-size: var(--fs-sm);
-    color: rgba(255, 255, 255, 0.70); letter-spacing: var(--ls-caps-sm); text-transform: uppercase;
+    color: var(--color-muted); letter-spacing: var(--ls-caps-sm); text-transform: uppercase;
 }
 
 /* Sidebar: low visual weight */
@@ -3789,6 +3789,27 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 }
 .main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label > div:first-child {
     display: none !important;
+}
+
+/* Final top rail override: no heavy black strip */
+.desk-bar {
+    background: rgba(255, 255, 255, 0.88) !important;
+    color: #334155 !important;
+    border: 0 !important;
+    border-bottom: 1px solid #DCE3EA !important;
+    box-shadow: none !important;
+    backdrop-filter: blur(8px) !important;
+    padding: 7px 0 8px !important;
+}
+.desk-bar .wordmark {
+    color: #334155 !important;
+    letter-spacing: 0.12em !important;
+}
+.desk-bar .wordmark .arrow {
+    color: var(--color-accent) !important;
+}
+.desk-bar .meta {
+    color: #64748B !important;
 }
 </style>""",
             unsafe_allow_html=True,
