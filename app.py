@@ -5236,7 +5236,7 @@ if view == "analyze":
 """, unsafe_allow_html=True)
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
-            f'target="_blank" rel="noopener">📄 Full research report ↗</a>',
+            f'target="_blank" rel="noopener">✨ Full research report ↗</a>',
             unsafe_allow_html=True,
         )
 
