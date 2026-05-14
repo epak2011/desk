@@ -754,8 +754,9 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 /* Ticker line */
 .desk-ticker-row {
     display: flex; justify-content: space-between; align-items: flex-start;
-    min-height: 48px;
+    height: 58px;
     padding-bottom: 10px; border-bottom: 1px solid var(--color-border); margin-bottom: 18px;
+    box-sizing: border-box;
 }
 .desk-ticker-row .sym {
     font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1;
@@ -1071,34 +1072,33 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-family: var(--font-sans);
     font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--ls-caps-xl);
     text-transform: uppercase; color: var(--color-muted);
-    min-height: 48px;
-    margin-bottom: 14px; padding: 0 44px 10px 0;
+    height: 58px;
+    margin-bottom: 14px; padding: 0 0 10px 0;
     border-bottom: 1px solid var(--color-border);
-    display: flex; justify-content: flex-start; align-items: flex-start;
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
     width: 100%;
     box-sizing: border-box;
 }
-[class*="st-key-pm_refresh_btn"] {
-    position: absolute !important;
-    top: 0 !important;
-    right: 0 !important;
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    width: auto !important;
-    z-index: 3 !important;
-}
-[class*="st-key-pm_refresh_btn"] > div {
-    display: flex !important;
-    justify-content: flex-end !important;
-}
-[class*="st-key-pm_refresh_btn"] button {
-    padding: 2px 8px !important;
-    font-size: var(--fs-base) !important;
-    min-height: 0 !important;
-    height: 30px !important;
+.pm-refresh-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 6px;
     background: transparent !important;
-    border: 1px solid var(--color-border) !important;
+    border: 1px solid var(--color-border);
     color: var(--color-muted) !important;
+    text-decoration: none !important;
+    font-family: var(--font-mono);
+    font-size: var(--fs-base);
+    line-height: 1;
+    letter-spacing: var(--ls-normal);
+}
+.pm-refresh-link:hover {
+    border-color: var(--color-muted);
+    color: var(--color-text) !important;
 }
 .desk-pm-header .em { font-size: var(--fs-base); margin-right: 6px; }
 .desk-pm-header .src {
@@ -2517,6 +2517,15 @@ try:
             save_store(st.session_state.store)
             if tkr_to_del == st.session_state.current_ticker and st.session_state.store["watchlist"]:
                 st.session_state.current_ticker = st.session_state.store["watchlist"][0]
+            st.rerun()
+    if "pm_refresh" in qp_global:
+        tkr_to_refresh = qp_global.get("pm_refresh")
+        del qp_global["pm_refresh"]
+        if tkr_to_refresh:
+            clear_pm_cache(tkr_to_refresh)
+            clear_dossier_cache(tkr_to_refresh)
+            fetch_quote_meta.clear()
+            fetch_history.clear()
             st.rerun()
 except Exception:
     pass
@@ -4482,14 +4491,9 @@ if view == "analyze":
     <div><span class="em">🧠</span>Portfolio manager</div>
     <div class="src">{src_note}</div>
   </div>
+  <a class="pm-refresh-link" href="?pm_refresh={html.escape(ticker.upper())}" title="Regenerate PM view">↻</a>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("↻", key="pm_refresh_btn", help="Regenerate (~$0.05)"):
-            clear_pm_cache(ticker)
-            clear_dossier_cache(ticker)
-            fetch_quote_meta.clear()
-            fetch_history.clear()
-            st.rerun()
 
         # Quality tier badge — informational, NOT a gate. Sourced from the
         # dossier Claude call (5th field). Shows long-term ownership read
