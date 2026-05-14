@@ -3637,6 +3637,98 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
 .research-page h1 {
     font-weight: 760 !important;
 }
+
+/* Quiet product skin: current without trying to be cool */
+.stApp {
+    background: #FAFAF8 !important;
+}
+section[data-testid='stSidebar'] {
+    background: #F2F2EE !important;
+    border-right: 1px solid #E2E2DC !important;
+}
+section[data-testid='stSidebar'] input {
+    border-radius: 8px !important;
+    border: 1px solid #DEDED7 !important;
+    background: #FFFFFF !important;
+}
+section[data-testid='stSidebar'] div.stButton > button,
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
+    border-radius: 6px !important;
+    transition: none !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
+    background: #111111 !important;
+    box-shadow: none !important;
+}
+.desk-bar {
+    background: #111111 !important;
+    color: #FFFFFF !important;
+    box-shadow: none !important;
+    padding: 7px 0 8px !important;
+}
+.desk-bar .wordmark {
+    color: #FFFFFF !important;
+    letter-spacing: 0.12em !important;
+}
+.desk-bar .meta {
+    color: rgba(255,255,255,0.68) !important;
+}
+.desk-ticker-row .sym {
+    font-size: 24px !important;
+    font-weight: 700 !important;
+}
+.desk-ticker-row .price {
+    font-size: 18px !important;
+    font-weight: 650 !important;
+}
+.desk-decision {
+    padding: 8px 0 20px !important;
+}
+.desk-decision .word {
+    font-size: 72px !important;
+    font-weight: 720 !important;
+    letter-spacing: -0.03em !important;
+}
+.desk-decision .emoji {
+    font-size: 34px !important;
+    margin-left: 8px !important;
+}
+.desk-decision .context {
+    font-size: 17px !important;
+}
+.desk-avoid-reasons,
+.desk-reconsider,
+.desk-dossier,
+.desk-cmp,
+.desk-stat-card,
+.research-kpi,
+.desk-pm-thesis,
+.research-page .hero {
+    border-radius: 6px !important;
+    box-shadow: none !important;
+}
+.desk-dossier {
+    border-left: 3px solid #111111 !important;
+}
+.desk-dossier-text {
+    font-family: var(--font-serif) !important;
+    font-size: 17px !important;
+    line-height: 1.55 !important;
+}
+.desk-pm-thesis {
+    border-left: 3px solid var(--color-accent) !important;
+}
+.research-link {
+    border-radius: 8px !important;
+    padding: 7px 11px !important;
+}
+[class*="st-key-chat_input_"] textarea {
+    border-radius: 8px !important;
+}
+[class*="st-key-chat_send_"] button {
+    border-radius: 8px !important;
+    background: #111111 !important;
+}
 </style>""",
             unsafe_allow_html=True,
         )
