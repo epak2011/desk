@@ -4144,28 +4144,32 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
 }
 
 .desk-bar {
-    position: sticky !important;
-    top: 34px !important;
-    z-index: 999 !important;
-    width: 100% !important;
-    min-height: 36px !important;
-    margin: 0 0 32px 0 !important;
-    padding: 10px 0 11px !important;
-    background: rgba(255,255,255,0.94) !important;
-    color: #233044 !important;
+    position: static !important;
+    z-index: auto !important;
+    width: auto !important;
+    min-height: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    margin: 0 0 14px 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    color: #475569 !important;
     border: 0 !important;
-    border-bottom: 1px solid var(--desk-border) !important;
+    border-bottom: 0 !important;
     box-shadow: none !important;
-    backdrop-filter: blur(10px) !important;
+    backdrop-filter: none !important;
 }
 
 .desk-bar .wordmark {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-    font-size: 12px !important;
+    font-size: 11px !important;
     font-weight: 800 !important;
-    letter-spacing: 0.08em !important;
+    letter-spacing: 0.10em !important;
     text-transform: uppercase !important;
-    color: #233044 !important;
+    color: #475569 !important;
 }
 
 .desk-bar .arrow {
@@ -4173,9 +4177,11 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
 }
 
 .desk-bar .meta {
-    color: var(--desk-muted) !important;
-    font-size: 11px !important;
+    color: #94A3B8 !important;
+    font-size: 10px !important;
     font-weight: 700 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
 }
 
 .desk-top,
