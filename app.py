@@ -1653,8 +1653,7 @@ div.streamlit-expanderHeader {
 .desk-bar {
     background: rgba(255, 255, 255, 0.82) !important;
     border: 1px solid rgba(17, 24, 39, 0.08) !important;
-    border-top: 3px solid transparent !important;
-    border-image: linear-gradient(90deg, #18C964, #06B6D4, #FF4D6D) 1 !important;
+    border-top: 3px solid var(--color-accent) !important;
     box-shadow: 0 16px 36px rgba(37, 99, 235, 0.08) !important;
 }
 .desk-bar .wordmark {
@@ -1690,13 +1689,6 @@ div.streamlit-expanderHeader {
     font-family: var(--font-sans) !important;
     font-weight: 850 !important;
     letter-spacing: -0.045em !important;
-    color: transparent !important;
-    background: linear-gradient(100deg, #0B1020 0%, #16A34A 42%, #06B6D4 72%, #FF4D6D 100%) !important;
-    -webkit-background-clip: text !important;
-    background-clip: text !important;
-}
-.desk-decision .word span {
-    color: transparent !important;
 }
 .desk-decision .emoji {
     filter: drop-shadow(0 8px 18px rgba(255, 77, 109, 0.18));
