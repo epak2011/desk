@@ -4145,11 +4145,12 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
 
 .desk-bar {
     position: sticky !important;
-    top: 0 !important;
+    top: 34px !important;
     z-index: 999 !important;
     width: 100% !important;
-    margin: 0 0 26px 0 !important;
-    padding: 9px 0 10px !important;
+    min-height: 36px !important;
+    margin: 0 0 32px 0 !important;
+    padding: 10px 0 11px !important;
     background: rgba(255,255,255,0.94) !important;
     color: #233044 !important;
     border: 0 !important;
@@ -4186,8 +4187,12 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
 
 .desk-ticker-row {
     align-items: flex-start !important;
-    padding-bottom: 13px !important;
+    min-height: 70px !important;
+    height: auto !important;
+    padding: 0 0 16px 0 !important;
+    margin: 0 0 28px 0 !important;
     border-bottom: 1px solid var(--desk-border) !important;
+    overflow: visible !important;
 }
 
 .desk-ticker-row .ticker {
@@ -4303,6 +4308,23 @@ textarea,
 .decision-word,
 .hero-decision {
     color: #506176 !important;
+}
+
+.desk-decision {
+    padding: 30px 0 24px !important;
+    margin: 0 0 30px 0 !important;
+    overflow: visible !important;
+}
+
+.desk-decision .word {
+    line-height: 1.08 !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    overflow: visible !important;
+}
+
+.desk-decision .emoji {
+    line-height: 1 !important;
 }
 
 .action-enter,
