@@ -712,13 +712,15 @@ div[data-testid="element-container"]:has(.desk-bar) {
     z-index: 1000 !important;
 }
 .desk-bar {
-    background: var(--color-text); color: var(--color-bg);
-    padding: 11px 20px;
+    background: rgba(250, 249, 245, 0.96);
+    color: var(--color-text);
+    padding: 8px 0 9px;
     display: flex; justify-content: space-between; align-items: center;
-    margin: 0 -1rem calc(1.5rem + 52px);
+    margin: 0 0 calc(1.2rem + 52px);
     position: relative;
     z-index: 999;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.12);
+    border-bottom: 1px solid var(--color-border);
+    backdrop-filter: blur(8px);
 }
 .main .block-container {
     padding-top: 4px !important;
@@ -727,13 +729,15 @@ div[data-testid="element-container"]:has(.desk-bar) {
     padding-top: 4px !important;
 }
 .desk-bar .wordmark {
-    font-family: var(--font-serif); font-weight: 500;
-    font-size: var(--fs-xl); line-height: 1;
+    font-family: var(--font-mono); font-weight: 600;
+    font-size: var(--fs-sm); line-height: 1;
+    letter-spacing: var(--ls-caps-xl);
+    text-transform: uppercase;
 }
-.desk-bar .wordmark .arrow { color: var(--color-accent); margin-right: 3px; }
+.desk-bar .wordmark .arrow { color: var(--color-accent); margin-right: 6px; }
 .desk-bar .meta {
     font-family: var(--font-mono); font-size: var(--fs-sm);
-    color: var(--color-faint); letter-spacing: var(--ls-caps-sm); text-transform: uppercase;
+    color: var(--color-muted); letter-spacing: var(--ls-caps-sm); text-transform: uppercase;
 }
 
 /* Sidebar: low visual weight */
