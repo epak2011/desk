@@ -4113,10 +4113,23 @@ st.markdown("""
     --desk-amber: #B97705;
 }
 
-.stApp {
-    background:
-        linear-gradient(180deg, #FFFFFF 0, var(--desk-bg) 320px, var(--desk-bg) 100%) !important;
+html,
+body,
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stHeader"],
+.main,
+.block-container {
+    background: var(--desk-bg) !important;
+    background-color: var(--desk-bg) !important;
+    background-image: none !important;
     color: var(--desk-text) !important;
+}
+
+[data-testid="stHeader"],
+header[data-testid="stHeader"] {
+    background: rgba(246,248,251,0.96) !important;
+    box-shadow: none !important;
 }
 
 section[data-testid="stSidebar"] {
@@ -4266,9 +4279,24 @@ button[kind="primary"] {
 input,
 textarea,
 [data-baseweb="input"],
-[data-baseweb="textarea"] {
+[data-baseweb="textarea"],
+[data-testid="stTextInput"] input,
+[data-testid="stTextInput"] div,
+[data-testid="stTextArea"] textarea,
+[data-testid="stTextArea"] div {
     border-radius: 6px !important;
     background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    background-image: none !important;
+}
+
+[data-baseweb="input"] > div,
+[data-baseweb="textarea"] > div,
+[data-baseweb="base-input"],
+[data-baseweb="base-input"] > div {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    background-image: none !important;
 }
 
 .desk-decision .word,
@@ -4292,6 +4320,61 @@ textarea,
     background: #FFFFFF !important;
     border: 1px solid var(--desk-border) !important;
     border-radius: 8px !important;
+}
+
+/* Decision comparison choice boxes: kill radio dots and pill geometry. */
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] {
+    display: flex !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+    flex-wrap: wrap !important;
+}
+
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label {
+    min-height: 36px !important;
+    padding: 7px 12px !important;
+    border: 1px solid var(--desk-border-strong) !important;
+    border-radius: 6px !important;
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    color: var(--desk-text) !important;
+    box-shadow: none !important;
+}
+
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label:hover {
+    background: #F8FAFC !important;
+    border-color: #94A3B8 !important;
+}
+
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label:has(input:checked) {
+    background: #EAF2FF !important;
+    border-color: var(--desk-blue) !important;
+    color: #17325F !important;
+}
+
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label:has(input:checked) p,
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label p {
+    color: inherit !important;
+    margin: 0 !important;
+}
+
+.main [class*="st-key-decision_compare_user_pick_"] input[type="radio"],
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label > div:first-child,
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label svg {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Last-mile beige removal for call notes and any Base Web fill. */
+.main [class*="st-key-decision_compare_user_note_"] *,
+.main [class*="st-key-decision_compare_user_note_"] input {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    background-image: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
