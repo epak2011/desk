@@ -1652,13 +1652,12 @@ div.streamlit-expanderHeader {
     background: rgba(255, 255, 255, 0.58);
 }
 .desk-bar {
-    background: rgba(255, 255, 255, 0.82) !important;
-    border: 1px solid rgba(17, 24, 39, 0.08) !important;
-    border-top: 3px solid var(--color-accent) !important;
-    box-shadow: 0 16px 36px rgba(37, 99, 235, 0.08) !important;
+    background: #101114 !important;
+    border: none !important;
+    box-shadow: 0 12px 28px rgba(16, 17, 20, 0.12) !important;
 }
 .desk-bar .wordmark {
-    color: #0B1020 !important;
+    color: #FFFFFF !important;
 }
 .desk-bar .wordmark .arrow {
     color: #18C964 !important;
@@ -3556,6 +3555,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
     border: none !important;
     border-radius: 0 !important;
     border-top: none !important;
+    border-bottom: none !important;
     box-shadow: 0 12px 28px rgba(16, 17, 20, 0.12) !important;
 }
 .desk-bar .wordmark,
