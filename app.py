@@ -1641,6 +1641,160 @@ div.streamlit-expanderHeader {
 }
 
 /* ────────────────────────────────────────────────────────────── */
+/*  Young visual system — brighter, cleaner, more product-native   */
+/* ────────────────────────────────────────────────────────────── */
+.stApp {
+    background:
+        linear-gradient(135deg, #FBFFFE 0%, #F4FBFF 42%, #FFF7FB 100%) !important;
+}
+.main .block-container {
+    background: rgba(255, 255, 255, 0.58);
+}
+.desk-bar {
+    background: rgba(255, 255, 255, 0.82) !important;
+    border: 1px solid rgba(17, 24, 39, 0.08) !important;
+    border-top: 3px solid transparent !important;
+    border-image: linear-gradient(90deg, #18C964, #06B6D4, #FF4D6D) 1 !important;
+    box-shadow: 0 16px 36px rgba(37, 99, 235, 0.08) !important;
+}
+.desk-bar .wordmark {
+    color: #0B1020 !important;
+}
+.desk-bar .wordmark .arrow {
+    color: #18C964 !important;
+    text-shadow: 0 0 12px rgba(24, 201, 100, 0.45);
+}
+.desk-ticker-row,
+.desk-pm-header {
+    border-bottom: 2px solid rgba(15, 23, 42, 0.08) !important;
+}
+.desk-ticker-row .sym {
+    font-size: 26px !important;
+    font-weight: 750 !important;
+    letter-spacing: 0 !important;
+}
+.desk-ticker-row .name,
+.desk-ticker-row .meta-inline,
+.desk-pm-header .src {
+    color: #64748B !important;
+}
+.desk-ticker-row .price {
+    font-size: 20px !important;
+    font-weight: 750 !important;
+}
+.desk-decision {
+    padding: 18px 0 24px !important;
+    border-bottom: 2px solid rgba(15, 23, 42, 0.07) !important;
+}
+.desk-decision .word {
+    font-family: var(--font-sans) !important;
+    font-weight: 850 !important;
+    letter-spacing: -0.045em !important;
+    color: transparent !important;
+    background: linear-gradient(100deg, #0B1020 0%, #16A34A 42%, #06B6D4 72%, #FF4D6D 100%) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+}
+.desk-decision .word span {
+    color: transparent !important;
+}
+.desk-decision .emoji {
+    filter: drop-shadow(0 8px 18px rgba(255, 77, 109, 0.18));
+}
+.desk-decision .context {
+    font-size: 19px !important;
+    color: #111827 !important;
+    max-width: 760px !important;
+}
+.desk-decision-info,
+.pm-refresh-link {
+    border-color: rgba(37, 99, 235, 0.18) !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08) !important;
+}
+.desk-mod,
+.desk-cmp-badge,
+.research-link {
+    border-radius: 999px !important;
+}
+.desk-avoid-reasons,
+.desk-reconsider,
+.desk-dossier,
+.desk-cmp,
+.desk-stat-card,
+.research-kpi,
+.desk-pm-thesis {
+    border-radius: 14px !important;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.07) !important;
+}
+.desk-avoid-reasons {
+    background: linear-gradient(135deg, #FFF5F7, #FFF8FA) !important;
+    border-left: 4px solid #FF4D6D !important;
+}
+.desk-reconsider {
+    background: linear-gradient(135deg, #EEFFF6, #F7FFFB) !important;
+    border-left: 4px solid #18C964 !important;
+}
+.desk-dossier {
+    border-left: 5px solid #2563EB !important;
+    background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(246,250,255,0.98)) !important;
+}
+.desk-dossier-label,
+.desk-cmp-header,
+.desk-stat-card .label,
+.research-page .eyebrow,
+.research-section .eyebrow,
+.desk-pm-block .lb {
+    color: #475569 !important;
+}
+.desk-dossier-text {
+    font-family: var(--font-sans) !important;
+    font-size: 17px !important;
+    line-height: 1.68 !important;
+}
+.desk-pm-thesis {
+    background: linear-gradient(135deg, rgba(245, 243, 255, 0.98), rgba(236, 253, 245, 0.80)) !important;
+    border-left: 5px solid #7C3AED !important;
+}
+.research-link {
+    gap: 7px;
+    border: 1px solid rgba(37, 99, 235, 0.18) !important;
+    background: linear-gradient(135deg, #FFFFFF, #EFF6FF) !important;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12) !important;
+}
+.research-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 32px rgba(37, 99, 235, 0.16) !important;
+}
+[class*="st-key-chat_input_"] textarea {
+    border-radius: 16px !important;
+    border: 1px solid rgba(37, 99, 235, 0.18) !important;
+    background: rgba(255,255,255,0.92) !important;
+}
+[class*="st-key-chat_send_"] button {
+    background: linear-gradient(135deg, #111827 0%, #2563EB 58%, #06B6D4 100%) !important;
+    box-shadow: 0 14px 26px rgba(37, 99, 235, 0.18) !important;
+}
+.research-page .hero {
+    background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(239,246,255,0.95) 55%, rgba(255,247,251,0.96)) !important;
+    border: 1px solid rgba(37, 99, 235, 0.12) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.09) !important;
+}
+.research-page h1 {
+    font-family: var(--font-sans) !important;
+    font-weight: 850 !important;
+    letter-spacing: -0.045em !important;
+}
+.research-page .deck {
+    font-family: var(--font-sans) !important;
+    color: #1F2937 !important;
+}
+.research-kpi {
+    border-top: 3px solid #18C964 !important;
+}
+
+/* ────────────────────────────────────────────────────────────── */
 /*  MOBILE RESPONSIVE — narrow viewports (≤768px)                  */
 /*  Goal: app stays usable on a phone. Not optimal, but readable. */
 /* ────────────────────────────────────────────────────────────── */
@@ -3331,6 +3485,46 @@ section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
 .main [class*="st-key-wlpro_open_"] button p {
     font-size: var(--fs-base) !important;
     margin: 0 !important;
+}
+
+/* Final sidebar skin: brighter, younger, more app-like */
+section[data-testid='stSidebar'] {
+    background: linear-gradient(180deg, #F8FAFC 0%, #ECFDF5 48%, #EFF6FF 100%) !important;
+    border-right: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+section[data-testid='stSidebar'] hr {
+    border-color: rgba(15, 23, 42, 0.09) !important;
+}
+section[data-testid='stSidebar'] input {
+    border-radius: 14px !important;
+    background: #FFFFFF !important;
+    border: 1px solid rgba(37, 99, 235, 0.14) !important;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.06) !important;
+}
+section[data-testid='stSidebar'] div.stButton > button,
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
+    border-radius: 12px !important;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease !important;
+}
+section[data-testid='stSidebar'] div.stButton > button:hover,
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
+    transform: translateX(2px);
+    background: rgba(37, 99, 235, 0.08) !important;
+    border-color: rgba(37, 99, 235, 0.14) !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
+    background: linear-gradient(135deg, #111827 0%, #2563EB 72%, #06B6D4 100%) !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.18) !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button:hover {
+    background: linear-gradient(135deg, #111827 0%, #2563EB 72%, #06B6D4 100%) !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
+    border-radius: 999px !important;
+    background: #FFFFFF !important;
+    border: 1px solid rgba(37, 99, 235, 0.16) !important;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08) !important;
 }
 </style>""",
             unsafe_allow_html=True,
