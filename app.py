@@ -52,6 +52,7 @@ FALLBACK_PROFILE_META = {
     "NVDA": {"name": "NVIDIA Corporation", "sector": "Technology"},
     "AVGO": {"name": "Broadcom Inc.", "sector": "Technology"},
     "PLTR": {"name": "Palantir Technologies", "sector": "Technology"},
+    "DASH": {"name": "DoorDash", "sector": "Consumer Internet"},
     "COIN": {"name": "Coinbase Global", "sector": "Financial Services"},
     "BTC-USD": {"name": "Bitcoin", "sector": "Crypto"},
 }
@@ -2185,7 +2186,7 @@ def render_research_report(ticker):
     q_label = quality.get("tier") or "Unrated"
     q_text = quality.get("rationale") or pm.get("thesis") or "No long-form quality note is available yet."
 
-    market_cap = format_market_cap(meta.get("market_cap")) or fmt_big_number(fin.get("latest_revenue"))
+    market_cap = format_market_cap(meta.get("market_cap")) or "—"
     rec = format_recommendation(meta.get("analyst_rec"), meta.get("analyst_n")) or "—"
     fpe = meta.get("forward_pe")
     ev_ebitda = meta.get("ev_ebitda")
