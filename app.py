@@ -3746,6 +3746,50 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 .main textarea::placeholder {
     color: #6B7280 !important;
 }
+
+/* Decision comparison controls: no cream, no pills */
+.desk-cmp-badge {
+    border-radius: 5px !important;
+}
+.main [class*="st-key-decision_compare_user_note_"],
+.main [class*="st-key-decision_compare_user_note_"] *,
+.main [class*="st-key-decision_compare_user_note_"] [data-baseweb="input"],
+.main [class*="st-key-decision_compare_user_note_"] [data-baseweb="base-input"] {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+}
+.main [class*="st-key-decision_compare_user_note_"] input {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    border: 1px solid #DCE3EA !important;
+    border-radius: 6px !important;
+}
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] {
+    gap: 8px !important;
+}
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label {
+    border: 1px solid #DCE3EA !important;
+    border-radius: 6px !important;
+    background: #FFFFFF !important;
+    padding: 7px 10px !important;
+    margin: 0 !important;
+    min-height: 34px !important;
+}
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label:hover {
+    border-color: #94A3B8 !important;
+    background: #F8FAFC !important;
+}
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label:has(input:checked) {
+    border-color: #111111 !important;
+    background: #111111 !important;
+    color: #FFFFFF !important;
+}
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label:has(input:checked) p {
+    color: #FFFFFF !important;
+}
+.main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label > div:first-child {
+    display: none !important;
+}
 </style>""",
             unsafe_allow_html=True,
         )
