@@ -3286,6 +3286,13 @@ except Exception:
 # Sidebar
 # ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
+    st.markdown(
+        '<div class="desk-sidebar-wordmark">'
+        '<span class="desk-sidebar-mark">▸</span><span>SignalDesk</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
     view_labels = {"analyze": "Analyze", "watchlist": "Watchlist", "tracker": "Tracker"}
     current_view_label = view_labels[st.session_state.view]
     picked = st.radio(
@@ -4165,8 +4172,29 @@ header[data-testid="stHeader"] {
 }
 
 section[data-testid="stSidebar"] {
-    background: #F1F5F9 !important;
+    background: #F3F5F7 !important;
     border-right: 1px solid var(--desk-border) !important;
+}
+
+.desk-sidebar-wordmark {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 2px 0 24px;
+    padding: 0 0 18px;
+    border-bottom: 1px solid var(--desk-border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #263241;
+}
+
+.desk-sidebar-mark {
+    color: #0F9F5A;
+    font-size: 10px;
+    line-height: 1;
 }
 
 section[data-testid="stSidebar"] input,
@@ -4176,61 +4204,16 @@ section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
 }
 
 .desk-bar {
-    position: static !important;
-    z-index: auto !important;
-    width: 100% !important;
-    min-height: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 0 !important;
-    margin: 34px 0 24px 0 !important;
-    padding: 0 !important;
-    background: transparent !important;
-    background-color: transparent !important;
-    background-image: none !important;
-    color: #475569 !important;
-    border: 0 !important;
-    border-bottom: 0 !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-}
-
-.desk-logo {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 9px !important;
-    padding: 0 !important;
-    opacity: 1 !important;
-}
-
-.desk-logo-mark {
-    width: 18px !important;
-    height: 18px !important;
-    display: inline-grid !important;
-    place-items: center !important;
-    border: 1px solid #B8C4D0 !important;
-    border-radius: 5px !important;
-    background: #FFFFFF !important;
-    color: #0F9F5A !important;
-    font-size: 11px !important;
-    line-height: 1 !important;
-    box-shadow: none !important;
+    display: none !important;
 }
 
 div[data-testid="stElementContainer"]:has(.desk-bar),
 div[data-testid="element-container"]:has(.desk-bar) {
-    position: static !important;
-    top: auto !important;
-    z-index: auto !important;
-    height: auto !important;
-    min-height: 22px !important;
-    margin: 0 0 6px 0 !important;
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
     padding: 0 !important;
-    background: transparent !important;
-    border: 0 !important;
-    box-shadow: none !important;
 }
 
 .desk-bar .wordmark {
@@ -4260,10 +4243,10 @@ div[data-testid="element-container"]:has(.desk-bar) {
 
 .desk-ticker-row {
     align-items: flex-start !important;
-    min-height: 70px !important;
+    min-height: 62px !important;
     height: auto !important;
-    padding: 0 0 16px 0 !important;
-    margin: 0 0 28px 0 !important;
+    padding: 0 0 13px 0 !important;
+    margin: 0 0 18px 0 !important;
     border-bottom: 1px solid var(--desk-border) !important;
     overflow: visible !important;
 }
@@ -4384,13 +4367,13 @@ textarea,
 }
 
 .desk-decision {
-    padding: 30px 0 24px !important;
-    margin: 0 0 30px 0 !important;
+    padding: 12px 0 18px !important;
+    margin: 0 0 18px 0 !important;
     overflow: visible !important;
 }
 
 .desk-decision .word {
-    line-height: 1.08 !important;
+    line-height: 1.02 !important;
     padding-top: 2px !important;
     padding-bottom: 2px !important;
     overflow: visible !important;
@@ -4398,6 +4381,22 @@ textarea,
 
 .desk-decision .emoji {
     line-height: 1 !important;
+}
+
+.desk-decision .context {
+    margin-top: 8px !important;
+}
+
+.desk-trigger-block {
+    margin: 0 0 16px !important;
+}
+
+.desk-invalidation {
+    margin: 10px 0 20px !important;
+}
+
+.desk-dossier {
+    margin-top: 14px !important;
 }
 
 .action-enter,
@@ -4472,20 +4471,6 @@ textarea,
     background-image: none !important;
 }
 </style>
-""", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────────────────────────────
-# Navbar
-# ─────────────────────────────────────────────────────────────────────
-st.markdown(f"""
-<div class="desk-bar">
-  <div class="desk-logo">
-    <span class="desk-logo-mark">▸</span>
-    <span class="wordmark">Trading Desk</span>
-  </div>
-  <span class="meta">{st.session_state.current_ticker}</span>
-</div>
 """, unsafe_allow_html=True)
 
 
