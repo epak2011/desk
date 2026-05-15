@@ -4249,15 +4249,24 @@ div[data-testid="element-container"]:has(.desk-bar) {
 
 .desk-ticker-row {
     align-items: flex-start !important;
-    min-height: 62px !important;
-    height: auto !important;
-    padding: 0 0 13px 0 !important;
+    min-height: 60px !important;
+    height: 60px !important;
+    padding: 0 0 12px 0 !important;
     margin: 0 0 18px 0 !important;
     border-bottom: 1px solid var(--desk-border) !important;
     overflow: visible !important;
     opacity: 1 !important;
     filter: none !important;
     transform: none !important;
+}
+
+.desk-pm-header {
+    min-height: 60px !important;
+    height: 60px !important;
+    padding: 0 0 12px 0 !important;
+    margin: 0 0 18px 0 !important;
+    border-bottom: 1px solid var(--desk-border) !important;
+    align-items: flex-start !important;
 }
 
 .desk-ticker-row .ticker {
