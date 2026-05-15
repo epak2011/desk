@@ -6717,6 +6717,28 @@ if view == "tracker":
     )
 
     decisions_log = st.session_state.store.get("decisions_log", [])
+    # Open tracker rows represent active decisions. Keep one active row per
+    # ticker, preserving the earliest logged decision so later accidental
+    # re-logs do not create duplicate NVDA / PLTR rows.
+    try:
+        kept_open_tickers = set()
+        normalized_log = []
+        for entry in sorted(
+            decisions_log,
+            key=lambda d: d.get("ts") or "",
+        ):
+            ticker_key = str(entry.get("ticker") or "").upper()
+            if entry.get("outcome") is None and ticker_key:
+                if ticker_key in kept_open_tickers:
+                    continue
+                kept_open_tickers.add(ticker_key)
+            normalized_log.append(entry)
+        if len(normalized_log) != len(decisions_log):
+            st.session_state.store["decisions_log"] = normalized_log
+            save_store(st.session_state.store)
+            decisions_log = normalized_log
+    except Exception:
+        pass
     unscored = [d for d in decisions_log if d.get("outcome") is None]
     scored = [d for d in decisions_log if d.get("outcome") is not None]
 
@@ -6857,6 +6879,23 @@ if view == "tracker":
     font-weight: 750;
     color: var(--color-text) !important;
     text-decoration: none !important;
+}
+.tracker-note {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 5px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    color: var(--color-muted);
+    background: #FFFFFF;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: help;
+    vertical-align: 1px;
 }
 .tracker-chip {
     display: inline-flex;
@@ -7057,10 +7096,14 @@ if view == "tracker":
                 if avoid_px is not None:
                     setup_label = f"Avoid {_fmt_px(avoid_px)}"
                 hit_text, hit_class = _hit_status(entry)
-                note = html.escape(str(entry.get("user_note") or ""))
+                raw_note = str(entry.get("user_note") or "").strip()
+                note_icon = (
+                    f'<span class="tracker-note" title="{html.escape(raw_note, quote=True)}">N</span>'
+                    if raw_note else ""
+                )
                 st.markdown(
                     f'<div class="tracker-grid tracker-row">'
-                    f'<a class="tracker-ticker" href="?open={html.escape(ticker_value)}" target="_self">{html.escape(ticker_value)}</a>'
+                    f'<span><a class="tracker-ticker" href="?open={html.escape(ticker_value)}" target="_self">{html.escape(ticker_value)}</a>{note_icon}</span>'
                     f'<span class="tracker-muted">{html.escape(str(entry.get("ts", "")[:10]))}</span>'
                     f'<span>{_action_chip(entry.get("claude_action"), "claude", entry.get("claude_confidence"))}</span>'
                     f'<span>{_action_chip(entry.get("rule_action"), "rule")}</span>'
@@ -7071,8 +7114,7 @@ if view == "tracker":
                     f'<span style="text-align:right;">{_fmt_px(stop_px)}</span>'
                     f'<span class="{hit_class}">{html.escape(hit_text)}</span>'
                     f'<span class="tracker-muted">{html.escape(_outcome_label(entry))}</span>'
-                    f'</div>'
-                    + (f'<div style="padding:0 10px 8px 10px;font-size:var(--fs-sm);color:var(--color-faint);font-style:italic;border-bottom:1px solid var(--color-border-soft);">{note}</div>' if note else ''),
+                    f'</div>',
                     unsafe_allow_html=True,
                 )
             st.markdown('</div>', unsafe_allow_html=True)
@@ -7086,6 +7128,8 @@ if view == "tracker":
                 entry_id = entry.get("id", "")
                 ticker_value = str(entry.get("ticker", "")).upper()
                 with st.expander(f"Score / notes · {ticker_value} · {entry.get('ts', '')[:10]}", expanded=False):
+                    if entry.get("user_note"):
+                        st.caption(f"Your note: {entry.get('user_note')}")
                     if not entry.get("claude_action"):
                         st.caption("Claude is missing for this saved row.")
                         if st.button("Refresh Claude", key=f"refresh_claude_{entry_id}", use_container_width=True):
