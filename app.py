@@ -61,6 +61,13 @@ FALLBACK_PROFILE_META = {
         "category": "China technology",
         "total_assets": 2_700_000_000,
     },
+    "EWY": {
+        "name": "iShares MSCI South Korea ETF",
+        "sector": "ETF",
+        "category": "South Korea equities",
+        "total_assets": 15_736_000_000,
+        "expense_ratio": 0.0059,
+    },
 }
 
 # ─────────────────────────────────────────────────────────────────────
@@ -4603,7 +4610,11 @@ if view == "analyze":
     quote_type = str(meta.get("quote_type") or "").upper()
     is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(meta.get("category") or fallback_profile.get("category"))
     if is_fund:
-        asset_label = "ETF" if quote_type == "ETF" or ticker.upper() == "CQQQ" else "Fund"
+        asset_label = (
+            "ETF"
+            if quote_type == "ETF" or fallback_profile.get("sector") == "ETF"
+            else "Fund"
+        )
         meta_bits.append(asset_label)
         category = meta.get("category") or fallback_profile.get("category")
         if category:
