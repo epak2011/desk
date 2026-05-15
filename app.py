@@ -6982,6 +6982,62 @@ if view == "tracker":
                 return "Unclear"
             return ", ".join(s.title() for s in srcs)
 
+        def _refresh_claude_for_tracker_entry(entry):
+            ticker_value = str(entry.get("ticker", "")).upper()
+            hist, company_name, _ = fetch_history(ticker_value)
+            bench = fetch_bench()
+            if hist is None or len(hist) < 50 or bench is None:
+                return False, "Could not load enough price history."
+            meta = fetch_quote_meta(ticker_value)
+            t_state = tactical.compute(hist, bench)
+            if t_state is None:
+                return False, "Could not compute rule-engine state."
+            earnings_days = meta.get("earnings_days") if meta else None
+            if (
+                earnings_days is not None and
+                0 <= earnings_days <= 2 and
+                t_state.get("action") in ("enter_now", "watch")
+            ):
+                t_state = {**t_state, "action": "hold_off", "trigger": None, "event_risk_hold": True}
+            elif (
+                earnings_days is not None and
+                3 <= earnings_days <= 7 and
+                t_state.get("action") == "enter_now"
+            ):
+                t_state = {**t_state, "action": "watch", "event_risk_watch": True}
+            modifiers = tactical.decision_modifiers(
+                t_state, meta, t_state.get("market_regime", "unknown")
+            )
+            pm_data = get_cached_pm(
+                ticker_value, t_state,
+                api_key=api_key if api_key else None,
+                company_name=company_name,
+            )
+            dossier = get_cached_dossier(
+                ticker_value, t_state, modifiers, meta, pm_data,
+                api_key=api_key if api_key else None,
+                company_name=company_name,
+            )
+            tactical_call = (dossier or {}).get("tactical_call") or {}
+            claude_action = (tactical_call.get("action") or "").upper()
+            if not claude_action:
+                return False, "Claude did not return a tactical call."
+            try:
+                confidence = int(tactical_call.get("confidence", 0) or 0)
+            except (TypeError, ValueError):
+                confidence = 0
+            entry["claude_action"] = claude_action
+            entry["claude_confidence"] = confidence
+            entry["claude_reasoning"] = (tactical_call.get("reasoning") or dossier.get("dossier") or "").strip()
+            entry["claude_trigger"] = (tactical_call.get("trigger") or "").strip()
+            entry.setdefault("entry_price", round(float(t_state.get("entry")), 2) if t_state.get("entry") is not None else None)
+            entry.setdefault("stop_price", round(float(t_state.get("stop")), 2) if t_state.get("stop") is not None else None)
+            entry.setdefault("target1_price", round(float(t_state.get("t1")), 2) if t_state.get("t1") is not None else None)
+            entry.setdefault("target2_price", round(float(t_state.get("t2")), 2) if t_state.get("t2") is not None else None)
+            entry["claude_refreshed_at"] = datetime.now().isoformat(timespec="seconds")
+            save_store(st.session_state.store)
+            return True, f"Claude refreshed for {ticker_value}."
+
         def _render_tracker_table(entries):
             st.markdown(
                 '<div class="tracker-table">'
@@ -7030,6 +7086,15 @@ if view == "tracker":
                 entry_id = entry.get("id", "")
                 ticker_value = str(entry.get("ticker", "")).upper()
                 with st.expander(f"Score / notes · {ticker_value} · {entry.get('ts', '')[:10]}", expanded=False):
+                    if not entry.get("claude_action"):
+                        st.caption("Claude is missing for this saved row.")
+                        if st.button("Refresh Claude", key=f"refresh_claude_{entry_id}", use_container_width=True):
+                            ok, msg = _refresh_claude_for_tracker_entry(entry)
+                            if ok:
+                                st.success(msg)
+                                st.rerun()
+                            else:
+                                st.warning(msg)
                     if entry.get("claude_trigger"):
                         st.caption(f"Trigger: {entry.get('claude_trigger')}")
                     if entry.get("claude_reasoning"):
