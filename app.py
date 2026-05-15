@@ -5239,6 +5239,15 @@ if view == "analyze":
                     "claude_confidence": confidence,
                     "claude_reasoning": reasoning,
                     "claude_trigger": claude_trigger,
+                    "entry_price": round(float(t.get("entry")), 2) if t.get("entry") is not None else None,
+                    "stop_price": round(float(t.get("stop")), 2) if t.get("stop") is not None else None,
+                    "target1_price": round(float(t.get("t1")), 2) if t.get("t1") is not None else None,
+                    "target2_price": round(float(t.get("t2")), 2) if t.get("t2") is not None else None,
+                    "avoid_price": round(float(t.get("price")), 2) if (
+                        rule_action == "avoid" or claude_action_raw == "AVOID" or user_pick == "AVOID"
+                    ) else None,
+                    "entry_is_projected": bool(t.get("entry_is_projected")),
+                    "trigger_summary": claude_trigger or trigger_text(t),
                     "user_action": user_pick,
                     "user_note": user_note.strip() if user_note else "",
                     "outcome": None,
@@ -6810,73 +6819,222 @@ if view == "tracker":
             unsafe_allow_html=True,
         )
     else:
-        # Sub-tabs: Open (no outcome) vs Resolved (outcome scored)
-        sub_open, sub_resolved = st.tabs([
-            f"Open ({len(unscored)})", f"Resolved ({len(scored)})"
-        ])
+        st.markdown("""
+<style>
+.tracker-table {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #FFFFFF;
+}
+.tracker-grid {
+    display: grid;
+    grid-template-columns: 0.85fr 0.85fr 1.05fr 1.05fr 1.05fr 0.85fr 0.95fr 0.95fr 0.85fr 1.15fr 0.9fr;
+    gap: 8px;
+    align-items: center;
+}
+.tracker-head {
+    padding: 9px 10px;
+    background: #F8FAFC;
+    border-bottom: 1px solid var(--color-border);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 650;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+.tracker-row {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--color-border-soft);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    font-variant-numeric: tabular-nums;
+}
+.tracker-row:last-child { border-bottom: 0; }
+.tracker-ticker {
+    font-family: var(--font-sans);
+    font-weight: 750;
+    color: var(--color-text) !important;
+    text-decoration: none !important;
+}
+.tracker-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    font-weight: 650;
+    white-space: nowrap;
+}
+.tracker-muted { color: var(--color-muted); }
+.tracker-faint { color: var(--color-faint); }
+.tracker-status {
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs);
+    font-weight: 650;
+    letter-spacing: var(--ls-caps);
+    text-transform: uppercase;
+}
+</style>
+""", unsafe_allow_html=True)
 
-        def _render_decision_row(entry, idx, scored_view):
-            import html as _html
+        _act_map = {
+            "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
+            "AVOID": "avoid", "ACCUMULATE": "accumulate",
+        }
+
+        def _fmt_px(value):
+            try:
+                if value is None:
+                    return "—"
+                return f"${float(value):,.2f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        def _fmt_date(value):
+            return value.strftime("%Y-%m-%d") if value else "—"
+
+        def _action_chip(action, source="rule", confidence=None):
+            if source == "claude":
+                key = _act_map.get(action or "", "")
+                label = (action or "—").replace("_", " ").title()
+            elif source == "user":
+                key = _act_map.get(action or "", "")
+                label = STATE_STYLES.get(key, {}).get("label", (action or "—").replace("_", " ").title())
+            else:
+                key = action or ""
+                label = STATE_STYLES.get(key, {}).get("label", (action or "—").replace("_", " ").title())
+            sty = STATE_STYLES.get(key, {})
+            suffix = f' <span class="tracker-faint">{confidence}/10</span>' if confidence else ""
+            return (
+                f'<span class="tracker-chip" style="color:{sty.get("color", "var(--color-text)")};">'
+                f'{sty.get("emoji", "")} {html.escape(str(label))}{suffix}</span>'
+            )
+
+        def _first_hit_after(ticker_value, logged_ts, level, direction):
+            if level is None:
+                return None
+            try:
+                level = float(level)
+                start_dt = datetime.fromisoformat(str(logged_ts)).date()
+            except Exception:
+                return None
+            hist, _, _ = fetch_history(ticker_value)
+            if hist is None or len(hist) == 0:
+                return None
+            for idx, bar in hist.iterrows():
+                try:
+                    bar_date = idx.date() if hasattr(idx, "date") else idx.to_pydatetime().date()
+                    if bar_date < start_dt:
+                        continue
+                    high = float(bar.get("High", bar.get("Close")))
+                    low = float(bar.get("Low", bar.get("Close")))
+                except Exception:
+                    continue
+                if direction == "down" and low <= level:
+                    return bar_date
+                if direction == "up" and high >= level:
+                    return bar_date
+            return None
+
+        def _levels_for(entry):
+            logged_price = entry.get("price")
+            entry_px = entry.get("entry_price")
+            target_px = entry.get("target1_price")
+            stop_px = entry.get("stop_price")
+            avoid_px = entry.get("avoid_price")
+            if entry_px is None and entry.get("user_action") == "AVOID":
+                avoid_px = logged_price
+            if entry_px is None and avoid_px is None:
+                entry_px = logged_price
+            return logged_price, entry_px, avoid_px, target_px, stop_px
+
+        def _hit_status(entry):
+            ticker_value = entry.get("ticker", "")
+            logged_ts = entry.get("ts", "")
+            logged_price, entry_px, avoid_px, target_px, stop_px = _levels_for(entry)
+            if avoid_px is not None and entry_px is None:
+                return "Avoid logged", "tracker-faint"
+            try:
+                direction = "down" if entry_px is not None and logged_price is not None and float(entry_px) < float(logged_price) else "up"
+            except Exception:
+                direction = "up"
+            entry_hit = _first_hit_after(ticker_value, logged_ts, entry_px, direction)
+            target_hit = _first_hit_after(ticker_value, logged_ts, target_px, "up")
+            stop_hit = _first_hit_after(ticker_value, logged_ts, stop_px, "down")
+            if entry.get("outcome"):
+                return "Scored", "tracker-status"
+            if target_hit:
+                return f"Target {_fmt_date(target_hit)}", "tracker-status"
+            if stop_hit:
+                return f"Stop {_fmt_date(stop_hit)}", "tracker-status"
+            if entry_hit:
+                return f"Entry {_fmt_date(entry_hit)}", "tracker-status"
+            return "Waiting", "tracker-faint"
+
+        def _outcome_label(entry):
+            outcome = entry.get("outcome") or {}
+            if not outcome:
+                return "Open"
+            srcs = outcome.get("right_sources") or []
+            if not srcs:
+                return "Unclear"
+            return ", ".join(s.title() for s in srcs)
+
+        def _render_tracker_table(entries):
+            st.markdown(
+                '<div class="tracker-table">'
+                '<div class="tracker-grid tracker-head">'
+                '<span>Ticker</span><span>Logged</span><span>Claude</span><span>Rules</span><span>You</span>'
+                '<span style="text-align:right;">Ref px</span><span style="text-align:right;">Entry / avoid</span>'
+                '<span style="text-align:right;">Target</span><span style="text-align:right;">Stop</span>'
+                '<span>When hit</span><span>Outcome</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            for entry in entries:
+                ticker_value = str(entry.get("ticker", "")).upper()
+                logged_price, entry_px, avoid_px, target_px, stop_px = _levels_for(entry)
+                setup_px = avoid_px if avoid_px is not None else entry_px
+                setup_label = _fmt_px(setup_px)
+                if avoid_px is not None:
+                    setup_label = f"Avoid {_fmt_px(avoid_px)}"
+                hit_text, hit_class = _hit_status(entry)
+                note = html.escape(str(entry.get("user_note") or ""))
+                st.markdown(
+                    f'<div class="tracker-grid tracker-row">'
+                    f'<a class="tracker-ticker" href="?open={html.escape(ticker_value)}" target="_self">{html.escape(ticker_value)}</a>'
+                    f'<span class="tracker-muted">{html.escape(str(entry.get("ts", "")[:10]))}</span>'
+                    f'<span>{_action_chip(entry.get("claude_action"), "claude", entry.get("claude_confidence"))}</span>'
+                    f'<span>{_action_chip(entry.get("rule_action"), "rule")}</span>'
+                    f'<span>{_action_chip(entry.get("user_action"), "user")}</span>'
+                    f'<span style="text-align:right;">{_fmt_px(logged_price)}</span>'
+                    f'<span style="text-align:right;">{setup_label}</span>'
+                    f'<span style="text-align:right;">{_fmt_px(target_px)}</span>'
+                    f'<span style="text-align:right;">{_fmt_px(stop_px)}</span>'
+                    f'<span class="{hit_class}">{html.escape(hit_text)}</span>'
+                    f'<span class="tracker-muted">{html.escape(_outcome_label(entry))}</span>'
+                    f'</div>'
+                    + (f'<div style="padding:0 10px 8px 10px;font-size:var(--fs-sm);color:var(--color-faint);font-style:italic;border-bottom:1px solid var(--color-border-soft);">{note}</div>' if note else ''),
+                    unsafe_allow_html=True,
+                )
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        def _render_row_actions(entries, scored_view):
             _act_map = {
                 "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
                 "AVOID": "avoid", "ACCUMULATE": "accumulate",
             }
-            rule_sty   = STATE_STYLES.get(entry.get("rule_action"), {})
-            claude_sty = STATE_STYLES.get(_act_map.get(entry.get("claude_action") or "", ""), {})
-            user_sty   = STATE_STYLES.get(_act_map.get(entry.get("user_action") or "", ""), {})
-
-            ts_short   = entry.get("ts", "")[:10]
-            tkr        = _html.escape(str(entry.get("ticker", "")))
-            price      = entry.get("price", 0)
-            entry_id   = entry.get("id", "")
-            user_note  = entry.get("user_note", "")
-            reasoning  = entry.get("claude_reasoning", "")
-
-            rule_color   = rule_sty.get("color", "var(--color-text)")
-            rule_emoji   = rule_sty.get("emoji", "")
-            rule_label   = rule_sty.get("label", (entry.get("rule_action") or "—").replace("_"," ").title())
-            claude_color = claude_sty.get("color", "var(--color-text)")
-            claude_emoji = claude_sty.get("emoji", "")
-            claude_label = (entry.get("claude_action") or "—").replace("_"," ").title()
-            claude_conf  = entry.get("claude_confidence", 0)
-            user_color   = user_sty.get("color", "var(--color-text)")
-            user_emoji   = user_sty.get("emoji", "")
-            user_label   = user_sty.get("label", (entry.get("user_action") or "—").replace("_"," ").title())
-            reasoning_preview = ""
-            if reasoning:
-                reasoning_preview = _html.escape(str(reasoning[:200]))
-                if len(reasoning) > 200:
-                    reasoning_preview += "…"
-
-            # ── Compact row ──────────────────────────────────────────
-            st.markdown(
-                f'<div style="padding:10px 0 4px;border-top:1px solid var(--color-border);">'
-                f'<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">'
-                f'<div style="display:flex;align-items:baseline;gap:10px;">'
-                f'<span style="font-weight:700;font-size:var(--fs-md);">{tkr}</span>'
-                f'<span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);">${price:,.2f}</span>'
-                + (f'<span style="font-size:var(--fs-sm);color:var(--color-faint);font-style:italic;">{_html.escape(user_note)}</span>' if user_note else '')
-                + f'</div>'
-                f'<span style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-fainter);">{ts_short}</span>'
-                f'</div>'
-                f'<div style="display:flex;gap:28px;padding:2px 0 4px;">'
-                f'<div><div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-faint);margin-bottom:1px;">Rules</div>'
-                f'<div style="font-size:var(--fs-base);font-weight:600;color:{rule_color};">{rule_emoji} {rule_label}</div></div>'
-                f'<div><div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-faint);margin-bottom:1px;">Claude <span style="font-weight:400;opacity:0.7;">{claude_conf}/10</span></div>'
-                f'<div style="font-size:var(--fs-base);font-weight:600;color:{claude_color};">{claude_emoji} {claude_label}</div></div>'
-                f'<div><div style="font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-faint);margin-bottom:1px;">You</div>'
-                f'<div style="font-size:var(--fs-base);font-weight:600;color:{user_color};">{user_emoji} {user_label}</div></div>'
-                f'</div>'
-                + (f'<div style="font-size:var(--fs-sm);color:var(--color-faint);font-style:italic;padding:0 0 4px;line-height:1.4;">&ldquo;{reasoning_preview}&rdquo;</div>' if reasoning_preview else '')
-                + '</div>',
-                unsafe_allow_html=True,
-            )
-
-            # ── Inline actions ───────────────────────────────────────
-            if not scored_view:
-                act_cols = st.columns([3, 1])
-                with act_cols[0]:
-                    with st.expander("Score outcome", expanded=False):
+            for entry in entries:
+                entry_id = entry.get("id", "")
+                ticker_value = str(entry.get("ticker", "")).upper()
+                with st.expander(f"Score / notes · {ticker_value} · {entry.get('ts', '')[:10]}", expanded=False):
+                    if entry.get("claude_trigger"):
+                        st.caption(f"Trigger: {entry.get('claude_trigger')}")
+                    if entry.get("claude_reasoning"):
+                        st.caption(str(entry.get("claude_reasoning"))[:350] + ("…" if len(str(entry.get("claude_reasoning"))) > 350 else ""))
+                    if not scored_view:
                         outcome_choice = st.radio(
                             "Who was right?",
                             options=["Rules", "Claude", "You", "All three", "None / unclear"],
@@ -6900,20 +7058,16 @@ if view == "tracker":
                             }
                             save_store(st.session_state.store)
                             st.rerun()
-                if act_cols[1].button("Delete", key=f"del_decision_{entry_id}"):
-                    st.session_state.store["decisions_log"] = [
-                        d for d in st.session_state.store["decisions_log"] if d.get("id") != entry_id
-                    ]
-                    save_store(st.session_state.store)
-                    st.rerun()
-            else:
-                if st.button("Delete", key=f"del_decision_{entry_id}"):
-                    st.session_state.store["decisions_log"] = [
-                        d for d in st.session_state.store["decisions_log"] if d.get("id") != entry_id
-                    ]
-                    save_store(st.session_state.store)
-                    st.rerun()
+                    if st.button("Delete", key=f"del_decision_{entry_id}"):
+                        st.session_state.store["decisions_log"] = [
+                            d for d in st.session_state.store["decisions_log"] if d.get("id") != entry_id
+                        ]
+                        save_store(st.session_state.store)
+                        st.rerun()
 
+        # Table-first tracker: same scan pattern as Watchlist, with the
+        # scoring controls tucked behind per-row expanders.
+        sub_open, sub_resolved = st.tabs([f"Open ({len(unscored)})", f"Resolved ({len(scored)})"])
         with sub_open:
             if not unscored:
                 st.markdown(
@@ -6922,8 +7076,8 @@ if view == "tracker":
                     unsafe_allow_html=True,
                 )
             else:
-                for idx, entry in enumerate(unscored):
-                    _render_decision_row(entry, idx, scored_view=False)
+                _render_tracker_table(unscored)
+                _render_row_actions(unscored, scored_view=False)
 
         with sub_resolved:
             if not scored:
@@ -6955,5 +7109,5 @@ if view == "tracker":
 """, unsafe_allow_html=True)
 
                 st.markdown("&nbsp;", unsafe_allow_html=True)
-                for idx, entry in enumerate(scored):
-                    _render_decision_row(entry, idx, scored_view=True)
+                _render_tracker_table(scored)
+                _render_row_actions(scored, scored_view=True)
