@@ -3266,11 +3266,8 @@ try:
     if "wldel" in qp_global:
         tkr_to_del = qp_global.get("wldel")
         del qp_global["wldel"]
-        if tkr_to_del and tkr_to_del in st.session_state.store.get("watchlist", []):
-            st.session_state.store["watchlist"].remove(tkr_to_del)
-            save_store(st.session_state.store)
-            if tkr_to_del == st.session_state.current_ticker and st.session_state.store["watchlist"]:
-                st.session_state.current_ticker = st.session_state.store["watchlist"][0]
+        if tkr_to_del:
+            st.session_state["_pending_wldel"] = tkr_to_del.upper()
             st.rerun()
     if "pm_refresh" in qp_global:
         tkr_to_refresh = qp_global.get("pm_refresh")
@@ -3962,6 +3959,24 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         st.markdown("".join(rows_html), unsafe_allow_html=True)
     else:
         st.caption("Empty — type a ticker above and add it.")
+
+    pending_del = st.session_state.get("_pending_wldel")
+    if pending_del:
+        if pending_del in st.session_state.store.get("watchlist", []):
+            st.warning(f"Remove {pending_del} from watchlist?")
+            c_del, c_cancel = st.columns(2)
+            if c_del.button("Remove", key=f"confirm_wldel_{pending_del}", use_container_width=True):
+                st.session_state.store["watchlist"].remove(pending_del)
+                save_store(st.session_state.store)
+                if pending_del == st.session_state.current_ticker and st.session_state.store["watchlist"]:
+                    st.session_state.current_ticker = st.session_state.store["watchlist"][0]
+                st.session_state.pop("_pending_wldel", None)
+                st.rerun()
+            if c_cancel.button("Cancel", key=f"cancel_wldel_{pending_del}", use_container_width=True):
+                st.session_state.pop("_pending_wldel", None)
+                st.rerun()
+        else:
+            st.session_state.pop("_pending_wldel", None)
 
     if st.session_state.current_ticker and st.session_state.current_ticker not in watchlist:
         st.markdown('<div style="margin-top:8px;">', unsafe_allow_html=True)
