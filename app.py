@@ -3288,7 +3288,7 @@ except Exception:
 with st.sidebar:
     st.markdown(
         '<div class="desk-sidebar-wordmark">'
-        '<span class="desk-sidebar-mark">▸</span><span>SignalDesk</span>'
+        '<span class="desk-sidebar-mark">▸</span><span>Trading Desk</span>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -4165,6 +4165,12 @@ body,
     color: var(--desk-text) !important;
 }
 
+.main .block-container,
+section.main .block-container,
+div[data-testid="stMainBlockContainer"] {
+    padding-top: 3.25rem !important;
+}
+
 [data-testid="stHeader"],
 header[data-testid="stHeader"] {
     background: rgba(246,248,251,0.96) !important;
@@ -4249,6 +4255,9 @@ div[data-testid="element-container"]:has(.desk-bar) {
     margin: 0 0 18px 0 !important;
     border-bottom: 1px solid var(--desk-border) !important;
     overflow: visible !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
 }
 
 .desk-ticker-row .ticker {
