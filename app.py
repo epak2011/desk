@@ -4633,7 +4633,9 @@ if view == "analyze":
     er = meta.get("expense_ratio")
     if er is None:
         er = fallback_profile.get("expense_ratio")
-    if er is not None and er > 0: meta_bits.append(f"{er:.2f}% expense")
+    if er is not None and er > 0:
+        er_pct = er * 100 if er < 1 else er
+        meta_bits.append(f"{er_pct:.2f}% expense")
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
     chg_sign   = "+" if t["change"] >= 0 else ""
