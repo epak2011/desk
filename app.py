@@ -1169,6 +1169,9 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     color: var(--color-text);
     border-color: var(--color-muted);
 }
+.desk-quality-card {
+    margin: -2px 0 20px 0;
+}
 .desk-pm-block .body {
     font-family: var(--font-serif); font-style: normal;
     font-size: var(--fs-md); line-height: 1.5; color: var(--color-body);
@@ -6030,8 +6033,8 @@ if view == "analyze":
             )
             rationale_html = f'<div style="font-size:var(--fs-sm); color:#4A453E; margin-top:4px; line-height:1.4;">{q_rationale}</div>' if q_rationale else ""
             st.markdown(f"""
-<div style="background:{ts['bg']}; border-left:3px solid {ts['color']};
-            padding:8px 12px; margin:6px 0 14px 0; border-radius:4px;">
+<div class="desk-quality-card" style="background:{ts['bg']}; border-left:3px solid {ts['color']};
+            padding:8px 12px; border-radius:4px;">
   <div style="font-family: var(--font-mono); font-size:var(--fs-sm); font-weight:600;
               letter-spacing: var(--ls-caps-xs); text-transform:uppercase; color:{ts['color']};">
     {ts['label']}<span class="desk-quality-info" title="{quality_help}">i</span>
