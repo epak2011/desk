@@ -508,21 +508,21 @@ AVOID if ALL of:
 
 ENTER only if ALL of:
 - bullish bias (price above ma50 AND ma200, momentum positive)
-- tech_score ≥ 9
-- valid trigger exists AND is actionable now
+- tech_score ≥ 8.5
+- either the rule-engine action is ENTER, or the trigger has already fired / market entry is actionable now
 - NOT extended (price within ~12% above MA50 AND within ~8% above MA100)
-- projected reward/risk is at least ~1.5:1
+- projected reward/risk is at least ~1.2:1, or the invalidation is tight and obvious from the current level
 - earnings are not within the next 7 calendar days
 
 WATCH if:
-- bullish bias but tech_score < 9 (waiting on confirmation), OR
+- bullish bias but tech_score < 8.5 (waiting on confirmation), OR
 - valid trigger exists and is approaching but not fired, OR
 - bullish bias but extended → wait for pullback target
 - clean setup but earnings are 3-7 days away → wait for post-print reset
 
 HOLD_OFF (universal default for ambiguity) if:
 - earnings are within 0-2 days for a fresh entry
-- projected reward/risk is below ~1.2:1
+- projected reward/risk is below ~1.0:1
 - pullback in uptrend (above ma200, below ma50)
 - transitioning structure (recovering, no clean confirmation)
 - below ma200 but tape still loyal (RS ≥ 0.95)
@@ -571,7 +571,7 @@ OUTPUT for tactical_call:
 - invalidation: specific price level that breaks the setup, or null if action is HOLD_OFF/AVOID
 - notes: optional one-line nuance, including sizing if Speculative or event risk is near
 
-FINAL RULE: if uncertain or the setup is not clearly actionable with favorable risk/reward, default to HOLD_OFF. Do NOT force trades. Do NOT default to optimism. Your job is to avoid bad trades and identify clean setups — not to justify interest.
+FINAL RULE: if uncertain or the setup is not clearly actionable with favorable risk/reward, default to WATCH when the trend is bullish and a concrete trigger exists; default to HOLD_OFF only when the setup lacks a near-term trigger or has unfavorable risk/reward. Do NOT force trades. Do NOT default to optimism. Your job is to identify clean setups without chasing bad entries.
 
 Style across all three:
 - Confident, opinionated, specific. No hedging, no consultantese.
