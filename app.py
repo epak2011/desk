@@ -2920,6 +2920,122 @@ def invalidation_text(t):
     return None
 
 
+def position_management_read(entry, t):
+    """Exit/take-profit read for an already-entered long position."""
+    def _num(value):
+        try:
+            if value is None:
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    price = _num(t.get("price"))
+    entry_px = _num(entry.get("entry_hit_price")) or _num(entry.get("entry_price")) or _num(entry.get("price"))
+    stop_px = _num(entry.get("stop_price"))
+    target_px = _num(entry.get("target1_price"))
+    ma20 = _num(t.get("ma20"))
+    ma50 = _num(t.get("ma50"))
+    ma200 = _num(t.get("ma200"))
+    rsi = _num(t.get("rsi14"))
+
+    if price is None or entry_px is None:
+        return None
+
+    pnl_pct = (price / entry_px - 1) * 100
+    risk_per_share = entry_px - stop_px if stop_px is not None else None
+    r_multiple = None
+    if risk_per_share and risk_per_share > 0:
+        r_multiple = (price - entry_px) / risk_per_share
+
+    target_gap_pct = None
+    if target_px:
+        target_gap_pct = (target_px / price - 1) * 100
+    stop_gap_pct = None
+    if stop_px:
+        stop_gap_pct = (price / stop_px - 1) * 100
+
+    extended_vs_20 = bool(ma20 and price > ma20 * 1.08)
+    extended_vs_50 = bool(ma50 and price > ma50 * 1.15)
+    trend_intact = bool(
+        (ma50 is None or price >= ma50) and
+        (ma200 is None or price >= ma200)
+    )
+    target_hit = bool(target_px and price >= target_px)
+    stop_broken = bool(stop_px and price <= stop_px)
+    near_stop = bool(stop_gap_pct is not None and stop_gap_pct <= 3)
+    hot_rsi = bool(rsi and rsi >= 70)
+
+    if stop_broken:
+        action = "Exit"
+        emoji = "⛔"
+        color = "var(--color-negative)"
+        summary = "Stop is broken. Close the position unless you are deliberately re-underwriting the thesis."
+    elif target_hit and (extended_vs_20 or hot_rsi):
+        action = "Take profit"
+        emoji = "💰"
+        color = "var(--color-positive)"
+        summary = "Target is hit and the move is extended. Trim 1/3 to 1/2, then trail the rest."
+    elif target_hit:
+        action = "Trim / trail"
+        emoji = "💰"
+        color = "var(--color-positive)"
+        summary = "Target is hit. Take some profit or raise the stop so the trade cannot turn into a loss."
+    elif r_multiple is not None and r_multiple >= 2 and (extended_vs_50 or hot_rsi):
+        action = "Trim"
+        emoji = "✂️"
+        color = "var(--color-warning-text)"
+        summary = "You have more than 2R and the stock is stretched. Bank a partial and trail the balance."
+    elif near_stop:
+        action = "Respect stop"
+        emoji = "⚠️"
+        color = "var(--color-warning-text)"
+        summary = "Price is close to the stop. Do not add; either let the stop work or reduce risk now."
+    elif pnl_pct > 0 and ma20 and price < ma20:
+        action = "Tighten stop"
+        emoji = "🔒"
+        color = "var(--color-warning-text)"
+        summary = "The trade is profitable but short-term trend is slipping. Tighten the stop or trim."
+    elif trend_intact:
+        action = "Hold"
+        emoji = "🟢"
+        color = "var(--color-positive)"
+        summary = "Trend remains intact. Hold the position and keep the stop/target live."
+    else:
+        action = "Review"
+        emoji = "⚠️"
+        color = "var(--color-warning-text)"
+        summary = "Position is not broken, but trend support is weakening. Re-check sizing and stop discipline."
+
+    stats = [
+        ("Entry", f"${entry_px:,.2f}"),
+        ("Now", f"${price:,.2f}"),
+        ("P/L", f"{pnl_pct:+.1f}%"),
+    ]
+    if r_multiple is not None:
+        stats.append(("R", f"{r_multiple:.1f}R"))
+    if target_px is not None:
+        stats.append(("Target", f"${target_px:,.2f}"))
+        if target_gap_pct is not None:
+            stats.append(("To target", f"{target_gap_pct:+.1f}%"))
+    if stop_px is not None:
+        stats.append(("Stop", f"${stop_px:,.2f}"))
+        if stop_gap_pct is not None:
+            stats.append(("Stop room", f"{stop_gap_pct:.1f}%"))
+
+    return {
+        "action": action,
+        "emoji": emoji,
+        "color": color,
+        "summary": summary,
+        "pnl_pct": pnl_pct,
+        "r_multiple": r_multiple,
+        "target_hit": target_hit,
+        "near_stop": near_stop,
+        "stats": stats,
+    }
+
+
 def tape_read(t):
     """A tight 3-4 line read of the current technical state. Used in the
     Avoid layout where the user gets no Trigger/Trade-plan content and
@@ -5050,6 +5166,41 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
+        active_position_entry = next(
+            (
+                d for d in st.session_state.store.get("decisions_log", [])
+                if d.get("ticker") == ticker.upper()
+                and d.get("outcome") is None
+                and d.get("position_status") == "entered"
+            ),
+            None,
+        )
+        position_read = (
+            position_management_read(active_position_entry, t)
+            if active_position_entry else None
+        )
+        if position_read:
+            stat_html = "".join(
+                f'<span><b>{html.escape(label)}</b> {html.escape(value)}</span>'
+                for label, value in position_read["stats"]
+            )
+            st.markdown(f"""
+<div style="border:1px solid var(--color-border);border-left:3px solid {position_read['color']};
+        border-radius:4px;background:#FFFFFF;padding:12px 14px;margin:16px 0 14px;">
+  <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;
+          letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:{position_read['color']};
+          margin-bottom:6px;">{position_read['emoji']} Position manager</div>
+  <div style="font-family:var(--font-sans);font-size:22px;font-weight:750;line-height:1.15;
+          color:{position_read['color']};margin-bottom:5px;">{html.escape(position_read['action'])}</div>
+  <div style="font-size:var(--fs-md);line-height:1.5;color:var(--color-body);">
+    {html.escape(position_read['summary'])}
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px 14px;border-top:1px dashed var(--color-border-soft);
+          margin-top:10px;padding-top:8px;font-family:var(--font-mono);font-size:var(--fs-sm);
+          color:var(--color-muted);">{stat_html}</div>
+</div>
+""", unsafe_allow_html=True)
+
         # 1c. Decision dossier — the synthesis paragraph. Now sits ABOVE
         # the comparison panel so users read Claude's full reasoning
         # first, then see the side-by-side comparison and log their call.
@@ -5357,6 +5508,21 @@ if view == "analyze":
                     + '</div>',
                     unsafe_allow_html=True,
                 )
+                if (
+                    existing_entry.get("position_status") != "entered" and
+                    existing_entry.get("user_action") in ("ENTER", "WATCH", "ACCUMULATE")
+                ):
+                    if st.button(
+                        "Mark as in position",
+                        key=f"mark_entered_{ticker}_{existing_entry.get('id', '')}",
+                        use_container_width=True,
+                    ):
+                        existing_entry["position_status"] = "entered"
+                        existing_entry["entry_hit_at"] = datetime.now().date().isoformat()
+                        existing_entry["entry_hit_price"] = round(float(t.get("price", logged_price)), 2)
+                        existing_entry["manual_entry_logged"] = True
+                        save_store(st.session_state.store)
+                        st.rerun()
 
             # "Your call" header with info-icon hover
             _action_help = (
@@ -7223,6 +7389,19 @@ if view == "tracker":
                 return f"Waiting {_fmt_px(entry_px)}", "tracker-faint"
             return "Waiting", "tracker-faint"
 
+        def _position_read_for_tracker(entry):
+            ticker_value = str(entry.get("ticker", "")).upper()
+            if entry.get("position_status") != "entered":
+                return None
+            hist, _, _ = fetch_history(ticker_value)
+            bench = fetch_bench()
+            if hist is None or bench is None:
+                return None
+            t_state = tactical.compute(hist, bench)
+            if not t_state:
+                return None
+            return position_management_read(entry, t_state)
+
         def _outcome_label(entry):
             outcome = entry.get("outcome") or {}
             if not outcome:
@@ -7346,11 +7525,37 @@ if view == "tracker":
                             f"Auto-entry logged: {_fmt_px(entry.get('entry_hit_price') or entry.get('entry_price'))} "
                             f"on {entry.get('entry_hit_at')}"
                         )
-                    elif entry.get("entry_price") is not None and entry.get("user_action") in ("WATCH", "ENTER"):
+                        tracker_position_read = _position_read_for_tracker(entry)
+                        if tracker_position_read:
+                            stat_line = " · ".join(
+                                f"{label}: {value}"
+                                for label, value in tracker_position_read["stats"][:5]
+                            )
+                            st.markdown(
+                                f'<div style="border:1px solid var(--color-border);'
+                                f'border-left:3px solid {tracker_position_read["color"]};'
+                                f'border-radius:4px;padding:8px 10px;margin:6px 0 8px;'
+                                f'background:#FFFFFF;font-size:var(--fs-sm);line-height:1.45;">'
+                                f'<b style="color:{tracker_position_read["color"]};">'
+                                f'{tracker_position_read["emoji"]} {html.escape(tracker_position_read["action"])}</b>'
+                                f' — {html.escape(tracker_position_read["summary"])}'
+                                f'<div style="font-family:var(--font-mono);color:var(--color-muted);margin-top:4px;">'
+                                f'{html.escape(stat_line)}</div>'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
+                    elif entry.get("entry_price") is not None and entry.get("user_action") in ("WATCH", "ENTER", "ACCUMULATE"):
                         st.caption(
                             f"Waiting for entry trigger: {_fmt_px(entry.get('entry_price'))}. "
                             "Once hit, this row automatically becomes an active entry."
                         )
+                        if st.button("Mark as in position", key=f"tracker_mark_entered_{entry_id}", use_container_width=True):
+                            entry["position_status"] = "entered"
+                            entry["entry_hit_at"] = datetime.now().date().isoformat()
+                            entry["entry_hit_price"] = entry.get("entry_price") or entry.get("price")
+                            entry["manual_entry_logged"] = True
+                            save_store(st.session_state.store)
+                            st.rerun()
                     if entry.get("agreement_read"):
                         st.caption(f"Comparison read: {entry.get('agreement_read')}")
                     if not entry.get("claude_action"):
