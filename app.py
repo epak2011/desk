@@ -699,6 +699,21 @@ st.markdown("""
 .desk-cmp-badge-disagree { background: #FEF3C7; color: #92400E; }
 .desk-cmp-badge-agree    { background: #D1FAE5; color: #065F46; }
 .desk-cmp-badge-unknown  { background: var(--color-surface-soft); color: var(--color-muted); }
+.desk-cmp-read {
+    margin: -2px 0 12px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border-soft);
+    border-left: 3px solid var(--color-blue);
+    border-radius: 4px;
+    background: #FFFFFF;
+    font-size: var(--fs-sm) !important;
+    line-height: 1.45;
+    color: var(--color-muted);
+}
+.desk-cmp-read strong {
+    color: var(--color-text);
+    font-weight: 650;
+}
 
 /* Green primary Log button inside the comparison panel.
    Streamlit doesn't allow per-button styling, so we wrap the button in
@@ -2718,7 +2733,7 @@ STATE_STYLES = {
         "tagline": "High-conviction setup — buy without waiting on a condition",
         "criteria": [
             "Bullish bias — above both 50d and 200d MAs, both rising, leading the index",
-            "Setup score ≥ 9/10 — trend, structure, and volume all aligned",
+            "Setup score ≥ 8.5/10 — trend, structure, and volume all aligned",
             "No condition required: buy now",
         ],
     },
@@ -5115,6 +5130,84 @@ if view == "analyze":
         else:
             agreement_state = "disagree"
 
+        def _decision_compare_read(rule_key, claude_key, t_state, claude_data):
+            """Plain-English read of why the two decision systems differ."""
+            if not claude_key:
+                return (
+                    "Claude comparison is missing because this row was generated before "
+                    "tactical_call data existed. Refresh Portfolio Manager to compare it."
+                )
+
+            rule_label_local = STATE_STYLES.get(rule_key, {}).get(
+                "label", str(rule_key or "Rules").replace("_", " ").title()
+            )
+            claude_label_local = STATE_STYLES.get(claude_key, {}).get(
+                "label", str(claude_key or "Claude").replace("_", " ").title()
+            )
+
+            price = t_state.get("price") or 0
+            ma50 = t_state.get("ma50") or 0
+            ma200 = t_state.get("ma200") or 0
+            rs = t_state.get("rs")
+            rr = t_state.get("reward_risk")
+            setup = t_state.get("setup_score")
+            trig = t_state.get("trigger") or {}
+            trig_kind = (trig.get("kind") or "").replace("_", " ")
+
+            reads = []
+            if setup is not None:
+                try:
+                    reads.append(f"setup {float(setup):.1f}/10")
+                except (TypeError, ValueError):
+                    pass
+            if rr is not None:
+                try:
+                    reads.append(f"reward/risk {float(rr):.2f}:1")
+                except (TypeError, ValueError):
+                    pass
+            if price and ma50:
+                reads.append(f"{((price - ma50) / ma50 * 100):+.1f}% vs 50d")
+            if price and ma200:
+                reads.append(f"{((price - ma200) / ma200 * 100):+.1f}% vs 200d")
+            if rs is not None:
+                try:
+                    reads.append(f"RS {float(rs):.2f}")
+                except (TypeError, ValueError):
+                    pass
+
+            signal = ", ".join(reads[:4])
+            if rule_key == claude_key:
+                return (
+                    f"Both sources read this as {rule_label_local}. "
+                    f"The shared signal is {signal}."
+                    if signal else f"Both sources read this as {rule_label_local}."
+                )
+
+            if rule_key == "enter_now" and claude_key in ("watch", "hold_off"):
+                driver = "Claude is applying more timing discipline than the rules."
+            elif rule_key in ("watch", "hold_off") and claude_key == "enter_now":
+                driver = "Claude is willing to act before the rule engine fully clears the entry."
+            elif rule_key == "watch" and claude_key == "hold_off":
+                driver = "Rules see a defined setup, while Claude wants a cleaner confirmation first."
+            elif rule_key == "hold_off" and claude_key == "watch":
+                driver = "Claude sees enough upside structure to track a trigger, while rules still classify it as ambiguous."
+            elif "avoid" in (rule_key, claude_key):
+                driver = "The split is about whether weakness is structural damage or just poor timing."
+            elif "accumulate" in (rule_key, claude_key):
+                driver = "The split is about whether this is a long-term quality entry or still just tactical waiting."
+            else:
+                driver = "The split is mainly timing and conviction."
+
+            if trig_kind:
+                driver += f" Trigger focus: {trig_kind}."
+            if signal:
+                driver += f" Current tape: {signal}."
+            return f"Claude: {claude_label_local}. Rules: {rule_label_local}. {driver}"
+
+        comparison_read = _decision_compare_read(
+            rule_action, claude_action_key, t, claude_call
+        )
+
         # Always render the comparison panel. Build agree/disagree/unknown badge.
         rule_sty = STATE_STYLES.get(rule_action, {})
         claude_sty = STATE_STYLES.get(claude_action_key, {}) if claude_action_key else {}
@@ -5192,6 +5285,11 @@ if view == "analyze":
                 f'<div class="desk-cmp-header"><span>Decision comparison</span>{disagree_marker}</div>',
                 unsafe_allow_html=True,
             )
+            st.markdown(
+                f'<div class="desk-cmp-read"><strong>Read:</strong> '
+                f'{html.escape(comparison_read)}</div>',
+                unsafe_allow_html=True,
+            )
 
             # Side-by-side via CSS grid: Claude (primary) | divider | Rule engine (secondary)
             # Claude is on the left because it's the primary decision source —
@@ -5262,7 +5360,7 @@ if view == "analyze":
 
             # "Your call" header with info-icon hover
             _action_help = (
-                "Enter — high-conviction setup, buy now (bullish + setup ≥ 9, no extension). "
+                "Enter — high-conviction setup, buy now (bullish + setup ≥ 8.5, no bad extension). "
                 "Watch — bullish but waiting on a specific trigger. "
                 "Hold off — universal default for ambiguity (pullbacks, transitions, mixed signals). "
                 "Avoid — truly broken (below ma200 + RS<0.9 + not improving + no momentum). "
@@ -5332,6 +5430,8 @@ if view == "analyze":
                     "claude_confidence": confidence,
                     "claude_reasoning": reasoning,
                     "claude_trigger": claude_trigger,
+                    "agreement_state": agreement_state,
+                    "agreement_read": comparison_read,
                     "entry_price": round(float(t.get("entry")), 2) if t.get("entry") is not None else None,
                     "stop_price": round(float(t.get("stop")), 2) if t.get("stop") is not None else None,
                     "target1_price": round(float(t.get("t1")), 2) if t.get("t1") is not None else None,
@@ -7119,6 +7219,8 @@ if view == "tracker":
                 return f"Stop {_fmt_date(stop_hit)}", "tracker-status"
             if entry_hit:
                 return f"Entered {_fmt_date(entry_hit)}", "tracker-status"
+            if entry_px is not None:
+                return f"Waiting {_fmt_px(entry_px)}", "tracker-faint"
             return "Waiting", "tracker-faint"
 
         def _outcome_label(entry):
@@ -7244,6 +7346,13 @@ if view == "tracker":
                             f"Auto-entry logged: {_fmt_px(entry.get('entry_hit_price') or entry.get('entry_price'))} "
                             f"on {entry.get('entry_hit_at')}"
                         )
+                    elif entry.get("entry_price") is not None and entry.get("user_action") in ("WATCH", "ENTER"):
+                        st.caption(
+                            f"Waiting for entry trigger: {_fmt_px(entry.get('entry_price'))}. "
+                            "Once hit, this row automatically becomes an active entry."
+                        )
+                    if entry.get("agreement_read"):
+                        st.caption(f"Comparison read: {entry.get('agreement_read')}")
                     if not entry.get("claude_action"):
                         st.caption("Claude is missing for this saved row.")
                         if st.button("Refresh Claude", key=f"refresh_claude_{entry_id}", use_container_width=True):
