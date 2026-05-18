@@ -70,6 +70,71 @@ FALLBACK_PROFILE_META = {
     },
 }
 
+
+def infer_security_profile(ticker, meta=None, company_name=None):
+    """Fill display-only identity gaps when Yahoo returns sparse ETF/fund data."""
+    ticker = (ticker or "").upper().strip()
+    meta = meta or {}
+    profile = dict(FALLBACK_PROFILE_META.get(ticker, {}))
+
+    name = (
+        company_name
+        or meta.get("long_name")
+        or meta.get("short_name")
+        or profile.get("name")
+        or ticker
+    )
+    quote_type = str(meta.get("quote_type") or "").upper()
+    name_upper = str(name).upper()
+    has_fund_fields = bool(
+        meta.get("category") or meta.get("fund_family") or
+        meta.get("total_assets") or meta.get("net_assets") or
+        meta.get("expense_ratio")
+    )
+    looks_like_etf = (
+        quote_type == "ETF" or
+        profile.get("sector") == "ETF" or
+        " ETF" in f" {name_upper}" or
+        name_upper.endswith("ETF")
+    )
+    looks_like_fund = (
+        quote_type in {"ETF", "MUTUALFUND", "FUND"} or
+        looks_like_etf or
+        has_fund_fields or
+        any(token in name_upper for token in (" INDEX FUND", " TRUST", " FUND"))
+    )
+
+    if looks_like_fund:
+        profile.setdefault("sector", "ETF" if looks_like_etf else "Fund")
+        profile.setdefault("name", name)
+        if not profile.get("category"):
+            category = _infer_fund_category_from_name(name, looks_like_etf)
+            if category:
+                profile["category"] = category
+    return profile
+
+
+def _infer_fund_category_from_name(name, is_etf=True):
+    """Turn sparse fund names into concise header categories."""
+    if not name:
+        return None
+    text = str(name)
+    remove_terms = [
+        "iShares", "Vanguard", "Invesco", "SPDR", "Global X", "ARK", "VanEck",
+        "WisdomTree", "ProShares", "Direxion", "First Trust", "Schwab",
+        "ETF", "Trust", "Fund", "Index", "Shares",
+    ]
+    for term in remove_terms:
+        text = text.replace(term, " ")
+    words = [w.strip(" -–—,") for w in text.split() if w.strip(" -–—,")]
+    if not words:
+        return "ETF" if is_etf else "Fund"
+    category = " ".join(words[:5])
+    lower = category.lower()
+    if is_etf and not any(token in lower for token in ("bond", "treasury", "income", "bitcoin", "ether", "gold", "cash")):
+        category = f"{category} equities"
+    return category
+
 # ─────────────────────────────────────────────────────────────────────
 # STORAGE LAYER — Postgres when DATABASE_URL is set (hosted), local
 # JSON file otherwise (development on your Mac). Same code, same shape.
@@ -2435,7 +2500,7 @@ def render_research_report(ticker):
     bench = fetch_bench()
     meta = fetch_quote_meta(ticker)
     fin = fetch_financial_snapshot(ticker)
-    fallback_profile = FALLBACK_PROFILE_META.get(ticker, {})
+    fallback_profile = infer_security_profile(ticker, meta, name)
     company = (
         (name if name and name.upper() != ticker else None)
         or meta.get("long_name")
@@ -4596,7 +4661,7 @@ if view == "analyze":
     # ── Single full-width header row ──────────────────────────────────
     # Render this before Claude/PM work so the page anchors immediately.
     chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
-    fallback_profile = FALLBACK_PROFILE_META.get(ticker.upper(), {})
+    fallback_profile = infer_security_profile(ticker, meta, name)
     mcap       = format_market_cap(meta.get("market_cap") or fallback_profile.get("market_cap"))
     fund_assets = format_market_cap(
         meta.get("total_assets") or
@@ -4608,7 +4673,10 @@ if view == "analyze":
     earn_banner, earn_footer = format_earnings(meta)
     meta_bits  = []
     quote_type = str(meta.get("quote_type") or "").upper()
-    is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(meta.get("category") or fallback_profile.get("category"))
+    is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(
+        meta.get("category") or fallback_profile.get("category") or
+        fallback_profile.get("sector") in {"ETF", "Fund"}
+    )
     if is_fund:
         asset_label = (
             "ETF"
@@ -5168,6 +5236,17 @@ if view == "analyze":
                 logged_price = existing_entry.get("price", 0)
                 logged_action = (existing_entry.get("user_action") or "").replace("_", " ").title()
                 logged_note = existing_entry.get("user_note", "")
+                logged_status = ""
+                if existing_entry.get("position_status") == "entered" and existing_entry.get("entry_hit_at"):
+                    try:
+                        entered_px = f'${float(existing_entry.get("entry_hit_price") or existing_entry.get("entry_price")):,.2f}'
+                    except (TypeError, ValueError):
+                        entered_px = "entry"
+                    logged_status = (
+                        f' · entered <span style="font-family:var(--font-mono);">'
+                        f'{entered_px}</span>'
+                        f' on {existing_entry.get("entry_hit_at")}'
+                    )
                 st.markdown(
                     f'<div style="background:var(--color-surface);border:1px solid var(--color-border);'
                     f'border-left:3px solid var(--color-positive);border-radius:4px;'
@@ -5175,6 +5254,7 @@ if view == "analyze":
                     f'<span style="font-weight:600;color:var(--color-positive);">✓ Logged</span>'
                     f' — {logged_action} at <span style="font-family:var(--font-mono);">'
                     f'${logged_price:,.2f}</span> on {logged_ts}'
+                    + logged_status
                     + (f' · <span style="color:var(--color-muted);font-style:italic;">{logged_note}</span>' if logged_note else '')
                     + '</div>',
                     unsafe_allow_html=True,
@@ -7008,13 +7088,29 @@ if view == "tracker":
             logged_price, entry_px, avoid_px, target_px, stop_px = _levels_for(entry)
             if avoid_px is not None and entry_px is None:
                 return "Avoid logged", "tracker-faint"
+            entry_hit_at = entry.get("entry_hit_at")
+            entry_hit = None
             try:
                 direction = "down" if entry_px is not None and logged_price is not None and float(entry_px) < float(logged_price) else "up"
             except Exception:
                 direction = "up"
-            entry_hit = _first_hit_after(ticker_value, logged_ts, entry_px, direction)
-            target_hit = _first_hit_after(ticker_value, logged_ts, target_px, "up")
-            stop_hit = _first_hit_after(ticker_value, logged_ts, stop_px, "down")
+            if entry_hit_at:
+                try:
+                    entry_hit = datetime.fromisoformat(str(entry_hit_at)).date()
+                except Exception:
+                    entry_hit = None
+            elif entry_px is not None:
+                entry_hit = _first_hit_after(ticker_value, logged_ts, entry_px, direction)
+                if entry_hit:
+                    entry["entry_hit_at"] = entry_hit.isoformat()
+                    entry["entry_hit_price"] = round(float(entry_px), 2)
+                    entry["position_status"] = "entered"
+                    entry["auto_entry_logged"] = True
+                    save_store(st.session_state.store)
+
+            target_start = entry.get("entry_hit_at") or logged_ts
+            target_hit = _first_hit_after(ticker_value, target_start, target_px, "up") if entry_hit else None
+            stop_hit = _first_hit_after(ticker_value, target_start, stop_px, "down") if entry_hit else None
             if entry.get("outcome"):
                 return "Scored", "tracker-status"
             if target_hit:
@@ -7022,7 +7118,7 @@ if view == "tracker":
             if stop_hit:
                 return f"Stop {_fmt_date(stop_hit)}", "tracker-status"
             if entry_hit:
-                return f"Entry {_fmt_date(entry_hit)}", "tracker-status"
+                return f"Entered {_fmt_date(entry_hit)}", "tracker-status"
             return "Waiting", "tracker-faint"
 
         def _outcome_label(entry):
@@ -7143,6 +7239,11 @@ if view == "tracker":
                 with st.expander(f"Score / notes · {ticker_value} · {entry.get('ts', '')[:10]}", expanded=False):
                     if entry.get("user_note"):
                         st.caption(f"Your note: {entry.get('user_note')}")
+                    if entry.get("position_status") == "entered" and entry.get("entry_hit_at"):
+                        st.caption(
+                            f"Auto-entry logged: {_fmt_px(entry.get('entry_hit_price') or entry.get('entry_price'))} "
+                            f"on {entry.get('entry_hit_at')}"
+                        )
                     if not entry.get("claude_action"):
                         st.caption("Claude is missing for this saved row.")
                         if st.button("Refresh Claude", key=f"refresh_claude_{entry_id}", use_container_width=True):
