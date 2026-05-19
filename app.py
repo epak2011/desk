@@ -7210,7 +7210,7 @@ if view == "tracker":
 }
 .tracker-grid {
     display: grid;
-    grid-template-columns: 0.85fr 0.85fr 1.05fr 1.05fr 1.05fr 0.85fr 0.95fr 0.95fr 0.85fr 1.15fr 0.9fr;
+    grid-template-columns: 0.75fr 0.78fr 0.95fr 0.95fr 0.95fr 0.75fr 0.85fr 0.85fr 0.75fr 1fr 1.05fr 0.75fr;
     gap: 8px;
     align-items: center;
 }
@@ -7273,6 +7273,17 @@ if view == "tracker":
     font-weight: 650;
     letter-spacing: var(--ls-caps);
     text-transform: uppercase;
+}
+.tracker-position {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs);
+    font-weight: 750;
+    letter-spacing: var(--ls-caps);
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -7402,6 +7413,24 @@ if view == "tracker":
                 return None
             return position_management_read(entry, t_state)
 
+        def _position_chip(entry):
+            if entry.get("position_status") != "entered":
+                if entry.get("entry_price") is not None and entry.get("outcome") is None:
+                    return '<span class="tracker-faint">Await entry</span>'
+                return '<span class="tracker-faint">—</span>'
+            read = _position_read_for_tracker(entry)
+            if not read:
+                return '<span class="tracker-faint">Review</span>'
+            title = (
+                f'{read.get("summary", "")} '
+                + " · ".join(f"{label}: {value}" for label, value in read.get("stats", []))
+            )
+            return (
+                f'<span class="tracker-position" title="{html.escape(title, quote=True)}" '
+                f'style="color:{read["color"]};">'
+                f'{read["emoji"]} {html.escape(read["action"])}</span>'
+            )
+
         def _outcome_label(entry):
             outcome = entry.get("outcome") or {}
             if not outcome:
@@ -7474,7 +7503,7 @@ if view == "tracker":
                 '<span>Ticker</span><span>Logged</span><span>Claude</span><span>Rules</span><span>You</span>'
                 '<span style="text-align:right;">Ref px</span><span style="text-align:right;">Entry / avoid</span>'
                 '<span style="text-align:right;">Target</span><span style="text-align:right;">Stop</span>'
-                '<span>When hit</span><span>Outcome</span>'
+                '<span>When hit</span><span>Position</span><span>Outcome</span>'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -7503,6 +7532,7 @@ if view == "tracker":
                     f'<span style="text-align:right;">{_fmt_px(target_px)}</span>'
                     f'<span style="text-align:right;">{_fmt_px(stop_px)}</span>'
                     f'<span class="{hit_class}">{html.escape(hit_text)}</span>'
+                    f'<span>{_position_chip(entry)}</span>'
                     f'<span class="tracker-muted">{html.escape(_outcome_label(entry))}</span>'
                     f'</div>',
                     unsafe_allow_html=True,
