@@ -5209,6 +5209,21 @@ if view == "analyze":
             except ValueError:
                 return "invalid"
 
+        def _save_position_fields(entry, entry_value, target_value, stop_value, note_value):
+            parsed_entry = _parse_position_price(entry_value)
+            parsed_target = _parse_position_price(target_value)
+            parsed_stop = _parse_position_price(stop_value)
+            if "invalid" in (parsed_entry, parsed_target, parsed_stop):
+                return False
+            if parsed_entry is not None:
+                entry["entry_price"] = parsed_entry
+                entry["entry_hit_price"] = parsed_entry
+            entry["target1_price"] = parsed_target
+            entry["stop_price"] = parsed_stop
+            entry["user_note"] = str(note_value or "").strip()
+            entry["levels_edited_at"] = datetime.now().isoformat(timespec="seconds")
+            return True
+
         if position_read:
             stat_html = "".join(
                 f'<span><b>{html.escape(label)}</b> {html.escape(value)}</span>'
@@ -5265,22 +5280,82 @@ if view == "analyze":
                     key=f"analyze_save_position_{ticker}_{active_position_entry.get('id', '')}",
                     use_container_width=True,
                 ):
-                    parsed_entry = _parse_position_price(analyze_entry_px)
-                    parsed_target = _parse_position_price(analyze_target_px)
-                    parsed_stop = _parse_position_price(analyze_stop_px)
-                    if "invalid" in (parsed_entry, parsed_target, parsed_stop):
+                    if not _save_position_fields(
+                        active_position_entry,
+                        analyze_entry_px,
+                        analyze_target_px,
+                        analyze_stop_px,
+                        analyze_position_note,
+                    ):
                         st.warning("One of the edited prices is not a valid number.")
                     else:
-                        if parsed_entry is not None:
-                            active_position_entry["entry_price"] = parsed_entry
-                            active_position_entry["entry_hit_price"] = parsed_entry
-                        active_position_entry["target1_price"] = parsed_target
-                        active_position_entry["stop_price"] = parsed_stop
-                        active_position_entry["user_note"] = analyze_position_note.strip()
-                        active_position_entry["levels_edited_at"] = datetime.now().isoformat(timespec="seconds")
                         save_store(st.session_state.store)
                         st.success("Position levels updated.")
                         st.rerun()
+        else:
+            with st.expander("I own this / add position", expanded=False):
+                st.caption("Add an existing position so the app can show a trim/sell read for this ticker.")
+                p_col1, p_col2, p_col3 = st.columns(3)
+                with p_col1:
+                    new_position_entry_px = st.text_input(
+                        "Entry",
+                        key=f"new_position_entry_{ticker}",
+                        placeholder=f"{t['price']:.2f}",
+                    )
+                with p_col2:
+                    new_position_target_px = st.text_input(
+                        "Target",
+                        value=_position_input_value(t.get("t1")),
+                        key=f"new_position_target_{ticker}",
+                    )
+                with p_col3:
+                    new_position_stop_px = st.text_input(
+                        "Stop",
+                        value=_position_input_value(t.get("stop")),
+                        key=f"new_position_stop_{ticker}",
+                    )
+                new_position_note = st.text_input(
+                    "Note",
+                    key=f"new_position_note_{ticker}",
+                    placeholder="Optional note",
+                )
+                if st.button("Save as position", key=f"save_new_position_{ticker}", use_container_width=True):
+                    import uuid
+                    new_entry_px = _parse_position_price(new_position_entry_px)
+                    if new_entry_px in (None, "invalid"):
+                        st.warning("Add a valid entry price first.")
+                    else:
+                        new_position = {
+                            "id": str(uuid.uuid4())[:8],
+                            "ts": datetime.now().isoformat(timespec="seconds"),
+                            "ticker": ticker.upper(),
+                            "price": round(float(t.get("price", new_entry_px)), 2),
+                            "rule_action": rule_t.get("action", t.get("action")),
+                            "rule_state": t.get("state", ""),
+                            "claude_action": claude_action_raw,
+                            "claude_confidence": claude_confidence,
+                            "claude_reasoning": "",
+                            "claude_trigger": "",
+                            "user_action": "ENTER",
+                            "outcome": None,
+                            "position_status": "entered",
+                            "entry_hit_at": datetime.now().date().isoformat(),
+                            "manual_position": True,
+                        }
+                        if not _save_position_fields(
+                            new_position,
+                            new_position_entry_px,
+                            new_position_target_px,
+                            new_position_stop_px,
+                            new_position_note,
+                        ):
+                            st.warning("One of the edited prices is not a valid number.")
+                        else:
+                            dlog = st.session_state.store.setdefault("decisions_log", [])
+                            dlog.insert(0, new_position)
+                            save_store(st.session_state.store)
+                            st.success(f"Position added for {ticker.upper()}.")
+                            st.rerun()
 
         # 1c. Decision dossier — the synthesis paragraph. Now sits ABOVE
         # the comparison panel so users read Claude's full reasoning
