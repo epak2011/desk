@@ -47,14 +47,17 @@ PM_CACHE_TTL_DAYS = 7
 # Display-only fallbacks for common watchlist names when Yahoo omits profile
 # metadata during rate-limit windows. Live quote/math still comes from data.
 FALLBACK_PROFILE_META = {
-    "ASTS": {"name": "AST SpaceMobile", "sector": "Communication Services"},
-    "SATS": {"name": "EchoStar Corporation", "sector": "Communication Services"},
-    "NVDA": {"name": "NVIDIA Corporation", "sector": "Technology"},
-    "AVGO": {"name": "Broadcom Inc.", "sector": "Technology"},
-    "PLTR": {"name": "Palantir Technologies", "sector": "Technology"},
-    "DASH": {"name": "DoorDash", "sector": "Consumer Internet"},
-    "COIN": {"name": "Coinbase Global", "sector": "Financial Services"},
-    "BTC-USD": {"name": "Bitcoin", "sector": "Crypto"},
+    "ASTS": {"name": "AST SpaceMobile", "sector": "Communication Services", "industry": "Telecom services"},
+    "SATS": {"name": "EchoStar Corporation", "sector": "Communication Services", "industry": "Telecom services"},
+    "NVDA": {"name": "NVIDIA Corporation", "sector": "Technology", "industry": "Semiconductors"},
+    "AVGO": {"name": "Broadcom Inc.", "sector": "Technology", "industry": "Semiconductors"},
+    "PLTR": {"name": "Palantir Technologies", "sector": "Technology", "industry": "Software"},
+    "DASH": {"name": "DoorDash", "sector": "Consumer Cyclical", "industry": "Internet content & information"},
+    "COIN": {"name": "Coinbase Global", "sector": "Financial Services", "industry": "Capital markets"},
+    "RKLB": {"name": "Rocket Lab", "sector": "Industrials", "industry": "Aerospace & defense"},
+    "VRT": {"name": "Vertiv", "sector": "Industrials", "industry": "Electrical equipment"},
+    "ICOP": {"name": "iShares Copper and Metals Mining ETF", "sector": "ETF", "category": "Copper and metals mining"},
+    "BTC-USD": {"name": "Bitcoin", "sector": "Crypto", "industry": "Digital asset"},
     "CQQQ": {
         "name": "Invesco China Technology ETF",
         "sector": "ETF",
@@ -134,6 +137,19 @@ def _infer_fund_category_from_name(name, is_etf=True):
     if is_etf and not any(token in lower for token in ("bond", "treasury", "income", "bitcoin", "ether", "gold", "cash")):
         category = f"{category} equities"
     return category
+
+
+def normalize_percent_value(value):
+    """Normalize Yahoo decimal/percent fields to display percent units."""
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    if abs(v) <= 1.5:
+        v *= 100
+    return v
 
 # ─────────────────────────────────────────────────────────────────────
 # STORAGE LAYER — Postgres when DATABASE_URL is set (hosted), local
@@ -2113,6 +2129,10 @@ def fetch_quote_meta(ticker):
         "total_assets": None,
         "net_assets": None,
         "expense_ratio": None,
+        "institutional_ownership_pct": None,
+        "insider_ownership_pct": None,
+        "shares_short": None,
+        "short_ratio": None,
         "enterprise_value": None,
         "total_revenue": None,
         "gross_margins": None,
@@ -2146,6 +2166,10 @@ def fetch_quote_meta(ticker):
             info = yf_ticker.info or {}
         except Exception:
             info = {}
+        try:
+            fast_info = yf_ticker.fast_info or {}
+        except Exception:
+            fast_info = {}
 
         out["long_name"] = info.get("longName")
         out["short_name"] = info.get("shortName")
@@ -2154,7 +2178,7 @@ def fetch_quote_meta(ticker):
         out["industry"] = info.get("industry")
         out["category"] = info.get("category")
         out["fund_family"] = info.get("fundFamily")
-        out["market_cap"] = info.get("marketCap")
+        out["market_cap"] = info.get("marketCap") or fast_info.get("market_cap")
         out["total_assets"] = info.get("totalAssets")
         out["net_assets"] = info.get("netAssets")
         out["enterprise_value"] = info.get("enterpriseValue")
@@ -2176,7 +2200,11 @@ def fetch_quote_meta(ticker):
 
         spf = info.get("shortPercentOfFloat")
         if spf is not None:
-            out["short_pct_float"] = float(spf) * 100
+            out["short_pct_float"] = normalize_percent_value(spf)
+        out["shares_short"] = info.get("sharesShort")
+        out["short_ratio"] = info.get("shortRatio")
+        out["institutional_ownership_pct"] = normalize_percent_value(info.get("heldPercentInstitutions"))
+        out["insider_ownership_pct"] = normalize_percent_value(info.get("heldPercentInsiders"))
 
         # Valuation ratios
         out["forward_pe"] = info.get("forwardPE")
@@ -2204,7 +2232,7 @@ def fetch_quote_meta(ticker):
         if dy is None:
             dy = info.get("yield")
         if dy is not None:
-            out["dividend_yield"] = float(dy) * 100 if dy < 1 else float(dy)
+            out["dividend_yield"] = normalize_percent_value(dy)
 
         # Fund/ETF expense ratio — yfinance usually returns 0.0065 for 0.65%.
         er = info.get("annualReportExpenseRatio")
@@ -2436,6 +2464,101 @@ def format_market_cap(cap):
     return f"${cap:,.0f}"
 
 
+def format_plain_pct(value, digits=1):
+    v = normalize_percent_value(value)
+    if v is None:
+        return None
+    return f"{v:.{digits}f}%"
+
+
+def format_expense_pct(value):
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    # Fallback profiles may store ratios (0.0059), while yfinance fetch_meta
+    # stores display percent (0.59). Treat sub-5 bps-looking values as ratios.
+    if 0 < abs(v) < 0.05:
+        v *= 100
+    return f"{v:.2f}%"
+
+
+def display_security_name(ticker, name=None, meta=None, fallback_profile=None):
+    meta = meta or {}
+    fallback_profile = fallback_profile or {}
+    ticker = (ticker or "").upper().strip()
+    candidates = [
+        name,
+        meta.get("long_name"),
+        meta.get("short_name"),
+        fallback_profile.get("name"),
+    ]
+    for candidate in candidates:
+        if candidate and str(candidate).strip().upper() != ticker:
+            return str(candidate).strip()
+    return ""
+
+
+def build_security_meta_bits(ticker, meta=None, fallback_profile=None):
+    """Build the compact header identity line, with ETF-aware fields."""
+    meta = meta or {}
+    fallback_profile = fallback_profile or {}
+    quote_type = str(meta.get("quote_type") or "").upper()
+    sector = meta.get("sector") or fallback_profile.get("sector")
+    category = meta.get("category") or fallback_profile.get("category")
+    is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(
+        category or meta.get("fund_family") or meta.get("total_assets") or
+        meta.get("net_assets") or sector in {"ETF", "Fund"}
+    )
+    bits = []
+    if is_fund:
+        label = "ETF" if quote_type == "ETF" or sector == "ETF" else "Fund"
+        bits.append(label)
+        if category:
+            bits.append(str(category).title())
+        assets = format_market_cap(
+            meta.get("total_assets") or meta.get("net_assets") or
+            fallback_profile.get("total_assets") or fallback_profile.get("net_assets")
+        )
+        if assets:
+            bits.append(f"{assets} AUM")
+        er = meta.get("expense_ratio")
+        if er is None:
+            er = fallback_profile.get("expense_ratio")
+        er_pct = format_expense_pct(er)
+        if er_pct:
+            bits.append(f"{er_pct} expense")
+        dy = meta.get("dividend_yield") or fallback_profile.get("dividend_yield")
+        dy_pct = format_plain_pct(dy, digits=2)
+        if dy_pct:
+            bits.append(f"{dy_pct} yield")
+        family = meta.get("fund_family")
+        if family:
+            bits.append(str(family))
+        return bits
+
+    if sector:
+        bits.append(str(sector))
+    industry = meta.get("industry") or fallback_profile.get("industry")
+    if industry and str(industry).lower() != str(sector or "").lower():
+        bits.append(str(industry))
+    mcap = format_market_cap(meta.get("market_cap") or fallback_profile.get("market_cap"))
+    if mcap:
+        bits.append(mcap)
+    short_pct = format_plain_pct(meta.get("short_pct_float"))
+    if short_pct:
+        bits.append(f"{short_pct} short")
+    inst_pct = format_plain_pct(meta.get("institutional_ownership_pct"))
+    if inst_pct:
+        bits.append(f"{inst_pct} inst. owned")
+    dy_pct = format_plain_pct(meta.get("dividend_yield") or fallback_profile.get("dividend_yield"), digits=2)
+    if dy_pct:
+        bits.append(f"{dy_pct} yield")
+    return bits
+
+
 def format_earnings(meta):
     """Return (banner_text_or_None, footer_text_or_None).
     Banner if within 7 days, footer otherwise.
@@ -2540,7 +2663,20 @@ def render_research_report(ticker):
     q_label = quality.get("tier") or "Unrated"
     q_text = quality.get("rationale") or pm.get("thesis") or "No long-form quality note is available yet."
 
+    quote_type = str(meta.get("quote_type") or "").upper()
+    is_fund_report = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(
+        meta.get("category") or meta.get("fund_family") or
+        fallback_profile.get("sector") in {"ETF", "Fund"}
+    )
     market_cap = format_market_cap(meta.get("market_cap")) or "—"
+    fund_assets = format_market_cap(
+        meta.get("total_assets") or meta.get("net_assets") or
+        fallback_profile.get("total_assets") or fallback_profile.get("net_assets")
+    ) or "—"
+    category_label = (
+        meta.get("category") or fallback_profile.get("category") or
+        ("ETF" if is_fund_report else "—")
+    )
     enterprise_value = format_market_cap(meta.get("enterprise_value")) or "—"
     rec = format_recommendation(meta.get("analyst_rec"), meta.get("analyst_n")) or "—"
     fpe = meta.get("forward_pe")
@@ -2572,8 +2708,8 @@ def render_research_report(ticker):
 
     kpis = [
         ("Price", f"${t['price']:,.2f}"),
-        ("Market cap", market_cap or "—"),
-        ("Enterprise value", enterprise_value),
+        ("AUM" if is_fund_report else "Market cap", fund_assets if is_fund_report else (market_cap or "—")),
+        ("Category" if is_fund_report else "Enterprise value", str(category_label).title() if is_fund_report else enterprise_value),
         ("Revenue YoY", fmt_pct(revenue_yoy)),
         ("Gross margin", fmt_pct(gross_margin)),
         ("FCF margin", fmt_pct(fcf_margin)),
@@ -2632,8 +2768,8 @@ def render_research_report(ticker):
         ("Debt / equity", fmt_pct(meta.get("debt_to_equity"))),
     ]
     valuation_rows = [
-        ("Market cap", market_cap),
-        ("Enterprise value", enterprise_value),
+        ("AUM" if is_fund_report else "Market cap", fund_assets if is_fund_report else market_cap),
+        ("Fund family" if is_fund_report else "Enterprise value", meta.get("fund_family") or "—" if is_fund_report else enterprise_value),
         ("EV/Sales", fmt_mult(meta.get("enterprise_to_revenue"))),
         ("Forward P/E", fmt_mult(fpe)),
         ("Trailing P/E", fmt_mult(meta.get("trailing_pe"))),
@@ -2644,7 +2780,10 @@ def render_research_report(ticker):
     ]
     ownership_rows = [
         ("Short interest", f"{meta.get('short_pct_float'):.1f}% of float" if meta.get("short_pct_float") is not None else "—"),
+        ("Institutional ownership", f"{meta.get('institutional_ownership_pct'):.1f}%" if meta.get("institutional_ownership_pct") is not None else "—"),
+        ("Insider ownership", f"{meta.get('insider_ownership_pct'):.1f}%" if meta.get("insider_ownership_pct") is not None else "—"),
         ("Dividend yield", fmt_pct(meta.get("dividend_yield")) if meta.get("dividend_yield") is not None else "—"),
+        ("Expense ratio", format_expense_pct(meta.get("expense_ratio") or fallback_profile.get("expense_ratio")) or "—"),
         ("Quality tier", q_label),
         ("Tactical state", STATE_STYLES.get(t.get("action"), {}).get("label", t.get("action", "—"))),
     ]
@@ -4806,56 +4945,12 @@ if view == "analyze":
     # Render this before Claude/PM work so the page anchors immediately.
     chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
     fallback_profile = infer_security_profile(ticker, meta, name)
-    mcap       = format_market_cap(meta.get("market_cap") or fallback_profile.get("market_cap"))
-    fund_assets = format_market_cap(
-        meta.get("total_assets") or
-        meta.get("net_assets") or
-        fallback_profile.get("total_assets") or
-        fallback_profile.get("net_assets")
-    )
-    spf        = meta.get("short_pct_float")
     earn_banner, earn_footer = format_earnings(meta)
-    meta_bits  = []
-    quote_type = str(meta.get("quote_type") or "").upper()
-    is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(
-        meta.get("category") or fallback_profile.get("category") or
-        fallback_profile.get("sector") in {"ETF", "Fund"}
-    )
-    if is_fund:
-        asset_label = (
-            "ETF"
-            if quote_type == "ETF" or fallback_profile.get("sector") == "ETF"
-            else "Fund"
-        )
-        meta_bits.append(asset_label)
-        category = meta.get("category") or fallback_profile.get("category")
-        if category:
-            meta_bits.append(str(category).title())
-    else:
-        industry_line = meta.get("sector") or meta.get("industry") or fallback_profile.get("sector")
-        if industry_line:
-            meta_bits.append(industry_line)
-    if mcap:                    meta_bits.append(mcap)
-    elif fund_assets:           meta_bits.append(f"{fund_assets} AUM")
-    if spf is not None:         meta_bits.append(f"{spf:.1f}% short")
-    dy = meta.get("dividend_yield")
-    if dy is None:
-        dy = fallback_profile.get("dividend_yield")
-    if dy is not None and dy > 0.05: meta_bits.append(f"{dy:.2f}% yield")
-    er = meta.get("expense_ratio")
-    if er is None:
-        er = fallback_profile.get("expense_ratio")
-    if er is not None and er > 0:
-        er_pct = er * 100 if er < 1 else er
-        meta_bits.append(f"{er_pct:.2f}% expense")
+    meta_bits  = build_security_meta_bits(ticker, meta, fallback_profile)
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
     chg_sign   = "+" if t["change"] >= 0 else ""
-    company_label = (
-        name
-        if name and name.strip().upper() != ticker.upper()
-        else (meta.get("long_name") or meta.get("short_name") or fallback_profile.get("name") or "")
-    )
+    company_label = display_security_name(ticker, name, meta, fallback_profile)
     company_html = (
         f'<span class="name">{html.escape(str(company_label))}</span>'
         if company_label else ""
@@ -6917,15 +7012,19 @@ if view == "watchlist":
                     if t["ma50"] else 0
                 )
 
-                # Sector from yfinance .info — used for grouping and as a column
-                sector = (meta.get("sector") if meta else None) or "—"
+                # Sector/category from yfinance + display fallback — used for grouping.
+                fallback_profile = infer_security_profile(tkr, meta, name)
+                if (fallback_profile.get("sector") in {"ETF", "Fund"} or str(meta.get("quote_type") or "").upper() in {"ETF", "MUTUALFUND", "FUND"}):
+                    sector = fallback_profile.get("category") or meta.get("category") or fallback_profile.get("sector") or "ETF"
+                else:
+                    sector = (meta.get("sector") if meta else None) or fallback_profile.get("sector") or "—"
                 attention_label, attention_rank, attention_color = _watchlist_attention(
                     tkr, t, trig_dist, earnings_days, cached
                 )
 
                 rows.append({
                     "ticker": tkr,
-                    "name": name or tkr,
+                    "name": display_security_name(tkr, name, meta, fallback_profile) or tkr,
                     "price": t["price"],
                     "change": t["change"],
                     "action": t["action"],
