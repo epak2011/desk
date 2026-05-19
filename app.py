@@ -2693,8 +2693,11 @@ def format_market_cap(cap):
 
 
 def format_plain_pct(value, digits=1):
-    v = normalize_percent_value(value)
-    if v is None:
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
         return None
     return f"{v:.{digits}f}%"
 
