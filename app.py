@@ -2112,6 +2112,65 @@ def fetch_bench():
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
+def fetch_yahoo_quote_summary(ticker):
+    """Secondary metadata path when yfinance.info is sparse or rate-limited."""
+    import urllib.parse
+    import urllib.request
+
+    symbol = urllib.parse.quote((ticker or "").upper().strip())
+    if not symbol:
+        return {}
+    modules = ",".join([
+        "summaryProfile",
+        "price",
+        "defaultKeyStatistics",
+        "summaryDetail",
+        "fundProfile",
+    ])
+    url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}?modules={modules}"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json,text/plain,*/*",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        result = (((payload or {}).get("quoteSummary") or {}).get("result") or [])
+        return result[0] if result else {}
+    except Exception:
+        return {}
+
+
+def _raw_yahoo_value(value):
+    if isinstance(value, dict):
+        if value.get("raw") is not None:
+            return value.get("raw")
+        return value.get("fmt")
+    return value
+
+
+def _first_present(*values):
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _safe_fast_info_get(fast_info, key):
+    try:
+        if fast_info is None:
+            return None
+        if hasattr(fast_info, "get"):
+            return fast_info.get(key)
+        return fast_info[key]
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_quote_meta(ticker):
     """Pull sector, market cap, short interest, earnings date, valuation ratios,
     analyst rating + target, dividend yield, growth rate, debt/equity.
@@ -2170,17 +2229,28 @@ def fetch_quote_meta(ticker):
             fast_info = yf_ticker.fast_info or {}
         except Exception:
             fast_info = {}
+        summary = fetch_yahoo_quote_summary(ticker)
+        price_summary = summary.get("price") or {}
+        profile_summary = summary.get("summaryProfile") or {}
+        stats_summary = summary.get("defaultKeyStatistics") or {}
+        detail_summary = summary.get("summaryDetail") or {}
+        fund_summary = summary.get("fundProfile") or {}
 
-        out["long_name"] = info.get("longName")
-        out["short_name"] = info.get("shortName")
-        out["quote_type"] = info.get("quoteType")
-        out["sector"] = info.get("sector")
-        out["industry"] = info.get("industry")
-        out["category"] = info.get("category")
-        out["fund_family"] = info.get("fundFamily")
-        out["market_cap"] = info.get("marketCap") or fast_info.get("market_cap")
-        out["total_assets"] = info.get("totalAssets")
-        out["net_assets"] = info.get("netAssets")
+        out["long_name"] = _first_present(info.get("longName"), price_summary.get("longName"))
+        out["short_name"] = _first_present(info.get("shortName"), price_summary.get("shortName"))
+        out["quote_type"] = _first_present(info.get("quoteType"), price_summary.get("quoteType"), _safe_fast_info_get(fast_info, "quoteType"))
+        out["sector"] = _first_present(info.get("sector"), profile_summary.get("sector"))
+        out["industry"] = _first_present(info.get("industry"), profile_summary.get("industry"))
+        out["category"] = _first_present(info.get("category"), fund_summary.get("categoryName"))
+        out["fund_family"] = _first_present(info.get("fundFamily"), fund_summary.get("family"))
+        out["market_cap"] = _first_present(
+            info.get("marketCap"),
+            _raw_yahoo_value(price_summary.get("marketCap")),
+            _safe_fast_info_get(fast_info, "marketCap"),
+            _safe_fast_info_get(fast_info, "market_cap"),
+        )
+        out["total_assets"] = _first_present(info.get("totalAssets"), _raw_yahoo_value(fund_summary.get("totalAssets")))
+        out["net_assets"] = _first_present(info.get("netAssets"), _raw_yahoo_value(fund_summary.get("netAssets")))
         out["enterprise_value"] = info.get("enterpriseValue")
         out["total_revenue"] = info.get("totalRevenue")
         out["free_cashflow"] = info.get("freeCashflow")
@@ -2198,13 +2268,17 @@ def fetch_quote_meta(ticker):
             if val is not None:
                 out[out_key] = float(val) * 100 if abs(float(val)) <= 1.5 else float(val)
 
-        spf = info.get("shortPercentOfFloat")
+        spf = _first_present(info.get("shortPercentOfFloat"), _raw_yahoo_value(stats_summary.get("shortPercentOfFloat")))
         if spf is not None:
             out["short_pct_float"] = normalize_percent_value(spf)
-        out["shares_short"] = info.get("sharesShort")
-        out["short_ratio"] = info.get("shortRatio")
-        out["institutional_ownership_pct"] = normalize_percent_value(info.get("heldPercentInstitutions"))
-        out["insider_ownership_pct"] = normalize_percent_value(info.get("heldPercentInsiders"))
+        out["shares_short"] = _first_present(info.get("sharesShort"), _raw_yahoo_value(stats_summary.get("sharesShort")))
+        out["short_ratio"] = _first_present(info.get("shortRatio"), _raw_yahoo_value(stats_summary.get("shortRatio")))
+        out["institutional_ownership_pct"] = normalize_percent_value(
+            _first_present(info.get("heldPercentInstitutions"), _raw_yahoo_value(stats_summary.get("heldPercentInstitutions")))
+        )
+        out["insider_ownership_pct"] = normalize_percent_value(
+            _first_present(info.get("heldPercentInsiders"), _raw_yahoo_value(stats_summary.get("heldPercentInsiders")))
+        )
 
         # Valuation ratios
         out["forward_pe"] = info.get("forwardPE")
@@ -2230,14 +2304,14 @@ def fetch_quote_meta(ticker):
         # Dividend yield — yfinance returns 0.015 for 1.5%
         dy = info.get("dividendYield")
         if dy is None:
-            dy = info.get("yield")
+            dy = _first_present(info.get("yield"), _raw_yahoo_value(detail_summary.get("dividendYield")), _raw_yahoo_value(summary.get("yield")))
         if dy is not None:
             out["dividend_yield"] = normalize_percent_value(dy)
 
         # Fund/ETF expense ratio — yfinance usually returns 0.0065 for 0.65%.
         er = info.get("annualReportExpenseRatio")
         if er is None:
-            er = info.get("expenseRatio")
+            er = _first_present(info.get("expenseRatio"), _raw_yahoo_value(fund_summary.get("annualReportExpenseRatio")))
         if er is not None:
             out["expense_ratio"] = float(er) * 100 if abs(float(er)) <= 1.5 else float(er)
 
@@ -2518,18 +2592,24 @@ def build_security_meta_bits(ticker, meta=None, fallback_profile=None):
         bits.append(label)
         if category:
             bits.append(str(category).title())
+        else:
+            bits.append("Category —")
         assets = format_market_cap(
             meta.get("total_assets") or meta.get("net_assets") or
             fallback_profile.get("total_assets") or fallback_profile.get("net_assets")
         )
         if assets:
             bits.append(f"{assets} AUM")
+        else:
+            bits.append("AUM —")
         er = meta.get("expense_ratio")
         if er is None:
             er = fallback_profile.get("expense_ratio")
         er_pct = format_expense_pct(er)
         if er_pct:
             bits.append(f"{er_pct} expense")
+        else:
+            bits.append("expense —")
         dy = meta.get("dividend_yield") or fallback_profile.get("dividend_yield")
         dy_pct = format_plain_pct(dy, digits=2)
         if dy_pct:
@@ -2539,20 +2619,18 @@ def build_security_meta_bits(ticker, meta=None, fallback_profile=None):
             bits.append(str(family))
         return bits
 
-    if sector:
-        bits.append(str(sector))
+    bits.append(str(sector) if sector else "Sector —")
     industry = meta.get("industry") or fallback_profile.get("industry")
     if industry and str(industry).lower() != str(sector or "").lower():
         bits.append(str(industry))
+    elif not industry:
+        bits.append("Industry —")
     mcap = format_market_cap(meta.get("market_cap") or fallback_profile.get("market_cap"))
-    if mcap:
-        bits.append(mcap)
+    bits.append(mcap if mcap else "Market cap —")
     short_pct = format_plain_pct(meta.get("short_pct_float"))
-    if short_pct:
-        bits.append(f"{short_pct} short")
+    bits.append(f"{short_pct} short" if short_pct else "short —")
     inst_pct = format_plain_pct(meta.get("institutional_ownership_pct"))
-    if inst_pct:
-        bits.append(f"{inst_pct} inst. owned")
+    bits.append(f"{inst_pct} inst. owned" if inst_pct else "inst. owned —")
     dy_pct = format_plain_pct(meta.get("dividend_yield") or fallback_profile.get("dividend_yield"), digits=2)
     if dy_pct:
         bits.append(f"{dy_pct} yield")
