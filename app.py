@@ -2889,6 +2889,80 @@ def apply_earnings_event_gate(t_state, earnings_days):
     return t_state
 
 
+def classify_setup_personality(t_state, quality_tier=""):
+    """Descriptive setup type, separate from the action recommendation."""
+    if not t_state:
+        return {"label": "Unclassified", "emoji": "🧭", "rank": 99, "description": "Not enough data yet."}
+    action = t_state.get("action")
+    price = t_state.get("price") or 0
+    ma20 = t_state.get("ma20") or price
+    ma50 = t_state.get("ma50") or price
+    ma200 = t_state.get("ma200") or price
+    rs = t_state.get("rs", 1.0) or 1.0
+    rs_delta = t_state.get("rs_delta", 0) or 0
+    rsi = t_state.get("rsi14", 50) or 50
+    pct_52w = t_state.get("pct_of_52w_range", 50) or 50
+    vol_ratio = t_state.get("vol_ratio", 1.0) or 1.0
+    structure = t_state.get("structure_quality", 5) or 5
+    tech_delta = t_state.get("tech_delta", 0) or 0
+
+    if action == "avoid" or (price < ma200 and rs < 0.9 and tech_delta <= 0):
+        return {
+            "label": "Broken / Repair",
+            "emoji": "🛠️",
+            "rank": 7,
+            "description": "Long-term structure or relative strength is not healthy enough yet.",
+        }
+    if t_state.get("is_accumulation_eligible") or action == "accumulate":
+        return {
+            "label": "Mean Reversion",
+            "emoji": "↩️",
+            "rank": 3,
+            "description": "A beaten-down name starting to stabilize; entry discipline matters.",
+        }
+    if price > ma50 > ma200 and rs >= 1.1 and pct_52w >= 80:
+        if price > ma20 * 1.08 or price > ma50 * 1.15 or rsi >= 70:
+            return {
+                "label": "Extended Momentum",
+                "emoji": "🔥",
+                "rank": 1,
+                "description": "Leadership tape, but stretched enough that chasing can be risky.",
+            }
+        return {
+            "label": "Momentum Leader",
+            "emoji": "🚀",
+            "rank": 0,
+            "description": "Strong trend, strong relative strength, and leadership behavior.",
+        }
+    if quality_tier in ("A", "B") and price > ma200 and structure >= 7 and vol_ratio < 1.5:
+        return {
+            "label": "Steady Compounder",
+            "emoji": "🏛️",
+            "rank": 2,
+            "description": "Quality trend with less dependence on one explosive technical moment.",
+        }
+    if price < ma200 and (rs_delta > 0 or tech_delta > 0):
+        return {
+            "label": "Turnaround",
+            "emoji": "🔄",
+            "rank": 4,
+            "description": "Still below long-term trend, but the tape is trying to repair.",
+        }
+    if vol_ratio >= 1.5 and pct_52w >= 70 and structure >= 7:
+        return {
+            "label": "Spec Breakout",
+            "emoji": "🧨",
+            "rank": 5,
+            "description": "High-energy setup with more execution and volatility risk.",
+        }
+    return {
+        "label": "Transition",
+        "emoji": "🧭",
+        "rank": 6,
+        "description": "Mixed structure; useful to watch, but not a clean category yet.",
+    }
+
+
 def format_source_note(source):
     """Shorten noisy backend/source labels before rendering them in the UI."""
     source = source or "the thesis"
@@ -3387,6 +3461,7 @@ def position_management_read(entry, t):
     ma50 = _num(t.get("ma50"))
     ma200 = _num(t.get("ma200"))
     rsi = _num(t.get("rsi14"))
+    earnings_days = t.get("event_risk_days")
 
     if price is None or entry_px is None:
         return None
@@ -3414,19 +3489,34 @@ def position_management_read(entry, t):
     stop_broken = bool(stop_px and price <= stop_px)
     near_stop = bool(stop_gap_pct is not None and stop_gap_pct <= 3)
     hot_rsi = bool(rsi and rsi >= 70)
+    setup_action = t.get("action")
+    trend_broken = bool(
+        (ma50 is not None and price < ma50) and
+        (ma200 is not None and price < ma200)
+    )
 
-    if stop_broken:
+    if earnings_days is not None and 0 <= earnings_days <= 2:
+        action = "Review after earnings"
+        emoji = "📅"
+        color = "var(--color-warning-text)"
+        summary = "Earnings are imminent. Do not add before the print; decide whether to trim risk or hold through the event deliberately."
+    elif stop_broken:
         action = "Exit"
         emoji = "⛔"
         color = "var(--color-negative)"
         summary = "Stop is broken. Close the position unless you are deliberately re-underwriting the thesis."
+    elif setup_action == "avoid" and trend_broken:
+        action = "Exit"
+        emoji = "⛔"
+        color = "var(--color-negative)"
+        summary = "The position is now in avoid territory with trend support broken. Exit or deliberately re-underwrite from scratch."
     elif target_hit and (extended_vs_20 or hot_rsi):
         action = "Take profit"
         emoji = "💰"
         color = "var(--color-positive)"
         summary = "Target is hit and the move is extended. Trim 1/3 to 1/2, then trail the rest."
     elif target_hit:
-        action = "Trim / trail"
+        action = "Take profit"
         emoji = "💰"
         color = "var(--color-positive)"
         summary = "Target is hit. Take some profit or raise the stop so the trade cannot turn into a loss."
@@ -3435,13 +3525,18 @@ def position_management_read(entry, t):
         emoji = "✂️"
         color = "var(--color-warning-text)"
         summary = "You have more than 2R and the stock is stretched. Bank a partial and trail the balance."
+    elif r_multiple is not None and r_multiple >= 1.2 and trend_intact:
+        action = "Raise stop"
+        emoji = "🔒"
+        color = "var(--color-warning-text)"
+        summary = "The trade is working. Raise the stop toward breakeven or a higher technical level so gains are protected."
     elif near_stop:
         action = "Respect stop"
         emoji = "⚠️"
         color = "var(--color-warning-text)"
         summary = "Price is close to the stop. Do not add; either let the stop work or reduce risk now."
     elif pnl_pct > 0 and ma20 and price < ma20:
-        action = "Tighten stop"
+        action = "Raise stop"
         emoji = "🔒"
         color = "var(--color-warning-text)"
         summary = "The trade is profitable but short-term trend is slipping. Tighten the stop or trim."
@@ -5236,7 +5331,9 @@ if view == "analyze":
     chg_color  = "#2E7D4F" if t["change"] >= 0 else "#D14545"
     fallback_profile = infer_security_profile(ticker, meta, name)
     earn_banner, earn_footer = format_earnings(meta)
+    setup_personality = classify_setup_personality(t)
     meta_bits  = build_security_meta_bits(ticker, meta, fallback_profile)
+    meta_bits.append(f"{setup_personality['emoji']} {setup_personality['label']}")
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
     chg_sign   = "+" if t["change"] >= 0 else ""
@@ -7323,6 +7420,7 @@ if view == "watchlist":
                 attention_label, attention_rank, attention_color = _watchlist_attention(
                     tkr, t, trig_dist, earnings_days, cached
                 )
+                personality = classify_setup_personality(t, quality_tier)
 
                 rows.append({
                     "ticker": tkr,
@@ -7344,6 +7442,9 @@ if view == "watchlist":
                     "attention": attention_label,
                     "attention_rank": attention_rank,
                     "attention_color": attention_color,
+                    "personality": personality["label"],
+                    "personality_emoji": personality["emoji"],
+                    "personality_rank": personality["rank"],
                     "_t": t,
                 })
 
@@ -7375,6 +7476,7 @@ if view == "watchlist":
                     "52w range (closest to high)",
                     "52w range (closest to low)",
                     "Volume ratio (highest)",
+                    "Setup type",
                 ],
                 key="watchlist_sort",
                 label_visibility="collapsed",
@@ -7382,7 +7484,7 @@ if view == "watchlist":
         with sort_c2:
             group_by = st.selectbox(
                 "Group by",
-                options=["No grouping", "Action", "Sector", "Quality tier"],
+                options=["No grouping", "Action", "Setup type", "Sector", "Quality tier"],
                 key="watchlist_group",
                 label_visibility="collapsed",
             )
@@ -7421,6 +7523,8 @@ if view == "watchlist":
             rows.sort(key=lambda r: r["pct_52w_range"])
         elif sort_by == "Volume ratio (highest)":
             rows.sort(key=lambda r: -r["vol_ratio"])
+        elif sort_by == "Setup type":
+            rows.sort(key=lambda r: (r["personality_rank"], r["ticker"]))
 
         # ── Build groups ──
         if group_by == "Action":
@@ -7455,6 +7559,12 @@ if view == "watchlist":
                            "Speculative": "var(--color-purple)", "Avoid": "var(--color-negative)",
                            "(no quality data)": "var(--color-faintest)"}
             grouped = [(k, tier_colors[k], v) for k, v in tiers.items() if v]
+        elif group_by == "Setup type":
+            from collections import OrderedDict
+            setup_groups = OrderedDict()
+            for r in sorted(rows, key=lambda row: (row["personality_rank"], row["ticker"])):
+                setup_groups.setdefault(f'{r["personality_emoji"]} {r["personality"]}', []).append(r)
+            grouped = [(k, "var(--color-muted)", v) for k, v in setup_groups.items()]
         else:
             grouped = [(None, None, rows)]
 
@@ -7464,11 +7574,12 @@ if view == "watchlist":
         # click and switches the active ticker — works universally without
         # needing Streamlit columns.
 
-        # 13-column grid: ticker / attention / last / chg / action / state
+        # 14-column grid: ticker / setup / attention / last / chg / action / state
         #                 / quality / RS / vsMA50 / 52w / vol / trig / earn
         grid_cols = (
             'grid-template-columns: '
             'minmax(58px,0.75fr) '
+            'minmax(112px,1.05fr) '
             'minmax(118px,1.15fr) '
             'minmax(82px,0.85fr) '
             'minmax(74px,0.82fr) '
@@ -7493,6 +7604,7 @@ if view == "watchlist":
             f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
             f'color: var(--color-muted);">'
             f'<span>Ticker</span>'
+            f'<span title="Descriptive setup personality, separate from the action call">Setup ⓘ</span>'
             f'<span title="Highest-signal reason this name deserves attention now">Attention ⓘ</span>'
             f'<span style="text-align:right;">Last</span>'
             f'<span style="text-align:right;">Chg (1D)</span>'
@@ -7574,6 +7686,11 @@ if view == "watchlist":
                     f'text-decoration:none;cursor:pointer;">'
                     f'{row["ticker"]}</a>'
                 )
+                personality_html = (
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);'
+                    f'font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;'
+                    f'color:var(--color-faint);">{row["personality_emoji"]} {row["personality"]}</span>'
+                )
 
                 st.markdown(
                     f'<div style="display:grid; {grid_cols} '
@@ -7582,6 +7699,7 @@ if view == "watchlist":
                     f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
                     f'font-size: var(--fs-base); align-items: baseline;">'
                     f'{ticker_link}'
+                    f'{personality_html}'
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                     f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
                     f'{row["attention"]}</span>'
@@ -7612,6 +7730,7 @@ if view == "watchlist":
             'color:var(--color-muted);line-height:1.6;">'
             '<strong>Column key:</strong> '
             '<span style="font-family:var(--font-mono);">Quality</span> = long-term ownership tier from Claude (— if not yet generated) · '
+            '<span style="font-family:var(--font-mono);">Setup</span> = descriptive setup type, separate from the action call · '
             '<span style="font-family:var(--font-mono);">vs MA50</span> = % above/below 50-day MA · '
             '<span style="font-family:var(--font-mono);">RS</span> = relative strength vs SPY (>1.0 = leader) · '
             '<span style="font-family:var(--font-mono);">52w pos</span> = position in 52-week range (0% = at low, 100% = at high) · '
@@ -8108,6 +8227,8 @@ if view == "tracker":
             t_state = tactical.compute(hist, bench)
             if not t_state:
                 return None
+            meta = fetch_quote_meta(ticker_value)
+            t_state = apply_earnings_event_gate(t_state, meta.get("earnings_days") if meta else None)
             return position_management_read(entry, t_state)
 
         def _position_chip(entry):
