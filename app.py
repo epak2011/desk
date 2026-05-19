@@ -7152,6 +7152,90 @@ if view == "tracker":
 </div>
 """, unsafe_allow_html=True)
 
+    # ─── Plain-English calibration read ──────────────────────────────
+    # The metric cards tell the count; this tells the user what to do
+    # with that count. Outcomes are the only true accuracy signal, so when
+    # none are scored, keep the language honest: directional read only.
+    def _norm_action(value):
+        return (value or "").upper().replace("_NOW", "").replace("_", " ")
+
+    def _pair_disagreements(entries, left_key, right_key):
+        rows = []
+        for d in entries:
+            left = _norm_action(d.get(left_key))
+            right = _norm_action(d.get(right_key))
+            if left and right and left != right:
+                rows.append(d)
+        return rows
+
+    rules_claude_disagree = _pair_disagreements(decisions_log, "rule_action", "claude_action")
+    claude_user_disagree = _pair_disagreements(decisions_log, "claude_action", "user_action")
+    entered_open = [
+        d for d in unscored
+        if d.get("position_status") == "entered"
+    ]
+
+    if scored:
+        def _right_count_for_summary(source_key):
+            return sum(
+                1 for d in scored
+                if source_key in (d.get("outcome") or {}).get("right_sources", [])
+            )
+        source_counts = {
+            "Rules": _right_count_for_summary("rules"),
+            "Claude": _right_count_for_summary("claude"),
+            "You": _right_count_for_summary("user"),
+        }
+        leader, leader_count = max(source_counts.items(), key=lambda kv: kv[1])
+        total_scored = len(scored)
+        calibration_headline = f"{leader} is leading on scored outcomes so far."
+        calibration_body = (
+            f"{leader} has been right on {leader_count}/{total_scored} scored rows. "
+            f"Rules and Claude agree on {rc_agree}/{rc_total or 0} comparable rows; "
+            f"you and Claude agree on {cu_agree}/{cu_total or 0}."
+        )
+    else:
+        calibration_headline = "No accuracy winner yet."
+        calibration_body = (
+            "You have logged decisions, but none are outcome-scored yet. "
+            "So this is still a workflow tracker, not evidence that Claude, rules, or you are better."
+        )
+
+    if entered_open:
+        position_names = [str(d.get("ticker", "")).upper() for d in entered_open if d.get("ticker")]
+        position_note = (
+            f"{len(entered_open)} open positions are being monitored: "
+            + ", ".join(position_names[:6])
+            + (" and more." if len(position_names) > 6 else ".")
+        )
+    else:
+        position_note = "No entered positions are active yet."
+
+    disagreement_note = (
+        f"Rules vs Claude disagree on {len(rules_claude_disagree)} rows. "
+        f"Claude vs your call disagrees on {len(claude_user_disagree)} rows."
+    )
+
+    st.markdown(f"""
+<div style="border:1px solid var(--color-border);border-left:3px solid var(--color-blue);
+        border-radius:4px;background:#FFFFFF;padding:12px 14px;margin:14px 0 16px;">
+  <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:750;
+          letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-blue);
+          margin-bottom:5px;">Calibration read</div>
+  <div style="font-family:var(--font-sans);font-size:var(--fs-md);font-weight:750;
+          color:var(--color-text);margin-bottom:4px;">{html.escape(calibration_headline)}</div>
+  <div style="font-size:var(--fs-base);line-height:1.5;color:var(--color-body);">
+    {html.escape(calibration_body)}
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;
+          border-top:1px dashed var(--color-border-soft);padding-top:9px;
+          font-size:var(--fs-sm);line-height:1.45;color:var(--color-muted);">
+    <div><b style="color:var(--color-text);">Disagreement:</b> {html.escape(disagreement_note)}</div>
+    <div><b style="color:var(--color-text);">Positions:</b> {html.escape(position_note)}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
     # ─── Per-source accuracy (only shows once outcomes are scored) ──
     # For each source (rules / claude / user), count how many times they
     # were marked "right" out of total scored entries. This is the
