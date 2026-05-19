@@ -7243,13 +7243,26 @@ if view == "watchlist":
         # 13-column grid: ticker / attention / last / chg / action / state
         #                 / quality / RS / vsMA50 / 52w / vol / trig / earn
         grid_cols = (
-            'grid-template-columns: 0.8fr 1.05fr 0.9fr 0.75fr 1.25fr 1.15fr 0.75fr 0.65fr 0.85fr 0.75fr 0.7fr 0.8fr 0.65fr;'
+            'grid-template-columns: '
+            'minmax(58px,0.75fr) '
+            'minmax(118px,1.15fr) '
+            'minmax(82px,0.85fr) '
+            'minmax(74px,0.82fr) '
+            'minmax(92px,0.98fr) '
+            'minmax(96px,0.98fr) '
+            'minmax(66px,0.72fr) '
+            'minmax(66px,0.72fr) '
+            'minmax(78px,0.78fr) '
+            'minmax(78px,0.78fr) '
+            'minmax(66px,0.72fr) '
+            'minmax(78px,0.78fr) '
+            'minmax(66px,0.72fr);'
         )
 
         # Header
         st.markdown(
             f'<div style="display:grid; {grid_cols} '
-            f'gap: 6px; padding: 8px; margin-top: 16px; '
+            f'column-gap: 14px; row-gap: 0; padding: 8px 6px; margin-top: 16px; '
             f'border-bottom: 1px solid var(--color-border); '
             f'font-family: var(--font-sans); '
             f'font-size: var(--fs-xs); font-weight: 600; '
@@ -7340,7 +7353,7 @@ if view == "watchlist":
 
                 st.markdown(
                     f'<div style="display:grid; {grid_cols} '
-                    f'gap: 6px; padding: 8px; '
+                    f'column-gap: 14px; row-gap: 0; padding: 8px 6px; '
                     f'border-bottom: 1px dashed var(--color-border-soft); '
                     f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
                     f'font-size: var(--fs-base); align-items: baseline;">'
