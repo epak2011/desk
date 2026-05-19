@@ -3002,10 +3002,10 @@ def position_management_read(entry, t):
         color = "var(--color-positive)"
         summary = "Trend remains intact. Hold the position and keep the stop/target live."
     else:
-        action = "Re-check"
+        action = "Check exit"
         emoji = "⚠️"
         color = "var(--color-warning-text)"
-        summary = "Trend support is weakening. Re-check the stop, sizing, and whether this still deserves capital."
+        summary = "Not an automatic sell, but trend support is weakening. Check the stop, sizing, and whether this still deserves capital."
 
     stats = [
         ("Entry", f"${entry_px:,.2f}"),
@@ -5192,6 +5192,23 @@ if view == "analyze":
             position_management_read(active_position_entry, t)
             if active_position_entry else None
         )
+        def _position_input_value(value):
+            try:
+                if value is None:
+                    return ""
+                return f"{float(value):.2f}"
+            except (TypeError, ValueError):
+                return ""
+
+        def _parse_position_price(value):
+            value = str(value or "").strip().replace("$", "").replace(",", "")
+            if not value:
+                return None
+            try:
+                return round(float(value), 2)
+            except ValueError:
+                return "invalid"
+
         if position_read:
             stat_html = "".join(
                 f'<span><b>{html.escape(label)}</b> {html.escape(value)}</span>'
@@ -5202,7 +5219,7 @@ if view == "analyze":
         border-radius:4px;background:#FFFFFF;padding:12px 14px;margin:16px 0 14px;">
   <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;
           letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:{position_read['color']};
-          margin-bottom:6px;">{position_read['emoji']} Position manager</div>
+          margin-bottom:6px;">{position_read['emoji']} Should you trim or sell?</div>
   <div style="font-family:var(--font-sans);font-size:22px;font-weight:750;line-height:1.15;
           color:{position_read['color']};margin-bottom:5px;">{html.escape(position_read['action'])}</div>
   <div style="font-size:var(--fs-md);line-height:1.5;color:var(--color-body);">
@@ -5213,6 +5230,57 @@ if view == "analyze":
           color:var(--color-muted);">{stat_html}</div>
 </div>
 """, unsafe_allow_html=True)
+            with st.expander("Edit position levels", expanded=False):
+                st.caption("Update the live position inputs used by the trim/sell read.")
+                p_col1, p_col2, p_col3 = st.columns(3)
+                with p_col1:
+                    analyze_entry_px = st.text_input(
+                        "Entry",
+                        value=_position_input_value(
+                            active_position_entry.get("entry_hit_price") or
+                            active_position_entry.get("entry_price")
+                        ),
+                        key=f"analyze_position_entry_{ticker}_{active_position_entry.get('id', '')}",
+                    )
+                with p_col2:
+                    analyze_target_px = st.text_input(
+                        "Target",
+                        value=_position_input_value(active_position_entry.get("target1_price")),
+                        key=f"analyze_position_target_{ticker}_{active_position_entry.get('id', '')}",
+                    )
+                with p_col3:
+                    analyze_stop_px = st.text_input(
+                        "Stop",
+                        value=_position_input_value(active_position_entry.get("stop_price")),
+                        key=f"analyze_position_stop_{ticker}_{active_position_entry.get('id', '')}",
+                    )
+                analyze_position_note = st.text_input(
+                    "Note",
+                    value=str(active_position_entry.get("user_note") or ""),
+                    key=f"analyze_position_note_{ticker}_{active_position_entry.get('id', '')}",
+                    placeholder="Optional note",
+                )
+                if st.button(
+                    "Save position levels",
+                    key=f"analyze_save_position_{ticker}_{active_position_entry.get('id', '')}",
+                    use_container_width=True,
+                ):
+                    parsed_entry = _parse_position_price(analyze_entry_px)
+                    parsed_target = _parse_position_price(analyze_target_px)
+                    parsed_stop = _parse_position_price(analyze_stop_px)
+                    if "invalid" in (parsed_entry, parsed_target, parsed_stop):
+                        st.warning("One of the edited prices is not a valid number.")
+                    else:
+                        if parsed_entry is not None:
+                            active_position_entry["entry_price"] = parsed_entry
+                            active_position_entry["entry_hit_price"] = parsed_entry
+                        active_position_entry["target1_price"] = parsed_target
+                        active_position_entry["stop_price"] = parsed_stop
+                        active_position_entry["user_note"] = analyze_position_note.strip()
+                        active_position_entry["levels_edited_at"] = datetime.now().isoformat(timespec="seconds")
+                        save_store(st.session_state.store)
+                        st.success("Position levels updated.")
+                        st.rerun()
 
         # 1c. Decision dossier — the synthesis paragraph. Now sits ABOVE
         # the comparison panel so users read Claude's full reasoning
