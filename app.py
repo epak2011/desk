@@ -1,7 +1,7 @@
 """Desk — decision-first tactical interface with two-layer PM view.
 
 Hierarchy (strict, top-down):
-  1. DECISION          — ENTER ⚡ / WATCH 👀 / AVOID ⛔
+  1. DECISION          — ENTER 🚀 / WATCH 👀 / AVOID ⛔
   2. TRIGGER ⚡         — single price-based condition
   3. INVALIDATION ⛔    — binary, directly under trigger
   4. IF TRIGGER HITS 📊 — trade structure, conditional
@@ -3252,7 +3252,7 @@ def render_research_report(ticker):
 # ─────────────────────────────────────────────────────────────────────
 STATE_STYLES = {
     "enter_now": {
-        "color": "#00A870", "label": "Enter", "emoji": "⚡",
+        "color": "#00A870", "label": "Enter", "emoji": "🚀",
         "tagline": "High-conviction setup — buy without waiting on a condition",
         "criteria": [
             "Bullish bias — above both 50d and 200d MAs, both rising, leading the index",
@@ -8123,7 +8123,7 @@ if view == "tracker":
         def _action_chip(action, source="rule", confidence=None):
             if source == "claude":
                 key = _act_map.get(action or "", "")
-                label = (action or "—").replace("_", " ").title()
+                label = STATE_STYLES.get(key, {}).get("label", (action or "—").replace("_", " ").title())
             elif source == "user":
                 key = _act_map.get(action or "", "")
                 label = STATE_STYLES.get(key, {}).get("label", (action or "—").replace("_", " ").title())
