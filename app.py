@@ -6840,6 +6840,35 @@ if view == "watchlist":
     else:
         bench = fetch_bench()
         dossier_cache = st.session_state.store.get("dossier_cache", {})
+        active_position_tickers = {
+            str(d.get("ticker", "")).upper()
+            for d in st.session_state.store.get("decisions_log", [])
+            if d.get("outcome") is None and d.get("position_status") == "entered"
+        }
+
+        def _watchlist_attention(tkr, t_state, trig_dist, earnings_days, cached):
+            """Compact attention label + priority for the watchlist table."""
+            ticker_key = str(tkr).upper()
+            action = t_state.get("action")
+            if action == "enter_now":
+                return "🚀 Enter", 0, "var(--color-positive)"
+            if ticker_key in active_position_tickers:
+                return "📌 Position", 1, "var(--color-blue)"
+            if trig_dist is not None and abs(trig_dist) <= 3:
+                return "🎯 Near trigger", 2, "var(--color-warning-text)"
+            if earnings_days is not None and -1 <= earnings_days <= 7:
+                return "📅 Earnings", 3, "var(--color-warning-text)"
+            if not ((cached.get("result") or {}).get("tactical_call") or {}):
+                return "🧠 PM missing", 4, "var(--color-faint)"
+            try:
+                cache_ts = cached.get("ts")
+                if cache_ts and (datetime.now() - datetime.fromisoformat(cache_ts)).days >= 3:
+                    return "🧠 PM stale", 5, "var(--color-faint)"
+            except Exception:
+                pass
+            if action == "watch":
+                return "👀 Watch", 6, "var(--color-warning-text)"
+            return "—", 99, "var(--color-faint)"
 
         # ── Compute everything we'll need for every ticker, in one pass ──
         # Each row: dict with action/state/RS/etc. + tactical engine output.
@@ -6890,6 +6919,9 @@ if view == "watchlist":
 
                 # Sector from yfinance .info — used for grouping and as a column
                 sector = (meta.get("sector") if meta else None) or "—"
+                attention_label, attention_rank, attention_color = _watchlist_attention(
+                    tkr, t, trig_dist, earnings_days, cached
+                )
 
                 rows.append({
                     "ticker": tkr,
@@ -6908,6 +6940,9 @@ if view == "watchlist":
                     "pct_52w_range": t.get("pct_of_52w_range", 50),
                     "vol_ratio": t.get("vol_ratio", 1.0),
                     "tech_delta": t.get("tech_delta", 0),
+                    "attention": attention_label,
+                    "attention_rank": attention_rank,
+                    "attention_color": attention_color,
                     "_t": t,
                 })
 
@@ -6926,6 +6961,7 @@ if view == "watchlist":
             sort_by = st.selectbox(
                 "Sort by",
                 options=[
+                    "Needs attention",
                     "Action priority",
                     "Ticker (A→Z)",
                     "Change % (high→low)",
@@ -6958,7 +6994,9 @@ if view == "watchlist":
             "hold_off": 3, "avoid": 4,
         }
 
-        if sort_by == "Action priority":
+        if sort_by == "Needs attention":
+            rows.sort(key=lambda r: (r["attention_rank"], action_priority.get(r["action"], 99), r["ticker"]))
+        elif sort_by == "Action priority":
             rows.sort(key=lambda r: (action_priority.get(r["action"], 99), r["ticker"]))
         elif sort_by == "Ticker (A→Z)":
             rows.sort(key=lambda r: r["ticker"])
@@ -7025,10 +7063,10 @@ if view == "watchlist":
         # click and switches the active ticker — works universally without
         # needing Streamlit columns.
 
-        # 12-column grid: ticker / last / chg / action / state / quality
-        #                / RS / vsMA50 / 52w / vol / trig / earn
+        # 13-column grid: ticker / attention / last / chg / action / state
+        #                 / quality / RS / vsMA50 / 52w / vol / trig / earn
         grid_cols = (
-            'grid-template-columns: 0.9fr 1fr 0.8fr 1.4fr 1.3fr 0.9fr 0.7fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;'
+            'grid-template-columns: 0.8fr 1.05fr 0.9fr 0.75fr 1.25fr 1.15fr 0.75fr 0.65fr 0.85fr 0.75fr 0.7fr 0.8fr 0.65fr;'
         )
 
         # Header
@@ -7041,6 +7079,7 @@ if view == "watchlist":
             f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
             f'color: var(--color-muted);">'
             f'<span>Ticker</span>'
+            f'<span title="Highest-signal reason this name deserves attention now">Attention ⓘ</span>'
             f'<span style="text-align:right;">Last</span>'
             f'<span style="text-align:right;">Chg (1D)</span>'
             f'<span>Action</span>'
@@ -7129,6 +7168,9 @@ if view == "watchlist":
                     f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
                     f'font-size: var(--fs-base); align-items: baseline;">'
                     f'{ticker_link}'
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+                    f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
+                    f'{row["attention"]}</span>'
                     f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
                     f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
@@ -7161,7 +7203,8 @@ if view == "watchlist":
             '<span style="font-family:var(--font-mono);">52w pos</span> = position in 52-week range (0% = at low, 100% = at high) · '
             '<span style="font-family:var(--font-mono);">Vol ×</span> = today\'s volume vs 20-day average · '
             '<span style="font-family:var(--font-mono);">Trig</span> = % to logged trigger price · '
-            '<span style="font-family:var(--font-mono);">Earn</span> = days to next earnings'
+            '<span style="font-family:var(--font-mono);">Earn</span> = days to next earnings · '
+            '<span style="font-family:var(--font-mono);">Attention</span> surfaces Enter, positions, near triggers, earnings, or PM stale/missing'
             '</div>',
             unsafe_allow_html=True,
         )
