@@ -4090,15 +4090,23 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         # Pre-fetch all watchlist prices in one pass. fetch_history is
         # cached at the function level so this is cheap on repeat views.
         wl_data = {}
+        wl_bench = fetch_bench()
         for tkr in watchlist:
             cached_hist, _, _ = fetch_history(tkr)
             if cached_hist is not None and len(cached_hist) >= 2:
                 last = float(cached_hist["Close"].iloc[-1])
                 prev = float(cached_hist["Close"].iloc[-2])
                 chg_pct = (last / prev - 1) * 100 if prev else 0
-                wl_data[tkr] = (last, chg_pct)
+                action = None
+                if wl_bench is not None:
+                    try:
+                        wl_tactical = tactical.compute(cached_hist, wl_bench)
+                        action = (wl_tactical or {}).get("action")
+                    except Exception:
+                        action = None
+                wl_data[tkr] = (last, chg_pct, action)
             else:
-                wl_data[tkr] = (None, None)
+                wl_data[tkr] = (None, None, None)
 
         # Each watchlist row rendered as ONE HTML markdown block.
         # No st.columns — flex layout in pure HTML, fully aligned, no
@@ -4106,8 +4114,13 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         # ✕ click → ?wldel=TICKER, both handled by the global handler.
         rows_html = []
         for tkr in watchlist:
-            last, chg_pct = wl_data[tkr]
+            last, chg_pct, action = wl_data[tkr]
             is_active = (tkr == current)
+            enter_marker = (
+                '<span title="Enter signal" style="margin-left:5px;'
+                'font-size:11px;vertical-align:1px;">🚀</span>'
+                if action == "enter_now" else ""
+            )
             chg_color = (
                 "var(--color-positive)" if (chg_pct or 0) >= 0
                 else "var(--color-negative)"
@@ -4136,7 +4149,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 f'text-align: left; cursor: pointer;'
                 f'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" '
                 f'{active_hover}>'
-                f'{tkr}</a>'
+                f'{tkr}{enter_marker}</a>'
                 # Price + change — right aligned in middle area
                 f'<div style="flex: 1 1 auto; min-width: 0;'
                 f'display: flex; flex-direction: column; align-items: flex-end;'
