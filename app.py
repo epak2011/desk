@@ -5332,8 +5332,8 @@ if view == "analyze":
     fallback_profile = infer_security_profile(ticker, meta, name)
     earn_banner, earn_footer = format_earnings(meta)
     setup_personality = classify_setup_personality(t)
-    meta_bits  = build_security_meta_bits(ticker, meta, fallback_profile)
-    meta_bits.append(f"{setup_personality['emoji']} {setup_personality['label']}")
+    meta_bits  = [f"{setup_personality['emoji']} {setup_personality['label']}"]
+    meta_bits.extend(build_security_meta_bits(ticker, meta, fallback_profile))
     if earn_footer and not earn_banner: meta_bits.append(f"Earnings {earn_footer}")
     meta_line  = " · ".join(meta_bits)
     chg_sign   = "+" if t["change"] >= 0 else ""
