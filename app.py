@@ -2303,6 +2303,54 @@ def fetch_marketbeat_stats(ticker, exchange_hint=None):
     return {}
 
 
+@st.cache_data(ttl=21600, show_spinner=False)
+def fetch_marketbeat_earnings_date(ticker, exchange_hint=None):
+    """Fallback next-earnings date when Yahoo/yfinance omits calendar data."""
+    import re
+    import ssl
+    import urllib.parse
+    import urllib.request
+
+    symbol = (ticker or "").upper().strip()
+    if not symbol or "-" in symbol or "." in symbol:
+        return None
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+
+    def _read(url):
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                return resp.read().decode("utf-8", "ignore")
+        except Exception:
+            context = ssl._create_unverified_context()
+            with urllib.request.urlopen(req, timeout=8, context=context) as resp:
+                return resp.read().decode("utf-8", "ignore")
+
+    for exchange in _marketbeat_exchange_candidates(exchange_hint):
+        url = f"https://www.marketbeat.com/stocks/{exchange}/{urllib.parse.quote(symbol)}/earnings/"
+        try:
+            page = _read(url)
+            if symbol not in page[:15000]:
+                continue
+            matches = re.findall(r'data-sort-value="(20\d{6})000000"[^>]*>\s*([0-9/]+/20\d{2}|[A-Za-z]+ \d{1,2}, 20\d{2})', page)
+            dates = []
+            for raw, _label in matches:
+                try:
+                    dt = datetime.strptime(raw, "%Y%m%d")
+                    if dt.date() >= datetime.now().date():
+                        dates.append(dt)
+                except Exception:
+                    pass
+            if dates:
+                return min(dates)
+        except Exception:
+            continue
+    return None
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_quote_meta(ticker):
     """Pull sector, market cap, short interest, earnings date, valuation ratios,
@@ -2513,9 +2561,15 @@ def fetch_quote_meta(ticker):
             except Exception:
                 pass
 
+        if out["earnings_date"] is None:
+            try:
+                out["earnings_date"] = fetch_marketbeat_earnings_date(ticker, out.get("exchange"))
+            except Exception:
+                pass
+
         if out["earnings_date"] is not None:
             try:
-                days = (out["earnings_date"] - datetime.now()).days
+                days = (out["earnings_date"].date() - datetime.now().date()).days
                 out["earnings_days"] = days
             except Exception:
                 pass
@@ -2812,6 +2866,27 @@ def format_earnings(meta):
             return f"Earnings tomorrow ({date_str}) — setup may reset after the print.", None
         return f"Earnings in {days} days ({date_str}) — setup may reset after the print.", None
     return None, f"{date_str} · in {days} days"
+
+
+def apply_earnings_event_gate(t_state, earnings_days):
+    """Treat near-term earnings as a final safety overlay on fresh entries."""
+    if t_state is None or earnings_days is None:
+        return t_state
+    action = t_state.get("action")
+    if 0 <= earnings_days <= 2 and action in ("enter_now", "watch", "accumulate"):
+        return {
+            **t_state,
+            "action": "hold_off",
+            "trigger": None,
+            "event_risk_hold": True,
+            "event_risk_days": earnings_days,
+        }
+    if 3 <= earnings_days <= 7:
+        updated = {**t_state, "event_risk_watch": True, "event_risk_days": earnings_days}
+        if action in ("enter_now", "accumulate"):
+            updated["action"] = "watch"
+        return updated
+    return t_state
 
 
 def format_source_note(source):
@@ -5151,27 +5226,7 @@ if view == "analyze":
         st.stop()
 
     earnings_days = meta.get("earnings_days") if meta else None
-    if (
-        earnings_days is not None and
-        0 <= earnings_days <= 2 and
-        t.get("action") in ("enter_now", "watch")
-    ):
-        t = {
-            **t,
-            "action": "hold_off",
-            "trigger": None,
-            "event_risk_hold": True,
-        }
-    elif (
-        earnings_days is not None and
-        3 <= earnings_days <= 7 and
-        t.get("action") == "enter_now"
-    ):
-        t = {
-            **t,
-            "action": "watch",
-            "event_risk_watch": True,
-        }
+    t = apply_earnings_event_gate(t, earnings_days)
 
     # Compute decision modifiers — earnings proximity, market regime, RS
     modifiers = tactical.decision_modifiers(t, meta, t.get("market_regime", "unknown"))
@@ -5305,7 +5360,11 @@ if view == "analyze":
         claude_confidence = int(claude_call.get("confidence", 0) or 0)
     except (TypeError, ValueError):
         claude_confidence = 0
-    hard_rule_lock = (not t.get("atr_ok", True)) or bool(t.get("event_risk_hold"))
+    hard_rule_lock = (
+        (not t.get("atr_ok", True)) or
+        bool(t.get("event_risk_hold")) or
+        bool(t.get("event_risk_watch"))
+    )
     if claude_action_key and claude_confidence >= 5 and not hard_rule_lock:
         t = {
             **t,
@@ -5315,6 +5374,7 @@ if view == "analyze":
         }
     else:
         t = {**t, "_primary_source": "rule", "_rule_action": rule_t.get("action")}
+    t = apply_earnings_event_gate(t, earnings_days)
 
     sty = STATE_STYLES[t["action"]]
 
@@ -5338,6 +5398,12 @@ if view == "analyze":
             '</div>'
         )
         st.markdown(ticker_header_html, unsafe_allow_html=True)
+        if earn_banner:
+            st.markdown(
+                f'<div class="desk-earnings-banner"><span class="em">📅</span>'
+                f'<span><b>Event risk:</b> {html.escape(earn_banner)}</span></div>',
+                unsafe_allow_html=True,
+            )
 
         # 1. DECISION — hero
         # Structure state copy maps action+state to a one-line rationale
@@ -7232,6 +7298,7 @@ if view == "watchlist":
                 # Earnings days from quote meta — fetch separately, cached
                 meta = fetch_quote_meta(tkr)
                 earnings_days = meta.get("earnings_days") if meta else None
+                t = apply_earnings_event_gate(t, earnings_days)
 
                 # Trigger distance % — how close to a logged trigger?
                 trig = t.get("trigger") or {}
@@ -8081,18 +8148,7 @@ if view == "tracker":
             if t_state is None:
                 return False, "Could not compute rule-engine state."
             earnings_days = meta.get("earnings_days") if meta else None
-            if (
-                earnings_days is not None and
-                0 <= earnings_days <= 2 and
-                t_state.get("action") in ("enter_now", "watch")
-            ):
-                t_state = {**t_state, "action": "hold_off", "trigger": None, "event_risk_hold": True}
-            elif (
-                earnings_days is not None and
-                3 <= earnings_days <= 7 and
-                t_state.get("action") == "enter_now"
-            ):
-                t_state = {**t_state, "action": "watch", "event_risk_watch": True}
+            t_state = apply_earnings_event_gate(t_state, earnings_days)
             modifiers = tactical.decision_modifiers(
                 t_state, meta, t_state.get("market_regime", "unknown")
             )
