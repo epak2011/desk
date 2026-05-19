@@ -2116,6 +2116,7 @@ def fetch_yahoo_quote_summary(ticker):
     """Secondary metadata path when yfinance.info is sparse or rate-limited."""
     import urllib.parse
     import urllib.request
+    import http.cookiejar
 
     symbol = urllib.parse.quote((ticker or "").upper().strip())
     if not symbol:
@@ -2127,21 +2128,47 @@ def fetch_yahoo_quote_summary(ticker):
         "summaryDetail",
         "fundProfile",
     ])
-    url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}?modules={modules}"
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json,text/plain,*/*",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json,text/plain,*/*",
+    }
+
+    def _load(url, opener=None):
+        req = urllib.request.Request(url, headers=headers)
+        open_fn = opener.open if opener else urllib.request.urlopen
+        with open_fn(req, timeout=8) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         result = (((payload or {}).get("quoteSummary") or {}).get("result") or [])
         return result[0] if result else {}
+
+    for host in ("query2.finance.yahoo.com", "query1.finance.yahoo.com"):
+        try:
+            url = f"https://{host}/v10/finance/quoteSummary/{symbol}?modules={modules}&formatted=false"
+            summary = _load(url)
+            if summary:
+                return summary
+        except Exception:
+            pass
+
+    # Some Yahoo stats fields require the same cookie/crumb handshake that
+    # finance.yahoo.com uses. Keep this as a fallback so price loading is not
+    # blocked by a deeper fundamentals endpoint.
+    try:
+        jar = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+        opener.open(urllib.request.Request("https://fc.yahoo.com", headers=headers), timeout=8).close()
+        with opener.open(urllib.request.Request("https://query1.finance.yahoo.com/v1/test/getcrumb", headers=headers), timeout=8) as resp:
+            crumb = resp.read().decode("utf-8").strip()
+        if crumb:
+            quoted_crumb = urllib.parse.quote(crumb, safe="")
+            url = (
+                f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+                f"?modules={modules}&formatted=false&crumb={quoted_crumb}"
+            )
+            return _load(url, opener)
     except Exception:
-        return {}
+        pass
+    return {}
 
 
 def _raw_yahoo_value(value):
@@ -2170,6 +2197,112 @@ def _safe_fast_info_get(fast_info, key):
         return None
 
 
+def _clean_html_text(value):
+    import re
+    if value is None:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", str(value))
+    text = html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _extract_first_pct(text, patterns):
+    import re
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
+        if match:
+            try:
+                return float(match.group(1).replace(",", ""))
+            except Exception:
+                pass
+    return None
+
+
+def _marketbeat_exchange_candidates(exchange_hint=None):
+    hint = str(exchange_hint or "").upper()
+    mapped = []
+    if hint in {"NMS", "NGM", "NCM", "NAS", "NASDAQ"}:
+        mapped.append("NASDAQ")
+    elif hint in {"NYQ", "NYS", "NYSE"}:
+        mapped.append("NYSE")
+    elif hint in {"PCX", "ARCX", "NYSEARCA"}:
+        mapped.append("NYSEARCA")
+    elif hint in {"ASE", "AMEX"}:
+        mapped.append("AMEX")
+    for exchange in ("NASDAQ", "NYSE", "NYSEARCA", "AMEX"):
+        if exchange not in mapped:
+            mapped.append(exchange)
+    return mapped
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def fetch_marketbeat_stats(ticker, exchange_hint=None):
+    """Last-resort fallback for short interest and institutional ownership."""
+    import re
+    import ssl
+    import urllib.parse
+    import urllib.request
+
+    symbol = (ticker or "").upper().strip()
+    if not symbol or "-" in symbol or "." in symbol:
+        return {}
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+
+    def _read(url):
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                return resp.read().decode("utf-8", "ignore")
+        except Exception:
+            # Public quote pages are display-only metadata; fallback to an
+            # unverified context only after the normal certificate path fails.
+            context = ssl._create_unverified_context()
+            with urllib.request.urlopen(req, timeout=8, context=context) as resp:
+                return resp.read().decode("utf-8", "ignore")
+
+    for exchange in _marketbeat_exchange_candidates(exchange_hint):
+        base = f"https://www.marketbeat.com/stocks/{exchange}/{urllib.parse.quote(symbol)}/"
+        try:
+            short_html = _read(base + "short-interest/")
+            short_text = _clean_html_text(short_html)
+            if symbol not in short_text[:10000]:
+                continue
+            short_pct = _extract_first_pct(short_text, [
+                r"Short Percent of Float\s*([0-9]+(?:\.[0-9]+)?)%",
+                r"representing\s*([0-9]+(?:\.[0-9]+)?)%\s*of the public float",
+                r"([0-9]+(?:\.[0-9]+)?)%\s+of\s+[^.]*shares are currently sold short",
+            ])
+            short_ratio = None
+            ratio_match = re.search(r"Short Interest Ratio\s*([0-9]+(?:\.[0-9]+)?)", short_text, re.I)
+            if ratio_match:
+                short_ratio = float(ratio_match.group(1))
+
+            inst_pct = None
+            try:
+                inst_html = _read(base + "institutional-ownership/")
+                inst_text = _clean_html_text(inst_html)
+                inst_pct = _extract_first_pct(inst_text, [
+                    r"Current Institutional Ownership Percentage\s*([0-9]+(?:\.[0-9]+)?)%",
+                    r"([0-9]+(?:\.[0-9]+)?)%\s+of\s+[^.]*stock is owned by institutional investors",
+                ])
+            except Exception:
+                pass
+
+            if short_pct is not None or inst_pct is not None or short_ratio is not None:
+                return {
+                    "short_pct_float": short_pct,
+                    "institutional_ownership_pct": inst_pct,
+                    "short_ratio": short_ratio,
+                    "exchange": exchange,
+                }
+        except Exception:
+            continue
+    return {}
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_quote_meta(ticker):
     """Pull sector, market cap, short interest, earnings date, valuation ratios,
@@ -2180,6 +2313,7 @@ def fetch_quote_meta(ticker):
         "long_name": None,
         "short_name": None,
         "quote_type": None,
+        "exchange": None,
         "sector": None,
         "industry": None,
         "category": None,
@@ -2239,6 +2373,7 @@ def fetch_quote_meta(ticker):
         out["long_name"] = _first_present(info.get("longName"), price_summary.get("longName"))
         out["short_name"] = _first_present(info.get("shortName"), price_summary.get("shortName"))
         out["quote_type"] = _first_present(info.get("quoteType"), price_summary.get("quoteType"), _safe_fast_info_get(fast_info, "quoteType"))
+        out["exchange"] = _first_present(info.get("exchange"), price_summary.get("exchangeName"), _safe_fast_info_get(fast_info, "exchange"))
         out["sector"] = _first_present(info.get("sector"), profile_summary.get("sector"))
         out["industry"] = _first_present(info.get("industry"), profile_summary.get("industry"))
         out["category"] = _first_present(info.get("category"), fund_summary.get("categoryName"))
@@ -2268,7 +2403,12 @@ def fetch_quote_meta(ticker):
             if val is not None:
                 out[out_key] = float(val) * 100 if abs(float(val)) <= 1.5 else float(val)
 
-        spf = _first_present(info.get("shortPercentOfFloat"), _raw_yahoo_value(stats_summary.get("shortPercentOfFloat")))
+        spf = _first_present(
+            info.get("shortPercentOfFloat"),
+            info.get("sharesPercentSharesOut"),
+            _raw_yahoo_value(stats_summary.get("shortPercentOfFloat")),
+            _raw_yahoo_value(stats_summary.get("sharesPercentSharesOut")),
+        )
         if spf is not None:
             out["short_pct_float"] = normalize_percent_value(spf)
         out["shares_short"] = _first_present(info.get("sharesShort"), _raw_yahoo_value(stats_summary.get("sharesShort")))
@@ -2314,6 +2454,20 @@ def fetch_quote_meta(ticker):
             er = _first_present(info.get("expenseRatio"), _raw_yahoo_value(fund_summary.get("annualReportExpenseRatio")))
         if er is not None:
             out["expense_ratio"] = float(er) * 100 if abs(float(er)) <= 1.5 else float(er)
+
+        is_fund_for_fallback = str(out.get("quote_type") or "").upper() in {"ETF", "MUTUALFUND", "FUND"} or bool(
+            out.get("category") or out.get("fund_family") or out.get("total_assets") or out.get("net_assets")
+        )
+        if not is_fund_for_fallback and (
+            out.get("short_pct_float") is None or out.get("institutional_ownership_pct") is None
+        ):
+            mb = fetch_marketbeat_stats(ticker, out.get("exchange"))
+            if out.get("short_pct_float") is None and mb.get("short_pct_float") is not None:
+                out["short_pct_float"] = mb.get("short_pct_float")
+            if out.get("institutional_ownership_pct") is None and mb.get("institutional_ownership_pct") is not None:
+                out["institutional_ownership_pct"] = mb.get("institutional_ownership_pct")
+            if out.get("short_ratio") is None and mb.get("short_ratio") is not None:
+                out["short_ratio"] = mb.get("short_ratio")
 
         # Analyst data
         out["analyst_target"] = info.get("targetMeanPrice")
