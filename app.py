@@ -3002,10 +3002,10 @@ def position_management_read(entry, t):
         color = "var(--color-positive)"
         summary = "Trend remains intact. Hold the position and keep the stop/target live."
     else:
-        action = "Review"
+        action = "Re-check"
         emoji = "⚠️"
         color = "var(--color-warning-text)"
-        summary = "Position is not broken, but trend support is weakening. Re-check sizing and stop discipline."
+        summary = "Trend support is weakening. Re-check the stop, sizing, and whether this still deserves capital."
 
     stats = [
         ("Entry", f"${entry_px:,.2f}"),
@@ -7544,6 +7544,23 @@ if view == "tracker":
                 "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
                 "AVOID": "avoid", "ACCUMULATE": "accumulate",
             }
+            def _input_value(value):
+                try:
+                    if value is None:
+                        return ""
+                    return f"{float(value):.2f}"
+                except (TypeError, ValueError):
+                    return ""
+
+            def _parse_optional_price(value):
+                value = str(value or "").strip().replace("$", "").replace(",", "")
+                if not value:
+                    return None
+                try:
+                    return round(float(value), 2)
+                except ValueError:
+                    return "invalid"
+
             for entry in entries:
                 entry_id = entry.get("id", "")
                 ticker_value = str(entry.get("ticker", "")).upper()
@@ -7586,6 +7603,61 @@ if view == "tracker":
                             entry["manual_entry_logged"] = True
                             save_store(st.session_state.store)
                             st.rerun()
+
+                    st.markdown(
+                        '<div style="font-size:var(--fs-xs);font-weight:700;'
+                        'letter-spacing:var(--ls-caps-lg);text-transform:uppercase;'
+                        'color:var(--color-muted);margin:10px 0 4px;">Edit levels</div>',
+                        unsafe_allow_html=True,
+                    )
+                    e_col, t_col, s_col = st.columns(3)
+                    current_entry_px = entry.get("entry_hit_price") or entry.get("entry_price")
+                    with e_col:
+                        edit_entry_px = st.text_input(
+                            "Entry",
+                            value=_input_value(current_entry_px),
+                            key=f"edit_entry_px_{entry_id}",
+                            placeholder="Entry",
+                        )
+                    with t_col:
+                        edit_target_px = st.text_input(
+                            "Target",
+                            value=_input_value(entry.get("target1_price")),
+                            key=f"edit_target_px_{entry_id}",
+                            placeholder="Target",
+                        )
+                    with s_col:
+                        edit_stop_px = st.text_input(
+                            "Stop",
+                            value=_input_value(entry.get("stop_price")),
+                            key=f"edit_stop_px_{entry_id}",
+                            placeholder="Stop",
+                        )
+                    edit_note = st.text_input(
+                        "Note",
+                        value=str(entry.get("user_note") or ""),
+                        key=f"edit_note_{entry_id}",
+                        placeholder="Optional note",
+                    )
+                    if st.button("Save edited levels", key=f"save_levels_{entry_id}", use_container_width=True):
+                        parsed_entry = _parse_optional_price(edit_entry_px)
+                        parsed_target = _parse_optional_price(edit_target_px)
+                        parsed_stop = _parse_optional_price(edit_stop_px)
+                        if "invalid" in (parsed_entry, parsed_target, parsed_stop):
+                            st.warning("One of the edited prices is not a valid number.")
+                        else:
+                            if parsed_entry is not None:
+                                entry["entry_price"] = parsed_entry
+                                if entry.get("position_status") == "entered":
+                                    entry["entry_hit_price"] = parsed_entry
+                            entry["target1_price"] = parsed_target
+                            entry["stop_price"] = parsed_stop
+                            entry["user_note"] = edit_note.strip()
+                            entry["levels_edited_at"] = datetime.now().isoformat(timespec="seconds")
+                            save_store(st.session_state.store)
+                            st.success("Levels updated.")
+                            st.rerun()
+
                     if entry.get("agreement_read"):
                         st.caption(f"Comparison read: {entry.get('agreement_read')}")
                     if not entry.get("claude_action"):
