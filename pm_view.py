@@ -168,13 +168,22 @@ def _fetch_recent_news(client, ticker, company_name):
             """Run one search query through the agentic loop, return text."""
             msgs = [{"role": "user", "content": query_text}]
             for _ in range(5):
-                resp = client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=800,
-                    tools=tools,
-                    messages=msgs,
-                    betas=["web-search-2025-03-05"],
-                )
+                try:
+                    resp = client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=800,
+                        tools=tools,
+                        messages=msgs,
+                        betas=["web-search-2025-03-05"],
+                    )
+                except TypeError as err:
+                    if "betas" not in str(err):
+                        raise
+                    resp = client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=800,
+                        messages=msgs,
+                    )
                 text_parts = [b.text for b in resp.content if hasattr(b, "text") and b.text]
                 if resp.stop_reason == "end_turn":
                     return " ".join(text_parts).strip()
