@@ -730,6 +730,53 @@ st.markdown("""
     color: var(--color-text);
     font-weight: 650;
 }
+.desk-cmp-resolution {
+    margin: -2px 0 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-text);
+    border-radius: 4px;
+    background: #FFFFFF;
+    color: var(--color-body);
+}
+.desk-cmp-resolution-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+.desk-cmp-resolution-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 7px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-surface);
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs) !important;
+    font-weight: 700;
+    letter-spacing: var(--ls-caps-md);
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+.desk-cmp-resolution-title {
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs) !important;
+    font-weight: 700;
+    letter-spacing: var(--ls-caps-md);
+    text-transform: uppercase;
+    color: var(--color-faint);
+}
+.desk-cmp-resolution-text {
+    font-size: var(--fs-sm) !important;
+    line-height: 1.5;
+    color: var(--color-body);
+}
+.desk-cmp-resolution-text strong {
+    color: var(--color-text);
+    font-weight: 700;
+}
 
 /* Green primary Log button inside the comparison panel.
    Streamlit doesn't allow per-button styling, so we wrap the button in
@@ -3580,6 +3627,203 @@ def position_management_read(entry, t):
     }
 
 
+def _decision_signal_snapshot(t_state):
+    """Compact tape snapshot used by the Claude-vs-rules comparison."""
+    price = t_state.get("price") or 0
+    ma20 = t_state.get("ma20") or 0
+    ma50 = t_state.get("ma50") or 0
+    ma200 = t_state.get("ma200") or 0
+    rs = t_state.get("rs")
+    rr = t_state.get("reward_risk")
+    setup = t_state.get("setup_score")
+    rsi = t_state.get("rsi14")
+    vol_ratio = t_state.get("vol_ratio")
+    reads = []
+
+    if setup is not None:
+        try:
+            reads.append(f"setup {float(setup):.1f}/10")
+        except (TypeError, ValueError):
+            pass
+    if rr is not None:
+        try:
+            reads.append(f"reward/risk {float(rr):.2f}:1")
+        except (TypeError, ValueError):
+            pass
+    if price and ma20:
+        reads.append(f"{((price - ma20) / ma20 * 100):+.1f}% vs 20d")
+    if price and ma50:
+        reads.append(f"{((price - ma50) / ma50 * 100):+.1f}% vs 50d")
+    if price and ma200:
+        reads.append(f"{((price - ma200) / ma200 * 100):+.1f}% vs 200d")
+    if rs is not None:
+        try:
+            reads.append(f"RS {float(rs):.2f}")
+        except (TypeError, ValueError):
+            pass
+    if rsi is not None:
+        try:
+            reads.append(f"RSI {float(rsi):.0f}")
+        except (TypeError, ValueError):
+            pass
+    if vol_ratio is not None:
+        try:
+            reads.append(f"vol {float(vol_ratio):.1f}x")
+        except (TypeError, ValueError):
+            pass
+    return ", ".join(reads[:5])
+
+
+def classify_decision_disagreement(rule_key, claude_key, t_state, claude_data=None, position_read=None):
+    """Explain what kind of disagreement exists and how to resolve it."""
+    claude_data = claude_data or {}
+
+    rule_label = STATE_STYLES.get(rule_key, {}).get(
+        "label", str(rule_key or "Rules").replace("_", " ").title()
+    )
+    claude_label = STATE_STYLES.get(claude_key, {}).get(
+        "label", str(claude_key or "Claude").replace("_", " ").title()
+    )
+    signal = _decision_signal_snapshot(t_state)
+    trigger = t_state.get("trigger") or {}
+    trigger_kind = (trigger.get("kind") or "").replace("_", " ")
+    reasoning = (claude_data.get("reasoning") or "").lower()
+
+    if not claude_key:
+        return {
+            "kind": "Data gap",
+            "emoji": "🧩",
+            "title": "Claude data missing",
+            "read": (
+                "Refresh Portfolio Manager before treating this as a real comparison. "
+                "The rule engine can still define the trigger, but the PM thesis side is stale."
+            ),
+        }
+
+    if position_read and position_read.get("action") in {
+        "Exit", "Take profit", "Trim", "Raise stop", "Respect stop", "Review after earnings"
+    }:
+        return {
+            "kind": "Position conflict",
+            "emoji": "📌",
+            "title": "New-entry signal vs existing-position management",
+            "read": (
+                f"The position read says {position_read.get('action')}. Treat the comparison as a "
+                "fresh-entry view only; for capital already at work, follow the trim/sell box first."
+            ),
+        }
+
+    if rule_key == claude_key:
+        read = f"Both sources read this as {rule_label}."
+        if signal:
+            read += f" Shared tape: {signal}."
+        return {
+            "kind": "Agreement",
+            "emoji": "✅",
+            "title": "No conflict",
+            "read": read,
+        }
+
+    if t_state.get("event_risk_hold") or t_state.get("event_risk_watch"):
+        days = t_state.get("event_risk_days")
+        day_text = f" in {days} days" if days is not None else " soon"
+        return {
+            "kind": "Event risk",
+            "emoji": "📅",
+            "title": "The catalyst overrides the setup",
+            "read": (
+                f"Earnings are{day_text}. Even if one source likes the setup, do not add before the print. "
+                "Let the stock reset, then rerun the call with the new price, gap, and guidance."
+            ),
+        }
+
+    if rule_key in ("enter_now", "watch") and claude_key in ("hold_off", "avoid"):
+        if any(word in reasoning for word in ("valuation", "earnings", "debt", "risk", "stretched", "extension")):
+            kind = "Risk conflict"
+            title = "Rules like the tape; Claude is worried about underwriting"
+            read = (
+                "Use the rules for the trigger, but size or skip based on Claude's risk objection. "
+                "This is not an automatic buy until the thesis risk is acceptable."
+            )
+        else:
+            kind = "Timing conflict"
+            title = "Rules see a setup; Claude wants a cleaner entry"
+            read = (
+                "Treat this as a watchlist setup, not a chase. Let the price trigger fire with confirmation "
+                "or wait for the pullback/reclaim Claude is asking for."
+            )
+        if trigger_kind:
+            read += f" Trigger focus: {trigger_kind}."
+        if signal:
+            read += f" Current tape: {signal}."
+        return {"kind": kind, "emoji": "⚖️", "title": title, "read": read}
+
+    if claude_key in ("enter_now", "watch", "accumulate") and rule_key in ("hold_off", "avoid"):
+        price = t_state.get("price") or 0
+        ma50 = t_state.get("ma50") or 0
+        rr = t_state.get("reward_risk")
+        too_extended = bool(price and ma50 and price > ma50 * 1.08)
+        poor_rr = False
+        try:
+            poor_rr = rr is not None and float(rr) < 1.5
+        except (TypeError, ValueError):
+            poor_rr = False
+
+        if too_extended or poor_rr:
+            kind = "Timing conflict"
+            title = "Claude likes the name; rules reject the entry math"
+            read = (
+                "Use Claude for the thesis and the rule engine for entry discipline. "
+                "Do not force a fresh buy until reward/risk improves or the trigger resets."
+            )
+        elif rule_key == "avoid":
+            kind = "Quality vs tape"
+            title = "Claude sees quality; rules see technical damage"
+            read = (
+                "Keep it in research mode. The business may be good, but wait for the tape to stop rejecting it "
+                "before committing tactical capital."
+            )
+        else:
+            kind = "Conviction gap"
+            title = "Claude is more willing to anticipate"
+            read = (
+                "Let Claude define why it belongs on the screen, but wait for the rule trigger before logging an entry."
+            )
+        if signal:
+            read += f" Current tape: {signal}."
+        return {"kind": kind, "emoji": "🧭", "title": title, "read": read}
+
+    if "avoid" in (rule_key, claude_key):
+        return {
+            "kind": "Damage check",
+            "emoji": "⛔",
+            "title": "Weakness may be structural",
+            "read": (
+                "Resolve this defensively: require a reclaim, improving RS, and a defined stop before treating it "
+                "as anything more than repair work."
+            ) + (f" Current tape: {signal}." if signal else ""),
+        }
+
+    if "accumulate" in (rule_key, claude_key):
+        return {
+            "kind": "Sizing conflict",
+            "emoji": "🌱",
+            "title": "Long-term quality vs tactical timing",
+            "read": (
+                "If you act, make it a small starter only. Add size only after the trigger confirms and the trend improves."
+            ) + (f" Current tape: {signal}." if signal else ""),
+        }
+
+    return {
+        "kind": "Conviction gap",
+        "emoji": "⚖️",
+        "title": f"Claude: {claude_label}; rules: {rule_label}",
+        "read": (
+            "The split is mainly about timing and conviction. Let the trigger decide: no trigger, no fresh capital."
+        ) + (f" Current tape: {signal}." if signal else ""),
+    }
+
+
 def tape_read(t):
     """A tight 3-4 line read of the current technical state. Used in the
     Avoid layout where the user gets no Trigger/Trade-plan content and
@@ -5945,37 +6189,9 @@ if view == "analyze":
                 "label", str(claude_key or "Claude").replace("_", " ").title()
             )
 
-            price = t_state.get("price") or 0
-            ma50 = t_state.get("ma50") or 0
-            ma200 = t_state.get("ma200") or 0
-            rs = t_state.get("rs")
-            rr = t_state.get("reward_risk")
-            setup = t_state.get("setup_score")
+            signal = _decision_signal_snapshot(t_state)
             trig = t_state.get("trigger") or {}
             trig_kind = (trig.get("kind") or "").replace("_", " ")
-
-            reads = []
-            if setup is not None:
-                try:
-                    reads.append(f"setup {float(setup):.1f}/10")
-                except (TypeError, ValueError):
-                    pass
-            if rr is not None:
-                try:
-                    reads.append(f"reward/risk {float(rr):.2f}:1")
-                except (TypeError, ValueError):
-                    pass
-            if price and ma50:
-                reads.append(f"{((price - ma50) / ma50 * 100):+.1f}% vs 50d")
-            if price and ma200:
-                reads.append(f"{((price - ma200) / ma200 * 100):+.1f}% vs 200d")
-            if rs is not None:
-                try:
-                    reads.append(f"RS {float(rs):.2f}")
-                except (TypeError, ValueError):
-                    pass
-
-            signal = ", ".join(reads[:4])
             if rule_key == claude_key:
                 return (
                     f"Both sources read this as {rule_label_local}. "
@@ -6006,6 +6222,9 @@ if view == "analyze":
 
         comparison_read = _decision_compare_read(
             rule_action, claude_action_key, t, claude_call
+        )
+        disagreement_read = classify_decision_disagreement(
+            rule_action, claude_action_key, t, claude_call, position_read
         )
 
         # Always render the comparison panel. Build agree/disagree/unknown badge.
@@ -6088,6 +6307,21 @@ if view == "analyze":
             st.markdown(
                 f'<div class="desk-cmp-read"><strong>Read:</strong> '
                 f'{html.escape(comparison_read)}</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<div class="desk-cmp-resolution">'
+                f'<div class="desk-cmp-resolution-top">'
+                f'<span class="desk-cmp-resolution-chip">'
+                f'{html.escape(disagreement_read.get("emoji", ""))} '
+                f'{html.escape(disagreement_read.get("kind", "Decision read"))}</span>'
+                f'<span class="desk-cmp-resolution-title">'
+                f'{html.escape(disagreement_read.get("title", "How to resolve it"))}</span>'
+                f'</div>'
+                f'<div class="desk-cmp-resolution-text">'
+                f'<strong>Resolution:</strong> {html.escape(disagreement_read.get("read", ""))}'
+                f'</div>'
+                f'</div>',
                 unsafe_allow_html=True,
             )
 
