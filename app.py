@@ -34,6 +34,7 @@ st.set_page_config(
 # the user's watchlist, decisions, account size, or PM cache.
 STORE_PATH = Path.home() / ".desk_store.json"
 LEGACY_STORE_PATH = Path(__file__).parent / "desk_store.json"
+BENCH_CACHE_PATH = Path.home() / ".desk_spy_benchmark_cache.json"
 
 # One-time migration: if the legacy in-folder store exists and the new
 # home-folder store doesn't, move the legacy file forward.
@@ -2147,15 +2148,121 @@ def fetch_history(ticker):
         return None, None, f"{type(e).__name__}: {str(e)[:160]}"
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def fetch_bench():
+def _prepare_benchmark_hist(hist, source="live", error=None):
+    """Normalize benchmark history and tag where it came from."""
+    if hist is None or len(hist) == 0:
+        return None
     try:
-        hist = yf.Ticker("SPY").history(period="2y", interval="1d", auto_adjust=True)
-        if hist is None or len(hist) == 0:
+        if "Close" not in hist.columns:
             return None
+        hist = hist.copy()
+        hist = hist.dropna(subset=["Close"])
+        if len(hist) == 0:
+            return None
+        for col in ("Open", "High", "Low"):
+            if col not in hist.columns:
+                hist[col] = hist["Close"]
+        if "Volume" not in hist.columns:
+            hist["Volume"] = 0
+        hist.attrs["source"] = source
+        if error:
+            hist.attrs["error"] = error
         return hist
     except Exception:
         return None
+
+
+def _synthetic_benchmark_history(error=None):
+    """Flat benchmark fallback so the app can still render during Yahoo outages."""
+    try:
+        import pandas as pd
+        dates = pd.bdate_range(end=datetime.now().date(), periods=520)
+        hist = pd.DataFrame(
+            {
+                "Open": 100.0,
+                "High": 100.0,
+                "Low": 100.0,
+                "Close": 100.0,
+                "Volume": 0,
+            },
+            index=dates,
+        )
+        hist.attrs["source"] = "synthetic"
+        if error:
+            hist.attrs["error"] = error
+        return hist
+    except Exception:
+        return None
+
+
+def _write_benchmark_cache(hist):
+    try:
+        if hist is None or len(hist) == 0:
+            return
+        payload = hist.reset_index().rename(columns={"index": "Date"})
+        payload["Date"] = payload["Date"].astype(str)
+        cols = [c for c in ("Date", "Open", "High", "Low", "Close", "Volume") if c in payload.columns]
+        BENCH_CACHE_PATH.write_text(payload[cols].tail(540).to_json(orient="records"))
+    except Exception:
+        pass
+
+
+def _read_benchmark_cache(error=None):
+    try:
+        import pandas as pd
+        if not BENCH_CACHE_PATH.exists():
+            return None
+        payload = json.loads(BENCH_CACHE_PATH.read_text())
+        hist = pd.DataFrame(payload)
+        if hist.empty or "Date" not in hist.columns or "Close" not in hist.columns:
+            return None
+        hist["Date"] = pd.to_datetime(hist["Date"], errors="coerce")
+        hist = hist.dropna(subset=["Date", "Close"]).set_index("Date").sort_index()
+        if len(hist) < 50:
+            return None
+        return _prepare_benchmark_hist(hist, source="cached", error=error)
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_bench():
+    """Fetch SPY benchmark, but never let a benchmark outage block the app."""
+    last_error = None
+    try:
+        hist = yf.Ticker("SPY").history(period="2y", interval="1d", auto_adjust=True)
+        hist = _prepare_benchmark_hist(hist, source="live")
+        if hist is not None and len(hist) >= 200:
+            _write_benchmark_cache(hist)
+            return hist
+        last_error = "Yahoo returned no usable SPY rows"
+    except Exception as e:
+        last_error = f"{type(e).__name__}: {str(e)[:160]}"
+
+    cached = _read_benchmark_cache(error=last_error)
+    if cached is not None:
+        return cached
+
+    synthetic = _synthetic_benchmark_history(error=last_error)
+    if synthetic is not None:
+        return synthetic
+    return None
+
+
+def benchmark_fallback_notice(bench):
+    if bench is None:
+        return None
+    source = getattr(bench, "attrs", {}).get("source")
+    if source == "live":
+        return None
+    if source == "cached":
+        return "SPY benchmark is temporarily using the last cached copy because Yahoo did not return fresh data."
+    if source == "synthetic":
+        return (
+            "SPY benchmark is temporarily using a neutral fallback because Yahoo did not return fresh data. "
+            "Relative-strength and market-regime reads may be less precise until the next refresh."
+        )
+    return None
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -3081,6 +3188,9 @@ def render_research_report(ticker):
     if hist is None or bench is None:
         st.error(f"Couldn't build research report for {ticker}. {err_reason or 'Market data unavailable.'}")
         st.stop()
+    bench_notice = benchmark_fallback_notice(bench)
+    if bench_notice:
+        st.warning(bench_notice)
 
     t = tactical.compute(hist, bench)
     api_key = get_effective_api_key()
@@ -5558,6 +5668,9 @@ if view == "analyze":
     if bench is None:
         st.error("Couldn't load SPY benchmark — yfinance API issue, see above.")
         st.stop()
+    bench_notice = benchmark_fallback_notice(bench)
+    if bench_notice:
+        st.warning(bench_notice)
 
     t = tactical.compute(hist, bench)
     if t is None:
