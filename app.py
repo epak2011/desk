@@ -7498,8 +7498,15 @@ if view == "analyze":
                 return '<span style="color:var(--color-faintest);">—</span>'
             return '<span style="color:var(--color-positive);">✓</span>' if is_pass else '<span style="color:var(--color-negative);">✗</span>'
 
+        unavailable = '<span class="v" style="color:var(--color-fainter);">— unavailable</span>'
+        is_fund_meta = (
+            str(meta.get("quote_type") or "").upper() in {"ETF", "MUTUALFUND", "FUND"} or
+            str(meta.get("sector") or "").upper() == "ETF" or
+            bool(meta.get("category") and str(meta.get("sector") or "").upper() == "ETF")
+        )
+
         peg_verdict = ""
-        peg_row = ""
+        peg_row = f'<div class="row"><span>PEG</span>{unavailable}</div>'
         if peg is not None:
             if peg < 1.0:
                 peg_verdict = "cheap"
@@ -7512,7 +7519,7 @@ if view == "analyze":
                 peg_pass = False
             peg_row = f'<div class="row"><span>PEG</span><span class="v"><span class="num">{peg:.2f}</span> · {peg_verdict} {pass_fail(peg_pass)}</span></div>'
 
-        pe_row = ""
+        pe_row = f'<div class="row"><span>Forward P/E</span>{unavailable}</div>'
         if fpe is not None:
             pe_context = ""
             pe_pass = True
@@ -7533,17 +7540,25 @@ if view == "analyze":
                 pe_pass = True
             pe_row = f'<div class="row"><span>Forward P/E</span><span class="v"><span class="num">{fpe:.1f}</span> · {pe_context} {pass_fail(pe_pass)}</span></div>'
 
-        de_row = ""
+        de_row = f'<div class="row"><span>Debt / Equity</span>{unavailable}</div>'
         if de is not None:
             de_pass = de < 30
             de_note = "healthy" if de_pass else "leveraged"
             de_row = f'<div class="row"><span>Debt / Equity</span><span class="v"><span class="num">{de:.0f}%</span> · {de_note} {pass_fail(de_pass)}</span></div>'
 
-        growth_row = ""
+        growth_row = f'<div class="row"><span>Earnings growth</span>{unavailable}</div>'
         if eg is not None:
             growth_row = f'<div class="row"><span>Earnings growth</span><span class="v"><span class="num">{eg:+.1f}%</span> YoY</span></div>'
 
-        if any([peg_row, pe_row, de_row, growth_row]):
+        if is_fund_meta:
+            st.markdown(f"""
+<div class="desk-stat-card">
+  <div class="label">📚 Lynch check</div>
+  <div class="row"><span>Category</span><span class="v">ETF / fund</span></div>
+  <div class="row"><span>Framework</span><span class="v">Not applicable to fund-level holdings</span></div>
+</div>
+""", unsafe_allow_html=True)
+        else:
             st.markdown(f"""
 <div class="desk-stat-card">
   <div class="label">📚 Lynch check</div>
