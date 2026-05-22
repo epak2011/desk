@@ -6752,15 +6752,30 @@ if view == "analyze":
                             _msgs   = list(chat_store[chat_key])
                             _in, _out = 0, 0
                             reply = ""
+                            def _create_followup_message(messages, use_tools=True):
+                                kwargs = {
+                                    "model": "claude-sonnet-4-6",
+                                    "max_tokens": 600,
+                                    "system": sys_prompt,
+                                    "messages": messages,
+                                }
+                                if use_tools:
+                                    kwargs["tools"] = _tools
+                                    kwargs["betas"] = ["web-search-2025-03-05"]
+                                try:
+                                    return _client.messages.create(**kwargs)
+                                except TypeError as _err:
+                                    if "betas" not in str(_err):
+                                        raise
+                                    # Older Anthropic SDKs do not accept the
+                                    # `betas` kwarg. Fall back to normal Claude
+                                    # chat rather than surfacing an SDK error.
+                                    kwargs.pop("betas", None)
+                                    kwargs.pop("tools", None)
+                                    return _client.messages.create(**kwargs)
+
                             for _ in range(6):
-                                _resp = _client.messages.create(
-                                    model="claude-sonnet-4-6",
-                                    max_tokens=600,
-                                    system=sys_prompt,
-                                    tools=_tools,
-                                    messages=_msgs,
-                                    betas=["web-search-2025-03-05"],
-                                )
+                                _resp = _create_followup_message(_msgs, use_tools=True)
                                 _in  += _resp.usage.input_tokens
                                 _out += _resp.usage.output_tokens
                                 text_parts = [b.text for b in _resp.content if hasattr(b, "text") and b.text]
