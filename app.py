@@ -4623,7 +4623,13 @@ with st.sidebar:
     st.markdown(
         '<div style="font-family: var(--font-mono);font-size:var(--fs-xs);'
         'font-weight:600;letter-spacing: var(--ls-caps-xl);text-transform:uppercase;'
-        'color:var(--color-muted);margin:6px 0 8px;">Watchlist</div>',
+        'color:var(--color-muted);margin:6px 0 8px;display:flex;align-items:center;gap:6px;">'
+        '<span>Watchlist</span>'
+        '<span title="Sidebar symbols match the main dashboard call: 🚀 Enter · 👀 Watch · 🤔 Hold off · 🌱 Accumulate · ⛔ Avoid" '
+        'style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;'
+        'border:1px solid var(--color-border);border-radius:4px;color:var(--color-faint);'
+        'font-family:var(--font-sans);font-size:10px;font-weight:700;letter-spacing:0;text-transform:none;">i</span>'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -5158,7 +5164,6 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         # cached at the function level so this is cheap on repeat views.
         wl_data = {}
         wl_bench = fetch_bench()
-        owned_tickers = active_position_tickers()
         for tkr in watchlist:
             cached_hist, _, _ = fetch_history(tkr)
             if cached_hist is not None and len(cached_hist) >= 2:
@@ -5166,17 +5171,15 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 prev = float(cached_hist["Close"].iloc[-2])
                 chg_pct = (last / prev - 1) * 100 if prev else 0
                 action = None
-                wl_tactical = None
                 if wl_bench is not None:
                     try:
                         wl_tactical = tactical.compute(cached_hist, wl_bench)
                         action = (wl_tactical or {}).get("action")
                     except Exception:
-                        wl_tactical = None
                         action = None
-                wl_data[tkr] = (last, chg_pct, action, wl_tactical)
+                wl_data[tkr] = (last, chg_pct, action)
             else:
-                wl_data[tkr] = (None, None, None, None)
+                wl_data[tkr] = (None, None, None)
 
         # Each watchlist row rendered as ONE HTML markdown block.
         # No st.columns — flex layout in pure HTML, fully aligned, no
@@ -5184,20 +5187,11 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         # ✕ click → ?wldel=TICKER, both handled by the global handler.
         rows_html = []
         for tkr in watchlist:
-            last, chg_pct, action, wl_tactical = wl_data[tkr]
+            last, chg_pct, action = wl_data[tkr]
             is_active = (tkr == current)
-            marker_emoji = ""
-            marker_title = ""
-            if tkr.upper() in owned_tickers and wl_tactical:
-                pos_entry = get_active_position_entry(tkr)
-                pos_read = position_management_read(pos_entry, wl_tactical) if pos_entry else None
-                if pos_read:
-                    marker_emoji = pos_read.get("emoji", "")
-                    marker_title = f'Position read: {pos_read.get("action", "Review")}'
-            if not marker_emoji:
-                sty = STATE_STYLES.get(action or "")
-                marker_emoji = (sty or {}).get("emoji", "•")
-                marker_title = (sty or {}).get("label", "No signal yet")
+            sty = STATE_STYLES.get(action or "")
+            marker_emoji = (sty or {}).get("emoji", "•")
+            marker_title = (sty or {}).get("label", "No signal yet")
             action_marker = (
                 f'<span title="{html.escape(marker_title)}" style="margin-left:5px;'
                 f'font-size:11px;vertical-align:1px;">{html.escape(marker_emoji)}</span>'
