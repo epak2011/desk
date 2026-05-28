@@ -2257,6 +2257,35 @@ def fetch_bench():
     return None
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def sidebar_watchlist_snapshot(tickers):
+    """Small cached payload for the always-visible sidebar watchlist."""
+    bench = fetch_bench()
+    snapshot = {}
+    for raw_ticker in tickers:
+        tkr = str(raw_ticker or "").upper().strip()
+        if not tkr:
+            continue
+        hist, _, _ = fetch_history(tkr)
+        if hist is None or len(hist) < 2:
+            snapshot[tkr] = {"last": None, "change_pct": None, "action": None}
+            continue
+        last = float(hist["Close"].iloc[-1])
+        prev = float(hist["Close"].iloc[-2])
+        action = None
+        if bench is not None:
+            try:
+                action = (tactical.compute(hist, bench) or {}).get("action")
+            except Exception:
+                action = None
+        snapshot[tkr] = {
+            "last": last,
+            "change_pct": (last / prev - 1) * 100 if prev else 0,
+            "action": action,
+        }
+    return snapshot
+
+
 def benchmark_fallback_notice(bench):
     if bench is None:
         return None
@@ -4547,6 +4576,7 @@ try:
             clear_dossier_cache(tkr_to_refresh)
             fetch_quote_meta.clear()
             fetch_history.clear()
+            sidebar_watchlist_snapshot.clear()
             st.rerun()
 except Exception:
     pass
@@ -4625,10 +4655,10 @@ with st.sidebar:
         'font-weight:600;letter-spacing: var(--ls-caps-xl);text-transform:uppercase;'
         'color:var(--color-muted);margin:6px 0 8px;display:flex;align-items:center;gap:6px;">'
         '<span>Watchlist</span>'
-        '<span title="Sidebar symbols match the main dashboard call: 🚀 Enter · 👀 Watch · 🤔 Hold off · 🌱 Accumulate · ⛔ Avoid" '
-        'style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;'
-        'border:1px solid var(--color-border);border-radius:4px;color:var(--color-faint);'
-        'font-family:var(--font-sans);font-size:10px;font-weight:700;letter-spacing:0;text-transform:none;">i</span>'
+        '<span class="desk-sidebar-help">i'
+        '<span class="desk-sidebar-help-tip">Sidebar symbols match the main dashboard call:<br>'
+        '🚀 Enter · 👀 Watch · 🤔 Hold off<br>🌱 Accumulate · ⛔ Avoid</span>'
+        '</span>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -5160,26 +5190,9 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 
         current = st.session_state.current_ticker
 
-        # Pre-fetch all watchlist prices in one pass. fetch_history is
-        # cached at the function level so this is cheap on repeat views.
-        wl_data = {}
-        wl_bench = fetch_bench()
-        for tkr in watchlist:
-            cached_hist, _, _ = fetch_history(tkr)
-            if cached_hist is not None and len(cached_hist) >= 2:
-                last = float(cached_hist["Close"].iloc[-1])
-                prev = float(cached_hist["Close"].iloc[-2])
-                chg_pct = (last / prev - 1) * 100 if prev else 0
-                action = None
-                if wl_bench is not None:
-                    try:
-                        wl_tactical = tactical.compute(cached_hist, wl_bench)
-                        action = (wl_tactical or {}).get("action")
-                    except Exception:
-                        action = None
-                wl_data[tkr] = (last, chg_pct, action)
-            else:
-                wl_data[tkr] = (None, None, None)
+        # Cached so the always-visible sidebar does not rebuild every row's
+        # tactical read on each rerun.
+        wl_data = sidebar_watchlist_snapshot(tuple(watchlist))
 
         # Each watchlist row rendered as ONE HTML markdown block.
         # No st.columns — flex layout in pure HTML, fully aligned, no
@@ -5187,7 +5200,10 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         # ✕ click → ?wldel=TICKER, both handled by the global handler.
         rows_html = []
         for tkr in watchlist:
-            last, chg_pct, action = wl_data[tkr]
+            row_snapshot = wl_data.get(tkr.upper(), {})
+            last = row_snapshot.get("last")
+            chg_pct = row_snapshot.get("change_pct")
+            action = row_snapshot.get("action")
             is_active = (tkr == current)
             sty = STATE_STYLES.get(action or "")
             marker_emoji = (sty or {}).get("emoji", "•")
@@ -5512,6 +5528,53 @@ section[data-testid="stSidebar"] {
     line-height: 1;
 }
 
+.desk-sidebar-help {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--desk-border);
+    border-radius: 4px;
+    color: var(--desk-muted);
+    background: rgba(255,255,255,0.55);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: none;
+    cursor: help;
+}
+
+.desk-sidebar-help-tip {
+    position: absolute;
+    left: 18px;
+    top: -8px;
+    z-index: 9999;
+    width: 230px;
+    padding: 9px 10px;
+    border: 1px solid var(--desk-border);
+    border-radius: 6px;
+    background: #FFFFFF;
+    color: var(--desk-text);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.12);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: 0;
+    text-transform: none;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(3px);
+    transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.desk-sidebar-help:hover .desk-sidebar-help-tip {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 section[data-testid="stSidebar"] input,
 section[data-testid="stSidebar"] button,
 section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
@@ -5586,6 +5649,51 @@ div[data-testid="element-container"]:has(.desk-bar) {
     margin: 0 0 18px 0 !important;
     border-bottom: 1px solid var(--desk-border) !important;
     align-items: flex-start !important;
+}
+
+.desk-position-read {
+    border: 1px solid var(--desk-border);
+    border-left: 4px solid var(--desk-green);
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 10px 12px;
+    margin: -4px 0 14px;
+}
+
+.desk-position-kicker {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.desk-position-main {
+    display: flex;
+    gap: 9px;
+    align-items: baseline;
+    flex-wrap: wrap;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--desk-text);
+}
+
+.desk-position-main > span:first-child {
+    font-size: 20px;
+    font-weight: 850;
+}
+
+.desk-position-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--desk-border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    color: var(--desk-muted);
 }
 
 .desk-ticker-row .ticker {
@@ -6110,6 +6218,30 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
+        active_position_entry = get_active_position_entry(ticker)
+        active_holding = st.session_state.store.setdefault("holdings", {}).get(ticker.upper())
+        position_read = (
+            position_management_read(active_position_entry, t)
+            if active_position_entry else None
+        )
+        if position_read:
+            stat_html = "".join(
+                f'<span><b>{html.escape(label)}</b> {html.escape(value)}</span>'
+                for label, value in position_read["stats"]
+            )
+            st.markdown(f"""
+<div class="desk-position-read" style="border-left-color:{position_read['color']};">
+  <div class="desk-position-kicker" style="color:{position_read['color']};">
+    {position_read['emoji']} Position read
+  </div>
+  <div class="desk-position-main">
+    <span style="color:{position_read['color']};">{html.escape(position_read['action'])}</span>
+    <span>{html.escape(position_read['summary'])}</span>
+  </div>
+  <div class="desk-position-stats">{stat_html}</div>
+</div>
+""", unsafe_allow_html=True)
+
         # 1a. TRIGGER — sits directly under the decision word so it's the
         # first actionable thing the eye lands on. Also Invalidation when
         # there's a watch/enter trigger; Accumulate's "stabilization
@@ -6216,12 +6348,6 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        active_position_entry = get_active_position_entry(ticker)
-        active_holding = st.session_state.store.setdefault("holdings", {}).get(ticker.upper())
-        position_read = (
-            position_management_read(active_position_entry, t)
-            if active_position_entry else None
-        )
         def _position_input_value(value):
             try:
                 if value is None:
@@ -6261,26 +6387,6 @@ if view == "analyze":
             return True
 
         if position_read:
-            stat_html = "".join(
-                f'<span><b>{html.escape(label)}</b> {html.escape(value)}</span>'
-                for label, value in position_read["stats"]
-            )
-            st.markdown(f"""
-<div style="border:1px solid var(--color-border);border-left:3px solid {position_read['color']};
-        border-radius:4px;background:#FFFFFF;padding:12px 14px;margin:16px 0 14px;">
-  <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;
-          letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:{position_read['color']};
-          margin-bottom:6px;">{position_read['emoji']} Should you trim or sell?</div>
-  <div style="font-family:var(--font-sans);font-size:22px;font-weight:750;line-height:1.15;
-          color:{position_read['color']};margin-bottom:5px;">{html.escape(position_read['action'])}</div>
-  <div style="font-size:var(--fs-md);line-height:1.5;color:var(--color-body);">
-    {html.escape(position_read['summary'])}
-  </div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px 14px;border-top:1px dashed var(--color-border-soft);
-          margin-top:10px;padding-top:8px;font-family:var(--font-mono);font-size:var(--fs-sm);
-          color:var(--color-muted);">{stat_html}</div>
-</div>
-""", unsafe_allow_html=True)
             with st.expander("Edit holding / position", expanded=False):
                 st.caption("Update the live position inputs used by the trim/sell read.")
                 p_col1, p_col2, p_col3, p_col4 = st.columns(4)
