@@ -1693,12 +1693,11 @@ div.streamlit-expanderHeader {
     margin: 0 auto 80px;
 }
 .research-page .hero {
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
-    padding: 20px 22px 22px;
-    margin-bottom: 24px;
-    background: rgba(255, 255, 255, 0.88);
-    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.055);
+    border-bottom: 1px solid var(--color-border);
+    padding: 0 0 22px;
+    margin-bottom: 26px;
+    background: transparent;
+    box-shadow: none;
 }
 .research-page .eyebrow,
 .research-section .eyebrow {
@@ -1710,62 +1709,91 @@ div.streamlit-expanderHeader {
     font-weight: 600;
 }
 .research-page h1 {
-    font-family: var(--font-serif);
-    font-size: 54px;
+    font-family: var(--font-sans);
+    font-size: 46px;
     line-height: 1;
-    font-weight: 500;
-    margin: 8px 0 8px;
+    font-weight: 820;
+    letter-spacing: -0.02em;
+    margin: 8px 0 10px;
 }
 .research-page .deck {
-    font-family: var(--font-serif);
-    font-size: var(--fs-xl);
-    line-height: 1.45;
+    font-family: var(--font-sans);
+    font-size: 19px;
+    line-height: 1.42;
     color: var(--color-body);
-    max-width: 840px;
+    max-width: 920px;
 }
 .research-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
-    margin: 18px 0 8px;
-}
-.research-kpi {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    margin: 20px 0 0;
     border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 12px 13px;
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #FFFFFF;
 }
-.research-kpi .k {
+.research-metric-group {
+    padding: 12px 14px;
+    border-right: 1px solid var(--color-border-soft);
+    min-height: 112px;
+}
+.research-metric-group:last-child {
+    border-right: 0;
+}
+.research-metric-group .group-title {
     font-family: var(--font-mono);
     font-size: var(--fs-xs);
-    letter-spacing: var(--ls-caps-lg);
+    letter-spacing: var(--ls-caps-xl);
     text-transform: uppercase;
     color: var(--color-muted);
-    font-weight: 600;
+    font-weight: 750;
+    margin-bottom: 8px;
 }
-.research-kpi .v {
+.research-metric-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0;
+    border-top: 1px solid var(--color-border-soft);
+    align-items: baseline;
+}
+.research-metric-row:first-of-type {
+    border-top: 0;
+}
+.research-metric-row .k {
     font-family: var(--font-mono);
-    font-size: var(--fs-xl);
-    font-weight: 500;
-    margin-top: 4px;
+    font-size: 11px;
+    color: var(--color-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 650;
+}
+.research-metric-row .v {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    color: var(--color-text);
+    font-weight: 780;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 .research-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
-    gap: 28px;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.72fr);
+    gap: 34px;
 }
 .research-section {
     border-top: 1px solid var(--color-border);
-    padding-top: 18px;
-    margin-top: 18px;
+    padding-top: 16px;
+    margin-top: 16px;
 }
 .research-section h2 {
-    font-family: var(--font-serif);
-    font-size: 28px;
-    line-height: 1.1;
-    font-weight: 500;
-    margin: 8px 0 10px;
+    font-family: var(--font-sans);
+    font-size: 22px;
+    line-height: 1.16;
+    font-weight: 760;
+    letter-spacing: -0.01em;
+    margin: 7px 0 9px;
 }
 .research-section p,
 .research-section li {
@@ -1797,8 +1825,31 @@ div.streamlit-expanderHeader {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
 }
+.research-data-pack {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 13px 14px 4px;
+    margin-top: 20px;
+}
+.research-data-pack > .eyebrow {
+    margin-bottom: 2px;
+}
+.research-data-pack .research-section {
+    margin-top: 12px;
+    padding-top: 12px;
+}
 @media (max-width: 900px) {
-    .research-grid,
+    .research-grid {
+        grid-template-columns: 1fr;
+    }
+    .research-metric-group {
+        border-right: 0;
+        border-bottom: 1px solid var(--color-border-soft);
+    }
+    .research-metric-group:last-child {
+        border-bottom: 0;
+    }
     .research-layout { grid-template-columns: 1fr; }
     .research-page h1 { font-size: 42px; }
 }
@@ -3308,30 +3359,67 @@ def render_research_report(ticker):
     else:
         timing = "Current setup does not justify fresh exposure without a material repair signal."
 
-    kpis = [
-        ("Price", f"${t['price']:,.2f}"),
-        ("AUM" if is_fund_report else "Market cap", fund_assets if is_fund_report else (market_cap or "—")),
-        ("Category" if is_fund_report else "Enterprise value", str(category_label).title() if is_fund_report else enterprise_value),
-        ("Revenue YoY", fmt_pct(revenue_yoy)),
-        ("Gross margin", fmt_pct(gross_margin)),
-        ("FCF margin", fmt_pct(fcf_margin)),
-        ("EV/Sales", fmt_mult(meta.get("enterprise_to_revenue"))),
-        ("EV/EBITDA", fmt_mult(ev_ebitda)),
-        ("Quality", q_label),
-    ]
-
     def clean_value(value):
         if value is None:
             return "—"
         value = str(value)
         return value if value.strip() else "—"
 
-    def kpi_html():
-        return "".join(
-            f'<div class="research-kpi"><div class="k">{html.escape(k)}</div>'
-            f'<div class="v">{html.escape(clean_value(v))}</div></div>'
-            for k, v in kpis
-        )
+    metric_groups = [
+        (
+            "Market",
+            [
+                ("Price", f"${t['price']:,.2f}"),
+                ("AUM" if is_fund_report else "Market cap", fund_assets if is_fund_report else market_cap),
+                ("Category" if is_fund_report else "Enterprise value", str(category_label).title() if is_fund_report else enterprise_value),
+            ],
+        ),
+        (
+            "Growth",
+            [
+                ("Revenue", fmt_big_number(revenue or meta.get("total_revenue"))),
+                ("Revenue YoY", fmt_pct(revenue_yoy)),
+                ("EPS YoY", fmt_pct(meta.get("earnings_growth"))),
+            ],
+        ),
+        (
+            "Margins",
+            [
+                ("Gross", fmt_pct(gross_margin)),
+                ("Operating", fmt_pct(operating_margin)),
+                ("FCF", fmt_pct(fcf_margin)),
+            ],
+        ),
+        (
+            "Valuation",
+            [
+                ("EV/Sales", fmt_mult(meta.get("enterprise_to_revenue"))),
+                ("EV/EBITDA", fmt_mult(ev_ebitda)),
+                ("Forward P/E", fmt_mult(fpe)),
+            ],
+        ),
+        (
+            "Setup",
+            [
+                ("Quality", q_label),
+                ("Short", f"{meta.get('short_pct_float'):.1f}%" if meta.get("short_pct_float") is not None else "—"),
+                ("Inst. owned", f"{meta.get('institutional_ownership_pct'):.1f}%" if meta.get("institutional_ownership_pct") is not None else "—"),
+            ],
+        ),
+    ]
+
+    def metrics_html():
+        groups_html = []
+        for title, rows in metric_groups:
+            row_html = "".join(
+                f'<div class="research-metric-row"><span class="k">{html.escape(label)}</span>'
+                f'<span class="v">{html.escape(clean_value(value))}</span></div>'
+                for label, value in rows
+            )
+            groups_html.append(
+                f'<div class="research-metric-group"><div class="group-title">{html.escape(title)}</div>{row_html}</div>'
+            )
+        return "".join(groups_html)
 
     def table_html(title, rows):
         body = "".join(
@@ -3463,9 +3551,8 @@ def render_research_report(ticker):
   <div class="hero">
     <div class="eyebrow">Full research report · {html.escape(ticker)}</div>
     <h1>{html.escape(company)}</h1>
-    <div class="deck">{html.escape(timing)} The report is organized as a PM memo:
-    decision read, business thesis, earnings/financial quality, valuation, ownership, and next proof points.</div>
-    <div class="research-grid">{kpi_html()}</div>
+    <div class="deck">{html.escape(timing)}</div>
+    <div class="research-grid">{metrics_html()}</div>
   </div>
   <div class="research-layout">
     <div>
@@ -3516,13 +3603,6 @@ def render_research_report(ticker):
       </div>
     </div>
     <div>
-      {table_html("Fund profile", fund_rows) if is_fund_report else table_html("Earnings snapshot", earnings_rows)}
-      {table_html("Financial quality", growth_rows)}
-      {table_html("Revenue history", history_rows)}
-      {table_html("Balance sheet", balance_rows) if not is_fund_report else ""}
-      {table_html("Valuation", valuation_rows) if not is_fund_report else ""}
-      {table_html("Ownership and setup", ownership_rows)}
-      {table_html("Trading overlay", trading_rows)}
       <div class="research-section">
         <div class="eyebrow">Must be true</div>
         <h2>What has to hold</h2>
@@ -3537,6 +3617,16 @@ def render_research_report(ticker):
         <div class="eyebrow">What to watch next</div>
         <h2>Next proof points</h2>
         <ul>{bullets_html(watch_items, "Watch the next earnings print, margin trend, and 50-day moving average.")}</ul>
+      </div>
+      <div class="research-data-pack">
+        <div class="eyebrow">Data appendix</div>
+        {table_html("Fund profile", fund_rows) if is_fund_report else table_html("Earnings snapshot", earnings_rows)}
+        {table_html("Financial quality", growth_rows)}
+        {table_html("Revenue history", history_rows)}
+        {table_html("Balance sheet", balance_rows) if not is_fund_report else ""}
+        {table_html("Valuation", valuation_rows) if not is_fund_report else ""}
+        {table_html("Ownership and setup", ownership_rows)}
+        {table_html("Trading overlay", trading_rows)}
       </div>
     </div>
   </div>
@@ -5094,6 +5184,50 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 .research-link {
     border-radius: 8px !important;
     padding: 7px 11px !important;
+}
+
+/* Research report: memo layout, not a landing-page tile wall */
+.research-page .hero {
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 1px solid #DDE2E8 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 0 22px !important;
+}
+.research-page h1 {
+    font-family: var(--font-sans) !important;
+    font-size: 46px !important;
+    font-weight: 820 !important;
+    letter-spacing: -0.02em !important;
+}
+.research-page .deck {
+    font-size: 19px !important;
+    line-height: 1.42 !important;
+    max-width: 920px !important;
+}
+.research-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+    border: 1px solid #DDE2E8 !important;
+    border-radius: 6px !important;
+    background: #FFFFFF !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+}
+.research-metric-group {
+    border-right: 1px solid #E8EDF3 !important;
+}
+.research-metric-group:last-child {
+    border-right: 0 !important;
+}
+.research-section h2 {
+    font-family: var(--font-sans) !important;
+    font-size: 22px !important;
+    font-weight: 760 !important;
+}
+.research-kpi {
+    border-top: 0 !important;
 }
 [class*="st-key-chat_input_"] textarea {
     border-radius: 8px !important;
