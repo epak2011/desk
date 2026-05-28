@@ -5166,15 +5166,17 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 prev = float(cached_hist["Close"].iloc[-2])
                 chg_pct = (last / prev - 1) * 100 if prev else 0
                 action = None
+                wl_tactical = None
                 if wl_bench is not None:
                     try:
                         wl_tactical = tactical.compute(cached_hist, wl_bench)
                         action = (wl_tactical or {}).get("action")
                     except Exception:
+                        wl_tactical = None
                         action = None
-                wl_data[tkr] = (last, chg_pct, action)
+                wl_data[tkr] = (last, chg_pct, action, wl_tactical)
             else:
-                wl_data[tkr] = (None, None, None)
+                wl_data[tkr] = (None, None, None, None)
 
         # Each watchlist row rendered as ONE HTML markdown block.
         # No st.columns — flex layout in pure HTML, fully aligned, no
@@ -5182,17 +5184,23 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         # ✕ click → ?wldel=TICKER, both handled by the global handler.
         rows_html = []
         for tkr in watchlist:
-            last, chg_pct, action = wl_data[tkr]
+            last, chg_pct, action, wl_tactical = wl_data[tkr]
             is_active = (tkr == current)
-            enter_marker = (
-                '<span title="Enter signal" style="margin-left:5px;'
-                'font-size:11px;vertical-align:1px;">🚀</span>'
-                if action == "enter_now" else ""
-            )
-            owned_marker = (
-                '<span title="Owned position" style="margin-left:5px;'
-                'font-size:11px;vertical-align:1px;">📌</span>'
-                if tkr.upper() in owned_tickers else ""
+            marker_emoji = ""
+            marker_title = ""
+            if tkr.upper() in owned_tickers and wl_tactical:
+                pos_entry = get_active_position_entry(tkr)
+                pos_read = position_management_read(pos_entry, wl_tactical) if pos_entry else None
+                if pos_read:
+                    marker_emoji = pos_read.get("emoji", "")
+                    marker_title = f'Position read: {pos_read.get("action", "Review")}'
+            if not marker_emoji:
+                sty = STATE_STYLES.get(action or "")
+                marker_emoji = (sty or {}).get("emoji", "•")
+                marker_title = (sty or {}).get("label", "No signal yet")
+            action_marker = (
+                f'<span title="{html.escape(marker_title)}" style="margin-left:5px;'
+                f'font-size:11px;vertical-align:1px;">{html.escape(marker_emoji)}</span>'
             )
             chg_color = (
                 "var(--color-positive)" if (chg_pct or 0) >= 0
@@ -5222,7 +5230,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 f'text-align: left; cursor: pointer;'
                 f'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" '
                 f'{active_hover}>'
-                f'{tkr}{owned_marker}{enter_marker}</a>'
+                f'{tkr}{action_marker}</a>'
                 # Price + change — right aligned in middle area
                 f'<div style="flex: 1 1 auto; min-width: 0;'
                 f'display: flex; flex-direction: column; align-items: flex-end;'
@@ -8138,7 +8146,7 @@ if view == "watchlist":
             if action == "enter_now":
                 return "🚀 Enter", 0, "var(--color-positive)"
             if ticker_key in owned_ticker_set:
-                return "📌 Position", 1, "var(--color-blue)"
+                return "🟢 Position", 1, "var(--color-blue)"
             if trig_dist is not None and abs(trig_dist) <= 3:
                 return "🎯 Near trigger", 2, "var(--color-warning-text)"
             if earnings_days is not None and -1 <= earnings_days <= 7:
