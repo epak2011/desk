@@ -210,6 +210,11 @@ def _store_default():
         # {"COIN": {"support": [145, 110], "resistance": [213, 280]}, ...}
         # These are merged with auto-detected key_levels at app render time.
         "manual_levels": {},
+        # First-class positions owned outside the decision logger.
+        # Shape: {"NVDA": {"ticker": "NVDA", "entry_price": 198.45,
+        #                  "shares": 10, "target1_price": 240,
+        #                  "stop_price": 190, "user_note": "..."}}
+        "holdings": {},
         # Decision comparison log — one entry per "Log this comparison"
         # click. Side-by-side record of rule engine action, Claude action,
         # and (optionally) user action at a point in time so we can later
@@ -310,6 +315,9 @@ if "store" not in st.session_state:
         _needs_save = True
     if "manual_levels" not in st.session_state.store:
         st.session_state.store["manual_levels"] = {}
+        _needs_save = True
+    if "holdings" not in st.session_state.store:
+        st.session_state.store["holdings"] = {}
         _needs_save = True
     if "decisions_log" not in st.session_state.store:
         st.session_state.store["decisions_log"] = []
@@ -3737,6 +3745,64 @@ def position_management_read(entry, t):
     }
 
 
+def holding_to_position_entry(ticker, holding):
+    """Adapt a first-class holding to the position-management shape."""
+    if not holding:
+        return None
+    ticker = str(ticker or holding.get("ticker") or "").upper()
+    return {
+        "id": holding.get("id") or f"holding-{ticker}",
+        "ticker": ticker,
+        "ts": holding.get("ts") or holding.get("updated_at") or datetime.now().isoformat(timespec="seconds"),
+        "price": holding.get("entry_price"),
+        "entry_price": holding.get("entry_price"),
+        "entry_hit_price": holding.get("entry_price"),
+        "target1_price": holding.get("target1_price"),
+        "stop_price": holding.get("stop_price"),
+        "user_note": holding.get("user_note", ""),
+        "shares": holding.get("shares"),
+        "position_status": "entered",
+        "source": "holding",
+    }
+
+
+def get_holding_entry(ticker):
+    holdings = st.session_state.store.setdefault("holdings", {})
+    ticker = str(ticker or "").upper()
+    return holding_to_position_entry(ticker, holdings.get(ticker))
+
+
+def get_logged_position_entry(ticker):
+    ticker = str(ticker or "").upper()
+    return next(
+        (
+            d for d in st.session_state.store.get("decisions_log", [])
+            if str(d.get("ticker", "")).upper() == ticker
+            and d.get("outcome") is None
+            and d.get("position_status") == "entered"
+        ),
+        None,
+    )
+
+
+def get_active_position_entry(ticker):
+    """Holdings are authoritative; tracker positions are fallback."""
+    return get_holding_entry(ticker) or get_logged_position_entry(ticker)
+
+
+def active_position_tickers():
+    tickers = {
+        str(t).upper()
+        for t in st.session_state.store.setdefault("holdings", {}).keys()
+    }
+    tickers.update(
+        str(d.get("ticker", "")).upper()
+        for d in st.session_state.store.get("decisions_log", [])
+        if d.get("outcome") is None and d.get("position_status") == "entered"
+    )
+    return {t for t in tickers if t}
+
+
 def _decision_signal_snapshot(t_state):
     """Compact tape snapshot used by the Claude-vs-rules comparison."""
     price = t_state.get("price") or 0
@@ -4394,7 +4460,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    view_labels = {"analyze": "Analyze", "watchlist": "Watchlist", "tracker": "Tracker"}
+    view_labels = {"analyze": "Analyze", "watchlist": "Watchlist", "holdings": "Holdings", "tracker": "Tracker"}
     current_view_label = view_labels[st.session_state.view]
     picked = st.radio(
         "View",
@@ -4989,6 +5055,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         # cached at the function level so this is cheap on repeat views.
         wl_data = {}
         wl_bench = fetch_bench()
+        owned_tickers = active_position_tickers()
         for tkr in watchlist:
             cached_hist, _, _ = fetch_history(tkr)
             if cached_hist is not None and len(cached_hist) >= 2:
@@ -5019,6 +5086,11 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 'font-size:11px;vertical-align:1px;">🚀</span>'
                 if action == "enter_now" else ""
             )
+            owned_marker = (
+                '<span title="Owned position" style="margin-left:5px;'
+                'font-size:11px;vertical-align:1px;">📌</span>'
+                if tkr.upper() in owned_tickers else ""
+            )
             chg_color = (
                 "var(--color-positive)" if (chg_pct or 0) >= 0
                 else "var(--color-negative)"
@@ -5047,7 +5119,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 f'text-align: left; cursor: pointer;'
                 f'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" '
                 f'{active_hover}>'
-                f'{tkr}{enter_marker}</a>'
+                f'{tkr}{owned_marker}{enter_marker}</a>'
                 # Price + change — right aligned in middle area
                 f'<div style="flex: 1 1 auto; min-width: 0;'
                 f'display: flex; flex-direction: column; align-items: flex-end;'
@@ -6029,15 +6101,8 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        active_position_entry = next(
-            (
-                d for d in st.session_state.store.get("decisions_log", [])
-                if d.get("ticker") == ticker.upper()
-                and d.get("outcome") is None
-                and d.get("position_status") == "entered"
-            ),
-            None,
-        )
+        active_position_entry = get_active_position_entry(ticker)
+        active_holding = st.session_state.store.setdefault("holdings", {}).get(ticker.upper())
         position_read = (
             position_management_read(active_position_entry, t)
             if active_position_entry else None
@@ -6059,7 +6124,7 @@ if view == "analyze":
             except ValueError:
                 return "invalid"
 
-        def _save_position_fields(entry, entry_value, target_value, stop_value, note_value):
+        def _save_position_fields(entry, entry_value, target_value, stop_value, note_value, shares_value=None):
             parsed_entry = _parse_position_price(entry_value)
             parsed_target = _parse_position_price(target_value)
             parsed_stop = _parse_position_price(stop_value)
@@ -6071,6 +6136,12 @@ if view == "analyze":
             entry["target1_price"] = parsed_target
             entry["stop_price"] = parsed_stop
             entry["user_note"] = str(note_value or "").strip()
+            if shares_value is not None:
+                try:
+                    shares = float(str(shares_value).replace(",", "").strip()) if str(shares_value).strip() else None
+                    entry["shares"] = shares
+                except (TypeError, ValueError):
+                    return False
             entry["levels_edited_at"] = datetime.now().isoformat(timespec="seconds")
             return True
 
@@ -6095,9 +6166,9 @@ if view == "analyze":
           color:var(--color-muted);">{stat_html}</div>
 </div>
 """, unsafe_allow_html=True)
-            with st.expander("Edit position levels", expanded=False):
+            with st.expander("Edit holding / position", expanded=False):
                 st.caption("Update the live position inputs used by the trim/sell read.")
-                p_col1, p_col2, p_col3 = st.columns(3)
+                p_col1, p_col2, p_col3, p_col4 = st.columns(4)
                 with p_col1:
                     analyze_entry_px = st.text_input(
                         "Entry",
@@ -6119,6 +6190,13 @@ if view == "analyze":
                         value=_position_input_value(active_position_entry.get("stop_price")),
                         key=f"analyze_position_stop_{ticker}_{active_position_entry.get('id', '')}",
                     )
+                with p_col4:
+                    analyze_shares = st.text_input(
+                        "Shares",
+                        value=str(active_position_entry.get("shares") or ""),
+                        key=f"analyze_position_shares_{ticker}_{active_position_entry.get('id', '')}",
+                        placeholder="Optional",
+                    )
                 analyze_position_note = st.text_input(
                     "Note",
                     value=str(active_position_entry.get("user_note") or ""),
@@ -6136,16 +6214,37 @@ if view == "analyze":
                         analyze_target_px,
                         analyze_stop_px,
                         analyze_position_note,
+                        analyze_shares,
                     ):
                         st.warning("One of the edited prices is not a valid number.")
                     else:
+                        if active_holding is not None:
+                            holding = st.session_state.store.setdefault("holdings", {}).setdefault(ticker.upper(), {})
+                            holding.update({
+                                "ticker": ticker.upper(),
+                                "entry_price": active_position_entry.get("entry_price"),
+                                "target1_price": active_position_entry.get("target1_price"),
+                                "stop_price": active_position_entry.get("stop_price"),
+                                "shares": active_position_entry.get("shares"),
+                                "user_note": active_position_entry.get("user_note", ""),
+                                "updated_at": datetime.now().isoformat(timespec="seconds"),
+                            })
                         save_store(st.session_state.store)
                         st.success("Position levels updated.")
+                        st.rerun()
+                if active_holding is not None:
+                    if st.button(
+                        f"Remove {ticker.upper()} from holdings",
+                        key=f"remove_holding_{ticker}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.store.setdefault("holdings", {}).pop(ticker.upper(), None)
+                        save_store(st.session_state.store)
                         st.rerun()
         else:
             with st.expander("I own this / add position", expanded=False):
                 st.caption("Add an existing position so the app can show a trim/sell read for this ticker.")
-                p_col1, p_col2, p_col3 = st.columns(3)
+                p_col1, p_col2, p_col3, p_col4 = st.columns(4)
                 with p_col1:
                     new_position_entry_px = st.text_input(
                         "Entry",
@@ -6164,6 +6263,12 @@ if view == "analyze":
                         value=_position_input_value(t.get("stop")),
                         key=f"new_position_stop_{ticker}",
                     )
+                with p_col4:
+                    new_position_shares = st.text_input(
+                        "Shares",
+                        key=f"new_position_shares_{ticker}",
+                        placeholder="Optional",
+                    )
                 new_position_note = st.text_input(
                     "Note",
                     key=f"new_position_note_{ticker}",
@@ -6179,18 +6284,6 @@ if view == "analyze":
                             "id": str(uuid.uuid4())[:8],
                             "ts": datetime.now().isoformat(timespec="seconds"),
                             "ticker": ticker.upper(),
-                            "price": round(float(t.get("price", new_entry_px)), 2),
-                            "rule_action": rule_t.get("action", t.get("action")),
-                            "rule_state": t.get("state", ""),
-                            "claude_action": claude_action_raw,
-                            "claude_confidence": claude_confidence,
-                            "claude_reasoning": "",
-                            "claude_trigger": "",
-                            "user_action": "ENTER",
-                            "outcome": None,
-                            "position_status": "entered",
-                            "entry_hit_at": datetime.now().date().isoformat(),
-                            "manual_position": True,
                         }
                         if not _save_position_fields(
                             new_position,
@@ -6198,13 +6291,23 @@ if view == "analyze":
                             new_position_target_px,
                             new_position_stop_px,
                             new_position_note,
+                            new_position_shares,
                         ):
                             st.warning("One of the edited prices is not a valid number.")
                         else:
-                            dlog = st.session_state.store.setdefault("decisions_log", [])
-                            dlog.insert(0, new_position)
+                            st.session_state.store.setdefault("holdings", {})[ticker.upper()] = {
+                                "id": new_position["id"],
+                                "ticker": ticker.upper(),
+                                "entry_price": new_position.get("entry_price"),
+                                "target1_price": new_position.get("target1_price"),
+                                "stop_price": new_position.get("stop_price"),
+                                "shares": new_position.get("shares"),
+                                "user_note": new_position.get("user_note", ""),
+                                "created_at": datetime.now().isoformat(timespec="seconds"),
+                                "updated_at": datetime.now().isoformat(timespec="seconds"),
+                            }
                             save_store(st.session_state.store)
-                            st.success(f"Position added for {ticker.upper()}.")
+                            st.success(f"Holding added for {ticker.upper()}.")
                             st.rerun()
 
         # 1c. Decision dossier — the synthesis paragraph. Now sits ABOVE
@@ -7704,17 +7807,216 @@ if view == "analyze":
 # ─────────────────────────────────────────────────────────────────────
 # WATCHLIST — Pro view
 # ─────────────────────────────────────────────────────────────────────
+if view == "holdings":
+    holdings = st.session_state.store.setdefault("holdings", {})
+    if not holdings:
+        st.markdown(
+            '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
+            'padding:14px 0;">No holdings yet. Open any ticker on Analyze and use “I own this / add position.”</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        bench = fetch_bench()
+
+        def _fmt_hold_px(value):
+            try:
+                if value is None:
+                    return "—"
+                return f"${float(value):,.2f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        def _fmt_hold_pct(value):
+            try:
+                if value is None:
+                    return "—"
+                return f"{float(value):+.1f}%"
+            except (TypeError, ValueError):
+                return "—"
+
+        rows = []
+        with st.spinner("Checking holdings…"):
+            for tkr, holding in sorted(holdings.items()):
+                hist, name, _err = fetch_history(tkr)
+                if hist is None or bench is None:
+                    continue
+                t_state = tactical.compute(hist, bench)
+                if not t_state:
+                    continue
+                meta = fetch_quote_meta(tkr)
+                t_state = apply_earnings_event_gate(t_state, meta.get("earnings_days") if meta else None)
+                entry = holding_to_position_entry(tkr, holding)
+                read = position_management_read(entry, t_state)
+                entry_px = entry.get("entry_price")
+                price = t_state.get("price")
+                shares = entry.get("shares")
+                pnl_pct = None
+                pnl_dollars = None
+                try:
+                    if entry_px and price:
+                        pnl_pct = (float(price) / float(entry_px) - 1) * 100
+                        if shares:
+                            pnl_dollars = (float(price) - float(entry_px)) * float(shares)
+                except (TypeError, ValueError):
+                    pass
+                target = entry.get("target1_price")
+                stop = entry.get("stop_price")
+                target_gap = ((target / price - 1) * 100) if target and price else None
+                stop_room = ((price / stop - 1) * 100) if stop and price else None
+                rows.append({
+                    "ticker": tkr,
+                    "name": name or tkr,
+                    "price": price,
+                    "entry": entry_px,
+                    "shares": shares,
+                    "pnl_pct": pnl_pct,
+                    "pnl_dollars": pnl_dollars,
+                    "target": target,
+                    "target_gap": target_gap,
+                    "stop": stop,
+                    "stop_room": stop_room,
+                    "read": read,
+                    "holding": holding,
+                })
+
+        st.markdown(
+            f'<div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+            f'letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);'
+            f'margin:4px 0 10px;">Holdings · {len(rows)} positions</div>',
+            unsafe_allow_html=True,
+        )
+
+        total_pl = sum((r.get("pnl_dollars") or 0) for r in rows)
+        trim_count = sum(
+            1 for r in rows
+            if (r.get("read") or {}).get("action") in ("Trim", "Take profit", "Exit", "Respect stop", "Review after earnings")
+        )
+        h1, h2, h3 = st.columns(3)
+        h1.metric("Positions", len(rows))
+        h2.metric("Needs review", trim_count)
+        h3.metric("Known $ P/L", f"${total_pl:,.0f}" if total_pl else "—")
+
+        st.markdown("""
+<style>
+.holdings-grid {
+    display:grid;
+    grid-template-columns:0.75fr 0.9fr 0.75fr 0.75fr 0.65fr 0.75fr 0.75fr 0.8fr 1.05fr;
+    gap:10px;
+    align-items:center;
+}
+.holdings-head {
+    padding:9px 10px;
+    border:1px solid var(--color-border);
+    border-radius:4px 4px 0 0;
+    background:#F8FAFC;
+    font-family:var(--font-mono);
+    font-size:var(--fs-xs);
+    font-weight:700;
+    letter-spacing:var(--ls-caps-lg);
+    text-transform:uppercase;
+    color:var(--color-muted);
+}
+.holdings-row {
+    padding:9px 10px;
+    border-left:1px solid var(--color-border);
+    border-right:1px solid var(--color-border);
+    border-bottom:1px solid var(--color-border-soft);
+    font-family:var(--font-mono);
+    font-size:var(--fs-sm);
+    font-variant-numeric:tabular-nums;
+}
+.holdings-row:last-child {
+    border-bottom:1px solid var(--color-border);
+    border-radius:0 0 4px 4px;
+}
+.holdings-ticker {
+    font-family:var(--font-sans);
+    font-weight:800;
+    color:var(--color-text) !important;
+    text-decoration:none !important;
+}
+.holdings-action {
+    font-family:var(--font-sans);
+    font-weight:800;
+    white-space:nowrap;
+}
+</style>
+""", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="holdings-grid holdings-head">'
+            '<span>Ticker</span><span>Now</span><span>Entry</span><span>Shares</span>'
+            '<span>P/L</span><span>Target</span><span>Stop</span><span>Room</span><span>Read</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        for row in rows:
+            read = row.get("read") or {}
+            color = read.get("color", "var(--color-muted)")
+            action = read.get("action", "Review")
+            emoji = read.get("emoji", "📌")
+            pl_color = "var(--color-positive)" if (row.get("pnl_pct") or 0) >= 0 else "var(--color-negative)"
+            room_text = f"Tgt {_fmt_hold_pct(row.get('target_gap'))} · Stop {(_fmt_hold_pct(row.get('stop_room'))).replace('+', '')}"
+            st.markdown(
+                f'<div class="holdings-grid holdings-row">'
+                f'<a class="holdings-ticker" href="?open={html.escape(row["ticker"])}" target="_self">{html.escape(row["ticker"])}</a>'
+                f'<span>{_fmt_hold_px(row.get("price"))}</span>'
+                f'<span>{_fmt_hold_px(row.get("entry"))}</span>'
+                f'<span>{html.escape(str(row.get("shares") or "—"))}</span>'
+                f'<span style="color:{pl_color};">{_fmt_hold_pct(row.get("pnl_pct"))}</span>'
+                f'<span>{_fmt_hold_px(row.get("target"))}</span>'
+                f'<span>{_fmt_hold_px(row.get("stop"))}</span>'
+                f'<span style="color:var(--color-muted);">{html.escape(room_text)}</span>'
+                f'<span class="holdings-action" style="color:{color};">{emoji} {html.escape(action)}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        for row in rows:
+            tkr = row["ticker"]
+            holding = holdings.get(tkr, {})
+            with st.expander(f"Edit {tkr} holding", expanded=False):
+                e1, e2, e3, e4 = st.columns(4)
+                with e1:
+                    entry_val = st.text_input("Entry", value=_fmt_hold_px(holding.get("entry_price")).replace("$", "").replace(",", "") if holding.get("entry_price") is not None else "", key=f"hold_entry_{tkr}")
+                with e2:
+                    shares_val = st.text_input("Shares", value=str(holding.get("shares") or ""), key=f"hold_shares_{tkr}")
+                with e3:
+                    target_val = st.text_input("Target", value=_fmt_hold_px(holding.get("target1_price")).replace("$", "").replace(",", "") if holding.get("target1_price") is not None else "", key=f"hold_target_{tkr}")
+                with e4:
+                    stop_val = st.text_input("Stop", value=_fmt_hold_px(holding.get("stop_price")).replace("$", "").replace(",", "") if holding.get("stop_price") is not None else "", key=f"hold_stop_{tkr}")
+                note_val = st.text_input("Note", value=str(holding.get("user_note") or ""), key=f"hold_note_{tkr}")
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    if st.button("Save holding", key=f"save_hold_{tkr}", use_container_width=True):
+                        try:
+                            def _maybe_float(v):
+                                v = str(v or "").replace("$", "").replace(",", "").strip()
+                                return float(v) if v else None
+                            holdings[tkr].update({
+                                "entry_price": _maybe_float(entry_val),
+                                "shares": _maybe_float(shares_val),
+                                "target1_price": _maybe_float(target_val),
+                                "stop_price": _maybe_float(stop_val),
+                                "user_note": note_val.strip(),
+                                "updated_at": datetime.now().isoformat(timespec="seconds"),
+                            })
+                            save_store(st.session_state.store)
+                            st.rerun()
+                        except ValueError:
+                            st.warning("One of the edited values is not a valid number.")
+                with c2:
+                    if st.button("Remove", key=f"delete_hold_{tkr}", use_container_width=True):
+                        holdings.pop(tkr, None)
+                        save_store(st.session_state.store)
+                        st.rerun()
+
+
 if view == "watchlist":
     if not st.session_state.store["watchlist"]:
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
         bench = fetch_bench()
         dossier_cache = st.session_state.store.get("dossier_cache", {})
-        active_position_tickers = {
-            str(d.get("ticker", "")).upper()
-            for d in st.session_state.store.get("decisions_log", [])
-            if d.get("outcome") is None and d.get("position_status") == "entered"
-        }
+        owned_ticker_set = active_position_tickers()
 
         def _watchlist_attention(tkr, t_state, trig_dist, earnings_days, cached):
             """Compact attention label + priority for the watchlist table."""
@@ -7722,7 +8024,7 @@ if view == "watchlist":
             action = t_state.get("action")
             if action == "enter_now":
                 return "🚀 Enter", 0, "var(--color-positive)"
-            if ticker_key in active_position_tickers:
+            if ticker_key in owned_ticker_set:
                 return "📌 Position", 1, "var(--color-blue)"
             if trig_dist is not None and abs(trig_dist) <= 3:
                 return "🎯 Near trigger", 2, "var(--color-warning-text)"
