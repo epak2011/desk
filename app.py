@@ -2656,7 +2656,27 @@ def fetch_quote_meta(ticker):
         if dy is None:
             dy = _first_present(info.get("yield"), _raw_yahoo_value(detail_summary.get("dividendYield")), _raw_yahoo_value(summary.get("yield")))
         if dy is not None:
-            out["dividend_yield"] = normalize_percent_value(dy)
+            normalized_dy = normalize_percent_value(dy)
+            # Yahoo/yfinance occasionally gives dividend *rate* through a
+            # yield-like field (NVDA can show 0.47, which would become 47%).
+            # When the normalized value is implausibly high, recompute from
+            # dividendRate/current price if possible; otherwise omit it.
+            if normalized_dy is not None and normalized_dy > 20:
+                div_rate = _first_present(info.get("dividendRate"), _raw_yahoo_value(detail_summary.get("dividendRate")))
+                current_px = _first_present(
+                    info.get("currentPrice"),
+                    _raw_yahoo_value(price_summary.get("regularMarketPrice")),
+                    _safe_fast_info_get(fast_info, "lastPrice"),
+                    _safe_fast_info_get(fast_info, "last_price"),
+                )
+                try:
+                    if div_rate is not None and current_px:
+                        normalized_dy = float(div_rate) / float(current_px) * 100
+                    else:
+                        normalized_dy = None
+                except (TypeError, ValueError, ZeroDivisionError):
+                    normalized_dy = None
+            out["dividend_yield"] = normalized_dy
 
         # Fund/ETF expense ratio — yfinance usually returns 0.0065 for 0.65%.
         er = info.get("annualReportExpenseRatio")
