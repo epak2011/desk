@@ -3246,14 +3246,18 @@ def render_research_report(ticker):
     if net_cash is None and cash is not None and debt is not None:
         net_cash = cash - debt
 
+    action_label = STATE_STYLES.get(t.get("action"), {}).get("label", t.get("action", "Watch"))
+    action_emoji = STATE_STYLES.get(t.get("action"), {}).get("emoji", "")
     if t.get("action") == "enter_now":
-        timing = "Technicals are supportive enough for immediate action."
+        timing = "Technical setup is actionable now, but sizing should still respect reward/risk and event risk."
     elif t.get("action") == "watch":
-        timing = "The business may be interesting, but the entry still depends on a cleaner trigger."
+        timing = "The name belongs on the screen, but the entry still depends on a cleaner trigger."
     elif t.get("action") == "hold_off":
-        timing = "The report can support watchlist work, but the trade setup is not clean enough yet."
+        timing = "The research may be useful, but the trade setup is not clean enough yet."
+    elif t.get("action") == "accumulate":
+        timing = "This is a small-starter, long-horizon setup rather than a clean tactical entry."
     else:
-        timing = "The current setup does not justify fresh exposure."
+        timing = "Current setup does not justify fresh exposure without a material repair signal."
 
     kpis = [
         ("Price", f"${t['price']:,.2f}"),
@@ -3267,22 +3271,48 @@ def render_research_report(ticker):
         ("Quality", q_label),
     ]
 
+    def clean_value(value):
+        if value is None:
+            return "—"
+        value = str(value)
+        return value if value.strip() else "—"
+
     def kpi_html():
         return "".join(
             f'<div class="research-kpi"><div class="k">{html.escape(k)}</div>'
-            f'<div class="v">{html.escape(str(v))}</div></div>'
+            f'<div class="v">{html.escape(clean_value(v))}</div></div>'
             for k, v in kpis
         )
 
     def table_html(title, rows):
         body = "".join(
-            f"<tr><td>{html.escape(label)}</td><td>{html.escape(value)}</td></tr>"
+            f"<tr><td>{html.escape(label)}</td><td>{html.escape(clean_value(value))}</td></tr>"
             for label, value in rows
         )
         return (
             f'<div class="research-section"><div class="eyebrow">{html.escape(title)}</div>'
             f'<table class="research-table"><tbody>{body}</tbody></table></div>'
         )
+
+    def bullets_html(items, fallback):
+        items = [str(x).strip() for x in (items or []) if str(x).strip()]
+        if not items:
+            items = [fallback]
+        return "".join(f"<li>{html.escape(x)}</li>" for x in items)
+
+    def paragraph(value, fallback):
+        value = str(value or "").strip()
+        return html.escape(value if value else fallback)
+
+    def series_rows(series, label):
+        rows = []
+        for period, value in (series or [])[:4]:
+            try:
+                period_label = period.strftime("%Y-%m-%d")
+            except Exception:
+                period_label = str(period)
+            rows.append((f"{label} {period_label}", fmt_big_number(value)))
+        return rows or [(f"{label} history", "Unavailable from current data source")]
 
     earnings_label = "Next earnings"
     if meta.get("earnings_date") and meta.get("earnings_days") is not None:
@@ -3302,13 +3332,26 @@ def render_research_report(ticker):
         ("Free cash flow", fmt_big_number(free_cash_flow)),
         ("Free cash flow margin", fmt_pct(fcf_margin)),
     ]
-    growth_rows = [
-        ("Trailing revenue", fmt_big_number(meta.get("total_revenue"))),
-        ("Revenue growth YoY", fmt_pct(revenue_yoy)),
-        ("Earnings growth YoY", fmt_pct(meta.get("earnings_growth"))),
+    history_rows = (
+        series_rows(fin.get("quarterly_revenue"), "Quarterly revenue") +
+        series_rows(fin.get("annual_revenue"), "Annual revenue")
+    )
+    trading_rows = [
+        ("Action", f"{action_emoji} {action_label}".strip()),
+        ("Decision context", decision_context(t)),
+        ("Price vs 50d", f"{((t['price'] - t['ma50']) / t['ma50'] * 100):+.1f}%" if t.get("ma50") else "—"),
+        ("Price vs 200d", f"{((t['price'] - t['ma200']) / t['ma200'] * 100):+.1f}%" if t.get("ma200") else "—"),
         ("52-week position", f"{t.get('pct_of_52w_range'):.0f}% of range" if t.get("pct_of_52w_range") is not None else "—"),
         ("Relative strength", f"{t.get('rs', 1):.2f} vs SPX"),
         ("Volume", f"{t.get('vol_ratio', 1):.2f}x 20d avg"),
+    ]
+    growth_rows = [
+        ("Trailing revenue", fmt_big_number(revenue or meta.get("total_revenue"))),
+        ("Revenue growth YoY", fmt_pct(revenue_yoy)),
+        ("Earnings growth YoY", fmt_pct(meta.get("earnings_growth"))),
+        ("Gross margin", fmt_pct(gross_margin)),
+        ("Operating margin", fmt_pct(operating_margin)),
+        ("Free cash flow margin", fmt_pct(fcf_margin)),
     ]
     balance_rows = [
         ("Cash & investments", fmt_big_number(cash)),
@@ -3336,75 +3379,115 @@ def render_research_report(ticker):
         ("Quality tier", q_label),
         ("Tactical state", STATE_STYLES.get(t.get("action"), {}).get("label", t.get("action", "—"))),
     ]
+    fund_rows = [
+        ("Fund category", category_label),
+        ("Fund family", meta.get("fund_family") or fallback_profile.get("fund_family") or "—"),
+        ("AUM / assets", fund_assets),
+        ("Expense ratio", format_expense_pct(meta.get("expense_ratio") or fallback_profile.get("expense_ratio")) or "—"),
+        ("Yield", fmt_pct(meta.get("dividend_yield")) if meta.get("dividend_yield") is not None else "—"),
+    ]
+    available_count = sum(
+        1 for _label, value in (
+            earnings_rows + growth_rows + balance_rows + valuation_rows + ownership_rows
+        )
+        if clean_value(value) != "—"
+    )
+    total_count = len(earnings_rows + growth_rows + balance_rows + valuation_rows + ownership_rows)
+    data_note = (
+        f"{available_count}/{total_count} core data fields are available from Yahoo/statement data. "
+        "Unavailable items are shown explicitly rather than hidden."
+    )
     watch_items = [
         f"Reclaim or lose the 50-day moving average at ${t.get('ma50', 0):,.2f}.",
         f"Hold the 200-day moving average near ${t.get('ma200', 0):,.2f}.",
         "Watch whether revenue growth is translating into cash flow rather than only headline scale.",
         "Track whether valuation multiples compress because fundamentals disappoint or because the stock de-risks into the numbers.",
     ]
+    deep = pm.get("deep_dive") or {}
+    variant_bull = deep.get("variant_bull") or ((pm.get("drivers") or ["Execution improves and the market assigns a higher-quality multiple."])[0])
+    variant_bear = deep.get("variant_bear") or ((pm.get("risks") or ["Valuation is already discounting too much good news."])[0])
+    must_be_true = deep.get("must_be_true") or watch_items[:3]
+    would_change_mind = deep.get("would_change_mind") or pm.get("risks") or watch_items[1:]
 
     st.markdown(f"""
 <div class="research-page">
   <div class="hero">
     <div class="eyebrow">Full research report · {html.escape(ticker)}</div>
     <h1>{html.escape(company)}</h1>
-    <div class="deck">{html.escape(timing)} This report focuses on the business, earnings quality,
-    financial trajectory, balance sheet, valuation, and the main debate; the trading trigger stays on the desk.</div>
+    <div class="deck">{html.escape(timing)} The report is organized as a PM memo:
+    decision read, business thesis, earnings/financial quality, valuation, ownership, and next proof points.</div>
     <div class="research-grid">{kpi_html()}</div>
   </div>
   <div class="research-layout">
     <div>
+      <div class="research-section research-brief">
+        <div class="eyebrow">Executive read</div>
+        <h2>{html.escape(action_emoji)} {html.escape(action_label)} · {html.escape(q_label)}</h2>
+        <p>{html.escape(decision_context(t))}</p>
+        <p><b>Data quality:</b> {html.escape(data_note)}</p>
+      </div>
       <div class="research-section">
-        <div class="eyebrow">Research read-through</div>
+        <div class="eyebrow">Investment thesis</div>
         <h2>What matters most</h2>
         <p>{html.escape(q_text)}</p>
-        <p>{html.escape(pm.get("valuation") or "Valuation context is not available yet.")}</p>
       </div>
       <div class="research-section">
         <div class="eyebrow">Business model</div>
         <h2>How the company makes money</h2>
-        <p>{html.escape(pm.get("thesis") or "Business summary is generated from the PM view and financial profile.")}</p>
+        <p>{paragraph(pm.get("thesis"), "Business summary is generated from the PM view and financial profile.")}</p>
       </div>
       <div class="research-section">
-        <div class="eyebrow">Financial trajectory</div>
-        <h2>Scale, growth, and quality of revenue</h2>
-        <p>{html.escape(company)} is currently showing {fmt_pct(revenue_yoy)} revenue growth with
-        {fmt_pct(gross_margin)} gross margins and {fmt_pct(fcf_margin)} free-cash-flow margins. The key question
-        is whether growth is being converted into durable earnings power, or whether the market is paying for scale
-        before the model has proved normalized profitability.</p>
+        <div class="eyebrow">Financial quality</div>
+        <h2>Scale, margins, and cash conversion</h2>
+        <p>{html.escape(company)} is showing {html.escape(fmt_pct(revenue_yoy))} revenue growth, {html.escape(fmt_pct(gross_margin))}
+        gross margin, and {html.escape(fmt_pct(fcf_margin))} free-cash-flow margin based on the best available
+        current data. The key question is whether growth is converting into durable earnings power or simply
+        supporting a higher multiple before normalized profitability is proven.</p>
       </div>
       <div class="research-section">
         <div class="eyebrow">Bull / bear debate</div>
         <h2>The variant perception</h2>
-        <p><b>Bull case:</b> {html.escape((pm.get("drivers") or ["Execution improves and the market assigns a higher-quality multiple."])[0])}</p>
-        <p><b>Bear case:</b> {html.escape((pm.get("risks") or ["Valuation is already discounting too much good news."])[0])}</p>
+        <p><b>Bull case:</b> {html.escape(str(variant_bull))}</p>
+        <p><b>Bear case:</b> {html.escape(str(variant_bear))}</p>
+      </div>
+      <div class="research-section">
+        <div class="eyebrow">Valuation judgment</div>
+        <h2>What the market is paying for</h2>
+        <p>{paragraph(pm.get("valuation") or deep.get("valuation_context"), "Valuation context is not available yet.")}</p>
       </div>
       <div class="research-section">
         <div class="eyebrow">Drivers</div>
         <h2>What could make the stock work</h2>
-        <ul>{''.join(f'<li>{html.escape(str(d))}</li>' for d in pm.get('drivers', []))}</ul>
+        <ul>{bullets_html(pm.get('drivers'), "Execution improves and the market assigns a higher-quality multiple.")}</ul>
       </div>
       <div class="research-section">
         <div class="eyebrow">Risks</div>
         <h2>What could break the thesis</h2>
-        <ul>{''.join(f'<li>{html.escape(str(r))}</li>' for r in pm.get('risks', []))}</ul>
+        <ul>{bullets_html(pm.get('risks'), "Valuation is already discounting too much good news.")}</ul>
       </div>
     </div>
     <div>
-      {table_html("Earnings highlights", earnings_rows)}
-      {table_html("Growth and trading context", growth_rows)}
-      {table_html("Balance sheet", balance_rows)}
-      {table_html("Valuation", valuation_rows)}
+      {table_html("Fund profile", fund_rows) if is_fund_report else table_html("Earnings snapshot", earnings_rows)}
+      {table_html("Financial quality", growth_rows)}
+      {table_html("Revenue history", history_rows)}
+      {table_html("Balance sheet", balance_rows) if not is_fund_report else ""}
+      {table_html("Valuation", valuation_rows) if not is_fund_report else ""}
       {table_html("Ownership and setup", ownership_rows)}
+      {table_html("Trading overlay", trading_rows)}
       <div class="research-section">
-        <div class="eyebrow">Tactical overlay</div>
-        <h2>{html.escape(STATE_STYLES.get(t.get("action"), {}).get("label", t.get("action", "Watch")))} now</h2>
-        <p>{html.escape(decision_context(t))}</p>
+        <div class="eyebrow">Must be true</div>
+        <h2>What has to hold</h2>
+        <ul>{bullets_html(must_be_true, "The business must keep converting growth into cash flow and hold key trend support.")}</ul>
+      </div>
+      <div class="research-section">
+        <div class="eyebrow">Would change mind</div>
+        <h2>Invalidation signals</h2>
+        <ul>{bullets_html(would_change_mind, "A break of trend support plus weakening fundamentals would invalidate the setup.")}</ul>
       </div>
       <div class="research-section">
         <div class="eyebrow">What to watch next</div>
         <h2>Next proof points</h2>
-        <ul>{''.join(f'<li>{html.escape(str(item))}</li>' for item in watch_items)}</ul>
+        <ul>{bullets_html(watch_items, "Watch the next earnings print, margin trend, and 50-day moving average.")}</ul>
       </div>
     </div>
   </div>
