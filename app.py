@@ -5549,10 +5549,12 @@ section[data-testid="stSidebar"] {
 
 .desk-sidebar-help-tip {
     position: absolute;
-    left: 18px;
-    top: -8px;
+    left: auto;
+    right: 0;
+    top: 18px;
     z-index: 9999;
-    width: 230px;
+    width: min(210px, calc(100vw - 32px));
+    max-width: 210px;
     padding: 9px 10px;
     border: 1px solid var(--desk-border);
     border-radius: 6px;
@@ -5564,9 +5566,11 @@ section[data-testid="stSidebar"] {
     line-height: 1.5;
     letter-spacing: 0;
     text-transform: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
     opacity: 0;
     pointer-events: none;
-    transform: translateY(3px);
+    transform: translateY(-2px);
     transition: opacity 120ms ease, transform 120ms ease;
 }
 
