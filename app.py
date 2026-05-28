@@ -1839,6 +1839,37 @@ div.streamlit-expanderHeader {
     margin-top: 12px;
     padding-top: 12px;
 }
+.desk-data-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0 0;
+}
+.desk-data-chip {
+    display: inline-flex;
+    gap: 5px;
+    align-items: baseline;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: #FFFFFF;
+    color: var(--color-muted);
+    padding: 4px 7px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.25;
+}
+.desk-data-chip b {
+    color: var(--color-text);
+    font-weight: 800;
+}
+.desk-data-chip.warn {
+    border-color: #F4D38A;
+    background: #FFFBEB;
+}
+.desk-data-chip.stale {
+    border-color: #F5B5B5;
+    background: #FFF7F7;
+}
 @media (max-width: 900px) {
     .research-grid {
         grid-template-columns: 1fr;
@@ -3237,6 +3268,48 @@ def format_source_note(source):
     return source
 
 
+def format_market_data_age(hist):
+    """Human-readable last bar date for trust/freshness UI."""
+    try:
+        if hist is None or len(hist) == 0:
+            return "price data unavailable", "stale"
+        last_idx = hist.index[-1]
+        if hasattr(last_idx, "date"):
+            last_date = last_idx.date()
+        else:
+            last_date = datetime.fromisoformat(str(last_idx)[:10]).date()
+        today = datetime.now().date()
+        age_days = max((today - last_date).days, 0)
+        if age_days == 0:
+            age_label = "today"
+        elif age_days == 1:
+            age_label = "yesterday"
+        else:
+            age_label = f"{age_days}d ago"
+        return f"last close {last_date.strftime('%b %d')} · {age_label}", ("fresh" if age_days <= 3 else "stale")
+    except Exception:
+        return "price data date unknown", "stale"
+
+
+def benchmark_source_label(bench):
+    source = getattr(bench, "attrs", {}).get("source") if bench is not None else None
+    if source == "cached":
+        return "SPY cached fallback", "warn"
+    if source == "synthetic":
+        return "SPY neutral fallback", "warn"
+    if source == "live":
+        return "SPY live", "fresh"
+    return "SPY source unknown", "warn"
+
+
+def data_status_html(items):
+    chips = "".join(
+        f'<span class="desk-data-chip {html.escape(kind)}"><b>{html.escape(label)}</b> {html.escape(value)}</span>'
+        for label, value, kind in items
+    )
+    return f'<div class="desk-data-strip">{chips}</div>'
+
+
 def get_effective_api_key():
     try:
         secret_key = st.secrets.get("ANTHROPIC_API_KEY", "").strip()
@@ -3303,6 +3376,8 @@ def render_research_report(ticker):
     t = tactical.compute(hist, bench)
     api_key = get_effective_api_key()
     pm = get_cached_pm(ticker, t, api_key=api_key if api_key else None, company_name=company)
+    price_age_label, price_age_kind = format_market_data_age(hist)
+    bench_label, bench_kind = benchmark_source_label(bench)
     modifiers = tactical.decision_modifiers(t, meta, t.get("market_regime", "unknown"))
     dossier = get_cached_dossier(
         ticker, t, modifiers, meta, pm,
@@ -3534,6 +3609,14 @@ def render_research_report(ticker):
         f"{available_count}/{total_count} core data fields are available from Yahoo/statement data. "
         "Unavailable items are shown explicitly rather than hidden."
     )
+    pm_source_label = format_source_note(pm.get("_source", "the thesis"))
+    pm_source_kind = "warn" if "fallback" in str(pm_source_label).lower() or "failed" in str(pm_source_label).lower() else "fresh"
+    report_status_html = data_status_html([
+        ("Price", price_age_label, price_age_kind),
+        ("Benchmark", bench_label, bench_kind),
+        ("PM", pm_source_label, pm_source_kind),
+        ("Fields", f"{available_count}/{total_count}", "fresh" if available_count >= total_count * 0.75 else "warn"),
+    ])
     watch_items = [
         f"Reclaim or lose the 50-day moving average at ${t.get('ma50', 0):,.2f}.",
         f"Hold the 200-day moving average near ${t.get('ma200', 0):,.2f}.",
@@ -3552,6 +3635,7 @@ def render_research_report(ticker):
     <div class="eyebrow">Full research report · {html.escape(ticker)}</div>
     <h1>{html.escape(company)}</h1>
     <div class="deck">{html.escape(timing)}</div>
+    {report_status_html}
     <div class="research-grid">{metrics_html()}</div>
   </div>
   <div class="research-layout">
@@ -6185,6 +6269,12 @@ if view == "analyze":
         if company_label else ""
     )
     meta_html = html.escape(meta_line)
+    price_age_label, price_age_kind = format_market_data_age(hist)
+    bench_label, bench_kind = benchmark_source_label(bench)
+    analyze_status_html = data_status_html([
+        ("Price", price_age_label, price_age_kind),
+        ("Benchmark", bench_label, bench_kind),
+    ])
 
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
@@ -6337,6 +6427,7 @@ if view == "analyze":
             '</div>'
         )
         st.markdown(ticker_header_html, unsafe_allow_html=True)
+        st.markdown(analyze_status_html, unsafe_allow_html=True)
         if earn_banner:
             st.markdown(
                 f'<div class="desk-earnings-banner"><span class="em">📅</span>'
