@@ -5696,6 +5696,58 @@ div[data-testid="element-container"]:has(.desk-bar) {
     color: var(--desk-muted);
 }
 
+.desk-decision-stack {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    border: 1px solid var(--desk-border);
+    border-radius: 6px;
+    background: var(--desk-border);
+    overflow: hidden;
+    margin: -2px 0 16px;
+}
+
+.desk-stack-cell {
+    background: #FFFFFF;
+    padding: 10px 12px;
+    min-height: 68px;
+}
+
+.desk-stack-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+    margin-bottom: 5px;
+}
+
+.desk-stack-value {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+    color: var(--desk-text);
+}
+
+.desk-stack-value strong,
+.desk-stack-value b {
+    font-weight: 850;
+}
+
+.desk-stack-call {
+    font-size: 19px;
+    font-weight: 850;
+    line-height: 1.1;
+    margin-right: 6px;
+}
+
+@media (max-width: 760px) {
+    .desk-decision-stack {
+        grid-template-columns: 1fr;
+    }
+}
+
 .desk-ticker-row .ticker {
     font-size: 24px !important;
     line-height: 1 !important;
@@ -6224,21 +6276,63 @@ if view == "analyze":
             position_management_read(active_position_entry, t)
             if active_position_entry else None
         )
+        stack_trigger_line = trigger_text(t)
+        if not stack_trigger_line and t.get("_primary_source") == "claude":
+            stack_trigger_line = (claude_call.get("trigger") or "").strip()
+            if stack_trigger_line:
+                try:
+                    from pm_view import substitute_live_values as _stack_sub_trigger
+                    stack_trigger_line = _stack_sub_trigger(stack_trigger_line, t)
+                except Exception:
+                    pass
+        if not stack_trigger_line:
+            stack_reconsider = reconsider_when(t)
+            stack_trigger_line = stack_reconsider[0] if stack_reconsider else "No clean trigger yet."
+
+        stack_risk_line = invalidation_text(t)
+        if not stack_risk_line:
+            if earn_banner:
+                stack_risk_line = f"Event risk: {earn_banner}"
+            else:
+                stack_why = why_avoid_reasons(t)
+                stack_risk_line = stack_why[0] if stack_why else "Respect sizing until the setup improves."
+
         if position_read:
-            stat_html = "".join(
-                f'<span><b>{html.escape(label)}</b> {html.escape(value)}</span>'
-                for label, value in position_read["stats"]
+            position_stat_line = " · ".join(
+                f"{label} {value}" for label, value in position_read["stats"][:4]
             )
-            st.markdown(f"""
-<div class="desk-position-read" style="border-left-color:{position_read['color']};">
-  <div class="desk-position-kicker" style="color:{position_read['color']};">
-    {position_read['emoji']} Position read
+            owned_value = (
+                f'<span class="desk-stack-call" style="color:{position_read["color"]};">'
+                f'{html.escape(position_read["emoji"])} {html.escape(position_read["action"])}</span>'
+                f'<span>{html.escape(position_stat_line)}</span>'
+            )
+        else:
+            owned_value = (
+                '<span class="desk-stack-call" style="color:var(--desk-muted);">Not tracked</span>'
+                '<span>Add a holding to get trim/sell logic.</span>'
+            )
+
+        st.markdown(f"""
+<div class="desk-decision-stack">
+  <div class="desk-stack-cell">
+    <div class="desk-stack-label">Fresh entry</div>
+    <div class="desk-stack-value">
+      <span class="desk-stack-call" style="color:{sty['color']};">{sty['emoji']} {html.escape(sty['label'])}</span>
+      <span>{html.escape(decision_context(t))}</span>
+    </div>
   </div>
-  <div class="desk-position-main">
-    <span style="color:{position_read['color']};">{html.escape(position_read['action'])}</span>
-    <span>{html.escape(position_read['summary'])}</span>
+  <div class="desk-stack-cell">
+    <div class="desk-stack-label">If owned</div>
+    <div class="desk-stack-value">{owned_value}</div>
   </div>
-  <div class="desk-position-stats">{stat_html}</div>
+  <div class="desk-stack-cell">
+    <div class="desk-stack-label">Trigger</div>
+    <div class="desk-stack-value">{bold_numbers(stack_trigger_line)}</div>
+  </div>
+  <div class="desk-stack-cell">
+    <div class="desk-stack-label">Risk / invalidation</div>
+    <div class="desk-stack-value">{bold_numbers(stack_risk_line)}</div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
