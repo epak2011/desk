@@ -5556,9 +5556,9 @@ div[data-testid="element-container"]:has(.desk-bar) {
 
 .desk-ticker-row {
     align-items: flex-start !important;
-    min-height: 60px !important;
-    height: 60px !important;
-    padding: 0 0 12px 0 !important;
+    min-height: 78px !important;
+    height: 78px !important;
+    padding: 0 0 14px 0 !important;
     margin: 0 0 18px 0 !important;
     border-bottom: 1px solid var(--desk-border) !important;
     overflow: visible !important;
@@ -5567,10 +5567,20 @@ div[data-testid="element-container"]:has(.desk-bar) {
     transform: none !important;
 }
 
+.desk-ticker-row > div:first-child {
+    min-width: 0 !important;
+    padding-right: 18px !important;
+}
+
+.desk-ticker-row .meta-inline {
+    line-height: 1.55 !important;
+    max-width: 100% !important;
+}
+
 .desk-pm-header {
-    min-height: 60px !important;
-    height: 60px !important;
-    padding: 0 0 12px 0 !important;
+    min-height: 78px !important;
+    height: 78px !important;
+    padding: 0 0 14px 0 !important;
     margin: 0 0 18px 0 !important;
     border-bottom: 1px solid var(--desk-border) !important;
     align-items: flex-start !important;
