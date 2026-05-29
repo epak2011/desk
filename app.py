@@ -5682,7 +5682,6 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
     effective_key = secret_key or env_key or session_key
 
     if effective_key:
-        masked = effective_key[:7] + "…" + effective_key[-4:] if len(effective_key) > 12 else "saved"
         if secret_key:
             source_note = "from cloud secret"
         elif env_key:
@@ -5693,7 +5692,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             f'<div style="font-size:var(--fs-base);color:var(--color-body);'
             f'padding:8px 10px;background:#F0FDF4;border:1px solid #BBF7D0;'
             f'border-radius:3px;font-family:Geist Mono,monospace;">'
-            f'✓ key {source_note} <span style="color:var(--color-faint);">({masked})</span>'
+            f'✓ API key configured <span style="color:var(--color-faint);">({source_note})</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
