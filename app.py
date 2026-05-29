@@ -4195,6 +4195,80 @@ def holding_to_position_entry(ticker, holding):
     }
 
 
+def parse_optional_float(value):
+    value = str(value or "").replace("$", "").replace(",", "").strip()
+    if not value:
+        return None
+    return float(value)
+
+
+def add_or_update_holding(ticker, entry_price, shares=None, target1_price=None, stop_price=None, user_note=""):
+    ticker = str(ticker or "").upper().strip()
+    if not ticker:
+        raise ValueError("Ticker is required.")
+    entry = parse_optional_float(entry_price)
+    if entry is None:
+        raise ValueError("Entry price is required.")
+    import uuid
+    holdings = st.session_state.store.setdefault("holdings", {})
+    existing = holdings.get(ticker, {})
+    holdings[ticker] = {
+        **existing,
+        "id": existing.get("id") or str(uuid.uuid4())[:8],
+        "ticker": ticker,
+        "entry_price": round(entry, 2),
+        "shares": parse_optional_float(shares),
+        "target1_price": parse_optional_float(target1_price),
+        "stop_price": parse_optional_float(stop_price),
+        "user_note": str(user_note or "").strip(),
+        "created_at": existing.get("created_at") or datetime.now().isoformat(timespec="seconds"),
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    if ticker not in st.session_state.store.setdefault("watchlist", []):
+        st.session_state.store["watchlist"].append(ticker)
+    return holdings[ticker]
+
+
+def sync_logged_positions_to_holdings():
+    """Show tracker-entered positions on Holdings without overwriting edits."""
+    holdings = st.session_state.store.setdefault("holdings", {})
+    changed = False
+    entered = [
+        d for d in st.session_state.store.get("decisions_log", [])
+        if d.get("outcome") is None
+        and d.get("position_status") == "entered"
+        and str(d.get("ticker", "")).strip()
+    ]
+    entered.sort(key=lambda d: d.get("entry_hit_at") or d.get("ts") or "")
+    for entry in entered:
+        ticker = str(entry.get("ticker", "")).upper().strip()
+        if not ticker or ticker in holdings:
+            continue
+        entry_px = (
+            entry.get("entry_hit_price")
+            or entry.get("entry_price")
+            or entry.get("price")
+        )
+        if entry_px is None:
+            continue
+        holdings[ticker] = {
+            "id": entry.get("id") or f"log-{ticker}",
+            "ticker": ticker,
+            "entry_price": entry_px,
+            "shares": entry.get("shares"),
+            "target1_price": entry.get("target1_price"),
+            "stop_price": entry.get("stop_price"),
+            "user_note": entry.get("user_note", ""),
+            "created_at": entry.get("entry_hit_at") or entry.get("ts") or datetime.now().isoformat(timespec="seconds"),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+            "source_log_id": entry.get("id"),
+        }
+        changed = True
+    if changed:
+        save_store(st.session_state.store)
+    return changed
+
+
 def get_holding_entry(ticker):
     holdings = st.session_state.store.setdefault("holdings", {})
     ticker = str(ticker or "").upper()
@@ -8511,11 +8585,47 @@ if view == "analyze":
 # WATCHLIST — Pro view
 # ─────────────────────────────────────────────────────────────────────
 if view == "holdings":
+    sync_logged_positions_to_holdings()
     holdings = st.session_state.store.setdefault("holdings", {})
+    with st.expander("Add holding directly", expanded=not bool(holdings)):
+        st.caption("Add anything you already own. This feeds the trim/sell read on Analyze and Holdings.")
+        with st.form("direct_add_holding_form", clear_on_submit=True):
+            a1, a2, a3, a4, a5 = st.columns([0.9, 0.9, 0.75, 0.9, 0.9])
+            with a1:
+                add_ticker = st.text_input("Ticker", placeholder="COHR")
+            with a2:
+                add_entry = st.text_input("Entry", placeholder="123.45")
+            with a3:
+                add_shares = st.text_input("Shares", placeholder="Optional")
+            with a4:
+                add_target = st.text_input("Target", placeholder="Optional")
+            with a5:
+                add_stop = st.text_input("Stop", placeholder="Optional")
+            add_note = st.text_input("Note", placeholder="Optional")
+            submitted_holding = st.form_submit_button("Add holding", use_container_width=True)
+        if submitted_holding:
+            try:
+                saved = add_or_update_holding(
+                    add_ticker,
+                    add_entry,
+                    shares=add_shares,
+                    target1_price=add_target,
+                    stop_price=add_stop,
+                    user_note=add_note,
+                )
+                save_store(st.session_state.store)
+                st.session_state.current_ticker = saved["ticker"]
+                st.session_state["ticker_input"] = saved["ticker"]
+                st.session_state["_last_synced_ticker"] = saved["ticker"]
+                st.success(f"Added {saved['ticker']} to Holdings.")
+                st.rerun()
+            except ValueError as e:
+                st.warning(str(e))
+
     if not holdings:
         st.markdown(
             '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
-            'padding:14px 0;">No holdings yet. Open any ticker on Analyze and use “I own this / add position.”</div>',
+            'padding:14px 0;">No holdings yet. Add one above, or open any ticker on Analyze and use “I own this / add position.”</div>',
             unsafe_allow_html=True,
         )
     else:
@@ -8691,14 +8801,11 @@ if view == "holdings":
                 with c1:
                     if st.button("Save holding", key=f"save_hold_{tkr}", use_container_width=True):
                         try:
-                            def _maybe_float(v):
-                                v = str(v or "").replace("$", "").replace(",", "").strip()
-                                return float(v) if v else None
                             holdings[tkr].update({
-                                "entry_price": _maybe_float(entry_val),
-                                "shares": _maybe_float(shares_val),
-                                "target1_price": _maybe_float(target_val),
-                                "stop_price": _maybe_float(stop_val),
+                                "entry_price": parse_optional_float(entry_val),
+                                "shares": parse_optional_float(shares_val),
+                                "target1_price": parse_optional_float(target_val),
+                                "stop_price": parse_optional_float(stop_val),
                                 "user_note": note_val.strip(),
                                 "updated_at": datetime.now().isoformat(timespec="seconds"),
                             })
