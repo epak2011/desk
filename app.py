@@ -334,7 +334,7 @@ if "nav_counter" not in st.session_state:
     st.session_state.nav_counter = 0
 
 
-def get_cached_pm(ticker, tactical_output, api_key, company_name):
+def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate=True):
     ticker = ticker.upper()
     cache = st.session_state.store["pm_cache"]
     entry = cache.get(ticker)
@@ -348,6 +348,11 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name):
                 return pm
         except Exception:
             pass
+    if not allow_generate:
+        pm = get_pm_view(ticker, tactical_output, api_key=None, company_name=company_name)
+        pm["_source"] = "static · fast mode"
+        return pm
+
     pm = get_pm_view(ticker, tactical_output, api_key=api_key, company_name=company_name)
     # Count this fresh Claude call if it actually hit the API. Source is
     # "claude" on success, "static" or "static (claude call failed: ...)"
@@ -386,7 +391,7 @@ def clear_pm_cache(ticker):
         save_store(st.session_state.store)
 
 
-def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name):
+def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name, allow_generate=True):
     """Cache decision dossiers with staleness rules + live-value substitution.
 
     Cost-saving design:
@@ -468,6 +473,17 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
                 }
         except Exception:
             pass
+
+    if not allow_generate:
+        return {
+            "dossier": None,
+            "technical_narrative": None,
+            "pm_narrative": None,
+            "bullets": {},
+            "quality": {},
+            "tactical_call": {},
+            "_source": "cached only · fast mode",
+        }
 
     # Cache miss or staleness failed — regenerate via Claude.
     result = get_decision_dossier(
@@ -2250,25 +2266,23 @@ div.streamlit-expanderHeader {
 # ─────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_history(ticker):
-    """Fetch 2y daily history + name. Returns (hist, name, err_reason).
+    """Fetch 2y daily history. Returns (hist, name, err_reason).
 
     err_reason is None on success; otherwise a short string explaining why
     the fetch failed (rate limit, 404, JSON decode error, etc.). The UI
     surfaces this so the user sees WHY data didn't load instead of a
     generic 'couldn't find data' message.
+
+    Keep this intentionally lean: ticker changes should not wait for the
+    slower Yahoo profile/info endpoint. Display metadata comes from the
+    separately cached quote-meta fetch.
     """
     try:
         yf_ticker = yf.Ticker(ticker)
         hist = yf_ticker.history(period="2y", interval="1d", auto_adjust=True)
         if hist is None or len(hist) == 0:
             return None, None, "Yahoo returned no rows for this ticker (possibly delisted, wrong symbol, or yfinance API drift)"
-        info = {}
-        try:
-            info = yf_ticker.info or {}
-        except Exception:
-            pass
-        name = info.get("longName") or info.get("shortName") or ticker
-        return hist, name, None
+        return hist, None, None
     except Exception as e:
         # yfinance 1.x can raise AttributeError on internal None/Response
         # mishandling when Yahoo's API drifts. Treat all exceptions the
@@ -2663,10 +2677,13 @@ def fetch_marketbeat_earnings_date(ticker, exchange_hint=None):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_quote_meta(ticker):
+def fetch_quote_meta(ticker, include_slow_fallbacks=False):
     """Pull sector, market cap, short interest, earnings date, valuation ratios,
     analyst rating + target, dividend yield, growth rate, debt/equity.
     All optional. Cached 1 hour.
+
+    Normal ticker navigation keeps slow web fallbacks off. Explicit refreshes
+    and full reports can opt in with `include_slow_fallbacks=True`.
     """
     out = {
         "long_name": None,
@@ -2837,7 +2854,7 @@ def fetch_quote_meta(ticker):
         is_fund_for_fallback = str(out.get("quote_type") or "").upper() in {"ETF", "MUTUALFUND", "FUND"} or bool(
             out.get("category") or out.get("fund_family") or out.get("total_assets") or out.get("net_assets")
         )
-        if not is_fund_for_fallback and (
+        if include_slow_fallbacks and not is_fund_for_fallback and (
             out.get("short_pct_float") is None or out.get("institutional_ownership_pct") is None
         ):
             mb = fetch_marketbeat_stats(ticker, out.get("exchange"))
@@ -2877,7 +2894,7 @@ def fetch_quote_meta(ticker):
         except Exception:
             pass
 
-        if out["earnings_date"] is None:
+        if include_slow_fallbacks and out["earnings_date"] is None:
             try:
                 ed = yf_ticker.earnings_dates
                 if ed is not None and len(ed) > 0:
@@ -2892,7 +2909,7 @@ def fetch_quote_meta(ticker):
             except Exception:
                 pass
 
-        if out["earnings_date"] is None:
+        if include_slow_fallbacks and out["earnings_date"] is None:
             try:
                 out["earnings_date"] = fetch_marketbeat_earnings_date(ticker, out.get("exchange"))
             except Exception:
@@ -3393,7 +3410,7 @@ def render_research_report(ticker):
 
     hist, name, err_reason = fetch_history(ticker)
     bench = fetch_bench()
-    meta = fetch_quote_meta(ticker)
+    meta = fetch_quote_meta(ticker, include_slow_fallbacks=True)
     fin = fetch_financial_snapshot(ticker)
     fallback_profile = infer_security_profile(ticker, meta, name)
     company = (
@@ -3420,6 +3437,7 @@ def render_research_report(ticker):
     dossier = get_cached_dossier(
         ticker, t, modifiers, meta, pm,
         api_key=api_key if api_key else None, company_name=company,
+        allow_generate=True,
     )
     quality = (dossier or {}).get("quality") or {}
     q_label = quality.get("tier") or "Unrated"
@@ -4791,6 +4809,7 @@ try:
         tkr_to_refresh = qp_global.get("pm_refresh")
         del qp_global["pm_refresh"]
         if tkr_to_refresh:
+            st.session_state["_force_pm_refresh_ticker"] = tkr_to_refresh.upper()
             clear_pm_cache(tkr_to_refresh)
             clear_dossier_cache(tkr_to_refresh)
             fetch_quote_meta.clear()
@@ -5453,9 +5472,19 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 
         current = st.session_state.current_ticker
 
-        # Cached so the always-visible sidebar does not rebuild every row's
-        # tactical read on each rerun.
-        wl_data = sidebar_watchlist_snapshot(tuple(watchlist))
+        # Keep Analyze fast: the sidebar uses the last saved watchlist quote
+        # snapshot instead of recalculating every ticker on every ticker change.
+        # The Watchlist view refreshes this richer snapshot explicitly.
+        saved_sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+        if st.session_state.view == "watchlist":
+            wl_data = sidebar_watchlist_snapshot(tuple(watchlist))
+            saved_sidebar_cache.update({
+                k: v for k, v in wl_data.items()
+                if isinstance(v, dict) and v.get("last") is not None
+            })
+            save_store(st.session_state.store)
+        else:
+            wl_data = saved_sidebar_cache
 
         # Each watchlist row rendered as ONE HTML markdown block.
         # No st.columns — flex layout in pure HTML, fully aligned, no
@@ -6264,6 +6293,13 @@ if view == "analyze":
         hist, name, err_reason = fetch_history(ticker)
         bench = fetch_bench()
         meta = fetch_quote_meta(ticker)
+        if not name:
+            name = (
+                (meta or {}).get("long_name")
+                or (meta or {}).get("short_name")
+                or infer_security_profile(ticker, meta).get("name")
+                or ticker
+            )
 
     if hist is None or len(hist) < 50:
         if err_reason:
@@ -6324,12 +6360,24 @@ if view == "analyze":
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
     # the snapshot. Both share the same cached fetch.
-    with st.spinner("Loading thesis…"):
-        pm = get_cached_pm(ticker, t, api_key=api_key if api_key else None, company_name=name)
+    force_pm_refresh = (
+        st.session_state.pop("_force_pm_refresh_ticker", "") == ticker.upper()
+    )
+    allow_pm_generate = force_pm_refresh or not api_key
+    allow_dossier_generate = force_pm_refresh
+
+    with st.spinner("Loading cached thesis…"):
+        pm = get_cached_pm(
+            ticker, t,
+            api_key=api_key if api_key else None,
+            company_name=name,
+            allow_generate=allow_pm_generate,
+        )
         dossier_result = get_cached_dossier(
             ticker, t, modifiers, meta, pm,
             api_key=api_key if api_key else None,
             company_name=name,
+            allow_generate=allow_dossier_generate,
         )
 
     # Live PM bullets: when the dossier call returned bullets, prefer those
