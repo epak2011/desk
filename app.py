@@ -3664,6 +3664,9 @@ def render_research_report(ticker):
     deep = pm.get("deep_dive") or {}
     variant_bull = deep.get("variant_bull") or ((pm.get("drivers") or ["Execution improves and the market assigns a higher-quality multiple."])[0])
     variant_bear = deep.get("variant_bear") or ((pm.get("risks") or ["Valuation is already discounting too much good news."])[0])
+    debate_sentence = (
+        f"The debate is whether {str(variant_bull).rstrip('.')} or {str(variant_bear).rstrip('.')}."
+    )
     must_be_true = deep.get("must_be_true") or watch_items[:3]
     would_change_mind = deep.get("would_change_mind") or pm.get("risks") or watch_items[1:]
 
@@ -3705,6 +3708,7 @@ def render_research_report(ticker):
       <div class="research-section">
         <div class="eyebrow">Bull / bear debate</div>
         <h2>The variant perception</h2>
+        <p><b>{html.escape(debate_sentence)}</b></p>
         <p><b>Bull case:</b> {html.escape(str(variant_bull))}</p>
         <p><b>Bear case:</b> {html.escape(str(variant_bear))}</p>
       </div>
