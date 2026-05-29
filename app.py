@@ -2420,6 +2420,36 @@ def sidebar_watchlist_snapshot(tickers):
     return snapshot
 
 
+def sidebar_action_hint(ticker, snapshot=None):
+    """Fast sidebar emoji source without recalculating the whole watchlist."""
+    tkr = str(ticker or "").upper().strip()
+    snapshot = snapshot or {}
+    action = snapshot.get("action")
+    if action:
+        return action
+
+    if tkr == str(st.session_state.get("current_ticker", "")).upper():
+        current_t = st.session_state.get("_current_tactical")
+        if isinstance(current_t, dict) and current_t.get("action"):
+            return current_t.get("action")
+
+    if tkr in active_position_tickers():
+        return "position"
+
+    for entry in reversed(st.session_state.store.get("decisions_log", [])):
+        if str(entry.get("ticker", "")).upper() != tkr:
+            continue
+        if entry.get("outcome") is not None:
+            continue
+        if entry.get("position_status") == "entered":
+            return "position"
+        raw = entry.get("user_action") or entry.get("rule_action") or entry.get("claude_action")
+        key = normalize_action_key(raw)
+        if key:
+            return key
+    return None
+
+
 def benchmark_fallback_notice(bench):
     if bench is None:
         return None
@@ -5495,14 +5525,19 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             row_snapshot = wl_data.get(tkr.upper(), {})
             last = row_snapshot.get("last")
             chg_pct = row_snapshot.get("change_pct")
-            action = row_snapshot.get("action")
+            action = sidebar_action_hint(tkr, row_snapshot)
             is_active = (tkr == current)
-            sty = STATE_STYLES.get(action or "")
-            marker_emoji = (sty or {}).get("emoji", "•")
-            marker_title = (sty or {}).get("label", "No signal yet")
+            if action == "position":
+                marker_emoji = "🟢"
+                marker_title = "Owned position"
+            else:
+                sty = STATE_STYLES.get(action or "")
+                marker_emoji = (sty or {}).get("emoji", "")
+                marker_title = (sty or {}).get("label", "Signal not loaded yet")
             action_marker = (
                 f'<span title="{html.escape(marker_title)}" style="margin-left:5px;'
                 f'font-size:11px;vertical-align:1px;">{html.escape(marker_emoji)}</span>'
+                if marker_emoji else ""
             )
             chg_color = (
                 "var(--color-positive)" if (chg_pct or 0) >= 0
@@ -6329,6 +6364,7 @@ if view == "analyze":
 
     earnings_days = meta.get("earnings_days") if meta else None
     t = apply_earnings_event_gate(t, earnings_days)
+    st.session_state["_current_tactical"] = {**t, "ticker": ticker.upper()}
 
     # Compute decision modifiers — earnings proximity, market regime, RS
     modifiers = tactical.decision_modifiers(t, meta, t.get("market_regime", "unknown"))
