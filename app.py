@@ -6401,10 +6401,14 @@ if view == "analyze":
     force_pm_refresh = (
         st.session_state.pop("_force_pm_refresh_ticker", "") == ticker.upper()
     )
-    allow_pm_generate = force_pm_refresh or not api_key
+    # Keep Analyze to one paid/slow generation path. The dossier call already
+    # returns PM bullets, quality, and tactical_call, so a refresh should not
+    # also generate the older PM snapshot in parallel.
+    allow_pm_generate = not api_key
     allow_dossier_generate = force_pm_refresh
 
-    with st.spinner("Loading cached thesis…"):
+    thesis_spinner = f"Refreshing {ticker.upper()} research…" if force_pm_refresh else "Loading cached thesis…"
+    with st.spinner(thesis_spinner):
         pm = get_cached_pm(
             ticker, t,
             api_key=api_key if api_key else None,
@@ -6431,6 +6435,7 @@ if view == "analyze":
             "drivers": live_bullets.get("drivers") or pm.get("drivers", []),
             "risks": live_bullets.get("risks") or pm.get("risks", []),
             "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
+            "_source": (dossier_result or {}).get("_source", pm.get("_source", "")),
         }
 
     # Accumulation Watch override: if compute() flagged the name as
