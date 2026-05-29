@@ -4229,44 +4229,23 @@ def add_or_update_holding(ticker, entry_price, shares=None, target1_price=None, 
     return holdings[ticker]
 
 
-def sync_logged_positions_to_holdings():
-    """Show tracker-entered positions on Holdings without overwriting edits."""
+def cleanup_tracker_synced_holdings():
+    """Remove holdings that were auto-created from tracker rows.
+
+    Holdings should be explicit-only: real positions the user added directly
+    or via "I own this / add position" on Analyze. Tracker rows stay in
+    Tracker unless the user promotes them manually.
+    """
     holdings = st.session_state.store.setdefault("holdings", {})
-    changed = False
-    entered = [
-        d for d in st.session_state.store.get("decisions_log", [])
-        if d.get("outcome") is None
-        and d.get("position_status") == "entered"
-        and str(d.get("ticker", "")).strip()
+    synced = [
+        ticker for ticker, holding in holdings.items()
+        if isinstance(holding, dict) and holding.get("source_log_id")
     ]
-    entered.sort(key=lambda d: d.get("entry_hit_at") or d.get("ts") or "")
-    for entry in entered:
-        ticker = str(entry.get("ticker", "")).upper().strip()
-        if not ticker or ticker in holdings:
-            continue
-        entry_px = (
-            entry.get("entry_hit_price")
-            or entry.get("entry_price")
-            or entry.get("price")
-        )
-        if entry_px is None:
-            continue
-        holdings[ticker] = {
-            "id": entry.get("id") or f"log-{ticker}",
-            "ticker": ticker,
-            "entry_price": entry_px,
-            "shares": entry.get("shares"),
-            "target1_price": entry.get("target1_price"),
-            "stop_price": entry.get("stop_price"),
-            "user_note": entry.get("user_note", ""),
-            "created_at": entry.get("entry_hit_at") or entry.get("ts") or datetime.now().isoformat(timespec="seconds"),
-            "updated_at": datetime.now().isoformat(timespec="seconds"),
-            "source_log_id": entry.get("id"),
-        }
-        changed = True
-    if changed:
+    for ticker in synced:
+        holdings.pop(ticker, None)
+    if synced:
         save_store(st.session_state.store)
-    return changed
+    return synced
 
 
 def get_holding_entry(ticker):
@@ -8585,8 +8564,14 @@ if view == "analyze":
 # WATCHLIST — Pro view
 # ─────────────────────────────────────────────────────────────────────
 if view == "holdings":
-    sync_logged_positions_to_holdings()
     holdings = st.session_state.store.setdefault("holdings", {})
+    removed_auto_holdings = cleanup_tracker_synced_holdings()
+    if removed_auto_holdings:
+        st.info(
+            "Removed tracker-imported holdings: "
+            + ", ".join(sorted(removed_auto_holdings))
+            + ". Holdings now only shows positions you explicitly add."
+        )
     with st.expander("Add holding directly", expanded=not bool(holdings)):
         st.caption("Add anything you already own. This feeds the trim/sell read on Analyze and Holdings.")
         with st.form("direct_add_holding_form", clear_on_submit=True):
