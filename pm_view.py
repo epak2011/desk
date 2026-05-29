@@ -255,22 +255,29 @@ Current tactical state from the system (for context, not the focus):
 - Technical score: {t.get('setup_score', 0):.1f} / 10
 - Projected reward/risk: {f"{t.get('reward_risk'):.2f}:1" if t.get('reward_risk') is not None else 'n/a'}
 
+PM MEMO QUALITY BAR:
+- Your job is judgment, not data transcription. Do not merely restate the tactical inputs.
+- Every paragraph must answer one of these questions: why own it, why avoid it, why now, what is priced in, what would change the call.
+- Separate business underwriting from trading timing. A great business can be a bad fresh entry; a broken chart can still be a real company.
+- Avoid generic phrases like "strong fundamentals", "growth opportunity", "competitive landscape", or "execution risk" unless immediately tied to a specific mechanism.
+- Use crisp investor language: moat, unit economics, revenue durability, margin structure, balance-sheet risk, multiple support, catalyst path.
+
 Return ONLY JSON in exactly this shape. No preamble, no code fences.
 
 {{
-  "thesis": "1-2 sentences, the core investment rationale",
+  "thesis": "1-2 sentences. State the actual underwriting view and what the market may be mispricing.",
   "drivers": ["3 short items, no period at end"],
   "risks": ["3 short items, no period at end"],
   "valuation": "1 sentence on valuation context",
   "deep_dive": {{
-    "expanded_thesis": "4-6 sentences. Frame consensus, variant view, what is priced in, and what would prove the view wrong.",
-    "business": "2-3 sentences on key segments, where growth comes from, durability of the franchise",
+    "expanded_thesis": "4-6 sentences. Frame consensus, your variant view, what is priced in, timing, and what would prove the view wrong.",
+    "business": "2-3 sentences on revenue model, key segments, margin structure, and durability of the franchise",
     "variant_bull": "1-2 sentences on the specific bull case that is NOT consensus",
     "variant_bear": "1-2 sentences on the specific bear case that is NOT consensus",
     "variant_needs": "1 sentence on what specifically has to happen for the variant to play out",
     "catalysts": ["3 time-bound catalysts over the next 1-2 quarters, each one line, concrete and dated when possible"],
     "risk_scenarios": ["3 specific failure modes, not generic risks. Each one line."],
-    "valuation_context": "2-3 sentences comparing to history, peers, growth durability, and what is priced in today",
+    "valuation_context": "2-3 sentences comparing multiple to growth durability, peer/history context if known, and the earnings/cash-flow path required to defend today's price",
     "must_be_true": ["3 things that must hold for the thesis to work. Each phrased as a specific measurable condition."],
     "would_change_mind": ["3 things that would invalidate the thesis. Each phrased as a specific observable trigger."]
   }}
@@ -441,6 +448,15 @@ DELIVERABLES — return ONLY a JSON object with these six keys:
 
 Each field's content rules:
 
+GLOBAL MEMO QUALITY RULES:
+- Do not duplicate the same observation across dossier, technical_narrative, and pm_narrative. Each field has a distinct job.
+- dossier = decision synthesis. technical_narrative = chart/tape evidence. pm_narrative = business underwriting and portfolio judgment.
+- PM narrative must NOT be a second technical recap. Mention current price only when discussing valuation, sizing, or entry discipline.
+- If the company is high quality but the entry is bad, say that plainly. If the setup is good but the business is speculative, say that plainly.
+- Name the dominant debate in one sentence: "The debate is whether ___ or ___." Work that debate into pm_narrative.
+- Include an explicit "what would change my mind" idea in pm_narrative paragraph 4, not only in bullets.
+- Avoid generic filler: "monitor execution", "competitive pressures", "macro uncertainty", "growth potential" are banned unless made specific.
+
 LIVE-VALUE TOKENS (CRITICAL):
 The dossier, technical_narrative, and pm_narrative are cached for up to 7 days, but PRICES MOVE DAILY. To keep narrative numbers current without regenerating the whole prose, you MUST use these literal token strings instead of hardcoding the values:
 
@@ -472,11 +488,11 @@ technical_narrative: 2-4 paragraphs (4 only if needed). Senior-trader voice. Use
 - Para 3 (optional): historical pattern context if useful — how this stock typically behaves at this kind of level. Use the ma50_history line if it adds signal.
 - Para 4 (optional, if relevant): how the broader regime ({regime} SPY) affects this read.
 
-pm_narrative: 3-4 paragraphs. Senior PM voice. Use {{price}} for current-price references. Walk through:
-- Para 1: what the business actually does and how it makes money. Specific to this name, not boilerplate.
-- Para 2: variant view — what consensus believes vs what the bull/bear case actually requires. Be specific about which view you find more convincing and why.
-- Para 3: valuation context — what's priced in at current multiples, how the math compares to the growth rate, what would have to be true for this to work from current levels.
-- Para 4: portfolio implementation — sizing posture, dominant catalyst, dominant risk, and the concrete evidence that would make you change your mind.
+pm_narrative: 3-4 paragraphs. Senior PM voice. Do NOT recap MA50/MA200/RS/RSI unless directly tied to sizing or timing. Walk through:
+- Para 1: business underwriting — what the business actually does, how it makes money, and why the moat/margin structure is or is not durable.
+- Para 2: variant view — "The debate is whether ___ or ___." Explain consensus, the bull case requirement, the bear case requirement, and which side currently has better evidence.
+- Para 3: valuation context — what's priced in at current multiples, how the math compares to growth/cash conversion, and the earnings path required to defend the stock from here.
+- Para 4: portfolio implementation — fresh-entry posture, owned-position posture if different, sizing posture, dominant catalyst, dominant risk, and the concrete evidence that would change your mind.
 
 bullets: compact summary that powers the right-hand snapshot panel. Used when the static template doesn't have a thesis for this ticker (DASH, PLTR, COIN, etc.). Rules:
 - thesis: 1-2 sentences. Core investment rationale. Specific to this name, no boilerplate.
