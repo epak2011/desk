@@ -1870,6 +1870,43 @@ div.streamlit-expanderHeader {
     border-color: #F5B5B5;
     background: #FFF7F7;
 }
+.watch-queue-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+    margin: 10px 0 14px;
+}
+.watch-queue-card {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 9px 10px;
+    min-height: 78px;
+}
+.watch-queue-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+.watch-queue-count {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    font-weight: 850;
+    line-height: 1;
+    color: var(--color-text);
+}
+.watch-queue-preview {
+    margin-top: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 @media (max-width: 900px) {
     .research-grid {
         grid-template-columns: 1fr;
@@ -1883,6 +1920,7 @@ div.streamlit-expanderHeader {
     }
     .research-layout { grid-template-columns: 1fr; }
     .research-page h1 { font-size: 42px; }
+    .watch-queue-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .desk-chart-label {
     font-family: var(--font-sans);
@@ -8671,6 +8709,52 @@ if view == "watchlist":
                     "_t": t,
                 })
 
+        def _watch_queue_bucket(row):
+            attention = str(row.get("attention") or "")
+            action = row.get("action")
+            if action == "enter_now":
+                return "Actionable now"
+            if attention.startswith("🎯"):
+                return "Near trigger"
+            if str(row.get("ticker")).upper() in owned_ticker_set:
+                return "Owned positions"
+            if attention.startswith("📅"):
+                return "Earnings risk"
+            if action == "avoid":
+                return "Broken / avoid"
+            if attention.startswith("🧠"):
+                return "PM refresh"
+            return "Monitor"
+
+        queue_order = [
+            ("Actionable now", "🚀", "var(--color-positive)"),
+            ("Near trigger", "🎯", "var(--color-warning-text)"),
+            ("Owned positions", "🟢", "var(--color-blue)"),
+            ("Earnings risk", "📅", "var(--color-warning-text)"),
+            ("Broken / avoid", "⛔", "var(--color-negative)"),
+            ("PM refresh", "🧠", "var(--color-faint)"),
+            ("Monitor", "👀", "var(--color-muted)"),
+        ]
+        queue_map = {label: [] for label, _emoji, _color in queue_order}
+        for row in rows:
+            queue_map.setdefault(_watch_queue_bucket(row), []).append(row)
+
+        queue_html = []
+        for label, emoji, color in queue_order:
+            bucket_rows = queue_map.get(label, [])
+            preview = " · ".join(r["ticker"] for r in bucket_rows[:4])
+            if len(bucket_rows) > 4:
+                preview += f" +{len(bucket_rows) - 4}"
+            if not preview:
+                preview = "—"
+            queue_html.append(
+                f'<div class="watch-queue-card">'
+                f'<div class="watch-queue-label" style="color:{color};">{emoji} {label}</div>'
+                f'<div class="watch-queue-count">{len(bucket_rows)}</div>'
+                f'<div class="watch-queue-preview">{html.escape(preview)}</div>'
+                f'</div>'
+            )
+
         # ── Sort selector ──
         st.markdown(
             '<div style="font-family: var(--font-sans);'
@@ -8678,6 +8762,10 @@ if view == "watchlist":
             'letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
             'color: var(--color-muted);margin: 4px 0 8px;">'
             'Watchlist · ' + str(len(rows)) + ' names</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="watch-queue-grid">' + "".join(queue_html) + '</div>',
             unsafe_allow_html=True,
         )
 
