@@ -9106,6 +9106,17 @@ if view == "watchlist":
                     else ("var(--color-fainter)" if row["vol_ratio"] < 0.7
                           else "var(--color-faint)")
                 )
+                state_key = str(row.get("state") or "").upper()
+                state_color = {
+                    "TRENDING": "var(--color-positive)",
+                    "TRANSITION": "var(--color-warning-text)",
+                    "BROKEN": "var(--color-negative)",
+                }.get(state_key, "var(--color-faint)")
+                state_bg = {
+                    "TRENDING": "rgba(0, 168, 112, 0.08)",
+                    "TRANSITION": "rgba(209, 135, 0, 0.10)",
+                    "BROKEN": "rgba(209, 69, 69, 0.09)",
+                }.get(state_key, "rgba(100, 116, 139, 0.08)")
                 trig_str = (
                     f'{row["trig_dist"]:+.1f}%' if row["trig_dist"] is not None else "—"
                 )
@@ -9159,7 +9170,11 @@ if view == "watchlist":
                     f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
                     f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
-                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--color-faint);">{row["state"]}</span>'
+                    f'<span style="display:inline-flex;width:max-content;align-items:center;'
+                    f'border:1px solid {state_color};border-radius:4px;background:{state_bg};'
+                    f'padding:2px 6px;font-family:var(--font-sans);font-size:var(--fs-xs);'
+                    f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{state_color};'
+                    f'font-weight:700;">{row["state"]}</span>'
                     f'{q_html}'
                     f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
                     f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
