@@ -1923,6 +1923,36 @@ div.streamlit-expanderHeader {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.watchlist-column-key {
+    margin: 12px 0 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 0;
+}
+.watchlist-column-key summary {
+    cursor: pointer;
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    list-style-position: inside;
+}
+.watchlist-column-key div {
+    border-top: 1px solid var(--color-border-soft);
+    padding: 9px 12px 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-muted);
+}
+.watchlist-column-key b {
+    font-family: var(--font-mono);
+    color: var(--color-text);
+    font-size: 12px;
+}
 @media (max-width: 900px) {
     .research-grid {
         grid-template-columns: 1fr;
@@ -4928,7 +4958,8 @@ with st.sidebar:
         '<span>Watchlist</span>'
         '<span class="desk-sidebar-help">i'
         '<span class="desk-sidebar-help-tip">Sidebar symbols match the main dashboard call:<br>'
-        '🚀 Enter · 👀 Watch · 🤔 Hold off<br>🌱 Accumulate · ⛔ Avoid</span>'
+        '🚀 Enter · 👀 Watch · 🤔 Hold off<br>🌱 Accumulate · ⛔ Avoid<br>'
+        '<span class="muted">Same source as the Watchlist Action column.</span></span>'
         '</span>'
         '</div>',
         unsafe_allow_html=True,
@@ -5877,13 +5908,12 @@ section[data-testid="stSidebar"] {
 }
 
 .desk-sidebar-help-tip {
-    position: absolute;
-    left: auto;
-    right: 0;
-    top: 18px;
+    position: fixed;
+    left: 176px;
+    top: 282px;
     z-index: 9999;
-    width: min(210px, calc(100vw - 32px));
-    max-width: 210px;
+    width: 236px;
+    max-width: calc(100vw - 196px);
     padding: 9px 10px;
     border: 1px solid var(--desk-border);
     border-radius: 6px;
@@ -5897,10 +5927,16 @@ section[data-testid="stSidebar"] {
     text-transform: none;
     white-space: normal;
     overflow-wrap: anywhere;
+    text-align: left;
     opacity: 0;
     pointer-events: none;
     transform: translateY(-2px);
     transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.desk-sidebar-help-tip .muted {
+    color: var(--desk-muted);
+    font-weight: 500;
 }
 
 .desk-sidebar-help:hover .desk-sidebar-help-tip {
@@ -8990,6 +9026,24 @@ if view == "watchlist":
             'minmax(66px,0.72fr);'
         )
 
+        column_key_html = """
+<details class="watchlist-column-key">
+  <summary>Column key</summary>
+  <div>
+    <b>Setup</b> descriptive setup type, separate from the action call ·
+    <b>Attention</b> highest-signal reason to look now ·
+    <b>Quality</b> long-term PM tier ·
+    <b>RS</b> relative strength vs SPY, above 1.0 leads ·
+    <b>vs MA50</b> percent above/below the 50-day ·
+    <b>52w pos</b> position in the 52-week range ·
+    <b>Vol ×</b> today vs 20-day average ·
+    <b>Trig</b> percent to trigger ·
+    <b>Earn</b> days to earnings.
+  </div>
+</details>
+"""
+        st.markdown(column_key_html, unsafe_allow_html=True)
+
         # Header
         st.markdown(
             f'<div style="display:grid; {grid_cols} '
@@ -9000,19 +9054,19 @@ if view == "watchlist":
             f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
             f'color: var(--color-muted);">'
             f'<span>Ticker</span>'
-            f'<span title="Descriptive setup personality, separate from the action call">Setup ⓘ</span>'
-            f'<span title="Highest-signal reason this name deserves attention now">Attention ⓘ</span>'
+            f'<span>Setup</span>'
+            f'<span>Attention</span>'
             f'<span style="text-align:right;">Last</span>'
             f'<span style="text-align:right;">Chg (1D)</span>'
             f'<span>Action</span>'
             f'<span>State</span>'
-            f'<span title="Long-term ownership tier from Claude (A / B / Speculative / Avoid)">Quality ⓘ</span>'
-            f'<span style="text-align:right;" title="Relative strength vs SPY (>1.0 = leader)">RS ⓘ</span>'
-            f'<span style="text-align:right;" title="% above/below 50-day MA">vs MA50 ⓘ</span>'
-            f'<span style="text-align:right;" title="Position in 52-week range (0% = at low, 100% = at high)">52w pos ⓘ</span>'
-            f'<span style="text-align:right;" title="Today\'s volume vs 20-day average">Vol × ⓘ</span>'
-            f'<span style="text-align:right;" title="% to logged trigger price (— if no trigger)">Trig ⓘ</span>'
-            f'<span style="text-align:right;" title="Days to next earnings">Earn ⓘ</span>'
+            f'<span>Quality</span>'
+            f'<span style="text-align:right;">RS</span>'
+            f'<span style="text-align:right;">vs MA50</span>'
+            f'<span style="text-align:right;">52w pos</span>'
+            f'<span style="text-align:right;">Vol ×</span>'
+            f'<span style="text-align:right;">Trig</span>'
+            f'<span style="text-align:right;">Earn</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -9076,11 +9130,14 @@ if view == "watchlist":
                 # Ticker cell is a clickable <a> with ?open=TICKER param.
                 # Streamlit picks up the param on rerun (handler at top of
                 # this block) and switches the active ticker.
+                action_emoji = sty.get("emoji", "")
                 ticker_link = (
                     f'<a href="?open={row["ticker"]}" target="_self" '
                     f'style="font-weight:600;color:var(--color-text);'
                     f'text-decoration:none;cursor:pointer;">'
-                    f'{row["ticker"]}</a>'
+                    f'{row["ticker"]}'
+                    f'<span style="margin-left:5px;font-size:11px;vertical-align:1px;">{html.escape(action_emoji)}</span>'
+                    f'</a>'
                 )
                 personality_html = (
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);'
