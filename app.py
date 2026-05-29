@@ -3913,7 +3913,8 @@ def bold_numbers(s):
 def trigger_text(t):
     """Short, price-based, single-condition."""
     if t["action"] == "enter_now":
-        return f"Enter long at market — ${t['price']:,.2f}."
+        entry = t.get("entry") or t.get("price")
+        return f"Enter long at market — ${entry:,.2f}." if entry is not None else "Enter long at market."
     if t["action"] == "watch" and t.get("trigger"):
         trg = t["trigger"]
         kind = trg["kind"]
@@ -3937,6 +3938,8 @@ def trigger_text(t):
         if buy:
             return f"Close above ${buy:,.2f}."
         return trg.get("summary", "").capitalize()
+    if t["action"] == "watch" and t.get("entry") is not None:
+        return f"Target entry at ${t['entry']:,.2f}; wait for confirmation."
     if t["action"] == "avoid":
         if t["raw_bias"] == "bearish":
             return "No action — wait for a confirmed reversal."
@@ -6548,14 +6551,6 @@ if view == "analyze":
             if active_position_entry else None
         )
         stack_trigger_line = trigger_text(t)
-        if not stack_trigger_line and t.get("_primary_source") == "claude":
-            stack_trigger_line = (claude_call.get("trigger") or "").strip()
-            if stack_trigger_line:
-                try:
-                    from pm_view import substitute_live_values as _stack_sub_trigger
-                    stack_trigger_line = _stack_sub_trigger(stack_trigger_line, t)
-                except Exception:
-                    pass
         if not stack_trigger_line:
             stack_reconsider = reconsider_when(t)
             stack_trigger_line = stack_reconsider[0] if stack_reconsider else "No clean trigger yet."
@@ -6615,13 +6610,8 @@ if view == "analyze":
         # so they're above the modifier badges, dossier, and tape read.
         if t["action"] in ("enter_now", "watch"):
             trig_line = trigger_text(t)
-            if not trig_line and t.get("_primary_source") == "claude":
-                trig_line = (claude_call.get("trigger") or "Watch for confirmation.").strip()
-                try:
-                    from pm_view import substitute_live_values as _sub_trigger
-                    trig_line = _sub_trigger(trig_line, t)
-                except Exception:
-                    pass
+            if not trig_line:
+                trig_line = "No clean trigger yet."
             st.markdown(f"""
 <div class="desk-trigger-block">
   <div class="desk-trigger-label"><span class="em">⚡</span>Trigger</div>
@@ -7291,7 +7281,7 @@ if view == "analyze":
                         rule_action == "avoid" or claude_action_raw == "AVOID" or user_pick == "AVOID"
                     ) else None,
                     "entry_is_projected": bool(t.get("entry_is_projected")),
-                    "trigger_summary": claude_trigger or trigger_text(t),
+                    "trigger_summary": trigger_text(t),
                     "user_action": user_pick,
                     "user_note": user_note.strip() if user_note else "",
                     "outcome": None,
