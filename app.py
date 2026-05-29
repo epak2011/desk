@@ -5509,7 +5509,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 else "var(--color-negative)"
             )
             chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else "—"
-            px_str = f"{last:,.2f}" if last is not None else "—"
+            px_str = f"${last:,.2f}" if last is not None else "—"
 
             # Active ticker: black bg + white text on the ticker label only
             active_bg = "var(--color-text)" if is_active else "transparent"
@@ -5538,7 +5538,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 f'display: flex; flex-direction: column; align-items: flex-end;'
                 f'font-family: var(--font-mono); font-variant-numeric: tabular-nums;'
                 f'line-height: 1.15; padding: 0 4px;">'
-                f'<span style="font-size: var(--fs-base); color: var(--color-text); font-weight: 500;">${px_str}</span>'
+                f'<span style="font-size: var(--fs-base); color: var(--color-text); font-weight: 500;">{px_str}</span>'
                 f'<span style="font-size: var(--fs-sm); color: {chg_color};">{chg_str}</span>'
                 f'</div>'
                 # ✕ delete — clickable
