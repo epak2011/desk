@@ -2450,6 +2450,26 @@ def sidebar_watchlist_snapshot(tickers):
     return snapshot
 
 
+def normalize_action_key(raw):
+    """Normalize logged/user/Claude action labels to internal action keys."""
+    if raw is None:
+        return None
+    value = str(raw).strip().lower().replace(" ", "_").replace("-", "_")
+    aliases = {
+        "enter": "enter_now",
+        "enter_now": "enter_now",
+        "buy": "enter_now",
+        "watch": "watch",
+        "hold": "hold_off",
+        "hold_off": "hold_off",
+        "holdoff": "hold_off",
+        "avoid": "avoid",
+        "sell": "avoid",
+        "accumulate": "accumulate",
+    }
+    return aliases.get(value)
+
+
 def sidebar_action_hint(ticker, snapshot=None):
     """Fast sidebar emoji source without recalculating the whole watchlist."""
     tkr = str(ticker or "").upper().strip()
