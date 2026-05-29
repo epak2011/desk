@@ -4839,11 +4839,14 @@ try:
         tkr_to_refresh = qp_global.get("pm_refresh")
         del qp_global["pm_refresh"]
         if tkr_to_refresh:
-            st.session_state["_force_pm_refresh_ticker"] = tkr_to_refresh.upper()
-            clear_pm_cache(tkr_to_refresh)
-            clear_dossier_cache(tkr_to_refresh)
-            fetch_quote_meta.clear()
-            fetch_history.clear()
+            refresh_ticker = str(tkr_to_refresh).upper().strip()
+            st.session_state.current_ticker = refresh_ticker
+            st.session_state.view = "analyze"
+            st.session_state["ticker_input"] = refresh_ticker
+            st.session_state["_last_synced_ticker"] = refresh_ticker
+            st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
+            clear_pm_cache(refresh_ticker)
+            clear_dossier_cache(refresh_ticker)
             sidebar_watchlist_snapshot.clear()
             st.rerun()
 except Exception:
