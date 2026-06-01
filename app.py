@@ -1898,6 +1898,56 @@ div.streamlit-expanderHeader {
     border-color: var(--color-border);
     background: #FFFFFF;
 }
+.tech-memo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.tech-memo-table {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #FFFFFF;
+    overflow: hidden;
+}
+.tech-memo-title {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border-soft);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+.tech-memo-row {
+    display: grid;
+    grid-template-columns: minmax(82px, 0.72fr) minmax(0, 1.28fr);
+    gap: 12px;
+    padding: 7px 10px;
+    border-top: 1px solid var(--color-border-soft);
+    align-items: baseline;
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+}
+.tech-memo-title + .tech-memo-row {
+    border-top: 0;
+}
+.tech-memo-row .k {
+    color: var(--color-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 650;
+}
+.tech-memo-row .v {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+@media (max-width: 900px) {
+    .tech-memo-grid {
+        grid-template-columns: 1fr;
+    }
+}
 .watch-queue-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -5004,6 +5054,235 @@ def technical_commentary(t):
     return lines
 
 
+def _fmt_signed_pct(value, digits=1):
+    try:
+        return f"{float(value):+.{digits}f}%"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _fmt_px(value):
+    try:
+        return f"${float(value):,.2f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _ema(series, span):
+    return series.ewm(span=span, adjust=False).mean()
+
+
+def _td_setup_count(closes):
+    """Approximate DeMark TD Sequential setup count.
+
+    Buy setup: consecutive closes below the close four bars earlier.
+    Sell setup: consecutive closes above the close four bars earlier.
+    Counts reset on opposite signal. This is intentionally a setup read,
+    not a full proprietary TD Sequential implementation.
+    """
+    if closes is None or len(closes) < 5:
+        return {"side": "—", "count": 0, "status": "insufficient history"}
+    buy_count = 0
+    sell_count = 0
+    for i in range(4, len(closes)):
+        close = float(closes.iloc[i])
+        prior = float(closes.iloc[i - 4])
+        if close < prior:
+            buy_count += 1
+            sell_count = 0
+        elif close > prior:
+            sell_count += 1
+            buy_count = 0
+        else:
+            buy_count = 0
+            sell_count = 0
+    if sell_count:
+        status = "exhaustion watch" if sell_count >= 8 else "upside setup building"
+        return {"side": "Sell", "count": min(sell_count, 9), "status": status}
+    if buy_count:
+        status = "downside exhaustion watch" if buy_count >= 8 else "downside setup building"
+        return {"side": "Buy", "count": min(buy_count, 9), "status": status}
+    return {"side": "—", "count": 0, "status": "no active setup"}
+
+
+def _technical_snapshot_from_hist(hist, bench, t):
+    closes = hist["Close"].dropna()
+    weekly = hist.resample("W-FRI").agg({
+        "Open": "first",
+        "High": "max",
+        "Low": "min",
+        "Close": "last",
+        "Volume": "sum",
+    }).dropna()
+
+    ema12 = _ema(closes, 12)
+    ema26 = _ema(closes, 26)
+    macd = ema12 - ema26
+    macd_signal = _ema(macd, 9)
+    macd_hist = macd - macd_signal
+    macd_now = float(macd.iloc[-1]) if len(macd) else 0.0
+    macd_sig_now = float(macd_signal.iloc[-1]) if len(macd_signal) else 0.0
+    macd_hist_now = float(macd_hist.iloc[-1]) if len(macd_hist) else 0.0
+    macd_hist_prev = float(macd_hist.iloc[-2]) if len(macd_hist) > 1 else macd_hist_now
+
+    weekly_closes = weekly["Close"].dropna()
+    weekly_ma10 = float(weekly_closes.rolling(10).mean().iloc[-1]) if len(weekly_closes) >= 10 else None
+    weekly_ma30 = float(weekly_closes.rolling(30).mean().iloc[-1]) if len(weekly_closes) >= 30 else None
+    weekly_price = float(weekly_closes.iloc[-1]) if len(weekly_closes) else t.get("price")
+    weekly_rsi = tactical._rsi(weekly_closes) if len(weekly_closes) >= 15 else None
+
+    td_daily = _td_setup_count(closes)
+    td_weekly = _td_setup_count(weekly_closes)
+
+    returns = closes.pct_change()
+    realized_vol_20 = float(returns.iloc[-20:].std() * (252 ** 0.5) * 100) if len(returns) >= 20 else None
+    high_20 = float(hist["High"].iloc[-20:].max()) if len(hist) >= 20 else None
+    low_20 = float(hist["Low"].iloc[-20:].min()) if len(hist) >= 20 else None
+
+    bench_rs_20 = None
+    if bench is not None and len(bench) >= 21 and len(hist) >= 21:
+        try:
+            t_ret = closes.iloc[-1] / closes.iloc[-21] - 1
+            b_closes = bench["Close"].dropna()
+            b_ret = b_closes.iloc[-1] / b_closes.iloc[-21] - 1
+            bench_rs_20 = (t_ret - b_ret) * 100
+        except Exception:
+            bench_rs_20 = None
+
+    ma20 = t.get("ma20")
+    ma50 = t.get("ma50")
+    ma100 = t.get("ma100")
+    ma200 = t.get("ma200")
+    price = t.get("price")
+    stack_bullish = bool(price and ma20 and ma50 and ma100 and ma200 and price > ma20 > ma50 > ma100 > ma200)
+    stack_bearish = bool(price and ma20 and ma50 and ma100 and ma200 and price < ma20 < ma50 < ma100 < ma200)
+    if stack_bullish:
+        stack_read = "full bullish stack"
+        stack_sev = "pos"
+    elif stack_bearish:
+        stack_read = "full bearish stack"
+        stack_sev = "neg"
+    elif price and ma50 and ma200 and price > ma50 and price > ma200:
+        stack_read = "above core trend"
+        stack_sev = "pos"
+    elif price and ma50 and ma200 and price < ma50 and price < ma200:
+        stack_read = "below core trend"
+        stack_sev = "neg"
+    else:
+        stack_read = "mixed / transition"
+        stack_sev = ""
+
+    weekly_trend_pos = bool(weekly_ma10 and weekly_ma30 and weekly_price > weekly_ma10 > weekly_ma30)
+    weekly_trend_neg = bool(weekly_ma10 and weekly_ma30 and weekly_price < weekly_ma10 < weekly_ma30)
+    if weekly_trend_pos:
+        weekly_read = "weekly uptrend confirmed"
+        weekly_sev = "pos"
+    elif weekly_trend_neg:
+        weekly_read = "weekly downtrend confirmed"
+        weekly_sev = "neg"
+    else:
+        weekly_read = "weekly mixed"
+        weekly_sev = ""
+
+    if macd_now > macd_sig_now and macd_hist_now > macd_hist_prev:
+        macd_read = "bullish and improving"
+        macd_sev = "pos"
+    elif macd_now > macd_sig_now:
+        macd_read = "bullish but flattening"
+        macd_sev = ""
+    elif macd_now < macd_sig_now and macd_hist_now < macd_hist_prev:
+        macd_read = "bearish and deteriorating"
+        macd_sev = "neg"
+    else:
+        macd_read = "bearish but improving"
+        macd_sev = ""
+
+    return {
+        "stack_read": stack_read,
+        "stack_sev": stack_sev,
+        "weekly_read": weekly_read,
+        "weekly_sev": weekly_sev,
+        "weekly_ma10": weekly_ma10,
+        "weekly_ma30": weekly_ma30,
+        "weekly_rsi": weekly_rsi,
+        "macd": macd_now,
+        "macd_signal": macd_sig_now,
+        "macd_hist": macd_hist_now,
+        "macd_read": macd_read,
+        "macd_sev": macd_sev,
+        "td_daily": td_daily,
+        "td_weekly": td_weekly,
+        "realized_vol_20": realized_vol_20,
+        "high_20": high_20,
+        "low_20": low_20,
+        "bench_rs_20": bench_rs_20,
+    }
+
+
+def detailed_technical_rows(hist, bench, t):
+    snap = _technical_snapshot_from_hist(hist, bench, t)
+    price = t.get("price")
+    rsi = t.get("rsi14")
+    rs = t.get("rs", 1.0)
+    rs_delta = t.get("rs_delta", 0)
+    vol_ratio = t.get("vol_ratio", 1.0)
+    pct_52w = t.get("pct_of_52w_range")
+
+    ma_rows = [
+        ("MA stack", snap["stack_read"], snap["stack_sev"]),
+        ("20d", f"{_fmt_px(t.get('ma20'))} · {_fmt_signed_pct((price / t.get('ma20') - 1) * 100 if price and t.get('ma20') else None)}", ""),
+        ("50d", f"{_fmt_px(t.get('ma50'))} · {_fmt_signed_pct((price / t.get('ma50') - 1) * 100 if price and t.get('ma50') else None)}", ""),
+        ("100d", f"{_fmt_px(t.get('ma100'))} · {_fmt_signed_pct((price / t.get('ma100') - 1) * 100 if price and t.get('ma100') else None)}", ""),
+        ("200d", f"{_fmt_px(t.get('ma200'))} · {_fmt_signed_pct((price / t.get('ma200') - 1) * 100 if price and t.get('ma200') else None)}", ""),
+    ]
+    momentum_rows = [
+        ("RSI 14", f"{rsi:.0f}" if rsi is not None else "—", "neg" if rsi and (rsi >= 75 or rsi <= 30) else ("pos" if rsi and 50 <= rsi < 70 else "")),
+        ("MACD", f"{snap['macd']:.2f} vs signal {snap['macd_signal']:.2f} · hist {snap['macd_hist']:+.2f}", snap["macd_sev"]),
+        ("MACD read", snap["macd_read"], snap["macd_sev"]),
+        ("TD daily", f"{snap['td_daily']['side']} {snap['td_daily']['count']}/9 · {snap['td_daily']['status']}", "neg" if snap["td_daily"]["side"] == "Sell" and snap["td_daily"]["count"] >= 8 else ""),
+        ("TD weekly", f"{snap['td_weekly']['side']} {snap['td_weekly']['count']}/9 · {snap['td_weekly']['status']}", "neg" if snap["td_weekly"]["side"] == "Sell" and snap["td_weekly"]["count"] >= 8 else ""),
+    ]
+    strength_rows = [
+        ("Relative strength", f"{rs:.2f} vs SPY · 10d {rs_delta:+.2f}", "pos" if rs >= 1.05 else ("neg" if rs < 0.95 else "")),
+        ("20d alpha", _fmt_signed_pct(snap["bench_rs_20"]), "pos" if snap["bench_rs_20"] and snap["bench_rs_20"] > 0 else ("neg" if snap["bench_rs_20"] and snap["bench_rs_20"] < 0 else "")),
+        ("Volume", f"{vol_ratio:.2f}× 20d average", "pos" if vol_ratio >= 1.2 else ("neg" if vol_ratio <= 0.7 else "")),
+        ("20d realized vol", f"{snap['realized_vol_20']:.1f}%" if snap["realized_vol_20"] is not None else "—", ""),
+        ("52w position", f"{pct_52w:.0f}%" if pct_52w is not None else "—", "pos" if pct_52w and pct_52w >= 70 else ("neg" if pct_52w and pct_52w <= 20 else "")),
+    ]
+    timeframe_rows = [
+        ("Daily", snap["stack_read"], snap["stack_sev"]),
+        ("Weekly", snap["weekly_read"], snap["weekly_sev"]),
+        ("Weekly 10w", _fmt_px(snap["weekly_ma10"]), ""),
+        ("Weekly 30w", _fmt_px(snap["weekly_ma30"]), ""),
+        ("Weekly RSI", f"{snap['weekly_rsi']:.0f}" if snap["weekly_rsi"] is not None else "—", ""),
+    ]
+    levels_rows = [
+        ("20d high", _fmt_px(snap["high_20"]), ""),
+        ("20d low", _fmt_px(snap["low_20"]), ""),
+        ("52w high", _fmt_px(t.get("high_52w")), ""),
+        ("52w low", _fmt_px(t.get("low_52w")), ""),
+        ("ATR", f"{(t.get('atr_pct') or 0) * 100:.2f}%", "neg" if not t.get("atr_ok", True) else ""),
+    ]
+    return ma_rows, momentum_rows, strength_rows, timeframe_rows, levels_rows
+
+
+def render_technical_table(title, rows):
+    color_map = {"pos": "#2E7D4F", "neg": "#D14545", "": "var(--color-text)"}
+    body = "".join(
+        f'<div class="tech-memo-row">'
+        f'<span class="k">{html.escape(label)}</span>'
+        f'<span class="v" style="color:{color_map.get(sev, "var(--color-text)")};">{bold_numbers(html.escape(str(value)))}</span>'
+        f'</div>'
+        for label, value, sev in rows
+    )
+    return (
+        '<div class="tech-memo-table">'
+        f'<div class="tech-memo-title">{html.escape(title)}</div>'
+        f'{body}'
+        '</div>'
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Global query-param handlers — run before any view renders
 # ─────────────────────────────────────────────────────────────────────
@@ -7828,6 +8107,20 @@ if view == "analyze":
         has_detailed_tech = bool(tech_narrative) or bool(commentary_lines)
         if has_detailed_tech:
             with st.expander("Detailed technical view ↓", expanded=False):
+                ma_rows, momentum_rows, strength_rows, timeframe_rows, levels_rows = detailed_technical_rows(hist, bench, t)
+                st.markdown(
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin-bottom:8px;">Technical memo</div>'
+                    '<div class="tech-memo-grid">'
+                    f'{render_technical_table("Trend / moving averages", ma_rows)}'
+                    f'{render_technical_table("Momentum", momentum_rows)}'
+                    f'{render_technical_table("Relative strength / volume", strength_rows)}'
+                    f'{render_technical_table("Daily vs weekly", timeframe_rows)}'
+                    f'{render_technical_table("Levels / volatility", levels_rows)}'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
                 if commentary_lines:
                     commentary_html = "".join(
                         f'<p style="margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.65; '
@@ -7836,6 +8129,7 @@ if view == "analyze":
                         for line in commentary_lines
                     )
                     st.markdown(
+                        f'<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
                         f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
                         f'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
                         f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
