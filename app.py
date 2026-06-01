@@ -9372,6 +9372,12 @@ if view == "watchlist":
                 if cached_action and cached_confidence >= 5 and not hard_rule_lock:
                     t = {**t, "action": cached_action}
                     t = apply_earnings_event_gate(t, earnings_days)
+                final_cached = (
+                    st.session_state.store.get("final_action_cache", {}).get(tkr.upper(), {}) or {}
+                )
+                final_cached_action = normalize_action_key(final_cached.get("action"))
+                if final_cached_action:
+                    t = {**t, "action": final_cached_action}
 
                 # Trigger distance % — how close to a logged trigger?
                 trig = t.get("trigger") or {}
