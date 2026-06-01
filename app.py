@@ -210,6 +210,10 @@ def _store_default():
         # {"COIN": {"support": [145, 110], "resistance": [213, 280]}, ...}
         # These are merged with auto-detected key_levels at app render time.
         "manual_levels": {},
+        # User-hidden auto-detected levels per ticker. Shape:
+        # {"DASH": [155.22, 168.40], ...}. A hidden auto level stays hidden
+        # until restored from the key-levels section.
+        "hidden_levels": {},
         # First-class positions owned outside the decision logger.
         # Shape: {"NVDA": {"ticker": "NVDA", "entry_price": 198.45,
         #                  "shares": 10, "target1_price": 240,
@@ -315,6 +319,9 @@ if "store" not in st.session_state:
         _needs_save = True
     if "manual_levels" not in st.session_state.store:
         st.session_state.store["manual_levels"] = {}
+        _needs_save = True
+    if "hidden_levels" not in st.session_state.store:
+        st.session_state.store["hidden_levels"] = {}
         _needs_save = True
     if "holdings" not in st.session_state.store:
         st.session_state.store["holdings"] = {}
@@ -7033,7 +7040,19 @@ if view == "analyze":
     # gated on Quality A/B when a dossier is available, but auto-detected
     # levels can also fire on names where Claude hasn't been run yet (the
     # support setup itself is meaningful regardless of fundamentals).
-    auto_levels = t.get("key_levels") or []
+    hidden_auto_levels = st.session_state.store.get("hidden_levels", {}).get(ticker.upper(), []) or []
+
+    def _is_hidden_auto_level(level):
+        try:
+            level = float(level)
+            return any(abs(level - float(h)) <= 0.02 for h in hidden_auto_levels)
+        except (TypeError, ValueError):
+            return False
+
+    auto_levels = [
+        lv for lv in (t.get("key_levels") or [])
+        if not _is_hidden_auto_level(lv.get("level"))
+    ]
     user_levels_for_ticker = (
         st.session_state.store.get("manual_levels", {}).get(ticker.upper(), {})
     )
@@ -8602,41 +8621,75 @@ if view == "analyze":
         # proximate actionable levels. Collapsed by default; opens to show
         # nearby levels first with cleaner language than the prior version.
         with st.expander("🎯 Key levels — support / resistance"):
-            auto_lvls = t.get("key_levels") or []
+            raw_auto_lvls = t.get("key_levels") or []
             user_lvls = st.session_state.store.setdefault("manual_levels", {}).setdefault(
                 ticker.upper(), {"support": [], "resistance": []}
             )
+            hidden_lvls = st.session_state.store.setdefault("hidden_levels", {}).setdefault(
+                ticker.upper(), []
+            )
             current_price = t["price"]
 
-            # Helper: format one auto level as a readable row
-            def _fmt_level_row(lv):
-                level = lv["level"]
+            def _level_is_hidden(level):
+                try:
+                    level = float(level)
+                    return any(abs(level - float(h)) <= 0.02 for h in hidden_lvls)
+                except (TypeError, ValueError):
+                    return False
+
+            auto_lvls = [
+                lv for lv in raw_auto_lvls
+                if not _level_is_hidden(lv.get("level"))
+            ]
+
+            def _level_kind(level):
+                return "support" if level <= current_price else "resistance"
+
+            def _level_distance(level):
                 pct = (level - current_price) / current_price * 100
-                # Override kind based on position — support must be below, resistance above
-                kind = "support" if level <= current_price else "resistance"
-                color = "#00A870" if kind == "support" else "#D14545"
-                # Direction language matters more than the +/- sign
                 if abs(pct) < 0.5:
-                    distance = "at current price"
-                elif pct > 0:
-                    distance = f"{pct:.1f}% above"
-                else:
-                    distance = f"{abs(pct):.1f}% below"
-                # Touches and flip context, in plain English
+                    return "at current price"
+                if pct > 0:
+                    return f"{pct:.1f}% above"
+                return f"{abs(pct):.1f}% below"
+
+            def _render_level_row(lv, row_key, *, source):
+                level = float(lv["level"])
+                kind = lv.get("kind") or _level_kind(level)
+                color = "#00A870" if kind == "support" else "#D14545"
                 touches_text = f"{lv['touches']}× tested"
-                flip_text = " · also tested as resistance" if (kind == "support" and lv["is_flip"]) else (
-                    " · former support" if (kind == "resistance" and lv["is_flip"]) else ""
+                flip_text = " · S/R flip" if lv.get("is_flip") else ""
+                label = "Remove" if source == "manual" else "Hide"
+                c1, c2, c3 = st.columns([2.2, 2.6, 0.8])
+                c1.markdown(
+                    f'<div style="font-family:var(--font-mono);font-size:var(--fs-md);'
+                    f'font-weight:700;color:{color};padding:8px 0;">${level:,.2f} '
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);'
+                    f'font-weight:600;color:var(--color-muted);margin-left:6px;">{kind}</span></div>',
+                    unsafe_allow_html=True,
                 )
-                return (
-                    f'<div style="display:flex;justify-content:space-between;align-items:baseline;'
-                    f'font-family:Geist,sans-serif;font-size:var(--fs-md);color:var(--color-text);'
-                    f'padding:8px 0;border-bottom:1px solid var(--color-border-soft);">'
-                    f'<span><span style="font-family: var(--font-mono);font-weight:600;'
-                    f'color:{color};">${level:,.2f}</span> '
-                    f'<span style="color:var(--color-muted);font-size:var(--fs-base);margin-left:8px;">{kind}</span></span>'
-                    f'<span style="color:var(--color-muted);font-size:var(--fs-base);">'
-                    f'{distance} · {touches_text}{flip_text}</span>'
-                    f'</div>'
+                c2.markdown(
+                    f'<div style="font-family:var(--font-sans);font-size:var(--fs-base);'
+                    f'color:var(--color-muted);padding:9px 0;">'
+                    f'{_level_distance(level)} · {touches_text}{flip_text}</div>',
+                    unsafe_allow_html=True,
+                )
+                if c3.button(label, key=row_key, use_container_width=True):
+                    if source == "manual":
+                        bucket = lv.get("bucket") or ("support" if kind == "support" else "resistance")
+                        user_lvls[bucket] = [
+                            v for v in user_lvls.get(bucket, [])
+                            if abs(float(v) - level) > 0.02
+                        ]
+                        st.session_state.store["manual_levels"][ticker.upper()] = user_lvls
+                    else:
+                        hidden_lvls.append(round(level, 2))
+                        st.session_state.store["hidden_levels"][ticker.upper()] = sorted(set(hidden_lvls))
+                    save_store(st.session_state.store)
+                    st.rerun()
+                st.markdown(
+                    '<div style="border-bottom:1px solid var(--color-border-soft);margin:0 0 2px;"></div>',
+                    unsafe_allow_html=True,
                 )
 
             # Split into proximate (within 15%) vs distant
@@ -8646,14 +8699,35 @@ if view == "analyze":
             ]
             distant = [lv for lv in auto_lvls if lv not in proximate]
 
+            manual_rows = (
+                [
+                    {"level": float(v), "touches": 1, "is_flip": False, "kind": "support", "bucket": "support"}
+                    for v in (user_lvls.get("support", []) or [])
+                ] +
+                [
+                    {"level": float(v), "touches": 1, "is_flip": False, "kind": "resistance", "bucket": "resistance"}
+                    for v in (user_lvls.get("resistance", []) or [])
+                ]
+            )
+            if manual_rows:
+                st.markdown(
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin:4px 0 6px;">Marked by you</div>',
+                    unsafe_allow_html=True,
+                )
+                for idx, lv in enumerate(sorted(manual_rows, key=lambda x: x["level"])):
+                    _render_level_row(lv, f"manual_lvl_{ticker}_{idx}_{lv['level']}", source="manual")
+
             if proximate:
                 st.markdown(
                     '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                    'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color:var(--color-muted);margin:4px 0 6px;">Nearby — within 15% of current price</div>'
-                    + "".join(_fmt_level_row(lv) for lv in proximate[:6]),
+                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin:10px 0 6px;">Nearby auto levels — within 15%</div>',
                     unsafe_allow_html=True,
                 )
+                for idx, lv in enumerate(proximate[:5]):
+                    _render_level_row(lv, f"hide_near_lvl_{ticker}_{idx}_{lv['level']}", source="auto")
             elif auto_lvls:
                 st.markdown(
                     '<div style="font-size:var(--fs-sm);color:var(--color-muted);font-style:italic;'
@@ -8676,10 +8750,18 @@ if view == "analyze":
                     f'Other tested levels ({len(distant)})</div>',
                     unsafe_allow_html=True,
                 )
-                st.markdown(
-                    "".join(_fmt_level_row(lv) for lv in distant[:8]),
-                    unsafe_allow_html=True,
-                )
+                for idx, lv in enumerate(distant[:5]):
+                    _render_level_row(lv, f"hide_far_lvl_{ticker}_{idx}_{lv['level']}", source="auto")
+
+            if hidden_lvls:
+                if st.button(
+                    f"Restore hidden auto levels ({len(hidden_lvls)})",
+                    key=f"restore_hidden_levels_{ticker}",
+                    use_container_width=True,
+                ):
+                    st.session_state.store["hidden_levels"][ticker.upper()] = []
+                    save_store(st.session_state.store)
+                    st.rerun()
 
             # Manual override section — collapsed by default. Most users
             # never need it; the auto-detection is usually right.
