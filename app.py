@@ -8452,6 +8452,27 @@ if view == "analyze":
 
         # 5. Technical details — footer, collapsed
         with st.expander("Technical details"):
+            ma_rows, momentum_rows, strength_rows, timeframe_rows, levels_rows = detailed_technical_rows(hist, bench, t)
+            st.markdown(
+                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                'color:var(--color-muted);margin-bottom:8px;">Technical memo</div>'
+                '<div class="tech-memo-grid">'
+                f'{render_technical_table("Trend / moving averages", ma_rows)}'
+                f'{render_technical_table("Momentum", momentum_rows)}'
+                f'{render_technical_table("Relative strength / volume", strength_rows)}'
+                f'{render_technical_table("Daily vs weekly", timeframe_rows)}'
+                f'{render_technical_table("Levels / volatility", levels_rows)}'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                'color:var(--color-muted);margin-bottom:8px;">Rule engine inputs</div>',
+                unsafe_allow_html=True,
+            )
             rows = [
                 ("Bias", f"{t['bias'].capitalize() if t['bias'] else '—'} ({t['bias_score']:+d} on ±10 scale)"),
                 ("Technical score", f"{t['setup_score']:.1f} / 10"),
