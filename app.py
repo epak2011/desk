@@ -6828,6 +6828,26 @@ textarea,
 .main div.stExpander svg {
     background: transparent !important;
 }
+
+/* No warm-tinted dropdown/accordion surfaces anywhere in the app. */
+.main details,
+.main details *,
+.main summary,
+.main [data-baseweb="select"],
+.main [data-baseweb="select"] *,
+.main [data-baseweb="popover"],
+.main [data-baseweb="popover"] *,
+.main [role="listbox"],
+.main [role="listbox"] *,
+.main [role="option"],
+.main [role="option"] * {
+    background-color: #FFFFFF !important;
+    background-image: none !important;
+}
+.main summary:hover,
+.main [role="option"]:hover {
+    background-color: #F8FAFC !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
