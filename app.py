@@ -740,7 +740,7 @@ st.markdown("""
     text-transform: uppercase;
     line-height: 1.4;
 }
-.desk-cmp-badge-disagree { background: #FEF3C7; color: #92400E; }
+.desk-cmp-badge-disagree { background: #FFF2F3; color: #8A1F1F; }
 .desk-cmp-badge-agree    { background: #D1FAE5; color: #065F46; }
 .desk-cmp-badge-unknown  { background: var(--color-surface-soft); color: var(--color-muted); }
 .desk-cmp-read {
@@ -897,7 +897,7 @@ html, body, .main, .main p, .main li {
     display: flex; align-items: center; gap: 8px;
 }
 .desk-mod-high { background: var(--color-surface-warning); border-color: #F5C8C8; color: #6E2E2E; }
-.desk-mod-med  { background: var(--color-surface-trigger); border-color: #F5D88A; color: var(--color-warning-text); }
+.desk-mod-med  { background: var(--color-surface-trigger); border-color: #CFE0FF; color: var(--color-warning-text); }
 .desk-mod-low  { background: var(--color-surface-soft); border-color: var(--color-border); color: var(--color-body); }
 .desk-mod .icon {
     font-size: var(--fs-base); line-height: 1;
@@ -1596,7 +1596,7 @@ div.streamlit-expanderHeader {
 /* ────────────────────────────────────────────────────────────── */
 .desk-earnings-banner {
     background: var(--color-surface-trigger);
-    border: 1px solid #F5D88A;
+    border: 1px solid #CFE0FF;
     border-radius: 3px;
     padding: 10px 14px;
     margin: 0 0 20px;
@@ -1882,8 +1882,8 @@ div.streamlit-expanderHeader {
     font-weight: 800;
 }
 .desk-data-chip.warn {
-    border-color: #F4D38A;
-    background: #FFFBEB;
+    border-color: #CFE0FF;
+    background: #F6F9FF;
 }
 .desk-data-chip.fresh {
     border-color: rgba(0, 168, 112, 0.22);
@@ -6268,7 +6268,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         # No DATABASE_URL configured — running in session-only mode
         st.markdown(
             '<div style="margin-top:8px;padding:6px 10px;background:var(--color-surface-trigger);'
-            'border:1px solid #F5D88A;border-radius:3px;'
+            'border:1px solid #CFE0FF;border-radius:3px;'
             'font-family:Geist Mono,monospace;font-size:var(--fs-xs);color:var(--color-warning-text);">'
             '⚠ Session-only · data resets on refresh'
             '</div>',
@@ -6795,6 +6795,39 @@ textarea,
     background-color: #FFFFFF !important;
     background-image: none !important;
 }
+
+/* Absolute final expander/dropdown surface cleanup. Streamlit nests
+   expanders several layers deep; force every layer away from beige fills. */
+.main div[data-testid="stExpander"],
+.main div[data-testid="stExpander"] *,
+.main details.stExpander,
+.main details.stExpander *,
+.main div.stExpander,
+.main div.stExpander *,
+.main div[data-testid="stExpander"] > details,
+.main div[data-testid="stExpander"] summary,
+.main div[data-testid="stExpanderDetails"],
+.main div[data-testid="stExpander"] div[data-testid="stExpanderDetails"] {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    background-image: none !important;
+}
+.main div[data-testid="stExpander"] summary,
+.main details.stExpander summary,
+.main div.stExpander summary {
+    border-bottom: 1px solid var(--desk-border) !important;
+}
+.main div[data-testid="stExpander"] summary:hover,
+.main details.stExpander summary:hover,
+.main div.stExpander summary:hover {
+    background: #F8FAFC !important;
+    background-color: #F8FAFC !important;
+}
+.main div[data-testid="stExpander"] svg,
+.main details.stExpander svg,
+.main div.stExpander svg {
+    background: transparent !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -7262,7 +7295,7 @@ if view == "analyze":
 
             reasons_html = "".join(f'<li>{bold_numbers(r)}</li>' for r in stabilizing_reasons)
             st.markdown(f"""
-<div class="desk-avoid-reasons" style="border-left-color:var(--color-purple); background:#F4F0FB;">
+<div class="desk-avoid-reasons" style="border-left-color:var(--desk-blue); background:#FFFFFF;">
   <div class="label" style="color:var(--color-purple);">
     <span class="em">🌱</span>Why accumulate
   </div>
@@ -7272,7 +7305,7 @@ if view == "analyze":
 
             # Sizing guidance — explicit, not a full allocation
             st.markdown("""
-<div class="desk-reconsider" style="border-left-color:var(--color-purple); background:#F4F0FB;">
+<div class="desk-reconsider" style="border-left-color:var(--desk-blue); background:#FFFFFF;">
   <div class="label" style="color:var(--color-purple);">
     <span class="em">📊</span>Position discipline
   </div>
@@ -9855,8 +9888,8 @@ if view == "tracker":
     ]), unsafe_allow_html=True)
 
     st.markdown(f"""
-<div style="background:linear-gradient(90deg,#F4F0FB 0%, var(--color-bg) {progress_pct}%, var(--color-bg) 100%);
-        border:1px solid #D9D5CC;border-radius:4px;padding:10px 14px;
+<div style="background:linear-gradient(90deg,#F8FAFC 0%, var(--desk-bg) {progress_pct}%, var(--desk-bg) 100%);
+        border:1px solid var(--desk-border);border-radius:4px;padding:10px 14px;
         margin-bottom:14px;">
   <div style="font-family: var(--font-sans);font-size:var(--fs-xs);font-weight:600;
           letter-spacing: var(--ls-caps-xl);text-transform:uppercase;color:var(--color-purple);
