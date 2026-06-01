@@ -6848,6 +6848,25 @@ textarea,
 .main [role="option"]:hover {
     background-color: #F8FAFC !important;
 }
+
+/* Streamlit sometimes renders expanders outside the .main scope; keep the
+   final neutral surface rule global so technical sections cannot inherit tint. */
+div[data-testid="stExpander"],
+div[data-testid="stExpander"] *,
+details.stExpander,
+details.stExpander *,
+div.stExpander,
+div.stExpander *,
+details,
+details *,
+summary {
+    background-color: #FFFFFF !important;
+    background-image: none !important;
+}
+div[data-testid="stExpander"] summary:hover,
+details summary:hover {
+    background-color: #F8FAFC !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
