@@ -322,6 +322,9 @@ if "store" not in st.session_state:
     if "decisions_log" not in st.session_state.store:
         st.session_state.store["decisions_log"] = []
         _needs_save = True
+    if "final_action_cache" not in st.session_state.store:
+        st.session_state.store["final_action_cache"] = {}
+        _needs_save = True
     if _needs_save:
         save_store(st.session_state.store)
 if "current_ticker" not in st.session_state:
@@ -2539,8 +2542,19 @@ def sidebar_action_hint(ticker, snapshot=None):
 
     if tkr == str(st.session_state.get("current_ticker", "")).upper():
         current_t = st.session_state.get("_current_tactical")
-        if isinstance(current_t, dict) and current_t.get("action"):
+        if (
+            isinstance(current_t, dict) and
+            str(current_t.get("ticker", "")).upper() == tkr and
+            current_t.get("action")
+        ):
             return current_t.get("action")
+
+    final_cached = (
+        st.session_state.store.get("final_action_cache", {}).get(tkr, {}) or {}
+    )
+    final_action = normalize_action_key(final_cached.get("action"))
+    if final_action:
+        return final_action
 
     cached_call = (
         ((st.session_state.store.get("dossier_cache", {}).get(tkr, {}) or {}).get("result") or {})
@@ -6004,6 +6018,8 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             chg_pct = row_snapshot.get("change_pct")
             action = sidebar_action_hint(tkr, row_snapshot)
             is_active = (tkr == current)
+            if is_active:
+                st.session_state["_active_sidebar_action_rendered"] = action
             if action == "position":
                 marker_emoji = "🟢"
                 marker_title = "Owned position"
@@ -7027,6 +7043,24 @@ if view == "analyze":
         t = {**t, "_primary_source": "rule", "_rule_action": rule_t.get("action")}
     t = apply_earnings_event_gate(t, earnings_days)
     st.session_state["_current_tactical"] = {**t, "ticker": ticker.upper()}
+    final_action_cache = st.session_state.store.setdefault("final_action_cache", {})
+    cached_final = final_action_cache.get(ticker.upper(), {})
+    final_payload = {
+        "action": t.get("action"),
+        "source": t.get("_primary_source", "rule"),
+    }
+    if cached_final != final_payload:
+        final_action_cache[ticker.upper()] = final_payload
+        save_store(st.session_state.store)
+    rendered_sidebar_action = st.session_state.get("_active_sidebar_action_rendered")
+    sync_key = f"{ticker.upper()}:{t.get('action')}"
+    if (
+        rendered_sidebar_action is not None and
+        rendered_sidebar_action != t.get("action") and
+        st.session_state.get("_sidebar_action_sync_key") != sync_key
+    ):
+        st.session_state["_sidebar_action_sync_key"] = sync_key
+        st.rerun()
 
     sty = STATE_STYLES[t["action"]]
 
