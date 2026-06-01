@@ -120,7 +120,17 @@ def detect_key_levels(prices, lookback_days=504, min_touches=3,
             lv["_score"] *= 1.4
 
     levels.sort(key=lambda lv: -lv["_score"])
-    return levels
+
+    # Collapse nearly identical levels after scoring. Without this pass,
+    # volatile names can show several clusters that are only 1-2% apart,
+    # which reads as noise instead of a usable support/resistance map.
+    min_gap = max(cluster_tolerance * 1.75, 0.035)
+    cleaned = []
+    for lv in levels:
+        if any(abs(lv["level"] - kept["level"]) / kept["level"] < min_gap for kept in cleaned):
+            continue
+        cleaned.append(lv)
+    return cleaned[:12]
 
 
 def _rsi(prices, period=14):
