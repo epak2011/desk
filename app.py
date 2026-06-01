@@ -2483,20 +2483,30 @@ def normalize_action_key(raw):
 
 
 def sidebar_action_hint(ticker, snapshot=None):
-    """Fast sidebar emoji source without recalculating the whole watchlist."""
+    """Sidebar emoji source aligned with the main Analyze decision."""
     tkr = str(ticker or "").upper().strip()
     snapshot = snapshot or {}
-    action = snapshot.get("action")
-    if action:
-        return action
 
     if tkr == str(st.session_state.get("current_ticker", "")).upper():
         current_t = st.session_state.get("_current_tactical")
         if isinstance(current_t, dict) and current_t.get("action"):
             return current_t.get("action")
 
-    if tkr in active_position_tickers():
-        return "position"
+    cached_call = (
+        ((st.session_state.store.get("dossier_cache", {}).get(tkr, {}) or {}).get("result") or {})
+        .get("tactical_call") or {}
+    )
+    cached_action = normalize_action_key(cached_call.get("action"))
+    try:
+        cached_confidence = int(cached_call.get("confidence", 0) or 0)
+    except (TypeError, ValueError):
+        cached_confidence = 0
+    if cached_action and cached_confidence >= 5:
+        return cached_action
+
+    action = snapshot.get("action")
+    if action:
+        return action
 
     for entry in reversed(st.session_state.store.get("decisions_log", [])):
         if str(entry.get("ticker", "")).upper() != tkr:
@@ -6737,6 +6747,7 @@ if view == "analyze":
     else:
         t = {**t, "_primary_source": "rule", "_rule_action": rule_t.get("action")}
     t = apply_earnings_event_gate(t, earnings_days)
+    st.session_state["_current_tactical"] = {**t, "ticker": ticker.upper()}
 
     sty = STATE_STYLES[t["action"]]
 
@@ -8998,6 +9009,20 @@ if view == "watchlist":
                     meta_sparse += 1
                 earnings_days = meta.get("earnings_days") if meta else None
                 t = apply_earnings_event_gate(t, earnings_days)
+                cached_call = ((cached.get("result") or {}).get("tactical_call") or {})
+                cached_action = normalize_action_key(cached_call.get("action"))
+                try:
+                    cached_confidence = int(cached_call.get("confidence", 0) or 0)
+                except (TypeError, ValueError):
+                    cached_confidence = 0
+                hard_rule_lock = (
+                    (not t.get("atr_ok", True)) or
+                    bool(t.get("event_risk_hold")) or
+                    bool(t.get("event_risk_watch"))
+                )
+                if cached_action and cached_confidence >= 5 and not hard_rule_lock:
+                    t = {**t, "action": cached_action}
+                    t = apply_earnings_event_gate(t, earnings_days)
 
                 # Trigger distance % — how close to a logged trigger?
                 trig = t.get("trigger") or {}
