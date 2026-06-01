@@ -1882,9 +1882,21 @@ div.streamlit-expanderHeader {
     border-color: #F4D38A;
     background: #FFFBEB;
 }
+.desk-data-chip.fresh {
+    border-color: rgba(0, 168, 112, 0.22);
+    background: rgba(0, 168, 112, 0.06);
+}
 .desk-data-chip.stale {
     border-color: #F5B5B5;
     background: #FFF7F7;
+}
+.desk-data-chip.info {
+    border-color: #CFE0FF;
+    background: #F6F9FF;
+}
+.desk-data-chip.neutral {
+    border-color: var(--color-border);
+    background: #FFFFFF;
 }
 .watch-queue-grid {
     display: grid;
@@ -3437,6 +3449,74 @@ def benchmark_source_label(bench):
     return "SPY source unknown", "warn"
 
 
+def pm_status_label(source):
+    source = format_source_note(source or "")
+    lower = str(source).lower()
+    if not source:
+        return "not generated", "warn"
+    if "cached only" in lower or "fast mode" in lower:
+        return "cached/static · fast mode", "info"
+    if "unavailable" in lower:
+        return "not available", "warn"
+    if "fallback" in lower or "failed" in lower:
+        return source, "warn"
+    if "d old" in lower:
+        try:
+            days = int(lower.split("d old", 1)[0].split()[-1])
+            return source, "stale" if days >= 3 else "info"
+        except Exception:
+            return source, "info"
+    if "today" in lower or "claude" in lower:
+        return source, "fresh"
+    return source, "neutral"
+
+
+def metadata_status_label(meta):
+    if not meta:
+        return "not loaded", "stale"
+    quote_type = str(meta.get("quote_type") or "").upper()
+    is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(
+        meta.get("category") or meta.get("fund_family") or meta.get("total_assets") or meta.get("net_assets")
+    )
+    if is_fund:
+        key_fields = ("total_assets", "category", "fund_family", "expense_ratio")
+    else:
+        key_fields = ("market_cap", "short_pct_float", "institutional_ownership_pct", "earnings_date")
+    available = sum(1 for field in key_fields if meta.get(field) is not None)
+    if available >= len(key_fields):
+        return "Yahoo/meta cached ≤1h · complete", "fresh"
+    if available >= max(2, len(key_fields) - 1):
+        return f"Yahoo/meta cached ≤1h · partial {available}/{len(key_fields)}", "warn"
+    return f"Yahoo/meta sparse · {available}/{len(key_fields)}", "stale"
+
+
+def watchlist_pm_status(dossier_cache, tickers):
+    tickers = [str(t).upper() for t in tickers]
+    missing = 0
+    stale = 0
+    for ticker in tickers:
+        cached = dossier_cache.get(ticker, {})
+        if not ((cached.get("result") or {}).get("tactical_call") or {}):
+            missing += 1
+            continue
+        try:
+            ts = cached.get("ts")
+            if ts and (datetime.now() - datetime.fromisoformat(ts)).days >= 3:
+                stale += 1
+        except Exception:
+            pass
+    if missing or stale:
+        parts = []
+        if missing:
+            parts.append(f"{missing} missing")
+        if stale:
+            parts.append(f"{stale} stale")
+        return "PM " + " · ".join(parts), "warn"
+    if tickers:
+        return "PM cached/generated for all rows", "fresh"
+    return "PM no rows", "neutral"
+
+
 def data_status_html(items):
     chips = "".join(
         f'<span class="desk-data-chip {html.escape(kind)}"><b>{html.escape(label)}</b> {html.escape(value)}</span>'
@@ -3746,11 +3826,12 @@ def render_research_report(ticker):
         "Unavailable items are shown explicitly rather than hidden."
     )
     pm_source_label = format_source_note(pm.get("_source", "the thesis"))
-    pm_source_kind = "warn" if "fallback" in str(pm_source_label).lower() or "failed" in str(pm_source_label).lower() else "fresh"
+    pm_source_label, pm_source_kind = pm_status_label(pm.get("_source", "the thesis"))
     report_status_html = data_status_html([
         ("Price", price_age_label, price_age_kind),
         ("Benchmark", bench_label, bench_kind),
         ("PM", pm_source_label, pm_source_kind),
+        ("Fundamentals", metadata_status_label(meta)[0], metadata_status_label(meta)[1]),
         ("Fields", f"{available_count}/{total_count}", "fresh" if available_count >= total_count * 0.75 else "warn"),
     ])
     watch_items = [
@@ -6499,10 +6580,11 @@ if view == "analyze":
     meta_html = html.escape(meta_line)
     price_age_label, price_age_kind = format_market_data_age(hist)
     bench_label, bench_kind = benchmark_source_label(bench)
-    analyze_status_html = data_status_html([
+    analyze_status_items = [
         ("Price", price_age_label, price_age_kind),
         ("Benchmark", bench_label, bench_kind),
-    ])
+        ("Fundamentals", metadata_status_label(meta)[0], metadata_status_label(meta)[1]),
+    ]
 
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
@@ -6546,6 +6628,12 @@ if view == "analyze":
             "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
             "_source": (dossier_result or {}).get("_source", pm.get("_source", "")),
         }
+    pm_label, pm_kind = pm_status_label(
+        (dossier_result or {}).get("_source") or pm.get("_source", "")
+    )
+    analyze_status_html = data_status_html(
+        analyze_status_items + [("PM", pm_label, pm_kind)]
+    )
 
     # Accumulation Watch override: if compute() flagged the name as
     # accumulation-eligible (deep drawdown + near low + stabilizing + not
@@ -8653,15 +8741,21 @@ if view == "holdings":
                 return "—"
 
         rows = []
+        price_age_kinds = []
+        meta_sparse = 0
         with st.spinner("Checking holdings…"):
             for tkr, holding in sorted(holdings.items()):
                 hist, name, _err = fetch_history(tkr)
                 if hist is None or bench is None:
                     continue
+                _price_label, _price_kind = format_market_data_age(hist)
+                price_age_kinds.append(_price_kind)
                 t_state = tactical.compute(hist, bench)
                 if not t_state:
                     continue
                 meta = fetch_quote_meta(tkr)
+                if metadata_status_label(meta)[1] != "fresh":
+                    meta_sparse += 1
                 t_state = apply_earnings_event_gate(t_state, meta.get("earnings_days") if meta else None)
                 entry = holding_to_position_entry(tkr, holding)
                 read = position_management_read(entry, t_state)
@@ -8703,6 +8797,14 @@ if view == "holdings":
             f'margin:4px 0 10px;">Holdings · {len(rows)} positions</div>',
             unsafe_allow_html=True,
         )
+        bench_label, bench_kind = benchmark_source_label(bench)
+        holdings_price_kind = "fresh" if price_age_kinds and all(k == "fresh" for k in price_age_kinds) else ("warn" if price_age_kinds else "stale")
+        st.markdown(data_status_html([
+            ("Source", "explicit holdings only", "info"),
+            ("Prices", f"{len(rows)} checked · last close data", holdings_price_kind),
+            ("Benchmark", bench_label, bench_kind),
+            ("Fundamentals", f"{meta_sparse} sparse" if meta_sparse else "cached ≤1h", "warn" if meta_sparse else "fresh"),
+        ]), unsafe_allow_html=True)
 
         total_pl = sum((r.get("pnl_dollars") or 0) for r in rows)
         trim_count = sum(
@@ -8860,11 +8962,15 @@ if view == "watchlist":
         # ── Compute everything we'll need for every ticker, in one pass ──
         # Each row: dict with action/state/RS/etc. + tactical engine output.
         rows = []
+        price_age_kinds = []
+        meta_sparse = 0
         with st.spinner("Analyzing watchlist…"):
             for tkr in st.session_state.store["watchlist"]:
                 hist, name, _err = fetch_history(tkr)
                 if hist is None or bench is None:
                     continue
+                _price_label, _price_kind = format_market_data_age(hist)
+                price_age_kinds.append(_price_kind)
                 t = tactical.compute(hist, bench)
                 if t is None:
                     continue
@@ -8888,6 +8994,8 @@ if view == "watchlist":
 
                 # Earnings days from quote meta — fetch separately, cached
                 meta = fetch_quote_meta(tkr)
+                if metadata_status_label(meta)[1] != "fresh":
+                    meta_sparse += 1
                 earnings_days = meta.get("earnings_days") if meta else None
                 t = apply_earnings_event_gate(t, earnings_days)
 
@@ -9001,6 +9109,16 @@ if view == "watchlist":
             '<div class="watch-queue-grid">' + "".join(queue_html) + '</div>',
             unsafe_allow_html=True,
         )
+        bench_label, bench_kind = benchmark_source_label(bench)
+        pm_label, pm_kind = watchlist_pm_status(dossier_cache, [r["ticker"] for r in rows])
+        watch_price_kind = "fresh" if price_age_kinds and all(k == "fresh" for k in price_age_kinds) else ("warn" if price_age_kinds else "stale")
+        st.markdown(data_status_html([
+            ("Scan", f"{len(rows)}/{len(st.session_state.store['watchlist'])} rows loaded", "fresh" if rows else "stale"),
+            ("Prices", "last close data", watch_price_kind),
+            ("Benchmark", bench_label, bench_kind),
+            ("PM", pm_label, pm_kind),
+            ("Fundamentals", f"{meta_sparse} sparse" if meta_sparse else "cached ≤1h", "warn" if meta_sparse else "fresh"),
+        ]), unsafe_allow_html=True)
 
         sort_c1, sort_c2, sort_c3 = st.columns([2, 2, 4])
         with sort_c1:
@@ -9362,6 +9480,19 @@ if view == "tracker":
             f"not started yet"
         )
         progress_pct = 0
+
+    scored_count = sum(1 for d in decisions_log_for_banner if d.get("outcome") is not None)
+    entered_open_count = sum(
+        1 for d in decisions_log_for_banner
+        if d.get("outcome") is None and d.get("position_status") == "entered"
+    )
+    st.markdown(data_status_html([
+        ("Source", "saved decision log", "info"),
+        ("Rows", f"{len(decisions_log_for_banner)} logged", "fresh" if decisions_log_for_banner else "warn"),
+        ("Outcomes", f"{scored_count} scored", "fresh" if scored_count else "warn"),
+        ("Open tracker positions", f"{entered_open_count} tracked", "info" if entered_open_count else "neutral"),
+        ("Ownership", "Holdings is explicit-only", "info"),
+    ]), unsafe_allow_html=True)
 
     st.markdown(f"""
 <div style="background:linear-gradient(90deg,#F4F0FB 0%, var(--color-bg) {progress_pct}%, var(--color-bg) 100%);
