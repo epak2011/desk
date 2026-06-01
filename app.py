@@ -9420,26 +9420,6 @@ if view == "watchlist":
         # in the table (uses ?open=TICKER query param) or via the sidebar
         # watchlist (always visible).
 
-        # ── Legend / column key ──
-        st.markdown(
-            '<div style="margin-top:24px;padding-top:16px;'
-            'border-top:1px solid var(--color-border);'
-            'font-family:var(--font-sans);font-size:var(--fs-sm);'
-            'color:var(--color-muted);line-height:1.6;">'
-            '<strong>Column key:</strong> '
-            '<span style="font-family:var(--font-mono);">Quality</span> = long-term ownership tier from Claude (— if not yet generated) · '
-            '<span style="font-family:var(--font-mono);">Setup</span> = descriptive setup type, separate from the action call · '
-            '<span style="font-family:var(--font-mono);">vs MA50</span> = % above/below 50-day MA · '
-            '<span style="font-family:var(--font-mono);">RS</span> = relative strength vs SPY (>1.0 = leader) · '
-            '<span style="font-family:var(--font-mono);">52w pos</span> = position in 52-week range (0% = at low, 100% = at high) · '
-            '<span style="font-family:var(--font-mono);">Vol ×</span> = today\'s volume vs 20-day average · '
-            '<span style="font-family:var(--font-mono);">Trig</span> = % to logged trigger price · '
-            '<span style="font-family:var(--font-mono);">Earn</span> = days to next earnings · '
-            '<span style="font-family:var(--font-mono);">Attention</span> surfaces Enter, positions, near triggers, earnings, or PM stale/missing'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-
 
 # ─────────────────────────────────────────────────────────────────────
 # TRACKER
