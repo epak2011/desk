@@ -8297,65 +8297,11 @@ if view == "analyze":
     </div>
     """, unsafe_allow_html=True)
 
-        # Technical narrative — 2-4 paragraphs, behind an expander.
-        # Defaults closed so the page stays scannable; one click reveals.
-        # The expander now ALSO contains the technical-read commentary
-        # lines (previously rendered separately on the right column) so
-        # all detailed technical content lives in one place.
+        # Technical narrative/context is rendered once in the footer
+        # "Technical details" expander below the chart. Keep the variables
+        # here because chat context also uses the dossier output.
         tech_narrative = dossier_result.get("technical_narrative") if dossier_result else None
         commentary_lines = technical_commentary(t)
-        has_detailed_tech = bool(tech_narrative) or bool(commentary_lines)
-        if has_detailed_tech:
-            with st.expander("Detailed technical view ↓", expanded=False):
-                ma_rows, momentum_rows, strength_rows, timeframe_rows, levels_rows = detailed_technical_rows(hist, bench, t)
-                st.markdown(
-                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color:var(--color-muted);margin-bottom:8px;">Technical memo</div>'
-                    '<div class="tech-memo-grid">'
-                    f'{render_technical_table("Trend / moving averages", ma_rows)}'
-                    f'{render_technical_table("Momentum", momentum_rows)}'
-                    f'{render_technical_table("Relative strength / volume", strength_rows)}'
-                    f'{render_technical_table("Daily vs weekly", timeframe_rows)}'
-                    f'{render_technical_table("Levels / volatility", levels_rows)}'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
-                if commentary_lines:
-                    commentary_html = "".join(
-                        f'<p style="margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.65; '
-                        f'color: var(--color-body); font-family: Geist, sans-serif;">'
-                        f'{bold_numbers(line)}</p>'
-                        for line in commentary_lines
-                    )
-                    st.markdown(
-                        f'<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                        f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                        f'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                        f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
-                        f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
-                        unsafe_allow_html=True,
-                    )
-
-                if tech_narrative:
-                    if commentary_lines:
-                        st.markdown(
-                            '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                            '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                            'font-weight:600;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                            'color:var(--color-muted);margin-bottom:8px;">Narrative</div>',
-                            unsafe_allow_html=True,
-                        )
-                    paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
-                    paras_html = "".join(
-                        f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.65; '
-                        f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
-                        for p in paragraphs
-                    )
-                    st.markdown(
-                        f'<div style="padding: 0 2px;">{paras_html}</div>',
-                        unsafe_allow_html=True,
-                    )
 
         # 4. IF TRIGGER HITS — conditional trade plan
         if t["action"] in ("enter_now", "watch"):
@@ -8666,6 +8612,36 @@ if view == "analyze":
                 '</div>',
                 unsafe_allow_html=True,
             )
+            if commentary_lines:
+                commentary_html = "".join(
+                    f'<p style="margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.65; '
+                    f'color: var(--color-body); font-family: Geist, sans-serif;">'
+                    f'{bold_numbers(line)}</p>'
+                    for line in commentary_lines
+                )
+                st.markdown(
+                    f'<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                    f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    f'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
+                    f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
+                    unsafe_allow_html=True,
+                )
+            if tech_narrative:
+                paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
+                paras_html = "".join(
+                    f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.65; '
+                    f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
+                    for p in paragraphs
+                )
+                st.markdown(
+                    '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin-bottom:8px;">Narrative</div>'
+                    f'<div style="padding: 0 2px;">{paras_html}</div>',
+                    unsafe_allow_html=True,
+                )
             st.markdown(
                 '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
                 '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
