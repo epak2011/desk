@@ -44,6 +44,7 @@ if LEGACY_STORE_PATH.exists() and not STORE_PATH.exists():
     except Exception:
         pass
 PM_CACHE_TTL_DAYS = 7
+DOSSIER_SCHEMA_VERSION = 3
 
 # Display-only fallbacks for common watchlist names when Yahoo omits profile
 # metadata during rate-limit windows. Live quote/math still comes from data.
@@ -437,6 +438,9 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
     entry = cache.get(ticker)
     current_price = t_state.get("price") if isinstance(t_state, dict) else None
     current_action = t_state.get("action") if isinstance(t_state, dict) else None
+    cache_schema_stale = bool(
+        entry and entry.get("schema_version", 0) < DOSSIER_SCHEMA_VERSION
+    )
 
     stale_cached_result = None
     stale_cached_age = None
@@ -460,7 +464,10 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
             stale_cached_age = age
             stale_cached_price = cached_price
 
-            staleness_failed = age >= timedelta(days=PM_CACHE_TTL_DAYS)
+            staleness_failed = (
+                cache_schema_stale or
+                age >= timedelta(days=PM_CACHE_TTL_DAYS)
+            )
 
             if not staleness_failed and cached_price and current_price:
                 pct_moved = abs(current_price - cached_price) / cached_price
@@ -498,6 +505,23 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
             pass
 
     if not allow_generate:
+        if cache_schema_stale:
+            return {
+                "dossier": None,
+                "technical_narrative": None,
+                "pm_narrative": None,
+                "bullets": {},
+                "quality": {},
+                "tactical_call": {},
+                "_source": "research upgraded · refresh to update",
+                "_freshness": {
+                    "age_days": stale_cached_age.days if stale_cached_age else 0,
+                    "price_at_generation": stale_cached_price,
+                    "current_price": current_price,
+                    "stale": True,
+                    "schema_stale": True,
+                },
+            }
         if stale_cached_result:
             try:
                 from pm_view import substitute_live_values
@@ -543,6 +567,7 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
         )
         cache[ticker] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
+            "schema_version": DOSSIER_SCHEMA_VERSION,
             "price_at_generation": current_price,
             "action_at_generation": current_action,
             "result": {
@@ -573,6 +598,12 @@ def clear_dossier_cache(ticker):
     if ticker in cache:
         del cache[ticker]
         save_store(st.session_state.store)
+
+
+def dossier_cache_needs_upgrade(ticker):
+    """True when cached prose predates the current research prompt/schema."""
+    entry = st.session_state.store.get("dossier_cache", {}).get(str(ticker).upper())
+    return bool(entry and entry.get("schema_version", 0) < DOSSIER_SCHEMA_VERSION)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -7431,6 +7462,13 @@ if view == "analyze":
     if t is None:
         st.error(f"Insufficient history for {ticker}.")
         st.stop()
+    try:
+        t = {
+            **t,
+            "technical_prompt_context": _technical_snapshot_from_hist(hist, bench, t),
+        }
+    except Exception:
+        t = {**t, "technical_prompt_context": {}}
 
     earnings_days = meta.get("earnings_days") if meta else None
     t = apply_earnings_event_gate(t, earnings_days)
@@ -7474,9 +7512,17 @@ if view == "analyze":
     # returns PM bullets, quality, and tactical_call, so a refresh should not
     # also generate the older PM snapshot in parallel.
     allow_pm_generate = not api_key
-    allow_dossier_generate = force_pm_refresh
+    allow_dossier_generate = (
+        force_pm_refresh or
+        (bool(api_key) and dossier_cache_needs_upgrade(ticker))
+    )
 
-    thesis_spinner = f"Refreshing {ticker.upper()} research…" if force_pm_refresh else "Loading cached thesis…"
+    if force_pm_refresh:
+        thesis_spinner = f"Refreshing {ticker.upper()} research…"
+    elif allow_dossier_generate:
+        thesis_spinner = f"Updating {ticker.upper()} research format…"
+    else:
+        thesis_spinner = "Loading cached thesis…"
     with st.spinner(thesis_spinner):
         pm = get_cached_pm(
             ticker, t,
