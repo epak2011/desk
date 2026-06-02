@@ -6567,12 +6567,12 @@ section[data-testid="stSidebar"] {
 }
 
 .desk-sidebar-help-tip {
-    position: fixed;
-    left: 176px;
-    top: 282px;
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
     z-index: 9999;
     width: 236px;
-    max-width: calc(100vw - 196px);
+    max-width: min(260px, calc(100vw - 42px));
     padding: 9px 10px;
     border: 1px solid var(--desk-border);
     border-radius: 6px;
@@ -6589,7 +6589,7 @@ section[data-testid="stSidebar"] {
     text-align: left;
     opacity: 0;
     pointer-events: none;
-    transform: translateY(-2px);
+    transform: translateY(-50%) translateX(-2px);
     transition: opacity 120ms ease, transform 120ms ease;
 }
 
@@ -6600,7 +6600,7 @@ section[data-testid="stSidebar"] {
 
 .desk-sidebar-help:hover .desk-sidebar-help-tip {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(-50%) translateX(0);
 }
 
 section[data-testid="stSidebar"] input,
@@ -7202,13 +7202,18 @@ details summary:hover {
     }
 
     .desk-sidebar-help-tip {
-        position: fixed !important;
-        left: 12px !important;
-        right: 12px !important;
-        top: 96px !important;
-        width: auto !important;
-        max-width: calc(100vw - 24px) !important;
+        position: absolute !important;
+        left: 50% !important;
+        right: auto !important;
+        top: calc(100% + 8px) !important;
+        width: 230px !important;
+        max-width: calc(100vw - 32px) !important;
         z-index: 99999 !important;
+        transform: translateX(-50%) translateY(-2px) !important;
+    }
+
+    .desk-sidebar-help:hover .desk-sidebar-help-tip {
+        transform: translateX(-50%) translateY(0) !important;
     }
 
     .desk-ticker-row,
