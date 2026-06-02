@@ -2675,10 +2675,18 @@ def sidebar_watchlist_snapshot(tickers):
             continue
         hist, _, _ = fetch_history(tkr)
         if hist is None or len(hist) < 2:
-            snapshot[tkr] = {"last": None, "change_pct": None, "action": None}
+            snapshot[tkr] = {
+                "last": None,
+                "change_pct": None,
+                "action": None,
+                "price_age": "unavailable",
+                "price_age_kind": "stale",
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+            }
             continue
         last = float(hist["Close"].iloc[-1])
         prev = float(hist["Close"].iloc[-2])
+        price_age_label, price_age_kind = format_market_data_age(hist)
         action = None
         if bench is not None:
             try:
@@ -2689,6 +2697,9 @@ def sidebar_watchlist_snapshot(tickers):
             "last": last,
             "change_pct": (last / prev - 1) * 100 if prev else 0,
             "action": action,
+            "price_age": price_age_label,
+            "price_age_kind": price_age_kind,
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
         }
     return snapshot
 
@@ -6171,18 +6182,18 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 
         current = st.session_state.current_ticker
 
-        # Keep Analyze fast: the sidebar uses the last saved watchlist quote
-        # snapshot instead of recalculating every ticker on every ticker change.
-        # The Watchlist view refreshes this richer snapshot explicitly.
+        # Keep the always-visible sidebar trustworthy. The snapshot fetches
+        # use the same 5-minute cached history as the main app, so this avoids
+        # stale saved prices without forcing a fresh network call per rerun.
         saved_sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
-        if st.session_state.view == "watchlist":
+        try:
             wl_data = sidebar_watchlist_snapshot(tuple(watchlist))
             saved_sidebar_cache.update({
                 k: v for k, v in wl_data.items()
                 if isinstance(v, dict) and v.get("last") is not None
             })
             save_store(st.session_state.store)
-        else:
+        except Exception:
             wl_data = saved_sidebar_cache
 
         # Each watchlist row rendered as ONE HTML markdown block.
@@ -6194,6 +6205,8 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             row_snapshot = wl_data.get(tkr.upper(), {})
             last = row_snapshot.get("last")
             chg_pct = row_snapshot.get("change_pct")
+            price_age_kind = row_snapshot.get("price_age_kind") or "stale"
+            price_age_label = row_snapshot.get("price_age") or ""
             action = sidebar_action_hint(tkr, row_snapshot)
             is_active = (tkr == current)
             if is_active:
@@ -6216,6 +6229,14 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             )
             chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else "—"
             px_str = f"${last:,.2f}" if last is not None else "—"
+            stale_note = ""
+            if price_age_kind == "stale":
+                stale_note = (
+                    f'<span title="{html.escape(price_age_label or "stale price data")}" '
+                    f'style="font-size:10px;color:var(--color-faint);'
+                    f'font-family:var(--font-mono);font-weight:700;'
+                    f'letter-spacing:0.04em;text-transform:uppercase;">stale</span>'
+                )
 
             # Active ticker: black bg + white text on the ticker label only
             active_bg = "var(--color-text)" if is_active else "transparent"
@@ -6246,6 +6267,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 f'line-height: 1.15; padding: 0 4px;">'
                 f'<span style="font-size: var(--fs-base); color: var(--color-text); font-weight: 500;">{px_str}</span>'
                 f'<span style="font-size: var(--fs-sm); color: {chg_color};">{chg_str}</span>'
+                f'{stale_note}'
                 f'</div>'
                 # ✕ delete — clickable
                 f'<a href="?wldel={tkr}" target="_self" title="Remove {tkr}" '
