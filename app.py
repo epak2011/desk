@@ -26,7 +26,7 @@ st.set_page_config(
     page_title="Trading Desk",
     page_icon="▸",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 # Persistent store lives in the user's home folder, NOT in the app folder.
@@ -7013,6 +7013,360 @@ summary {
 div[data-testid="stExpander"] summary:hover,
 details summary:hover {
     background-color: #F8FAFC !important;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  Tablet / phone responsive polish                              */
+/*  Keep the desktop workstation dense, but stop iPad/iPhone from  */
+/*  inheriting clipped headers, crowded grids, and tiny tap targets.*/
+/* ────────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+    .main .block-container,
+    section.main .block-container,
+    div[data-testid="stMainBlockContainer"] {
+        padding-left: 1.1rem !important;
+        padding-right: 1.1rem !important;
+        max-width: 100vw !important;
+    }
+
+    .desk-ticker-row,
+    .desk-pm-header {
+        min-height: 88px !important;
+        height: auto !important;
+        padding-bottom: 12px !important;
+    }
+
+    .desk-ticker-row .meta-inline,
+    .desk-ticker-row .sub,
+    .desk-ticker-row .meta-line {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .desk-decision .word {
+        font-size: clamp(58px, 8vw, 88px) !important;
+    }
+
+    .position-decision-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    .research-layout {
+        grid-template-columns: 1fr !important;
+        gap: 22px !important;
+    }
+
+    .research-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    section[data-testid="stSidebar"] {
+        min-width: 248px !important;
+        max-width: 288px !important;
+    }
+
+    .desk-hero,
+    .desk-top {
+        min-width: 0 !important;
+        overflow: visible !important;
+    }
+
+    .desk-decision-stack {
+        grid-template-columns: 1fr !important;
+    }
+
+    .watch-queue-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    .tech-memo-grid,
+    .key-level-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(> div[style*="minmax(58px"]),
+    div[data-testid="element-container"]:has(> div[style*="minmax(58px"]),
+    div[data-testid="stElementContainer"]:has(.tracker-table),
+    div[data-testid="element-container"]:has(.tracker-table),
+    div[data-testid="stElementContainer"]:has(.holdings-grid),
+    div[data-testid="element-container"]:has(.holdings-grid) {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding-bottom: 4px !important;
+    }
+
+    div[style*="minmax(58px,0.75fr)"],
+    .tracker-table,
+    .holdings-grid {
+        min-width: 980px !important;
+    }
+}
+
+@media (max-width: 900px) {
+    [data-testid="stHorizontalBlock"] {
+        flex-direction: column !important;
+        gap: 0.65rem !important;
+    }
+
+    [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+        width: 100% !important;
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+
+    [data-testid="stHorizontalBlock"]:has(.desk-decision) > [data-testid="column"]:nth-child(2) {
+        border-left: none !important;
+        border-top: 1px solid var(--desk-border) !important;
+        padding-left: 0 !important;
+        padding-top: 18px !important;
+        margin-top: 18px !important;
+        min-height: 0 !important;
+    }
+
+    .desk-pm-container {
+        border-left: none !important;
+        border-top: 1px solid var(--desk-border) !important;
+        padding-left: 0 !important;
+        padding-top: 18px !important;
+        margin-top: 18px !important;
+    }
+}
+
+@media (max-width: 760px) {
+    .main .block-container,
+    section.main .block-container,
+    div[data-testid="stMainBlockContainer"] {
+        padding-top: 1.25rem !important;
+        padding-left: 0.85rem !important;
+        padding-right: 0.85rem !important;
+    }
+
+    .desk-sidebar-wordmark {
+        margin-bottom: 14px !important;
+        padding-bottom: 12px !important;
+    }
+
+    .desk-sidebar-help-tip {
+        position: fixed !important;
+        left: 12px !important;
+        right: 12px !important;
+        top: 96px !important;
+        width: auto !important;
+        max-width: calc(100vw - 24px) !important;
+        z-index: 99999 !important;
+    }
+
+    .desk-ticker-row,
+    .desk-pm-header {
+        min-height: 0 !important;
+        height: auto !important;
+        margin-bottom: 14px !important;
+        padding-bottom: 11px !important;
+    }
+
+    .desk-ticker-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: 10px !important;
+        align-items: start !important;
+    }
+
+    .desk-ticker-row .ticker,
+    .desk-ticker-row .sym {
+        font-size: 25px !important;
+        line-height: 1.05 !important;
+    }
+
+    .desk-ticker-row .name {
+        display: inline !important;
+        font-size: 11px !important;
+        margin-left: 5px !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .desk-price,
+    .desk-ticker-row .price {
+        font-size: 20px !important;
+        line-height: 1.1 !important;
+        text-align: right !important;
+    }
+
+    .desk-ticker-row .chg {
+        display: block !important;
+        margin-left: 0 !important;
+        margin-top: 3px !important;
+        text-align: right !important;
+    }
+
+    .desk-decision {
+        padding-top: 8px !important;
+        margin-bottom: 14px !important;
+    }
+
+    .desk-decision .word {
+        font-size: clamp(44px, 15vw, 64px) !important;
+        letter-spacing: -0.03em !important;
+        line-height: 0.98 !important;
+    }
+
+    .desk-decision .emoji {
+        font-size: 30px !important;
+        vertical-align: 5px !important;
+        margin-left: 5px !important;
+    }
+
+    .desk-decision .context {
+        font-size: 16px !important;
+        line-height: 1.35 !important;
+        max-width: 100% !important;
+    }
+
+    .desk-trigger-block,
+    .desk-invalidation,
+    .desk-avoid-reasons,
+    .desk-reconsider,
+    .desk-dossier,
+    .desk-cmp,
+    .position-decision-panel,
+    .desk-stat-card {
+        border-radius: 7px !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .desk-trigger-text,
+    .desk-trigger-text b {
+        font-size: 20px !important;
+        line-height: 1.3 !important;
+    }
+
+    .desk-avoid-reasons,
+    .desk-reconsider {
+        padding: 12px 13px !important;
+    }
+
+    .desk-avoid-reasons li,
+    .desk-reconsider li,
+    .desk-dossier-text,
+    .desk-pm-block .body,
+    .desk-pm-item {
+        font-size: 14px !important;
+        line-height: 1.48 !important;
+    }
+
+    .position-decision-header {
+        display: block !important;
+    }
+
+    .position-decision-meta {
+        margin-top: 6px !important;
+        text-align: left !important;
+        white-space: normal !important;
+    }
+
+    .position-decision-stats,
+    .research-grid,
+    .watch-queue-grid,
+    .tech-memo-grid,
+    .key-level-summary {
+        grid-template-columns: 1fr !important;
+    }
+
+    .research-page h1 {
+        font-size: 34px !important;
+        line-height: 1.04 !important;
+        letter-spacing: -0.03em !important;
+    }
+
+    .research-page .deck {
+        font-size: 16px !important;
+        line-height: 1.45 !important;
+    }
+
+    .research-page .hero {
+        padding: 14px 0 18px !important;
+        border-radius: 0 !important;
+        border-left: 0 !important;
+        border-right: 0 !important;
+    }
+
+    .research-metric-row {
+        gap: 8px !important;
+    }
+
+    .desk-data-strip {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+    }
+
+    .desk-data-chip {
+        width: 100% !important;
+        justify-content: space-between !important;
+    }
+
+    .main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label {
+        min-height: 42px !important;
+        flex: 1 1 calc(50% - 8px) !important;
+        justify-content: center !important;
+    }
+
+    [data-testid="stTextInput"] input,
+    [data-testid="stTextArea"] textarea,
+    [data-testid="stNumberInput"] input,
+    div.stButton > button {
+        min-height: 42px !important;
+        font-size: 16px !important;
+    }
+
+    .research-link,
+    [class*="st-key-chat_send_"] button,
+    [class*="st-key-clear_chat_"] button {
+        width: 100% !important;
+        min-height: 42px !important;
+    }
+
+    .tracker-table,
+    .holdings-grid {
+        min-width: 900px !important;
+    }
+}
+
+@media (max-width: 430px) {
+    .main .block-container,
+    section.main .block-container,
+    div[data-testid="stMainBlockContainer"] {
+        padding-left: 0.65rem !important;
+        padding-right: 0.65rem !important;
+    }
+
+    .desk-ticker-row .ticker,
+    .desk-ticker-row .sym {
+        font-size: 22px !important;
+    }
+
+    .desk-price,
+    .desk-ticker-row .price {
+        font-size: 18px !important;
+    }
+
+    .desk-decision .word {
+        font-size: clamp(38px, 14vw, 54px) !important;
+    }
+
+    .desk-decision .emoji {
+        font-size: 26px !important;
+    }
+
+    .desk-stack-cell {
+        padding: 9px 10px !important;
+        min-height: 0 !important;
+    }
+
+    .main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label {
+        flex-basis: 100% !important;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
