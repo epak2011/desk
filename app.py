@@ -1953,9 +1953,47 @@ div.streamlit-expanderHeader {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+.key-level-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 6px 0 14px;
+}
+.key-level-card {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 9px 10px;
+    min-height: 82px;
+}
+.key-level-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 6px;
+}
+.key-level-price {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 850;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+.key-level-note {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--color-muted);
+}
 @media (max-width: 900px) {
     .tech-memo-grid {
         grid-template-columns: 1fr;
+    }
+    .key-level-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 .watch-queue-grid {
@@ -8653,6 +8691,83 @@ if view == "analyze":
                     return f"{pct:.1f}% above"
                 return f"{abs(pct):.1f}% below"
 
+            def _level_note(lv):
+                if not lv:
+                    return "No clean tested level."
+                level = float(lv["level"])
+                touches = lv.get("touches", 0)
+                flip = " · S/R flip" if lv.get("is_flip") else ""
+                return f"{_level_distance(level)} · {touches}× tested{flip}"
+
+            manual_rows = (
+                [
+                    {"level": float(v), "touches": 1, "is_flip": False, "kind": "support", "bucket": "support"}
+                    for v in (user_lvls.get("support", []) or [])
+                ] +
+                [
+                    {"level": float(v), "touches": 1, "is_flip": False, "kind": "resistance", "bucket": "resistance"}
+                    for v in (user_lvls.get("resistance", []) or [])
+                ]
+            )
+
+            all_visible_levels = manual_rows + [
+                {**lv, "kind": _level_kind(float(lv["level"]))}
+                for lv in auto_lvls
+            ]
+            support_candidates = sorted(
+                [lv for lv in all_visible_levels if float(lv["level"]) <= current_price],
+                key=lambda lv: abs(float(lv["level"]) - current_price),
+            )
+            resistance_candidates = sorted(
+                [lv for lv in all_visible_levels if float(lv["level"]) > current_price],
+                key=lambda lv: abs(float(lv["level"]) - current_price),
+            )
+            primary_support = support_candidates[0] if support_candidates else None
+            primary_resistance = resistance_candidates[0] if resistance_candidates else None
+            reclaim_level = primary_resistance
+            invalidation_level = primary_support or (
+                {"level": t.get("ma50"), "touches": 0, "is_flip": False}
+                if t.get("ma50") and t.get("ma50") < current_price else None
+            )
+
+            def _card(label, lv, note=None, accent="var(--color-text)"):
+                if lv and lv.get("level"):
+                    value = f"${float(lv['level']):,.2f}"
+                    sub = note or _level_note(lv)
+                else:
+                    value = "—"
+                    sub = note or "No clean tested level."
+                return (
+                    '<div class="key-level-card">'
+                    f'<div class="key-level-label">{html.escape(label)}</div>'
+                    f'<div class="key-level-price" style="color:{accent};">{html.escape(value)}</div>'
+                    f'<div class="key-level-note">{html.escape(sub)}</div>'
+                    '</div>'
+                )
+
+            st.markdown(
+                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                'font-weight:800;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                'color:var(--color-muted);margin:4px 0 6px;">Decision levels</div>'
+                '<div class="key-level-summary">'
+                + _card("Primary support", primary_support, accent="var(--color-positive)")
+                + _card("Primary resistance", primary_resistance, accent="var(--color-negative)")
+                + _card(
+                    "Reclaim / breakout",
+                    reclaim_level,
+                    note="Next upside level to reclaim." if reclaim_level else "No nearby resistance to reclaim.",
+                    accent="var(--color-blue)",
+                )
+                + _card(
+                    "Invalidation",
+                    invalidation_level,
+                    note="Nearest support to lose." if invalidation_level else "No clean support below.",
+                    accent="var(--color-negative)",
+                )
+                + '</div>',
+                unsafe_allow_html=True,
+            )
+
             def _render_level_row(lv, row_key, *, source):
                 level = float(lv["level"])
                 kind = lv.get("kind") or _level_kind(level)
@@ -8699,16 +8814,6 @@ if view == "analyze":
             ]
             distant = [lv for lv in auto_lvls if lv not in proximate]
 
-            manual_rows = (
-                [
-                    {"level": float(v), "touches": 1, "is_flip": False, "kind": "support", "bucket": "support"}
-                    for v in (user_lvls.get("support", []) or [])
-                ] +
-                [
-                    {"level": float(v), "touches": 1, "is_flip": False, "kind": "resistance", "bucket": "resistance"}
-                    for v in (user_lvls.get("resistance", []) or [])
-                ]
-            )
             if manual_rows:
                 st.markdown(
                     '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
