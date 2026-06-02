@@ -358,6 +358,14 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
                 return pm
         except Exception:
             pass
+        if not allow_generate:
+            try:
+                age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
+                pm = entry["view"]
+                pm["_source"] = (entry.get("source") or "cached") + f" · {age.days}d old · refresh to update"
+                return pm
+            except Exception:
+                pass
     if not allow_generate:
         pm = get_pm_view(ticker, tactical_output, api_key=None, company_name=company_name)
         pm["_source"] = "static · fast mode"
@@ -430,11 +438,27 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
     current_price = t_state.get("price") if isinstance(t_state, dict) else None
     current_action = t_state.get("action") if isinstance(t_state, dict) else None
 
+    stale_cached_result = None
+    stale_cached_age = None
+    stale_cached_price = None
     if entry:
         try:
             age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
             cached_price = entry.get("price_at_generation")
             cached_action = entry.get("action_at_generation")
+            full = entry.get("result") or {
+                "dossier": entry.get("text"),
+                "technical_narrative": None,
+                "pm_narrative": None,
+                "bullets": {},
+                "quality": {},
+                "tactical_call": {},
+            }
+            full.setdefault("quality", {})
+            full.setdefault("tactical_call", {})
+            stale_cached_result = full
+            stale_cached_age = age
+            stale_cached_price = cached_price
 
             staleness_failed = age >= timedelta(days=PM_CACHE_TTL_DAYS)
 
@@ -448,17 +472,6 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
                     staleness_failed = True
 
             if not staleness_failed:
-                full = entry.get("result") or {
-                    "dossier": entry.get("text"),
-                    "technical_narrative": None,
-                    "pm_narrative": None,
-                    "bullets": {},
-                    "quality": {},
-                    "tactical_call": {},
-                }
-                full.setdefault("quality", {})
-                full.setdefault("tactical_call", {})
-
                 # Live-value substitution. Free — uses already-cached
                 # yfinance data via the tactical engine output we already
                 # have. Replaces {{price}}, {{rs}}, etc. with current.
@@ -485,6 +498,30 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
             pass
 
     if not allow_generate:
+        if stale_cached_result:
+            try:
+                from pm_view import substitute_live_values
+                substituted = {**stale_cached_result}
+                if isinstance(t_state, dict):
+                    for k in ("dossier", "technical_narrative", "pm_narrative"):
+                        if substituted.get(k):
+                            substituted[k] = substitute_live_values(
+                                substituted[k], t_state
+                            )
+                age_days = stale_cached_age.days if stale_cached_age else 0
+                age_label = "today" if age_days == 0 else f"{age_days}d ago"
+                return {
+                    **substituted,
+                    "_source": entry.get("source", "claude") + f" · {age_label} · refresh to update",
+                    "_freshness": {
+                        "age_days": age_days,
+                        "price_at_generation": stale_cached_price,
+                        "current_price": current_price,
+                        "stale": True,
+                    },
+                }
+            except Exception:
+                pass
         return {
             "dossier": None,
             "technical_narrative": None,
@@ -8971,9 +9008,24 @@ if view == "analyze":
     <div><span class="em">🧠</span>Portfolio manager</div>
     <div class="src">{src_note}</div>
   </div>
-  <a class="pm-refresh-link" href="?pm_refresh={html.escape(ticker.upper())}" title="Regenerate PM view">↻</a>
 </div>
 """, unsafe_allow_html=True)
+        if st.button(
+            f"↻ Refresh {ticker.upper()} research",
+            key=f"refresh_current_research_{ticker.upper()}",
+            help="Regenerate Claude research for the ticker currently shown on this page.",
+            use_container_width=True,
+        ):
+            refresh_ticker = ticker.upper()
+            st.session_state.current_ticker = refresh_ticker
+            st.session_state.view = "analyze"
+            st.session_state["ticker_input"] = refresh_ticker
+            st.session_state["_last_synced_ticker"] = refresh_ticker
+            st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
+            clear_pm_cache(refresh_ticker)
+            clear_dossier_cache(refresh_ticker)
+            sidebar_watchlist_snapshot.clear()
+            st.rerun()
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
             f'target="_blank" rel="noopener">✨ Full research report ↗</a>',
