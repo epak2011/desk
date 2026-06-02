@@ -505,23 +505,6 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
             pass
 
     if not allow_generate:
-        if cache_schema_stale:
-            return {
-                "dossier": None,
-                "technical_narrative": None,
-                "pm_narrative": None,
-                "bullets": {},
-                "quality": {},
-                "tactical_call": {},
-                "_source": "research upgraded · refresh to update",
-                "_freshness": {
-                    "age_days": stale_cached_age.days if stale_cached_age else 0,
-                    "price_at_generation": stale_cached_price,
-                    "current_price": current_price,
-                    "stale": True,
-                    "schema_stale": True,
-                },
-            }
         if stale_cached_result:
             try:
                 from pm_view import substitute_live_values
@@ -534,14 +517,20 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
                             )
                 age_days = stale_cached_age.days if stale_cached_age else 0
                 age_label = "today" if age_days == 0 else f"{age_days}d ago"
+                source_label = (
+                    "research upgraded · refresh to update"
+                    if cache_schema_stale
+                    else entry.get("source", "claude") + f" · {age_label} · refresh to update"
+                )
                 return {
                     **substituted,
-                    "_source": entry.get("source", "claude") + f" · {age_label} · refresh to update",
+                    "_source": source_label,
                     "_freshness": {
                         "age_days": age_days,
                         "price_at_generation": stale_cached_price,
                         "current_price": current_price,
                         "stale": True,
+                        "schema_stale": cache_schema_stale,
                     },
                 }
             except Exception:
@@ -6182,17 +6171,29 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 
         current = st.session_state.current_ticker
 
-        # Keep the always-visible sidebar trustworthy. The snapshot fetches
-        # use the same 5-minute cached history as the main app, so this avoids
-        # stale saved prices without forcing a fresh network call per rerun.
+        # Keep Analyze fast: refresh the active ticker row only, and reserve
+        # full-watchlist price/action scans for the Watchlist page. Old saved
+        # rows are visibly labeled stale below instead of silently pretending
+        # to be current.
         saved_sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+        wl_data = dict(saved_sidebar_cache)
         try:
-            wl_data = sidebar_watchlist_snapshot(tuple(watchlist))
-            saved_sidebar_cache.update({
-                k: v for k, v in wl_data.items()
-                if isinstance(v, dict) and v.get("last") is not None
-            })
-            save_store(st.session_state.store)
+            if st.session_state.view == "watchlist":
+                refreshed = sidebar_watchlist_snapshot(tuple(watchlist))
+            else:
+                active_for_sidebar = current.upper()
+                refreshed = (
+                    sidebar_watchlist_snapshot((active_for_sidebar,))
+                    if active_for_sidebar in {str(t).upper() for t in watchlist}
+                    else {}
+                )
+            if refreshed:
+                saved_sidebar_cache.update({
+                    k: v for k, v in refreshed.items()
+                    if isinstance(v, dict) and v.get("last") is not None
+                })
+                wl_data = dict(saved_sidebar_cache)
+                save_store(st.session_state.store)
         except Exception:
             wl_data = saved_sidebar_cache
 
@@ -6207,6 +6208,20 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             chg_pct = row_snapshot.get("change_pct")
             price_age_kind = row_snapshot.get("price_age_kind") or "stale"
             price_age_label = row_snapshot.get("price_age") or ""
+            try:
+                updated_at = row_snapshot.get("updated_at")
+                if updated_at:
+                    sidebar_age = datetime.now() - datetime.fromisoformat(updated_at)
+                    if sidebar_age > timedelta(minutes=20):
+                        price_age_kind = "stale"
+                        minutes_old = int(sidebar_age.total_seconds() // 60)
+                        price_age_label = f"sidebar cached {minutes_old}m ago"
+                else:
+                    price_age_kind = "stale"
+                    price_age_label = "sidebar cache not refreshed yet"
+            except Exception:
+                price_age_kind = "stale"
+                price_age_label = "sidebar cache age unknown"
             action = sidebar_action_hint(tkr, row_snapshot)
             is_active = (tkr == current)
             if is_active:
@@ -7539,10 +7554,7 @@ if view == "analyze":
     # returns PM bullets, quality, and tactical_call, so a refresh should not
     # also generate the older PM snapshot in parallel.
     allow_pm_generate = not api_key
-    allow_dossier_generate = (
-        force_pm_refresh or
-        (bool(api_key) and dossier_cache_needs_upgrade(ticker))
-    )
+    allow_dossier_generate = force_pm_refresh
 
     if force_pm_refresh:
         thesis_spinner = f"Refreshing {ticker.upper()} research…"
