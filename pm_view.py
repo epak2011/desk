@@ -356,6 +356,9 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         abort_below = trigger.get("levels", {}).get("abort_below") if trigger else None
         ma50_hist = t_state.get("ma50_history")
         regime = t_state.get("market_regime", "unknown")
+        tech_ctx = t_state.get("technical_prompt_context") or {}
+        td_daily = tech_ctx.get("td_daily") or {}
+        td_weekly = tech_ctx.get("td_weekly") or {}
 
         history_line = ""
         if ma50_hist:
@@ -396,6 +399,13 @@ Tactical state:
 - Trigger: {trig_summary}
 - Buy above: {f'${buy_above:.2f}' if buy_above else 'n/a'}
 - Invalidation below: {f'${abort_below:.2f}' if abort_below else 'n/a'}
+- MA stack read: {tech_ctx.get('stack_read') or 'n/a'}
+- MACD: {f"{tech_ctx.get('macd'):.2f} vs signal {tech_ctx.get('macd_signal'):.2f}, histogram {tech_ctx.get('macd_hist'):+.2f}" if tech_ctx.get('macd') is not None and tech_ctx.get('macd_signal') is not None and tech_ctx.get('macd_hist') is not None else 'n/a'}; MACD read: {tech_ctx.get('macd_read') or 'n/a'}
+- TD daily setup: {td_daily.get('side', '—')} {td_daily.get('count', 0)}/9 · {td_daily.get('status', 'n/a')}
+- TD weekly setup: {td_weekly.get('side', '—')} {td_weekly.get('count', 0)}/9 · {td_weekly.get('status', 'n/a')}
+- Daily/weekly trend: daily {tech_ctx.get('stack_read') or 'n/a'}; weekly {tech_ctx.get('weekly_read') or 'n/a'}; weekly RSI {f"{tech_ctx.get('weekly_rsi'):.0f}" if tech_ctx.get('weekly_rsi') is not None else 'n/a'}
+- 20-day alpha vs SPY: {f"{tech_ctx.get('bench_rs_20'):+.1f}%" if tech_ctx.get('bench_rs_20') is not None else 'n/a'}; 20-day realized vol: {f"{tech_ctx.get('realized_vol_20'):.1f}%" if tech_ctx.get('realized_vol_20') is not None else 'n/a'}
+- 20-day range: {f"${tech_ctx.get('low_20'):.2f}–${tech_ctx.get('high_20'):.2f}" if tech_ctx.get('low_20') is not None and tech_ctx.get('high_20') is not None else 'n/a'}
 
 Context:
 - Market regime (SPY): {regime}
@@ -484,9 +494,9 @@ dossier: 4-6 sentences. Single paragraph. Top-of-page brief tying tactical + fun
 
 technical_narrative: 2-4 paragraphs (4 only if needed). Senior-trader voice. Use tokens for ALL current-state numbers. Walk through:
 - Para 1: trend posture and chart setup. Where price ({{price}}) sits relative to 50d/200d ({{pct_ma50}}, {{pct_ma200}}), what the MA stack signals, recent price action character.
-- Para 2: momentum + volume + relative strength as a connected read. RS at {{rs}}, RSI at {{rsi}}. Is the tape supporting or fading the move? What's the volume saying about conviction? Reference the 10-day deltas and vol ratio.
-- Para 3 (optional): historical pattern context if useful — how this stock typically behaves at this kind of level. Use the ma50_history line if it adds signal.
-- Para 4 (optional, if relevant): how the broader regime ({regime} SPY) affects this read.
+- Para 2: momentum + volume + relative strength as a connected read. RS at {{rs}}, RSI at {{rsi}}, MACD read, volume ratio, and 20-day alpha vs SPY. Say whether participation confirms or undercuts the move.
+- Para 3: daily-vs-weekly confirmation and exhaustion risk. Explicitly mention TD daily/weekly setup counts when they are active, and explain whether the daily and weekly tapes agree or diverge.
+- Para 4 (optional, if useful): historical pattern context, 20-day range, realized volatility, or how the broader regime ({regime} SPY) changes the risk/reward.
 
 pm_narrative: 3-4 paragraphs. Senior PM voice. Do NOT recap MA50/MA200/RS/RSI unless directly tied to sizing or timing. Walk through:
 - Para 1: business underwriting — what the business actually does, how it makes money, and why the moat/margin structure is or is not durable.
