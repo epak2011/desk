@@ -1945,6 +1945,71 @@ div.streamlit-expanderHeader {
     border-color: var(--color-border);
     background: #FFFFFF;
 }
+.position-decision-panel {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    margin: 16px 0 18px;
+    padding: 14px 16px;
+}
+.position-decision-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 10px;
+}
+.position-decision-label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 5px;
+}
+.position-decision-action {
+    font-family: var(--font-sans);
+    font-size: 24px;
+    font-weight: 850;
+    line-height: 1.05;
+}
+.position-decision-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-muted);
+    text-align: right;
+    white-space: nowrap;
+}
+.position-decision-summary {
+    font-size: var(--fs-md);
+    line-height: 1.55;
+    color: var(--color-body);
+    margin-bottom: 10px;
+}
+.position-decision-stats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    border-top: 1px solid var(--color-border-soft);
+    padding-top: 10px;
+    gap: 8px;
+}
+.position-decision-stat .k {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-sm);
+    text-transform: uppercase;
+    color: var(--color-faint);
+}
+.position-decision-stat .v {
+    margin-top: 3px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
 .tech-memo-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7480,6 +7545,47 @@ if view == "analyze":
   <ul>{reversal_html}</ul>
 </div>
 """, unsafe_allow_html=True)
+
+        if position_read:
+            stat_html = "".join(
+                f'<div class="position-decision-stat">'
+                f'<div class="k">{html.escape(label)}</div>'
+                f'<div class="v">{html.escape(value)}</div>'
+                f'</div>'
+                for label, value in position_read.get("stats", [])[:6]
+            )
+            note = ""
+            try:
+                user_note = (active_holding or {}).get("user_note", "").strip()
+                if user_note:
+                    note = (
+                        f'<div style="border-top:1px dashed var(--color-border-soft);'
+                        f'margin-top:10px;padding-top:9px;font-size:var(--fs-sm);'
+                        f'color:var(--color-muted);">'
+                        f'<span style="font-family:var(--font-mono);font-size:10px;'
+                        f'font-weight:800;letter-spacing:var(--ls-caps-sm);'
+                        f'text-transform:uppercase;color:var(--color-faint);">Your note</span> '
+                        f'{html.escape(user_note)}</div>'
+                    )
+            except Exception:
+                note = ""
+            st.markdown(
+                f'<div class="position-decision-panel" '
+                f'style="border-left:4px solid {position_read["color"]};">'
+                f'<div class="position-decision-header">'
+                f'<div>'
+                f'<div class="position-decision-label">Position decision</div>'
+                f'<div class="position-decision-action" style="color:{position_read["color"]};">'
+                f'{html.escape(position_read["emoji"])} {html.escape(position_read["action"])}</div>'
+                f'</div>'
+                f'<div class="position-decision-meta">{html.escape(ticker.upper())} · owned position</div>'
+                f'</div>'
+                f'<div class="position-decision-summary">{html.escape(position_read["summary"])}</div>'
+                f'<div class="position-decision-stats">{stat_html}</div>'
+                f'{note}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
         def _position_input_value(value):
             try:
