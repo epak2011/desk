@@ -195,7 +195,9 @@ TICKER_RESEARCH_CONTEXT = {
     ],
     "SKM": [
         "SK Telecom is not just a defensive Korean telecom ADR; the key variant debate is whether its Anthropic equity exposure and AI data-center ambitions create hidden asset value relative to the market cap.",
-        "The PM memo MUST discuss SKT's Anthropic investment/ownership, estimated stake value, estimated stake value as a percentage of SKM market cap, dilution uncertainty, foreign-ownership/ADR constraints, Korea discount, FX risk, and whether the core telecom dividend/cash flow supports the downside.",
+        "Known context to verify and update with live research: SKT announced an additional $100M Anthropic investment in 2023 plus a telco-LLM partnership; analyst/news estimates have framed SKT's Anthropic ownership anywhere from roughly 0.1-0.7% depending on dilution assumptions, with some estimates putting the stake value around 3-20%+ of SKM market cap. Treat this as an estimated range, not a hard fact.",
+        "The PM memo MUST explicitly include this math: estimated Anthropic stake value / SKM market cap. Use live market cap from the data context and live/analyst Anthropic valuation or stake estimates from research. If the inputs conflict, show the range and label confirmed vs estimated.",
+        "Also discuss dilution uncertainty, foreign-ownership/ADR constraints, Korea discount, FX risk, governance/chaebol restructuring risk, and whether the core telecom dividend/cash flow supports downside.",
         "Treat the Anthropic stake as a hidden-asset/proxy thesis, not as guaranteed upside. Separate confirmed company disclosures from analyst estimates and retail narrative math.",
     ],
     "ZM": [
@@ -391,6 +393,7 @@ PM MEMO QUALITY BAR:
 - Research completeness test: before writing, identify the one or two critical facts a real PM would be embarrassed to miss. These may be strategic partnerships, pending transactions, hidden asset value, regulatory decisions, financing/dilution risk, customer concentration, product-cycle inflection, short interest, insider/institutional behavior, or ETF/factor exposure.
 - If live research shows a special situation, proxy exposure, major partnership, litigation/regulatory overhang, acquisition, restructuring, balance-sheet event, or upcoming product cycle, it MUST appear in thesis, risks, and valuation context.
 - Hidden asset math: if the thesis depends on a stake in another company, private-company exposure, venture holding, cash/investment portfolio, spectrum, real estate, patents, or other non-core asset, estimate value as a percentage of the current market cap whenever enough information exists. Show the range and state what is confirmed vs estimated.
+- Never stop at "partnership" if ownership economics matter. For proxy trades, the PM note must answer: how big is the stake/exposure, what is it worth, what percent of the public company's market cap does that represent, what can dilute or trap the value, and what catalyst unlocks it.
 - If you cannot verify a suspected critical fact from live research, say the thesis depends on an unverified market narrative rather than treating it as fact.
 
 Return ONLY JSON in exactly this shape. No preamble, no code fences.
@@ -603,6 +606,7 @@ GLOBAL MEMO QUALITY RULES:
 - The most important non-obvious fact should appear in the dossier and the PM narrative. Do not bury it in bullets.
 - Prefer current live research over stale training knowledge. If live research conflicts with the existing PM thesis snapshot, trust the newer research and call out the change.
 - Hidden asset / proxy math is mandatory when relevant: if live research identifies a private-company stake, strategic investment, spectrum asset, investment portfolio, cash pile, venture book, or other non-core asset, estimate the asset value as % of the company's market cap using available market cap from the data context. If ownership or valuation is uncertain, present a range and label it as estimated. This belongs in dossier, pm_narrative, and valuation.
+- A memo that mentions a hidden asset or private stake without sizing it against market cap is incomplete. Include the math, even if it is a range.
 
 LIVE-VALUE TOKENS (CRITICAL):
 The dossier, technical_narrative, and pm_narrative are cached for up to 7 days, but PRICES MOVE DAILY. To keep narrative numbers current without regenerating the whole prose, you MUST use these literal token strings instead of hardcoding the values:
