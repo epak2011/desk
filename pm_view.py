@@ -119,10 +119,32 @@ STATIC_SNAPSHOTS = {
         "risks": ["Auto demand soft, margins compressing", "Robotaxi timeline keeps slipping", "Distracted leadership"],
         "valuation": "Rich on auto metrics. Only justified if AI optionality delivers.",
     },
+    "SATS": {
+        "thesis": "EchoStar is no longer just a levered satellite/telecom asset; the active debate is whether its spectrum monetization and SpaceX equity exposure make it a liquid public proxy for Starlink/SpaceX direct-to-cell upside.",
+        "drivers": ["SpaceX equity received in spectrum deals", "Starlink direct-to-cell commercial link", "Spectrum monetization de-risks balance sheet"],
+        "risks": ["Deal closing and regulatory mechanics", "Legacy DISH/Hughes cash-flow drag", "SpaceX proxy premium can unwind quickly"],
+        "valuation": "Valuation should be framed as a sum-of-parts: SpaceX stock value, remaining spectrum/telecom assets, net debt, and legacy operating burn.",
+    },
 }
 
 # Keep the older name so existing imports don't break.
 STATIC_VIEWS = STATIC_SNAPSHOTS
+
+
+SPECIAL_SITUATION_CONTEXT = {
+    "SATS": """
+SPECIAL SITUATION CONTEXT FOR SATS — mandatory to incorporate:
+- EchoStar/SATS has become a SpaceX/Starlink-adjacent special situation, not a plain satellite TV or telecom comp.
+- The key thesis is the sum-of-parts and proxy debate: SpaceX equity received or expected from spectrum transactions, cash proceeds/debt relief, Starlink Direct-to-Cell commercial linkage, and remaining DISH/Hughes/Boost operating assets.
+- The PM narrative MUST discuss whether SATS is a credible liquid public proxy for pre-IPO SpaceX/Starlink exposure, and must separate that optionality from the legacy operating business.
+- Do not present the SpaceX angle as a guaranteed IPO payoff. Frame it as optionality with deal-closing, valuation, liquidity, regulatory, tax, and proxy-premium unwind risk.
+- A good SATS memo should answer: what is the implied value of the SpaceX stake/exposure, what legacy liabilities remain, what happens if SpaceX enthusiasm fades, and what catalyst path makes the proxy thesis more or less real.
+""",
+}
+
+
+def _special_context_for(ticker):
+    return SPECIAL_SITUATION_CONTEXT.get((ticker or "").upper(), "")
 
 
 def _empty_deep_dive(ticker):
@@ -245,10 +267,12 @@ def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
         client = Anthropic(api_key=api_key)
         t = tactical_output or {}
         recent_news = _fetch_recent_news(client, ticker, company_name)
+        special_context = _special_context_for(ticker)
         time.sleep(1)  # brief pause to avoid rate-limiting the main call
         prompt = f"""You are a senior portfolio manager at a long-biased hedge fund. Write a full investment note on {ticker}{' (' + company_name + ')' if company_name else ''}.
 
 CRITICAL: The ticker {ticker} refers to the US-listed security "{company_name if company_name else ticker}" trading on US stock exchanges (NYSE/NASDAQ). Do NOT confuse it with any foreign company that may share the same ticker symbol on another exchange (e.g. a Singapore, London, or Hong Kong-listed company). If the yfinance name seems wrong, trust the US stock market context — {ticker} is a US-listed security. All analysis must be about the US-listed {ticker} only.{recent_news}
+{special_context}
 Current tactical state from the system (for context, not the focus):
 - Directional bias: {t.get('bias') or 'unclear'}
 - Action: {t.get('action', 'unknown')}
@@ -346,6 +370,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         client = Anthropic(api_key=api_key)
 
         recent_news_block = _fetch_recent_news(client, ticker, company_name)
+        special_context = _special_context_for(ticker)
         time.sleep(1)  # brief pause to avoid rate-limiting the main call
 
         bias = t_state.get("bias") or t_state.get("raw_bias") or "unclear"
@@ -381,6 +406,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         prompt = f"""You are a senior portfolio manager and trader. Generate THREE pieces of analysis on {ticker}{f' ({company_name})' if company_name else ''}.
 
 CRITICAL: The ticker {ticker} refers to the US-listed security "{company_name if company_name else ticker}" trading on US stock exchanges (NYSE/NASDAQ). Do NOT confuse it with any foreign company sharing the same ticker on another exchange. If the company name seems unfamiliar or foreign, use your knowledge of US-listed stocks to identify the correct company for ticker {ticker}. All analysis must be about the US-listed {ticker} only.{recent_news_block}
+{special_context}
 DATA YOU HAVE:
 
 Tactical state:
