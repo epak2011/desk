@@ -334,6 +334,9 @@ if "store" not in st.session_state:
     if "final_action_cache" not in st.session_state.store:
         st.session_state.store["final_action_cache"] = {}
         _needs_save = True
+    if "idea_discovery_runs" not in st.session_state.store:
+        st.session_state.store["idea_discovery_runs"] = []
+        _needs_save = True
     if _needs_save:
         save_store(st.session_state.store)
 if "current_ticker" not in st.session_state:
@@ -5602,6 +5605,12 @@ try:
             st.session_state.current_ticker = tkr_to_open
             st.session_state.view = "analyze"
             st.rerun()
+    if "view" in qp_global:
+        view_to_open = str(qp_global.get("view") or "").strip().lower()
+        del qp_global["view"]
+        if view_to_open in {"analyze", "watchlist", "holdings", "tracker", "ideas"}:
+            st.session_state.view = view_to_open
+            st.rerun()
     if "wldel" in qp_global:
         tkr_to_del = qp_global.get("wldel")
         del qp_global["wldel"]
@@ -5638,7 +5647,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    view_labels = {"analyze": "Analyze", "watchlist": "Watchlist", "holdings": "Holdings", "tracker": "Tracker"}
+    view_labels = {"analyze": "Analyze", "watchlist": "Watchlist", "holdings": "Holdings", "tracker": "Tracker", "ideas": "Ideas"}
     current_view_label = view_labels[st.session_state.view]
     picked = st.radio(
         "View",
@@ -9973,6 +9982,339 @@ if view == "analyze":
                 html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
                 html_parts.append('</div>')
                 st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# IDEAS — thematic discovery
+# ─────────────────────────────────────────────────────────────────────
+DEFAULT_DISCOVERY_UNIVERSE = (
+    "AAPL, ABNB, AMZN, ANF, BIRK, BRZE, BROS, CAVA, CELH, CMG, COIN, CROX, "
+    "DASH, DECK, DUOL, ELF, ETSY, HIMS, HOOD, LULU, META, NFLX, NKE, ONON, "
+    "PINS, PLNT, RBLX, RDDT, RVLV, SE, SHOP, SOFI, SPOT, SQ, TOST, UBER, "
+    "ULTA, VFC, WING, ZM"
+)
+
+
+def _extract_json_object(text):
+    """Best-effort JSON extraction for Claude responses."""
+    if not text:
+        return {}
+    text = text.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        text = parts[1] if len(parts) > 1 else text
+        if text.lower().startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except Exception:
+            return {}
+    return {}
+
+
+def generate_theme_discovery(query, universe_text, api_key):
+    """Ask Claude to turn a natural-language theme into researched candidates."""
+    if not api_key:
+        raise ValueError("Anthropic API key is required for idea discovery.")
+    try:
+        from anthropic import Anthropic
+    except Exception as exc:
+        raise ValueError(f"Anthropic client unavailable: {exc}") from exc
+
+    cleaned_query = str(query or "").strip()
+    if len(cleaned_query) < 8:
+        raise ValueError("Write a little more about the theme you want.")
+
+    universe = [t.strip().upper() for t in str(universe_text or "").replace("\n", ",").split(",") if t.strip()]
+    universe = list(dict.fromkeys(universe))[:80]
+    universe_block = ", ".join(universe) if universe else "No explicit universe supplied; use liquid US-listed names."
+
+    prompt = f"""
+You are an equity idea discovery analyst inside a trading workstation.
+
+User request:
+{cleaned_query}
+
+Candidate universe:
+{universe_block}
+
+Find US-listed stocks or ETFs that plausibly match the request. This is NOT a buy list.
+Return candidates with evidence, caveats, and what the app should verify next.
+
+Research checklist:
+- Translate the user's plain-English theme into 4-6 structured criteria.
+- Look for data that may not appear in financial statements: customer demographic, product adoption, brand resonance, hidden assets, private-company stakes, strategic partnerships, regulatory catalysts, and cultural/consumer behavior shifts.
+- For financial constraints, prefer evidence like revenue growth, gross margin, debt/equity, net cash, FCF, market cap, valuation, or balance-sheet commentary.
+- Penalize weak evidence. If a company only loosely matches the theme, say so.
+- Avoid hallucinating. If a metric is unknown, mark it unknown rather than inventing it.
+- Do not recommend more than 12 candidates.
+
+Return ONLY JSON:
+{{
+  "criteria": ["criterion", "..."],
+  "summary": "one concise paragraph on the opportunity set",
+  "candidates": [
+    {{
+      "ticker": "TICKER",
+      "company": "Company name",
+      "score": 1-100,
+      "theme_fit": "1 sentence",
+      "financial_fit": "1 sentence",
+      "why_it_matters": "1-2 sentences",
+      "risks": "1 sentence",
+      "evidence": ["specific evidence item", "specific evidence item"],
+      "verify_next": ["metric/fact to verify", "metric/fact to verify"]
+    }}
+  ]
+}}
+"""
+    client = Anthropic(api_key=api_key)
+    tools = [{"type": "web_search_20250305", "name": "web_search"}]
+    messages = [{"role": "user", "content": prompt}]
+    final_text = ""
+
+    for _ in range(6):
+        try:
+            response = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=3500,
+                tools=tools,
+                messages=messages,
+                betas=["web-search-2025-03-05"],
+            )
+        except TypeError as err:
+            if "betas" not in str(err):
+                raise
+            response = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=3500,
+                messages=messages,
+            )
+        text_parts = [b.text for b in response.content if hasattr(b, "text") and b.text]
+        final_text = "\n".join(text_parts).strip() or final_text
+        if response.stop_reason == "end_turn":
+            break
+        if response.stop_reason == "tool_use":
+            messages.append({"role": "assistant", "content": response.content})
+            tool_results = []
+            for block in response.content:
+                if getattr(block, "type", "") == "tool_use":
+                    content = getattr(block, "content", "") or ""
+                    if isinstance(content, list):
+                        content = " ".join(
+                            c.get("text", "") if isinstance(c, dict) else str(c)
+                            for c in content
+                        )
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": str(content),
+                    })
+            messages.append({"role": "user", "content": tool_results})
+        else:
+            break
+
+    parsed = _extract_json_object(final_text)
+    candidates = parsed.get("candidates") if isinstance(parsed, dict) else []
+    if not isinstance(candidates, list):
+        candidates = []
+    parsed["candidates"] = [
+        c for c in candidates
+        if isinstance(c, dict) and str(c.get("ticker", "")).strip()
+    ][:12]
+    if not parsed["candidates"]:
+        raise ValueError("Claude did not return usable candidates. Try a narrower prompt or candidate universe.")
+    return parsed
+
+
+def enrich_discovery_candidate(candidate, bench):
+    ticker = str(candidate.get("ticker", "")).upper().strip()
+    if not ticker:
+        return {**candidate, "_action": "—", "_price": None}
+    hist, name, _err = fetch_history(ticker)
+    meta = fetch_quote_meta(ticker)
+    enriched = {**candidate}
+    enriched["_name"] = name or meta.get("long_name") or meta.get("short_name") or candidate.get("company") or ticker
+    enriched["_market_cap"] = format_market_cap(meta.get("market_cap"))
+    enriched["_revenue_growth"] = format_plain_pct(meta.get("revenue_growth"), digits=1)
+    enriched["_debt_equity"] = format_plain_pct(meta.get("debt_to_equity"), digits=0)
+    enriched["_earnings_days"] = meta.get("earnings_days")
+    if hist is not None and len(hist) >= 2 and bench is not None:
+        try:
+            t_state = tactical.compute(hist, bench)
+            if t_state:
+                t_state = apply_earnings_event_gate(t_state, meta.get("earnings_days") if meta else None)
+                enriched["_price"] = t_state.get("price")
+                enriched["_change"] = t_state.get("change")
+                enriched["_action"] = t_state.get("action")
+                enriched["_state"] = t_state.get("state")
+                enriched["_rs"] = t_state.get("rs")
+                enriched["_score"] = t_state.get("setup_score")
+            else:
+                enriched["_action"] = None
+        except Exception:
+            enriched["_action"] = None
+    else:
+        enriched["_action"] = None
+    return enriched
+
+
+if view == "ideas":
+    st.markdown(
+        '<div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+        'letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);'
+        'margin:4px 0 10px;">Ideas · thematic discovery</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption("Ask for a theme in plain English. The app returns candidates, then overlays your current price/action engine.")
+
+    default_prompt = "Millennial and Gen Z consumer brands with low debt and meaningful year-over-year growth"
+    with st.form("idea_discovery_form"):
+        idea_prompt = st.text_area(
+            "Theme / thesis",
+            value=st.session_state.get("last_idea_prompt", default_prompt),
+            height=88,
+            placeholder="Example: companies where millennials and Gen Z are the primary consumer, low debt, revenue growing meaningfully YoY",
+        )
+        universe_text = st.text_area(
+            "Candidate universe",
+            value=st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE),
+            height=92,
+            help="Optional. Keep this to liquid names you actually care about; the AI can still suggest adjacent names.",
+        )
+        submit_idea = st.form_submit_button("Generate ideas", use_container_width=True)
+
+    if submit_idea:
+        st.session_state["last_idea_prompt"] = idea_prompt
+        st.session_state["last_idea_universe"] = universe_text
+        try:
+            with st.spinner("Researching theme and ranking candidates…"):
+                result = generate_theme_discovery(idea_prompt, universe_text, api_key)
+            run = {
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "query": idea_prompt.strip(),
+                "universe": universe_text.strip(),
+                "result": result,
+            }
+            runs = st.session_state.store.setdefault("idea_discovery_runs", [])
+            runs.insert(0, run)
+            st.session_state.store["idea_discovery_runs"] = runs[:8]
+            save_store(st.session_state.store)
+            st.rerun()
+        except ValueError as exc:
+            st.warning(str(exc))
+        except Exception as exc:
+            st.error(f"Could not generate ideas: {str(exc)[:160]}")
+
+    runs = st.session_state.store.get("idea_discovery_runs", [])
+    if not runs:
+        st.markdown(
+            '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
+            'padding:14px 0;">No idea runs yet.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        latest = runs[0]
+        result = latest.get("result") or {}
+        st.markdown(
+            f'<div style="border:1px solid var(--color-border);border-radius:4px;padding:12px 14px;'
+            f'margin:12px 0 16px;background:#FFFFFF;">'
+            f'<div style="font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:700;'
+            f'letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Latest screen</div>'
+            f'<div style="font-family:var(--font-sans);font-size:var(--fs-md);font-weight:700;margin-top:5px;">{html.escape(latest.get("query", ""))}</div>'
+            f'<div style="font-size:var(--fs-base);color:var(--color-muted);margin-top:6px;line-height:1.45;">{html.escape(result.get("summary", ""))}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        criteria = result.get("criteria") or []
+        if criteria:
+            st.markdown(
+                '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">'
+                + "".join(
+                    f'<span style="border:1px solid var(--color-border);border-radius:4px;'
+                    f'padding:5px 7px;font-family:var(--font-mono);font-size:var(--fs-xs);'
+                    f'color:var(--color-muted);background:#FFFFFF;">{html.escape(str(c))}</span>'
+                    for c in criteria[:6]
+                )
+                + '</div>',
+                unsafe_allow_html=True,
+            )
+
+        bench = fetch_bench()
+        candidates = [enrich_discovery_candidate(c, bench) for c in (result.get("candidates") or [])]
+        for idx, cand in enumerate(candidates):
+            tkr = str(cand.get("ticker", "")).upper().strip()
+            score = cand.get("score", "—")
+            action = cand.get("_action")
+            action_style = STATE_STYLES.get(action or "", {})
+            action_label = action_style.get("label", "Not scored")
+            action_emoji = action_style.get("emoji", "•")
+            price = cand.get("_price")
+            chg = cand.get("_change")
+            price_txt = f"${price:,.2f}" if price is not None else "—"
+            chg_txt = f"{chg:+.2f}%" if chg is not None else "—"
+            chg_color = "var(--color-positive)" if (chg or 0) >= 0 else "var(--color-negative)"
+            rs_value = cand.get("_rs")
+            rs_txt = f"{rs_value:.2f}" if isinstance(rs_value, (int, float)) else "—"
+            with st.container():
+                st.markdown(
+                    f'<div style="border-top:1px solid var(--color-border);padding:14px 0 10px;">'
+                    f'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">'
+                    f'<div>'
+                    f'<a href="?open={html.escape(tkr)}" target="_self" style="font-family:var(--font-sans);'
+                    f'font-size:var(--fs-lg);font-weight:800;color:var(--color-text);text-decoration:none;">'
+                    f'{html.escape(tkr)}</a>'
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;'
+                    f'color:var(--color-muted);margin-left:8px;">{html.escape(str(cand.get("_name") or cand.get("company") or ""))}</span>'
+                    f'</div>'
+                    f'<div style="font-family:var(--font-mono);font-size:var(--fs-sm);text-align:right;">'
+                    f'<div>{price_txt} <span style="color:{chg_color};">{chg_txt}</span></div>'
+                    f'<div style="color:var(--color-muted);margin-top:2px;">{action_emoji} {html.escape(action_label)} · AI {html.escape(str(score))}/100</div>'
+                    f'</div>'
+                    f'</div>'
+                    f'<div style="font-size:var(--fs-base);line-height:1.5;margin-top:9px;">'
+                    f'<b>Theme fit:</b> {html.escape(str(cand.get("theme_fit") or "—"))}<br>'
+                    f'<b>Financial fit:</b> {html.escape(str(cand.get("financial_fit") or "—"))}<br>'
+                    f'<b>Why it matters:</b> {html.escape(str(cand.get("why_it_matters") or "—"))}<br>'
+                    f'<b>Risk:</b> {html.escape(str(cand.get("risks") or "—"))}'
+                    f'</div>'
+                    f'<div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-muted);'
+                    f'margin-top:8px;">Market cap {html.escape(str(cand.get("_market_cap") or "—"))} · '
+                    f'Rev growth {html.escape(str(cand.get("_revenue_growth") or "—"))} · '
+                    f'Debt/equity {html.escape(str(cand.get("_debt_equity") or "—"))} · '
+                    f'RS {html.escape(rs_txt)}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                b1, b2 = st.columns([1, 4])
+                with b1:
+                    if tkr and tkr not in st.session_state.store.get("watchlist", []):
+                        if st.button(f"+ Watch {tkr}", key=f"idea_add_{idx}_{tkr}", use_container_width=True):
+                            st.session_state.store.setdefault("watchlist", []).append(tkr)
+                            update_sidebar_watchlist_cache((tkr,))
+                            save_store(st.session_state.store)
+                            st.rerun()
+                with b2:
+                    evidence = cand.get("evidence") or []
+                    verify_next = cand.get("verify_next") or []
+                    if evidence or verify_next:
+                        with st.expander(f"Evidence / verify next · {tkr}", expanded=False):
+                            if evidence:
+                                st.markdown("**Evidence**")
+                                for item in evidence[:4]:
+                                    st.markdown(f"- {item}")
+                            if verify_next:
+                                st.markdown("**Verify next**")
+                                for item in verify_next[:4]:
+                                    st.markdown(f"- {item}")
 
 
 # ─────────────────────────────────────────────────────────────────────
