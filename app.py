@@ -2736,6 +2736,25 @@ def sidebar_watchlist_snapshot(tickers):
     return snapshot
 
 
+def update_sidebar_watchlist_cache(tickers):
+    """Refresh and persist sidebar rows for the supplied tickers immediately."""
+    normalized = tuple(
+        t for t in (str(raw or "").upper().strip() for raw in (tickers or ()))
+        if t
+    )
+    if not normalized:
+        return {}
+    refreshed = sidebar_watchlist_snapshot(normalized)
+    if refreshed:
+        cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+        cache.update({
+            k: v for k, v in refreshed.items()
+            if isinstance(v, dict) and v.get("last") is not None
+        })
+        save_store(st.session_state.store)
+    return refreshed
+
+
 def normalize_action_key(raw):
     """Normalize logged/user/Claude action labels to internal action keys."""
     if raw is None:
@@ -3859,6 +3878,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
     except Exception:
         fetch_quote_meta.clear()
     sidebar_watchlist_snapshot.clear()
+    update_sidebar_watchlist_cache((refresh_ticker,))
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
         clear_pm_cache(refresh_ticker)
@@ -5601,6 +5621,7 @@ try:
             clear_pm_cache(refresh_ticker)
             clear_dossier_cache(refresh_ticker)
             sidebar_watchlist_snapshot.clear()
+            update_sidebar_watchlist_cache((refresh_ticker,))
             st.rerun()
 except Exception:
     pass
@@ -10229,7 +10250,7 @@ if view == "watchlist":
                 fetch_quote_meta.clear()
                 sidebar_watchlist_snapshot.clear()
                 st.session_state.store["watchlist_sidebar_cache"] = {}
-                save_store(st.session_state.store)
+                update_sidebar_watchlist_cache(st.session_state.store.get("watchlist", []))
                 st.rerun()
         with scan_c2:
             st.markdown(
