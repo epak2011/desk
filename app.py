@@ -10180,31 +10180,172 @@ def enrich_discovery_candidate(candidate, bench):
 
 
 if view == "ideas":
+    st.markdown("""
+<style>
+.ideas-builder {
+    border:1px solid var(--color-border);
+    border-radius:4px;
+    background:#FFFFFF;
+    padding:16px 16px 14px;
+    margin:6px 0 14px;
+}
+.ideas-builder-title {
+    font-family:var(--font-sans);
+    font-size:var(--fs-lg);
+    font-weight:850;
+    color:var(--color-text);
+    margin-bottom:4px;
+}
+.ideas-builder-sub {
+    font-size:var(--fs-base);
+    color:var(--color-muted);
+    line-height:1.45;
+    max-width:820px;
+}
+.ideas-examples {
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin:10px 0 2px;
+}
+.ideas-example {
+    border:1px solid var(--color-border);
+    border-radius:4px;
+    padding:5px 7px;
+    font-family:var(--font-mono);
+    font-size:var(--fs-xs);
+    color:var(--color-muted);
+    background:#F8FAFC;
+}
+.ideas-empty {
+    border:1px dashed var(--color-border);
+    border-radius:4px;
+    padding:13px 14px;
+    margin-top:12px;
+    color:var(--color-muted);
+    font-size:var(--fs-base);
+    background:#FFFFFF;
+}
+.ideas-table {
+    border:1px solid var(--color-border);
+    border-radius:4px;
+    overflow:hidden;
+    background:#FFFFFF;
+}
+.ideas-grid {
+    display:grid;
+    grid-template-columns:0.62fr 0.45fr 0.72fr 0.7fr 0.68fr 0.72fr 1.55fr 1.65fr 1.2fr 0.68fr;
+    gap:10px;
+    align-items:start;
+}
+.ideas-head {
+    padding:9px 10px;
+    background:#F8FAFC;
+    border-bottom:1px solid var(--color-border);
+    font-family:var(--font-mono);
+    font-size:var(--fs-xs);
+    font-weight:700;
+    letter-spacing:var(--ls-caps-lg);
+    text-transform:uppercase;
+    color:var(--color-muted);
+}
+.ideas-row {
+    padding:10px;
+    border-bottom:1px solid var(--color-border-soft);
+    font-family:var(--font-sans);
+    font-size:var(--fs-sm);
+    line-height:1.35;
+}
+.ideas-row:last-child { border-bottom:0; }
+.ideas-ticker {
+    font-size:var(--fs-md);
+    font-weight:850;
+    color:var(--color-text) !important;
+    text-decoration:none !important;
+}
+.ideas-company {
+    display:block;
+    margin-top:2px;
+    font-size:var(--fs-xs);
+    color:var(--color-muted);
+    font-weight:600;
+}
+.ideas-num {
+    font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums;
+}
+.ideas-action {
+    font-weight:800;
+    white-space:nowrap;
+}
+.ideas-link {
+    display:inline-block;
+    border:1px solid var(--color-border);
+    border-radius:4px;
+    padding:5px 7px;
+    color:var(--color-text) !important;
+    text-decoration:none !important;
+    font-family:var(--font-mono);
+    font-size:var(--fs-xs);
+    font-weight:700;
+}
+@media (max-width: 900px) {
+    .ideas-table { border:0; background:transparent; }
+    .ideas-head { display:none; }
+    .ideas-grid {
+        display:block;
+        border:1px solid var(--color-border);
+        border-radius:4px;
+        margin-bottom:10px;
+        background:#FFFFFF;
+    }
+    .ideas-row { border-bottom:0; }
+    .ideas-row > span,
+    .ideas-row > div,
+    .ideas-row > a {
+        display:block;
+        margin-bottom:7px;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
     st.markdown(
         '<div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
         'letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);'
         'margin:4px 0 10px;">Ideas · thematic discovery</div>',
         unsafe_allow_html=True,
     )
-    st.caption("Ask for a theme in plain English. The app returns candidates, then overlays your current price/action engine.")
+    st.markdown(
+        '<div class="ideas-builder">'
+        '<div class="ideas-builder-title">Screen for investable themes</div>'
+        '<div class="ideas-builder-sub">Describe the pattern you want. The engine researches candidates, then overlays your price/action, growth, debt, and relative-strength checks in a ranked table.</div>'
+        '<div class="ideas-examples">'
+        '<span class="ideas-example">Gen Z consumer + low debt</span>'
+        '<span class="ideas-example">AI infrastructure enablers</span>'
+        '<span class="ideas-example">Founder-led compounders</span>'
+        '<span class="ideas-example">Hidden asset / private stake proxies</span>'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     default_prompt = "Millennial and Gen Z consumer brands with low debt and meaningful year-over-year growth"
+    with st.expander("Advanced universe filter", expanded=False):
+        st.caption("Optional input guardrail. This is not the output.")
+        universe_text = st.text_area(
+            "Tickers to consider",
+            value=st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE),
+            height=92,
+            help="Optional. Keep this to liquid names you actually care about; the AI can still suggest adjacent names.",
+        )
     with st.form("idea_discovery_form"):
         idea_prompt = st.text_area(
-            "Theme / thesis",
+            "Describe the screen",
             value=st.session_state.get("last_idea_prompt", default_prompt),
-            height=88,
+            height=96,
             placeholder="Example: companies where millennials and Gen Z are the primary consumer, low debt, revenue growing meaningfully YoY",
         )
-        with st.expander("Candidate universe (optional)", expanded=False):
-            st.caption("This is an input guardrail, not the output. Leave it alone unless you want to constrain the search.")
-            universe_text = st.text_area(
-                "Tickers to consider",
-                value=st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE),
-                height=92,
-                help="Optional. Keep this to liquid names you actually care about; the AI can still suggest adjacent names.",
-            )
-        submit_idea = st.form_submit_button("Generate ideas", use_container_width=True)
+        submit_idea = st.form_submit_button("Run thematic screen", use_container_width=True)
 
     if submit_idea:
         st.session_state["last_idea_prompt"] = idea_prompt
@@ -10231,8 +10372,18 @@ if view == "ideas":
     runs = st.session_state.store.get("idea_discovery_runs", [])
     if not runs:
         st.markdown(
-            '<div style="color:var(--color-faintest);font-style:italic;font-size:var(--fs-base);'
-            'padding:14px 0;">No idea runs yet.</div>',
+            '<div class="ideas-table">'
+            '<div class="ideas-grid ideas-head">'
+            '<span>Ticker</span><span>AI</span><span>Action</span><span>Price</span>'
+            '<span>Growth</span><span>Debt</span><span>Theme fit</span>'
+            '<span>Why it matters</span><span>Risk</span><span></span>'
+            '</div>'
+            '</div>'
+            '<div class="ideas-empty">Run a screen to populate this table with ranked candidates.</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div style="height:8px;"></div>',
             unsafe_allow_html=True,
         )
     else:
