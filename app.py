@@ -1965,6 +1965,48 @@ div.streamlit-expanderHeader {
     border-color: var(--color-border);
     background: #FFFFFF;
 }
+.desk-freshness-panel {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    padding: 12px 13px;
+    margin: 0 0 12px;
+}
+.desk-freshness-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 8px;
+}
+.desk-freshness-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 5px 0;
+    border-top: 1px dashed var(--color-border-soft);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.25;
+}
+.desk-freshness-row:first-of-type {
+    border-top: 0;
+}
+.desk-freshness-row .k {
+    color: var(--color-faint);
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-sm);
+    text-transform: uppercase;
+}
+.desk-freshness-row .v {
+    color: var(--color-text);
+    text-align: right;
+}
+.desk-freshness-row.stale .v { color: var(--color-negative); }
+.desk-freshness-row.warn .v { color: var(--color-warning-text); }
+.desk-freshness-row.fresh .v { color: var(--color-positive); }
 .position-decision-panel {
     border: 1px solid var(--color-border);
     border-radius: 8px;
@@ -7636,36 +7678,24 @@ if view == "analyze":
     pm_label, pm_kind = pm_status_label(
         (dossier_result or {}).get("_source") or pm.get("_source", "")
     )
-    analyze_status_html = data_status_html(
-        analyze_status_items + [("PM", pm_label, pm_kind)]
-    )
     sidebar_label, sidebar_kind = sidebar_cache_status(ticker)
-    st.markdown(
-        data_status_html(
-            analyze_status_items + [
-                ("Research", pm_label, pm_kind),
-                ("Sidebar", sidebar_label, sidebar_kind),
-            ]
-        ),
-        unsafe_allow_html=True,
+    freshness_items = analyze_status_items + [
+        ("Research", pm_label, pm_kind),
+        ("Sidebar", sidebar_label, sidebar_kind),
+    ]
+    freshness_rows = "".join(
+        f'<div class="desk-freshness-row {html.escape(kind)}">'
+        f'<span class="k">{html.escape(label)}</span>'
+        f'<span class="v">{html.escape(value)}</span>'
+        f'</div>'
+        for label, value, kind in freshness_items
     )
-    refresh_c1, refresh_c2 = st.columns([1.25, 4])
-    with refresh_c1:
-        if st.button(
-            f"↻ Refresh {ticker.upper()}",
-            key=f"refresh_current_ticker_all_{ticker.upper()}",
-            help="Refresh prices, fundamentals, sidebar row, and Claude research for this ticker only.",
-            use_container_width=True,
-        ):
-            refresh_current_ticker_state(ticker, refresh_research=True)
-            st.rerun()
-    with refresh_c2:
-        st.markdown(
-            '<div style="font-family:var(--font-sans);font-size:var(--fs-sm);'
-            'color:var(--color-muted);line-height:1.35;padding-top:5px;">'
-            'Refreshes only this ticker. Full watchlist scans stay on the Watchlist page so mobile loads stay fast.</div>',
-            unsafe_allow_html=True,
-        )
+    freshness_panel_html = (
+        '<div class="desk-freshness-panel">'
+        '<div class="desk-freshness-title">Data freshness</div>'
+        f'{freshness_rows}'
+        '</div>'
+    )
 
     # Accumulation Watch override: if compute() flagged the name as
     # accumulation-eligible (deep drawdown + near low + stabilizing + not
@@ -9599,10 +9629,11 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
+        st.markdown(freshness_panel_html, unsafe_allow_html=True)
         if st.button(
-            f"↻ Refresh {ticker.upper()} research",
+            f"↻ Refresh {ticker.upper()}",
             key=f"refresh_current_research_{ticker.upper()}",
-            help="Regenerate Claude research for the ticker currently shown on this page.",
+            help="Refresh prices, fundamentals, sidebar row, and Claude research for this ticker only.",
             use_container_width=True,
         ):
             refresh_current_ticker_state(ticker, refresh_research=True)
