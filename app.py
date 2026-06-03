@@ -19,7 +19,7 @@ import streamlit as st
 import yfinance as yf
 
 import tactical
-from pm_view import get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS
+from pm_view import get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
 
 st.set_page_config(
@@ -44,8 +44,8 @@ if LEGACY_STORE_PATH.exists() and not STORE_PATH.exists():
     except Exception:
         pass
 PM_CACHE_TTL_DAYS = 7
-DOSSIER_SCHEMA_VERSION = 4
-SPECIAL_CONTEXT_REFRESH_TICKERS = {"SATS"}
+DOSSIER_SCHEMA_VERSION = 5
+SPECIAL_CONTEXT_REFRESH_TICKERS = RESEARCH_CONTEXT_TICKERS
 
 # Display-only fallbacks for common watchlist names when Yahoo omits profile
 # metadata during rate-limit windows. Live quote/math still comes from data.
