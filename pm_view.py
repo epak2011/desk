@@ -193,6 +193,14 @@ TICKER_RESEARCH_CONTEXT = {
     "NVO": [
         "Novo Nordisk is an obesity/GLP-1 category leader. Discuss Wegovy/Ozempic supply, pricing/reimbursement, competition from Lilly and next-gen incretins, and whether growth durability supports the multiple.",
     ],
+    "SKM": [
+        "SK Telecom is not just a defensive Korean telecom ADR; the key variant debate is whether its Anthropic equity exposure and AI data-center ambitions create hidden asset value relative to the market cap.",
+        "The PM memo MUST discuss SKT's Anthropic investment/ownership, estimated stake value, estimated stake value as a percentage of SKM market cap, dilution uncertainty, foreign-ownership/ADR constraints, Korea discount, FX risk, and whether the core telecom dividend/cash flow supports the downside.",
+        "Treat the Anthropic stake as a hidden-asset/proxy thesis, not as guaranteed upside. Separate confirmed company disclosures from analyst estimates and retail narrative math.",
+    ],
+    "ZM": [
+        "Zoom can screen as an Anthropic proxy because of prior strategic investment, but the operating debate is still core enterprise communications durability, AI monetization, cash balance, and growth reacceleration. Estimate any Anthropic stake value as % of market cap only if live research supports it.",
+    ],
     "ICOP": [
         "Treat ICOP as an ETF/fund exposure, not an operating company. The thesis should focus on copper/critical metals cycle, China/global capex demand, mine supply constraints, holdings concentration, expense ratio, and ETF liquidity.",
     ],
@@ -272,6 +280,10 @@ def _fetch_recent_news(client, ticker, company_name):
         (
             f"US-listed {identity} key risks short interest institutional ownership debt customer concentration "
             f"insider selling analyst upgrade downgrade price target recent news 2025 2026"
+        ),
+        (
+            f"US-listed {identity} hidden asset value private company stake shares ownership percentage book value "
+            f"stake value as percent of market cap strategic investment 2025 2026"
         ),
     ]
     all_results = []
@@ -378,6 +390,7 @@ PM MEMO QUALITY BAR:
 - Use crisp investor language: moat, unit economics, revenue durability, margin structure, balance-sheet risk, multiple support, catalyst path.
 - Research completeness test: before writing, identify the one or two critical facts a real PM would be embarrassed to miss. These may be strategic partnerships, pending transactions, hidden asset value, regulatory decisions, financing/dilution risk, customer concentration, product-cycle inflection, short interest, insider/institutional behavior, or ETF/factor exposure.
 - If live research shows a special situation, proxy exposure, major partnership, litigation/regulatory overhang, acquisition, restructuring, balance-sheet event, or upcoming product cycle, it MUST appear in thesis, risks, and valuation context.
+- Hidden asset math: if the thesis depends on a stake in another company, private-company exposure, venture holding, cash/investment portfolio, spectrum, real estate, patents, or other non-core asset, estimate value as a percentage of the current market cap whenever enough information exists. Show the range and state what is confirmed vs estimated.
 - If you cannot verify a suspected critical fact from live research, say the thesis depends on an unverified market narrative rather than treating it as fact.
 
 Return ONLY JSON in exactly this shape. No preamble, no code fences.
@@ -589,6 +602,7 @@ GLOBAL MEMO QUALITY RULES:
 - Research completeness test: do not finalize until you have checked whether the ticker has a special-situation angle, strategic relationship, hidden asset/liability, regulatory catalyst, financing risk, customer concentration, product-cycle inflection, short-interest squeeze risk, or ETF/factor exposure. If any exists, incorporate it directly.
 - The most important non-obvious fact should appear in the dossier and the PM narrative. Do not bury it in bullets.
 - Prefer current live research over stale training knowledge. If live research conflicts with the existing PM thesis snapshot, trust the newer research and call out the change.
+- Hidden asset / proxy math is mandatory when relevant: if live research identifies a private-company stake, strategic investment, spectrum asset, investment portfolio, cash pile, venture book, or other non-core asset, estimate the asset value as % of the company's market cap using available market cap from the data context. If ownership or valuation is uncertain, present a range and label it as estimated. This belongs in dossier, pm_narrative, and valuation.
 
 LIVE-VALUE TOKENS (CRITICAL):
 The dossier, technical_narrative, and pm_narrative are cached for up to 7 days, but PRICES MOVE DAILY. To keep narrative numbers current without regenerating the whole prose, you MUST use these literal token strings instead of hardcoding the values:
