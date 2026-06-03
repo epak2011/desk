@@ -5617,6 +5617,18 @@ try:
         if tkr_to_del:
             st.session_state["_pending_wldel"] = tkr_to_del.upper()
             st.rerun()
+    if "idea_watch" in qp_global:
+        tkr_to_watch = str(qp_global.get("idea_watch") or "").upper().strip()
+        del qp_global["idea_watch"]
+        if tkr_to_watch:
+            watchlist_store = st.session_state.store.setdefault("watchlist", [])
+            if tkr_to_watch not in watchlist_store:
+                watchlist_store.append(tkr_to_watch)
+                update_sidebar_watchlist_cache((tkr_to_watch,))
+                save_store(st.session_state.store)
+            st.session_state.current_ticker = tkr_to_watch
+            st.session_state.view = "analyze"
+            st.rerun()
     if "pm_refresh" in qp_global:
         tkr_to_refresh = qp_global.get("pm_refresh")
         del qp_global["pm_refresh"]
@@ -10184,12 +10196,14 @@ if view == "ideas":
             height=88,
             placeholder="Example: companies where millennials and Gen Z are the primary consumer, low debt, revenue growing meaningfully YoY",
         )
-        universe_text = st.text_area(
-            "Candidate universe",
-            value=st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE),
-            height=92,
-            help="Optional. Keep this to liquid names you actually care about; the AI can still suggest adjacent names.",
-        )
+        with st.expander("Candidate universe (optional)", expanded=False):
+            st.caption("This is an input guardrail, not the output. Leave it alone unless you want to constrain the search.")
+            universe_text = st.text_area(
+                "Tickers to consider",
+                value=st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE),
+                height=92,
+                help="Optional. Keep this to liquid names you actually care about; the AI can still suggest adjacent names.",
+            )
         submit_idea = st.form_submit_button("Generate ideas", use_container_width=True)
 
     if submit_idea:
@@ -10250,6 +10264,106 @@ if view == "ideas":
 
         bench = fetch_bench()
         candidates = [enrich_discovery_candidate(c, bench) for c in (result.get("candidates") or [])]
+        st.markdown("""
+<style>
+.ideas-table {
+    border:1px solid var(--color-border);
+    border-radius:4px;
+    overflow:hidden;
+    background:#FFFFFF;
+}
+.ideas-grid {
+    display:grid;
+    grid-template-columns:0.62fr 0.45fr 0.72fr 0.7fr 0.68fr 0.72fr 1.55fr 1.65fr 1.2fr 0.68fr;
+    gap:10px;
+    align-items:start;
+}
+.ideas-head {
+    padding:9px 10px;
+    background:#F8FAFC;
+    border-bottom:1px solid var(--color-border);
+    font-family:var(--font-mono);
+    font-size:var(--fs-xs);
+    font-weight:700;
+    letter-spacing:var(--ls-caps-lg);
+    text-transform:uppercase;
+    color:var(--color-muted);
+}
+.ideas-row {
+    padding:10px;
+    border-bottom:1px solid var(--color-border-soft);
+    font-family:var(--font-sans);
+    font-size:var(--fs-sm);
+    line-height:1.35;
+}
+.ideas-row:last-child { border-bottom:0; }
+.ideas-ticker {
+    font-size:var(--fs-md);
+    font-weight:850;
+    color:var(--color-text) !important;
+    text-decoration:none !important;
+}
+.ideas-company {
+    display:block;
+    margin-top:2px;
+    font-size:var(--fs-xs);
+    color:var(--color-muted);
+    font-weight:600;
+}
+.ideas-num {
+    font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums;
+}
+.ideas-action {
+    font-weight:800;
+    white-space:nowrap;
+}
+.ideas-small {
+    color:var(--color-muted);
+    font-size:var(--fs-xs);
+}
+.ideas-link {
+    display:inline-block;
+    border:1px solid var(--color-border);
+    border-radius:4px;
+    padding:5px 7px;
+    color:var(--color-text) !important;
+    text-decoration:none !important;
+    font-family:var(--font-mono);
+    font-size:var(--fs-xs);
+    font-weight:700;
+}
+@media (max-width: 900px) {
+    .ideas-table { border:0; background:transparent; }
+    .ideas-head { display:none; }
+    .ideas-grid {
+        display:block;
+        border:1px solid var(--color-border);
+        border-radius:4px;
+        margin-bottom:10px;
+        background:#FFFFFF;
+    }
+    .ideas-row { border-bottom:0; }
+    .ideas-row > span,
+    .ideas-row > div,
+    .ideas-row > a {
+        display:block;
+        margin-bottom:7px;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+        header_html = (
+            '<div class="ideas-table">'
+            '<div class="ideas-grid ideas-head">'
+            '<span>Ticker</span><span>AI</span><span>Action</span><span>Price</span>'
+            '<span>Growth</span><span>Debt</span><span>Theme fit</span>'
+            '<span>Why it matters</span><span>Risk</span><span></span>'
+            '</div>'
+        )
+        row_html = []
+        evidence_blocks = []
+        watchlist_set = set(st.session_state.store.get("watchlist", []))
         for idx, cand in enumerate(candidates):
             tkr = str(cand.get("ticker", "")).upper().strip()
             score = cand.get("score", "—")
@@ -10264,57 +10378,44 @@ if view == "ideas":
             chg_color = "var(--color-positive)" if (chg or 0) >= 0 else "var(--color-negative)"
             rs_value = cand.get("_rs")
             rs_txt = f"{rs_value:.2f}" if isinstance(rs_value, (int, float)) else "—"
-            with st.container():
-                st.markdown(
-                    f'<div style="border-top:1px solid var(--color-border);padding:14px 0 10px;">'
-                    f'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">'
-                    f'<div>'
-                    f'<a href="?open={html.escape(tkr)}" target="_self" style="font-family:var(--font-sans);'
-                    f'font-size:var(--fs-lg);font-weight:800;color:var(--color-text);text-decoration:none;">'
-                    f'{html.escape(tkr)}</a>'
-                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;'
-                    f'color:var(--color-muted);margin-left:8px;">{html.escape(str(cand.get("_name") or cand.get("company") or ""))}</span>'
-                    f'</div>'
-                    f'<div style="font-family:var(--font-mono);font-size:var(--fs-sm);text-align:right;">'
-                    f'<div>{price_txt} <span style="color:{chg_color};">{chg_txt}</span></div>'
-                    f'<div style="color:var(--color-muted);margin-top:2px;">{action_emoji} {html.escape(action_label)} · AI {html.escape(str(score))}/100</div>'
-                    f'</div>'
-                    f'</div>'
-                    f'<div style="font-size:var(--fs-base);line-height:1.5;margin-top:9px;">'
-                    f'<b>Theme fit:</b> {html.escape(str(cand.get("theme_fit") or "—"))}<br>'
-                    f'<b>Financial fit:</b> {html.escape(str(cand.get("financial_fit") or "—"))}<br>'
-                    f'<b>Why it matters:</b> {html.escape(str(cand.get("why_it_matters") or "—"))}<br>'
-                    f'<b>Risk:</b> {html.escape(str(cand.get("risks") or "—"))}'
-                    f'</div>'
-                    f'<div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-muted);'
-                    f'margin-top:8px;">Market cap {html.escape(str(cand.get("_market_cap") or "—"))} · '
-                    f'Rev growth {html.escape(str(cand.get("_revenue_growth") or "—"))} · '
-                    f'Debt/equity {html.escape(str(cand.get("_debt_equity") or "—"))} · '
-                    f'RS {html.escape(rs_txt)}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-                b1, b2 = st.columns([1, 4])
-                with b1:
-                    if tkr and tkr not in st.session_state.store.get("watchlist", []):
-                        if st.button(f"+ Watch {tkr}", key=f"idea_add_{idx}_{tkr}", use_container_width=True):
-                            st.session_state.store.setdefault("watchlist", []).append(tkr)
-                            update_sidebar_watchlist_cache((tkr,))
-                            save_store(st.session_state.store)
-                            st.rerun()
-                with b2:
-                    evidence = cand.get("evidence") or []
-                    verify_next = cand.get("verify_next") or []
-                    if evidence or verify_next:
-                        with st.expander(f"Evidence / verify next · {tkr}", expanded=False):
-                            if evidence:
-                                st.markdown("**Evidence**")
-                                for item in evidence[:4]:
-                                    st.markdown(f"- {item}")
-                            if verify_next:
-                                st.markdown("**Verify next**")
-                                for item in verify_next[:4]:
-                                    st.markdown(f"- {item}")
+            add_or_open = (
+                f'<a class="ideas-link" href="?open={html.escape(tkr)}" target="_self">Open</a>'
+                if tkr in watchlist_set else
+                f'<a class="ideas-link" href="?idea_watch={html.escape(tkr)}" target="_self">+ Watch</a>'
+            )
+            row_html.append(
+                '<div class="ideas-grid ideas-row">'
+                f'<div><a class="ideas-ticker" href="?open={html.escape(tkr)}" target="_self">{html.escape(tkr)}</a>'
+                f'<span class="ideas-company">{html.escape(str(cand.get("_name") or cand.get("company") or ""))}</span></div>'
+                f'<span class="ideas-num">{html.escape(str(score))}/100</span>'
+                f'<span class="ideas-action">{html.escape(action_emoji)} {html.escape(action_label)}</span>'
+                f'<span class="ideas-num">{html.escape(price_txt)} <span style="color:{chg_color};">{html.escape(chg_txt)}</span>'
+                f'<span class="ideas-company">RS {html.escape(rs_txt)}</span></span>'
+                f'<span>{html.escape(str(cand.get("_revenue_growth") or "—"))}</span>'
+                f'<span>{html.escape(str(cand.get("_debt_equity") or "—"))}</span>'
+                f'<span>{html.escape(str(cand.get("theme_fit") or "—"))}</span>'
+                f'<span>{html.escape(str(cand.get("why_it_matters") or "—"))}</span>'
+                f'<span>{html.escape(str(cand.get("risks") or "—"))}</span>'
+                f'<span>{add_or_open}</span>'
+                '</div>'
+            )
+            evidence = cand.get("evidence") or []
+            verify_next = cand.get("verify_next") or []
+            if evidence or verify_next:
+                evidence_blocks.append((tkr, evidence, verify_next))
+        st.markdown(header_html + "".join(row_html) + "</div>", unsafe_allow_html=True)
+        if evidence_blocks:
+            with st.expander("Evidence / verify next", expanded=False):
+                for tkr, evidence, verify_next in evidence_blocks:
+                    st.markdown(f"**{tkr}**")
+                    if evidence:
+                        st.markdown("Evidence:")
+                        for item in evidence[:4]:
+                            st.markdown(f"- {item}")
+                    if verify_next:
+                        st.markdown("Verify next:")
+                        for item in verify_next[:4]:
+                            st.markdown(f"- {item}")
 
 
 # ─────────────────────────────────────────────────────────────────────
