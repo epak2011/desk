@@ -3777,6 +3777,48 @@ def data_status_html(items):
     return f'<div class="desk-data-strip">{chips}</div>'
 
 
+def sidebar_cache_status(ticker):
+    """Freshness label for the active ticker row in the sidebar cache."""
+    entry = st.session_state.store.get("watchlist_sidebar_cache", {}).get(str(ticker).upper(), {})
+    try:
+        ts = entry.get("updated_at")
+        if not ts:
+            return "not refreshed", "stale"
+        age = datetime.now() - datetime.fromisoformat(ts)
+        minutes = int(age.total_seconds() // 60)
+        if minutes < 1:
+            return "just now", "fresh"
+        if minutes <= 20:
+            return f"{minutes}m old", "fresh"
+        return f"{minutes}m old", "stale"
+    except Exception:
+        return "age unknown", "stale"
+
+
+def refresh_current_ticker_state(ticker, *, refresh_research=False):
+    """Clear the exact caches behind the currently viewed ticker."""
+    refresh_ticker = str(ticker or "").upper().strip()
+    if not refresh_ticker:
+        return
+    st.session_state.current_ticker = refresh_ticker
+    st.session_state.view = "analyze"
+    st.session_state["ticker_input"] = refresh_ticker
+    st.session_state["_last_synced_ticker"] = refresh_ticker
+    try:
+        fetch_history.clear(refresh_ticker)
+    except Exception:
+        fetch_history.clear()
+    try:
+        fetch_quote_meta.clear(refresh_ticker)
+    except Exception:
+        fetch_quote_meta.clear()
+    sidebar_watchlist_snapshot.clear()
+    if refresh_research:
+        st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
+        clear_pm_cache(refresh_ticker)
+        clear_dossier_cache(refresh_ticker)
+
+
 def get_effective_api_key():
     try:
         secret_key = st.secrets.get("ANTHROPIC_API_KEY", "").strip()
@@ -7597,6 +7639,33 @@ if view == "analyze":
     analyze_status_html = data_status_html(
         analyze_status_items + [("PM", pm_label, pm_kind)]
     )
+    sidebar_label, sidebar_kind = sidebar_cache_status(ticker)
+    st.markdown(
+        data_status_html(
+            analyze_status_items + [
+                ("Research", pm_label, pm_kind),
+                ("Sidebar", sidebar_label, sidebar_kind),
+            ]
+        ),
+        unsafe_allow_html=True,
+    )
+    refresh_c1, refresh_c2 = st.columns([1.25, 4])
+    with refresh_c1:
+        if st.button(
+            f"↻ Refresh {ticker.upper()}",
+            key=f"refresh_current_ticker_all_{ticker.upper()}",
+            help="Refresh prices, fundamentals, sidebar row, and Claude research for this ticker only.",
+            use_container_width=True,
+        ):
+            refresh_current_ticker_state(ticker, refresh_research=True)
+            st.rerun()
+    with refresh_c2:
+        st.markdown(
+            '<div style="font-family:var(--font-sans);font-size:var(--fs-sm);'
+            'color:var(--color-muted);line-height:1.35;padding-top:5px;">'
+            'Refreshes only this ticker. Full watchlist scans stay on the Watchlist page so mobile loads stay fast.</div>',
+            unsafe_allow_html=True,
+        )
 
     # Accumulation Watch override: if compute() flagged the name as
     # accumulation-eligible (deep drawdown + near low + stabilizing + not
@@ -7754,7 +7823,6 @@ if view == "analyze":
             '</div>'
         )
         st.markdown(ticker_header_html, unsafe_allow_html=True)
-        st.markdown(analyze_status_html, unsafe_allow_html=True)
         if earn_banner:
             st.markdown(
                 f'<div class="desk-earnings-banner"><span class="em">📅</span>'
@@ -9537,15 +9605,7 @@ if view == "analyze":
             help="Regenerate Claude research for the ticker currently shown on this page.",
             use_container_width=True,
         ):
-            refresh_ticker = ticker.upper()
-            st.session_state.current_ticker = refresh_ticker
-            st.session_state.view = "analyze"
-            st.session_state["ticker_input"] = refresh_ticker
-            st.session_state["_last_synced_ticker"] = refresh_ticker
-            st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
-            clear_pm_cache(refresh_ticker)
-            clear_dossier_cache(refresh_ticker)
-            sidebar_watchlist_snapshot.clear()
+            refresh_current_ticker_state(ticker, refresh_research=True)
             st.rerun()
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
@@ -10123,6 +10183,27 @@ if view == "watchlist":
     if not st.session_state.store["watchlist"]:
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
+        scan_c1, scan_c2 = st.columns([1.3, 4])
+        with scan_c1:
+            if st.button(
+                "↻ Refresh watchlist scan",
+                key="refresh_watchlist_scan",
+                help="Refresh prices, fundamentals, sidebar rows, and scan metrics for the full watchlist.",
+                use_container_width=True,
+            ):
+                fetch_history.clear()
+                fetch_quote_meta.clear()
+                sidebar_watchlist_snapshot.clear()
+                st.session_state.store["watchlist_sidebar_cache"] = {}
+                save_store(st.session_state.store)
+                st.rerun()
+        with scan_c2:
+            st.markdown(
+                '<div style="font-family:var(--font-sans);font-size:var(--fs-sm);'
+                'color:var(--color-muted);line-height:1.35;padding-top:5px;">'
+                'Full scan refresh lives here so Analyze and mobile ticker switching stay fast.</div>',
+                unsafe_allow_html=True,
+            )
         bench = fetch_bench()
         dossier_cache = st.session_state.store.get("dossier_cache", {})
         owned_ticker_set = active_position_tickers()
