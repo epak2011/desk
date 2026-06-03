@@ -131,20 +131,99 @@ STATIC_SNAPSHOTS = {
 STATIC_VIEWS = STATIC_SNAPSHOTS
 
 
-SPECIAL_SITUATION_CONTEXT = {
-    "SATS": """
-SPECIAL SITUATION CONTEXT FOR SATS — mandatory to incorporate:
-- EchoStar/SATS has become a SpaceX/Starlink-adjacent special situation, not a plain satellite TV or telecom comp.
-- The key thesis is the sum-of-parts and proxy debate: SpaceX equity received or expected from spectrum transactions, cash proceeds/debt relief, Starlink Direct-to-Cell commercial linkage, and remaining DISH/Hughes/Boost operating assets.
-- The PM narrative MUST discuss whether SATS is a credible liquid public proxy for pre-IPO SpaceX/Starlink exposure, and must separate that optionality from the legacy operating business.
-- Do not present the SpaceX angle as a guaranteed IPO payoff. Frame it as optionality with deal-closing, valuation, liquidity, regulatory, tax, and proxy-premium unwind risk.
-- A good SATS memo should answer: what is the implied value of the SpaceX stake/exposure, what legacy liabilities remain, what happens if SpaceX enthusiasm fades, and what catalyst path makes the proxy thesis more or less real.
-""",
+TICKER_RESEARCH_CONTEXT = {
+    "NVDA": [
+        "Frame NVDA as the AI infrastructure compute standard, not just a chip cycle. The debate is whether Blackwell/rack-scale systems and CUDA networking lock-in extend the cycle or whether hyperscaler capex/custom silicon compress margins and multiples.",
+        "Separate long-term platform quality from entry timing; a great business can still be a bad fresh entry if the chart is extended.",
+    ],
+    "AVGO": [
+        "Broadcom is a custom silicon plus infrastructure software compounder after VMware, not only a semiconductor beta. Discuss AI ASIC demand, VMware margin/cash extraction, debt paydown, and customer concentration risk.",
+    ],
+    "AMD": [
+        "The bull case is MI-series accelerator share gain and CPU recovery; the bear case is that AMD remains a second-source AI supplier with weaker software lock-in versus NVDA. Do not write a generic semiconductor memo.",
+    ],
+    "MU": [
+        "Micron is a memory-cycle and HBM pricing story. The PM read must discuss DRAM/NAND supply discipline, HBM mix, cycle timing, and the risk that low multiples can signal peak-cycle earnings.",
+    ],
+    "MRVL": [
+        "Marvell is an AI networking/custom silicon and optical connectivity story. Separate true AI revenue durability from cyclical storage/networking recovery and valuation risk.",
+    ],
+    "COHR": [
+        "Coherent is an optical components/datacenter interconnect recovery story with balance-sheet and execution risk. Discuss AI optical demand, telecom/industrial cyclicality, and whether margin recovery is real.",
+    ],
+    "CRDO": [
+        "Credo is a high-beta AI connectivity/SerDes and active electrical cable story. Emphasize customer concentration, design-win durability, gross margin, and whether demand is structural or inventory-cycle driven.",
+    ],
+    "ANET": [
+        "Arista is a cloud networking compounder tied to AI data-center scale-out. Discuss Ethernet AI fabrics, hyperscaler concentration, Cisco/white-box risk, and whether AI networking keeps growth above normal enterprise cycles.",
+    ],
+    "TER": [
+        "Teradyne is a test-equipment cycle plus robotics optionality story. Discuss semiconductor test recovery, AI/advanced packaging demand, auto/industrial cyclicality, and Universal Robots recovery.",
+    ],
+    "VRT": [
+        "Vertiv is an AI data-center power/cooling infrastructure beneficiary. The debate is whether backlog and pricing power make it a durable compounder or whether it is a capex-cycle winner trading at peak expectations.",
+    ],
+    "PLTR": [
+        "Palantir is an ontology/AIP operating-system story, not just government analytics. Discuss commercial AIP adoption, government durability, usage-to-revenue conversion, valuation, and whether it becomes core enterprise infrastructure.",
+    ],
+    "DASH": [
+        "DoorDash is a local-commerce network and logistics platform, not merely food delivery. Discuss marketplace liquidity, international and grocery expansion, ad/commerce monetization, gig-worker regulation, and Uber Eats competition.",
+    ],
+    "COIN": [
+        "Coinbase is operating leverage to crypto activity plus custody/staking/stablecoin/regulatory optionality. Separate crypto beta from the durable exchange/custody franchise and discuss regulatory and fee-compression risk.",
+    ],
+    "RKLB": [
+        "Rocket Lab is a space infrastructure company, not only a small-launch provider. Discuss Neutron, spacecraft/components revenue, launch cadence, funding runway, and whether it can become a scaled alternative to SpaceX in selected missions.",
+    ],
+    "ASTS": [
+        "AST SpaceMobile is a direct-to-device cellular satellite special situation. Discuss satellite deployment cadence, carrier/MNO partnerships, spectrum/regulatory execution, funding needs, and whether technical validation converts into commercial service.",
+    ],
+    "SATS": [
+        "EchoStar/SATS has become a SpaceX/Starlink-adjacent special situation, not a plain satellite TV or telecom comp.",
+        "The key thesis is the sum-of-parts and proxy debate: SpaceX equity received or expected from spectrum transactions, cash proceeds/debt relief, Starlink Direct-to-Cell commercial linkage, and remaining DISH/Hughes/Boost operating assets.",
+        "The PM narrative MUST discuss whether SATS is a credible liquid public proxy for pre-IPO SpaceX/Starlink exposure, and must separate that optionality from the legacy operating business.",
+        "Do not present the SpaceX angle as a guaranteed IPO payoff. Frame it as optionality with deal-closing, valuation, liquidity, regulatory, tax, and proxy-premium unwind risk.",
+    ],
+    "IREN": [
+        "IREN is not only bitcoin mining; it is a BTC mining plus AI/HPC power-infrastructure optionality story. Discuss power access, data-center conversion credibility, BTC price sensitivity, dilution/capex, and contract quality.",
+    ],
+    "VST": [
+        "Vistra is a power-generation and load-growth story tied to electricity scarcity, nuclear/gas fleet value, and AI/data-center demand. Discuss power prices, capacity markets, hedging, leverage, and regulatory risk.",
+    ],
+    "NVO": [
+        "Novo Nordisk is an obesity/GLP-1 category leader. Discuss Wegovy/Ozempic supply, pricing/reimbursement, competition from Lilly and next-gen incretins, and whether growth durability supports the multiple.",
+    ],
+    "ICOP": [
+        "Treat ICOP as an ETF/fund exposure, not an operating company. The thesis should focus on copper/critical metals cycle, China/global capex demand, mine supply constraints, holdings concentration, expense ratio, and ETF liquidity.",
+    ],
+    "CQQQ": [
+        "Treat CQQQ as an ETF/fund exposure, not an operating company. Discuss China technology beta, policy/regulatory risk, ADR/geopolitical risk, holdings concentration, FX, and whether China internet sentiment is repairing.",
+    ],
+    "EWY": [
+        "Treat EWY as an ETF/fund exposure, not an operating company. Discuss Korea equity beta, Samsung/SK Hynix memory cycle exposure, won/FX risk, China/export sensitivity, and fund concentration.",
+    ],
+    "BTC-USD": [
+        "Treat BTC as a macro/liquidity and digital scarcity asset, not a company. Discuss ETF flows, real rates/liquidity, halving/supply dynamics, leverage/funding, and regulatory/custody risk.",
+    ],
 }
+
+RESEARCH_CONTEXT_TICKERS = set(TICKER_RESEARCH_CONTEXT)
 
 
 def _special_context_for(ticker):
-    return SPECIAL_SITUATION_CONTEXT.get((ticker or "").upper(), "")
+    lines = TICKER_RESEARCH_CONTEXT.get((ticker or "").upper())
+    if not lines:
+        return """
+GENERAL PM CONTEXT DISCIPLINE - mandatory:
+- Before writing, identify the actual reason this ticker matters now: product cycle, capital structure, regulatory/event path, asset value, category leadership, hidden optionality, or ETF/factor exposure.
+- Do not write a generic company summary. Name the dominant debate and the variant view in plain English.
+- If a ticker has an obvious non-financial thesis hook that would matter to a real PM, include it even if it is not present in the tactical data.
+"""
+    bullets = "\n".join(f"- {line}" for line in lines)
+    return f"""
+TICKER-SPECIFIC PM CONTEXT - mandatory to incorporate:
+{bullets}
+"""
 
 
 def _empty_deep_dive(ticker):
