@@ -10153,9 +10153,18 @@ def enrich_discovery_candidate(candidate, bench):
         return {**candidate, "_action": "—", "_price": None}
     hist, name, _err = fetch_history(ticker)
     meta = fetch_quote_meta(ticker)
+    fallback_profile = get_ticker_profile(ticker)
     enriched = {**candidate}
     enriched["_name"] = name or meta.get("long_name") or meta.get("short_name") or candidate.get("company") or ticker
     enriched["_market_cap"] = format_market_cap(meta.get("market_cap"))
+    enriched["_sector"] = meta.get("sector") or fallback_profile.get("sector") or "—"
+    enriched["_industry"] = (
+        meta.get("industry")
+        or meta.get("category")
+        or fallback_profile.get("industry")
+        or fallback_profile.get("category")
+        or "—"
+    )
     enriched["_revenue_growth"] = format_plain_pct(meta.get("revenue_growth"), digits=1)
     enriched["_debt_equity"] = format_plain_pct(meta.get("debt_to_equity"), digits=0)
     enriched["_earnings_days"] = meta.get("earnings_days")
@@ -10182,25 +10191,105 @@ def enrich_discovery_candidate(candidate, bench):
 if view == "ideas":
     st.markdown("""
 <style>
-.ideas-builder {
-    border:1px solid var(--color-border);
-    border-radius:4px;
-    background:#FFFFFF;
-    padding:16px 16px 14px;
-    margin:6px 0 14px;
+.ideas-shell {
+    display:grid;
+    grid-template-columns:260px minmax(0, 1fr);
+    gap:22px;
+    align-items:start;
 }
-.ideas-builder-title {
+.ideas-rail {
+    border-right:1px solid var(--color-border);
+    min-height:620px;
+    padding-right:18px;
+}
+.ideas-rail-title {
     font-family:var(--font-sans);
     font-size:var(--fs-lg);
     font-weight:850;
+    margin:2px 0 18px;
+}
+.ideas-rail-asset {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-family:var(--font-sans);
+    font-size:var(--fs-sm);
+    font-weight:800;
+    color:#475569;
+    margin-bottom:12px;
+}
+.ideas-rail-rule {
+    border-left:1px solid #CBD5E1;
+    padding-left:12px;
+    margin:8px 0 14px;
+    color:#64748B;
+    font-family:var(--font-mono);
+    font-size:var(--fs-xs);
+    line-height:1.45;
+}
+.ideas-rail-chip {
+    border:1px solid var(--color-border);
+    border-radius:4px;
+    padding:2px 5px;
+    background:#F8FAFC;
+    color:#64748B;
+}
+div[data-testid="stForm"] {
+    border:1px solid var(--color-border) !important;
+    border-radius:6px !important;
+    background:#FFFFFF !important;
+    padding:14px !important;
+}
+div[data-testid="stForm"] label {
+    font-family:var(--font-sans);
+    font-size:var(--fs-xs) !important;
+    font-weight:650 !important;
+    color:#64748B !important;
+}
+.ideas-main-panel {
+    border:1px solid var(--color-border-soft);
+    border-radius:6px;
+    background:#F8FAFC;
+    padding:24px 26px 26px;
+    min-height:620px;
+}
+.ideas-tabs {
+    display:flex;
+    gap:24px;
+    margin-bottom:14px;
+    font-family:var(--font-sans);
+    font-size:var(--fs-base);
+    font-weight:700;
+}
+.ideas-tab-active {
     color:var(--color-text);
-    margin-bottom:4px;
+    border-bottom:1px solid var(--color-text);
+    padding-bottom:6px;
+}
+.ideas-tab-muted {
+    color:#CBD5E1;
+}
+.ideas-asset-mark {
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    background:linear-gradient(135deg,#FDB5D5,#B8F76A);
+    display:inline-block;
+    margin-bottom:12px;
+}
+.ideas-builder-title {
+    font-family:var(--font-sans);
+    font-size:26px;
+    font-weight:850;
+    color:var(--color-text);
+    margin-bottom:10px;
 }
 .ideas-builder-sub {
     font-size:var(--fs-base);
-    color:var(--color-muted);
+    color:var(--color-body);
     line-height:1.45;
-    max-width:820px;
+    max-width:980px;
 }
 .ideas-examples {
     display:flex;
@@ -10225,22 +10314,48 @@ if view == "ideas":
     color:var(--color-muted);
     font-size:var(--fs-base);
     background:#FFFFFF;
+    font-family:var(--font-sans);
+}
+.ideas-progress {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin:26px 0 18px;
+    font-family:var(--font-mono);
+    font-size:var(--fs-xs);
+    color:#64748B;
+}
+.ideas-progress-bar {
+    flex:1;
+    height:3px;
+    background:#E2E8F0;
+    position:relative;
+}
+.ideas-progress-bar:before {
+    content:"";
+    position:absolute;
+    left:0;
+    top:0;
+    bottom:0;
+    width:42%;
+    background:#22C55E;
 }
 .ideas-table {
-    border:1px solid var(--color-border);
-    border-radius:4px;
+    border-top:1px solid var(--color-border);
+    border-bottom:1px solid var(--color-border);
+    border-radius:0;
     overflow:hidden;
-    background:#FFFFFF;
+    background:transparent;
 }
 .ideas-grid {
     display:grid;
-    grid-template-columns:0.62fr 0.45fr 0.72fr 0.7fr 0.68fr 0.72fr 1.55fr 1.65fr 1.2fr 0.68fr;
-    gap:10px;
+    grid-template-columns:0.9fr 0.58fr 0.78fr 0.82fr 1fr 0.72fr 0.72fr 0.72fr 1.7fr 0.6fr;
+    gap:14px;
     align-items:start;
 }
 .ideas-head {
-    padding:9px 10px;
-    background:#F8FAFC;
+    padding:10px 0;
+    background:transparent;
     border-bottom:1px solid var(--color-border);
     font-family:var(--font-mono);
     font-size:var(--fs-xs);
@@ -10250,7 +10365,7 @@ if view == "ideas":
     color:var(--color-muted);
 }
 .ideas-row {
-    padding:10px;
+    padding:12px 0;
     border-bottom:1px solid var(--color-border-soft);
     font-family:var(--font-sans);
     font-size:var(--fs-sm);
@@ -10278,6 +10393,19 @@ if view == "ideas":
     font-weight:800;
     white-space:nowrap;
 }
+.ideas-weight {
+    height:8px;
+    width:100%;
+    margin-top:4px;
+    border-radius:999px;
+    background:#E2E8F0;
+    overflow:hidden;
+}
+.ideas-weight > span {
+    display:block;
+    height:100%;
+    background:#94A3B8;
+}
 .ideas-link {
     display:inline-block;
     border:1px solid var(--color-border);
@@ -10290,6 +10418,14 @@ if view == "ideas":
     font-weight:700;
 }
 @media (max-width: 900px) {
+    .ideas-shell { display:block; }
+    .ideas-rail {
+        border-right:0;
+        min-height:0;
+        padding-right:0;
+        margin-bottom:16px;
+    }
+    .ideas-main-panel { padding:16px; min-height:0; }
     .ideas-table { border:0; background:transparent; }
     .ideas-head { display:none; }
     .ideas-grid {
@@ -10315,37 +10451,51 @@ if view == "ideas":
         'margin:4px 0 10px;">Ideas · thematic discovery</div>',
         unsafe_allow_html=True,
     )
-    st.markdown(
-        '<div class="ideas-builder">'
-        '<div class="ideas-builder-title">Screen for investable themes</div>'
-        '<div class="ideas-builder-sub">Describe the pattern you want. The engine researches candidates, then overlays your price/action, growth, debt, and relative-strength checks in a ranked table.</div>'
-        '<div class="ideas-examples">'
-        '<span class="ideas-example">Gen Z consumer + low debt</span>'
-        '<span class="ideas-example">AI infrastructure enablers</span>'
-        '<span class="ideas-example">Founder-led compounders</span>'
-        '<span class="ideas-example">Hidden asset / private stake proxies</span>'
-        '</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-
     default_prompt = "Millennial and Gen Z consumer brands with low debt and meaningful year-over-year growth"
-    with st.expander("Advanced universe filter", expanded=False):
-        st.caption("Optional input guardrail. This is not the output.")
-        universe_text = st.text_area(
-            "Tickers to consider",
-            value=st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE),
-            height=92,
-            help="Optional. Keep this to liquid names you actually care about; the AI can still suggest adjacent names.",
+    idea_prompt_seed = st.session_state.get("last_idea_prompt", default_prompt)
+    runs = st.session_state.store.get("idea_discovery_runs", [])
+    latest = runs[0] if runs else None
+    latest_result = (latest or {}).get("result") or {}
+    latest_query = (latest or {}).get("query") or idea_prompt_seed
+    latest_criteria = latest_result.get("criteria") or []
+    latest_candidates = latest_result.get("candidates") or []
+
+    left_col, right_col = st.columns([1.05, 4.7], gap="large")
+    with left_col:
+        st.markdown(
+            '<div class="ideas-rail-title">Generated Assets</div>'
+            '<div class="ideas-rail-asset">'
+            f'<span>{html.escape(str(latest_query)[:42])}</span><span>{len(latest_candidates) if latest_candidates else 0}</span>'
+            '</div>',
+            unsafe_allow_html=True,
         )
-    with st.form("idea_discovery_form"):
-        idea_prompt = st.text_area(
-            "Describe the screen",
-            value=st.session_state.get("last_idea_prompt", default_prompt),
-            height=96,
-            placeholder="Example: companies where millennials and Gen Z are the primary consumer, low debt, revenue growing meaningfully YoY",
+        rail_rules = latest_criteria[:4] if latest_criteria else [
+            "Market cap and liquidity screened before table overlay",
+            "Theme relevance scored by evidence quality",
+            "Financials checked for growth and leverage",
+        ]
+        st.markdown(
+            '<div class="ideas-rail-rule">'
+            + "".join(f'<div style="margin-bottom:10px;">{html.escape(str(rule))}</div>' for rule in rail_rules)
+            + '<div>Weighting <span class="ideas-rail-chip">based on relevance</span></div>'
+            + '</div>',
+            unsafe_allow_html=True,
         )
-        submit_idea = st.form_submit_button("Run thematic screen", use_container_width=True)
+        with st.form("idea_discovery_form"):
+            idea_prompt = st.text_area(
+                "Modify this generated asset",
+                value=idea_prompt_seed,
+                height=130,
+                placeholder="Example: companies where millennials and Gen Z are the primary consumer, low debt, revenue growing meaningfully YoY",
+            )
+            with st.expander("Advanced universe filter", expanded=False):
+                universe_text = st.text_area(
+                    "Tickers to consider",
+                    value=st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE),
+                    height=92,
+                    help="Optional input guardrail. This is not the output.",
+                )
+            submit_idea = st.form_submit_button("Run screen →", use_container_width=True)
 
     if submit_idea:
         st.session_state["last_idea_prompt"] = idea_prompt
@@ -10369,147 +10519,22 @@ if view == "ideas":
         except Exception as exc:
             st.error(f"Could not generate ideas: {str(exc)[:160]}")
 
-    runs = st.session_state.store.get("idea_discovery_runs", [])
-    if not runs:
-        st.markdown(
-            '<div class="ideas-table">'
-            '<div class="ideas-grid ideas-head">'
-            '<span>Ticker</span><span>AI</span><span>Action</span><span>Price</span>'
-            '<span>Growth</span><span>Debt</span><span>Theme fit</span>'
-            '<span>Why it matters</span><span>Risk</span><span></span>'
-            '</div>'
-            '</div>'
-            '<div class="ideas-empty">Run a screen to populate this table with ranked candidates.</div>',
-            unsafe_allow_html=True,
+    with right_col:
+        result = latest_result
+        asset_title = latest_query if latest else "Gen-Z Consumer Beneficiaries"
+        asset_summary = result.get("summary") if latest else (
+            "Companies that disproportionately benefit from a stated consumer or business behavior. "
+            "Run a screen to generate ranked assets with your trading-desk overlays."
         )
-        st.markdown(
-            '<div style="height:8px;"></div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        latest = runs[0]
-        result = latest.get("result") or {}
-        st.markdown(
-            f'<div style="border:1px solid var(--color-border);border-radius:4px;padding:12px 14px;'
-            f'margin:12px 0 16px;background:#FFFFFF;">'
-            f'<div style="font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:700;'
-            f'letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);">Latest screen</div>'
-            f'<div style="font-family:var(--font-sans);font-size:var(--fs-md);font-weight:700;margin-top:5px;">{html.escape(latest.get("query", ""))}</div>'
-            f'<div style="font-size:var(--fs-base);color:var(--color-muted);margin-top:6px;line-height:1.45;">{html.escape(result.get("summary", ""))}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-        criteria = result.get("criteria") or []
-        if criteria:
-            st.markdown(
-                '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">'
-                + "".join(
-                    f'<span style="border:1px solid var(--color-border);border-radius:4px;'
-                    f'padding:5px 7px;font-family:var(--font-mono);font-size:var(--fs-xs);'
-                    f'color:var(--color-muted);background:#FFFFFF;">{html.escape(str(c))}</span>'
-                    for c in criteria[:6]
-                )
-                + '</div>',
-                unsafe_allow_html=True,
-            )
-
+        found_count = len(latest_candidates) if latest_candidates else 0
         bench = fetch_bench()
         candidates = [enrich_discovery_candidate(c, bench) for c in (result.get("candidates") or [])]
-        st.markdown("""
-<style>
-.ideas-table {
-    border:1px solid var(--color-border);
-    border-radius:4px;
-    overflow:hidden;
-    background:#FFFFFF;
-}
-.ideas-grid {
-    display:grid;
-    grid-template-columns:0.62fr 0.45fr 0.72fr 0.7fr 0.68fr 0.72fr 1.55fr 1.65fr 1.2fr 0.68fr;
-    gap:10px;
-    align-items:start;
-}
-.ideas-head {
-    padding:9px 10px;
-    background:#F8FAFC;
-    border-bottom:1px solid var(--color-border);
-    font-family:var(--font-mono);
-    font-size:var(--fs-xs);
-    font-weight:700;
-    letter-spacing:var(--ls-caps-lg);
-    text-transform:uppercase;
-    color:var(--color-muted);
-}
-.ideas-row {
-    padding:10px;
-    border-bottom:1px solid var(--color-border-soft);
-    font-family:var(--font-sans);
-    font-size:var(--fs-sm);
-    line-height:1.35;
-}
-.ideas-row:last-child { border-bottom:0; }
-.ideas-ticker {
-    font-size:var(--fs-md);
-    font-weight:850;
-    color:var(--color-text) !important;
-    text-decoration:none !important;
-}
-.ideas-company {
-    display:block;
-    margin-top:2px;
-    font-size:var(--fs-xs);
-    color:var(--color-muted);
-    font-weight:600;
-}
-.ideas-num {
-    font-family:var(--font-mono);
-    font-variant-numeric:tabular-nums;
-}
-.ideas-action {
-    font-weight:800;
-    white-space:nowrap;
-}
-.ideas-small {
-    color:var(--color-muted);
-    font-size:var(--fs-xs);
-}
-.ideas-link {
-    display:inline-block;
-    border:1px solid var(--color-border);
-    border-radius:4px;
-    padding:5px 7px;
-    color:var(--color-text) !important;
-    text-decoration:none !important;
-    font-family:var(--font-mono);
-    font-size:var(--fs-xs);
-    font-weight:700;
-}
-@media (max-width: 900px) {
-    .ideas-table { border:0; background:transparent; }
-    .ideas-head { display:none; }
-    .ideas-grid {
-        display:block;
-        border:1px solid var(--color-border);
-        border-radius:4px;
-        margin-bottom:10px;
-        background:#FFFFFF;
-    }
-    .ideas-row { border-bottom:0; }
-    .ideas-row > span,
-    .ideas-row > div,
-    .ideas-row > a {
-        display:block;
-        margin-bottom:7px;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
         header_html = (
             '<div class="ideas-table">'
             '<div class="ideas-grid ideas-head">'
-            '<span>Ticker</span><span>AI</span><span>Action</span><span>Price</span>'
-            '<span>Growth</span><span>Debt</span><span>Theme fit</span>'
-            '<span>Why it matters</span><span>Risk</span><span></span>'
+            '<span>Assets</span><span>Relevance</span><span>Market cap</span><span>Sector</span>'
+            '<span>Industry</span><span>Action</span><span>Growth</span><span>Debt</span>'
+            '<span>Theme proof</span><span>Weight</span>'
             '</div>'
         )
         row_html = []
@@ -10534,27 +10559,58 @@ if view == "ideas":
                 if tkr in watchlist_set else
                 f'<a class="ideas-link" href="?idea_watch={html.escape(tkr)}" target="_self">+ Watch</a>'
             )
+            try:
+                weight_pct = max(8, min(100, float(score)))
+            except (TypeError, ValueError):
+                weight_pct = 35
+            market_cap = cand.get("_market_cap") or "—"
+            sector = cand.get("_sector") or "—"
+            industry = cand.get("_industry") or "—"
+            growth = cand.get("_revenue_growth") or "—"
+            debt = cand.get("_debt_equity") or "—"
+            theme_proof = cand.get("theme_fit") or cand.get("why_it_matters") or "—"
             row_html.append(
                 '<div class="ideas-grid ideas-row">'
                 f'<div><a class="ideas-ticker" href="?open={html.escape(tkr)}" target="_self">{html.escape(tkr)}</a>'
                 f'<span class="ideas-company">{html.escape(str(cand.get("_name") or cand.get("company") or ""))}</span></div>'
-                f'<span class="ideas-num">{html.escape(str(score))}/100</span>'
-                f'<span class="ideas-action">{html.escape(action_emoji)} {html.escape(action_label)}</span>'
-                f'<span class="ideas-num">{html.escape(price_txt)} <span style="color:{chg_color};">{html.escape(chg_txt)}</span>'
-                f'<span class="ideas-company">RS {html.escape(rs_txt)}</span></span>'
-                f'<span>{html.escape(str(cand.get("_revenue_growth") or "—"))}</span>'
-                f'<span>{html.escape(str(cand.get("_debt_equity") or "—"))}</span>'
-                f'<span>{html.escape(str(cand.get("theme_fit") or "—"))}</span>'
-                f'<span>{html.escape(str(cand.get("why_it_matters") or "—"))}</span>'
-                f'<span>{html.escape(str(cand.get("risks") or "—"))}</span>'
-                f'<span>{add_or_open}</span>'
+                f'<span class="ideas-num">{html.escape(str(score))}%</span>'
+                f'<span class="ideas-num">{html.escape(str(market_cap))}</span>'
+                f'<span>{html.escape(str(sector))}</span>'
+                f'<span>{html.escape(str(industry))}</span>'
+                f'<span class="ideas-action">{html.escape(action_emoji)} {html.escape(action_label)}'
+                f'<span class="ideas-company">{html.escape(price_txt)} · <span style="color:{chg_color};">{html.escape(chg_txt)}</span> · RS {html.escape(rs_txt)}</span></span>'
+                f'<span>{html.escape(str(growth))}</span>'
+                f'<span>{html.escape(str(debt))}</span>'
+                f'<span>{html.escape(str(theme_proof))}</span>'
+                f'<span><div class="ideas-weight"><span style="width:{weight_pct:.0f}%;"></span></div>'
+                f'<span class="ideas-company">{add_or_open}</span></span>'
                 '</div>'
             )
             evidence = cand.get("evidence") or []
             verify_next = cand.get("verify_next") or []
             if evidence or verify_next:
                 evidence_blocks.append((tkr, evidence, verify_next))
-        st.markdown(header_html + "".join(row_html) + "</div>", unsafe_allow_html=True)
+        empty_html = (
+            '<div class="ideas-empty">Run a screen to populate this table with ranked assets.</div>'
+            if not row_html else ""
+        )
+        table_html = header_html + "".join(row_html) + "</div>" + empty_html
+        panel_html = (
+            '<div class="ideas-tabs"><span class="ideas-tab-active">Positions</span><span class="ideas-tab-muted">Backtest</span></div>'
+            '<div class="ideas-main-panel">'
+            '<span class="ideas-asset-mark"></span>'
+            f'<div class="ideas-builder-title">{html.escape(str(asset_title))}</div>'
+            f'<div class="ideas-builder-sub">{html.escape(str(asset_summary or ""))}</div>'
+            '<div class="ideas-progress">'
+            '<span>Screening for potential matches...</span>'
+            '<span class="ideas-progress-bar"></span>'
+            f'<span>{found_count or "—"} found</span>'
+            '</div>'
+            f'<div style="font-family:var(--font-sans);font-size:var(--fs-md);font-weight:800;margin:0 0 12px;">{html.escape(str(asset_title))}</div>'
+            + table_html +
+            '</div>'
+        )
+        st.markdown(panel_html, unsafe_allow_html=True)
         if evidence_blocks:
             with st.expander("Evidence / verify next", expanded=False):
                 for tkr, evidence, verify_next in evidence_blocks:
