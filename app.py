@@ -6260,9 +6260,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         current = st.session_state.current_ticker
 
         # Keep Analyze fast: refresh the active ticker row only, and reserve
-        # full-watchlist price/action scans for the Watchlist page. Old saved
-        # rows are visibly labeled stale below instead of silently pretending
-        # to be current.
+        # full-watchlist price/action scans for the Watchlist page.
         saved_sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
         wl_data = dict(saved_sidebar_cache)
         try:
@@ -6332,14 +6330,9 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
             )
             chg_str = f"{chg_pct:+.2f}%" if chg_pct is not None else "—"
             px_str = f"${last:,.2f}" if last is not None else "—"
+            # Freshness is shown in the dedicated data-freshness panel, not
+            # repeated on every compact sidebar row.
             stale_note = ""
-            if price_age_kind == "stale":
-                stale_note = (
-                    f'<span title="{html.escape(price_age_label or "stale price data")}" '
-                    f'style="font-size:10px;color:var(--color-faint);'
-                    f'font-family:var(--font-mono);font-weight:700;'
-                    f'letter-spacing:0.04em;text-transform:uppercase;">stale</span>'
-                )
 
             # Active ticker: black bg + white text on the ticker label only
             active_bg = "var(--color-text)" if is_active else "transparent"
