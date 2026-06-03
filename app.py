@@ -3844,8 +3844,11 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
         return
     st.session_state.current_ticker = refresh_ticker
     st.session_state.view = "analyze"
-    st.session_state["ticker_input"] = refresh_ticker
-    st.session_state["_last_synced_ticker"] = refresh_ticker
+    # Do not write to st.session_state["ticker_input"] here. This helper is
+    # called from refresh buttons after the sidebar text_input widget has
+    # already been instantiated, and Streamlit forbids mutating a widget's
+    # session key at that point. The normal sidebar sync block updates the
+    # widget safely on the next rerun if current_ticker changed.
     try:
         fetch_history.clear(refresh_ticker)
     except Exception:
