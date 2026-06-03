@@ -44,7 +44,7 @@ if LEGACY_STORE_PATH.exists() and not STORE_PATH.exists():
     except Exception:
         pass
 PM_CACHE_TTL_DAYS = 7
-DOSSIER_SCHEMA_VERSION = 5
+DOSSIER_SCHEMA_VERSION = 6
 SPECIAL_CONTEXT_REFRESH_TICKERS = RESEARCH_CONTEXT_TICKERS
 
 # Display-only fallbacks for common watchlist names when Yahoo omits profile
