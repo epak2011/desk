@@ -251,16 +251,28 @@ def _generic_snapshot(ticker):
 
 
 def _fetch_recent_news(client, ticker, company_name):
-    """Web-search call to get recent earnings + news.
+    """Web-search call to get recent PM-relevant research context.
     Handles the multi-turn tool-use loop that web_search requires.
     Returns a formatted block ready to inject into any prompt, or empty string."""
     name = company_name or ticker
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
-    # Run two targeted searches: recent earnings + analyst/news
+    identity = f"{ticker} {name}".strip()
+    # Three searches is the practical ceiling: enough to catch variant thesis,
+    # earnings, and risk/catalyst facts without turning every refresh into a
+    # research terminal crawl.
     search_queries = [
-        (f"US stock {ticker} most recent quarterly earnings EPS revenue guidance beat miss 2025 2026 "
-         f"site:bloomberg.com OR site:reuters.com OR site:seekingalpha.com OR site:cnbc.com"),
-        (f"{ticker} stock analyst upgrade downgrade price target news 2025 2026"),
+        (
+            f"US-listed {identity} stock investment thesis variant view bull case bear case "
+            f"special situation strategic partnership acquisition asset value proxy regulatory catalyst 2025 2026"
+        ),
+        (
+            f"US-listed {identity} most recent earnings revenue EPS guidance margins backlog cash flow "
+            f"analyst call transcript 2025 2026"
+        ),
+        (
+            f"US-listed {identity} key risks short interest institutional ownership debt customer concentration "
+            f"insider selling analyst upgrade downgrade price target recent news 2025 2026"
+        ),
     ]
     all_results = []
 
@@ -310,8 +322,8 @@ def _fetch_recent_news(client, ticker, company_name):
         if all_results:
             combined = "\n\n".join(all_results)
             return (
-                f"\n\nRECENT NEWS & EARNINGS (live web search — more current than training data; "
-                f"you MUST incorporate these specific facts into your analysis):\n{combined}\n"
+                f"\n\nLIVE RESEARCH CONTEXT (web search — more current than training data; "
+                f"you MUST incorporate the PM-relevant facts, catalysts, risks, and variant-thesis angles found here):\n{combined}\n"
             )
     except Exception:
         pass
@@ -364,6 +376,9 @@ PM MEMO QUALITY BAR:
 - Separate business underwriting from trading timing. A great business can be a bad fresh entry; a broken chart can still be a real company.
 - Avoid generic phrases like "strong fundamentals", "growth opportunity", "competitive landscape", or "execution risk" unless immediately tied to a specific mechanism.
 - Use crisp investor language: moat, unit economics, revenue durability, margin structure, balance-sheet risk, multiple support, catalyst path.
+- Research completeness test: before writing, identify the one or two critical facts a real PM would be embarrassed to miss. These may be strategic partnerships, pending transactions, hidden asset value, regulatory decisions, financing/dilution risk, customer concentration, product-cycle inflection, short interest, insider/institutional behavior, or ETF/factor exposure.
+- If live research shows a special situation, proxy exposure, major partnership, litigation/regulatory overhang, acquisition, restructuring, balance-sheet event, or upcoming product cycle, it MUST appear in thesis, risks, and valuation context.
+- If you cannot verify a suspected critical fact from live research, say the thesis depends on an unverified market narrative rather than treating it as fact.
 
 Return ONLY JSON in exactly this shape. No preamble, no code fences.
 
@@ -571,6 +586,9 @@ GLOBAL MEMO QUALITY RULES:
 - Name the dominant debate in one sentence: "The debate is whether ___ or ___." Work that debate into pm_narrative.
 - Include an explicit "what would change my mind" idea in pm_narrative paragraph 4, not only in bullets.
 - Avoid generic filler: "monitor execution", "competitive pressures", "macro uncertainty", "growth potential" are banned unless made specific.
+- Research completeness test: do not finalize until you have checked whether the ticker has a special-situation angle, strategic relationship, hidden asset/liability, regulatory catalyst, financing risk, customer concentration, product-cycle inflection, short-interest squeeze risk, or ETF/factor exposure. If any exists, incorporate it directly.
+- The most important non-obvious fact should appear in the dossier and the PM narrative. Do not bury it in bullets.
+- Prefer current live research over stale training knowledge. If live research conflicts with the existing PM thesis snapshot, trust the newer research and call out the change.
 
 LIVE-VALUE TOKENS (CRITICAL):
 The dossier, technical_narrative, and pm_narrative are cached for up to 7 days, but PRICES MOVE DAILY. To keep narrative numbers current without regenerating the whole prose, you MUST use these literal token strings instead of hardcoding the values:
