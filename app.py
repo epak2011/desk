@@ -44,7 +44,8 @@ if LEGACY_STORE_PATH.exists() and not STORE_PATH.exists():
     except Exception:
         pass
 PM_CACHE_TTL_DAYS = 7
-DOSSIER_SCHEMA_VERSION = 3
+DOSSIER_SCHEMA_VERSION = 4
+SPECIAL_CONTEXT_REFRESH_TICKERS = {"SATS"}
 
 # Display-only fallbacks for common watchlist names when Yahoo omits profile
 # metadata during rate-limit windows. Live quote/math still comes from data.
@@ -7641,10 +7642,16 @@ if view == "analyze":
     # returns PM bullets, quality, and tactical_call, so a refresh should not
     # also generate the older PM snapshot in parallel.
     allow_pm_generate = not api_key
-    allow_dossier_generate = force_pm_refresh
+    needs_context_refresh = (
+        ticker.upper() in SPECIAL_CONTEXT_REFRESH_TICKERS
+        and dossier_cache_needs_upgrade(ticker)
+    )
+    allow_dossier_generate = force_pm_refresh or needs_context_refresh
 
     if force_pm_refresh:
         thesis_spinner = f"Refreshing {ticker.upper()} research…"
+    elif needs_context_refresh:
+        thesis_spinner = f"Updating {ticker.upper()} special-situation thesis…"
     elif allow_dossier_generate:
         thesis_spinner = f"Updating {ticker.upper()} research format…"
     else:
