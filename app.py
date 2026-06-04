@@ -225,6 +225,9 @@ def _store_default():
         #                  "shares": 10, "target1_price": 240,
         #                  "stop_price": 190, "user_note": "..."}}
         "holdings": {},
+        # Persist the last analyzed ticker so browser refreshes do not fall
+        # back to the default name.
+        "last_ticker": "NVDA",
         # Decision comparison log — one entry per "Log this comparison"
         # click. Side-by-side record of rule engine action, Claude action,
         # and (optionally) user action at a point in time so we can later
@@ -344,10 +347,23 @@ if "store" not in st.session_state:
     if "quote_meta_cache" not in st.session_state.store:
         st.session_state.store["quote_meta_cache"] = {}
         _needs_save = True
+    if "last_ticker" not in st.session_state.store:
+        st.session_state.store["last_ticker"] = "NVDA"
+        _needs_save = True
     if _needs_save:
         save_store(st.session_state.store)
 if "current_ticker" not in st.session_state:
-    st.session_state.current_ticker = "NVDA"
+    try:
+        _qp_ticker = (
+            st.query_params.get("ticker")
+            or st.query_params.get("open")
+            or st.query_params.get("pm_refresh")
+        )
+    except Exception:
+        _qp_ticker = ""
+    st.session_state.current_ticker = str(
+        _qp_ticker or st.session_state.store.get("last_ticker") or "NVDA"
+    ).upper().strip()
 if "view" not in st.session_state:
     st.session_state.view = "analyze"
 if "pm_expanded" not in st.session_state:
@@ -5772,12 +5788,23 @@ try:
     if "report" in qp_global:
         render_research_report(qp_global.get("report"))
         st.stop()
+    if "ticker" in qp_global:
+        tkr_from_url = str(qp_global.get("ticker") or "").upper().strip()
+        if tkr_from_url and tkr_from_url != st.session_state.current_ticker:
+            st.session_state.current_ticker = tkr_from_url
+            st.session_state.view = "analyze"
+            st.session_state.store["last_ticker"] = tkr_from_url
+            save_store(st.session_state.store)
+            st.rerun()
     if "open" in qp_global:
-        tkr_to_open = qp_global.get("open")
+        tkr_to_open = str(qp_global.get("open") or "").upper().strip()
         del qp_global["open"]
-        if tkr_to_open and tkr_to_open != st.session_state.current_ticker:
+        if tkr_to_open:
             st.session_state.current_ticker = tkr_to_open
             st.session_state.view = "analyze"
+            st.session_state.store["last_ticker"] = tkr_to_open
+            qp_global["ticker"] = tkr_to_open
+            save_store(st.session_state.store)
             st.rerun()
     if "view" in qp_global:
         view_to_open = str(qp_global.get("view") or "").strip().lower()
@@ -5802,6 +5829,9 @@ try:
                 save_store(st.session_state.store)
             st.session_state.current_ticker = tkr_to_watch
             st.session_state.view = "analyze"
+            st.session_state.store["last_ticker"] = tkr_to_watch
+            qp_global["ticker"] = tkr_to_watch
+            save_store(st.session_state.store)
             st.rerun()
     if "pm_refresh" in qp_global:
         tkr_to_refresh = qp_global.get("pm_refresh")
@@ -5812,6 +5842,8 @@ try:
             st.session_state.view = "analyze"
             st.session_state["ticker_input"] = refresh_ticker
             st.session_state["_last_synced_ticker"] = refresh_ticker
+            st.session_state.store["last_ticker"] = refresh_ticker
+            qp_global["ticker"] = refresh_ticker
             st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
             clear_pm_cache(refresh_ticker)
             clear_dossier_cache(refresh_ticker)
@@ -5888,6 +5920,20 @@ with st.sidebar:
     if input_ticker and input_ticker != st.session_state.current_ticker:
         st.session_state.current_ticker = input_ticker
         st.session_state["_last_synced_ticker"] = input_ticker
+        st.session_state.store["last_ticker"] = input_ticker
+        try:
+            st.query_params["ticker"] = input_ticker
+        except Exception:
+            pass
+        save_store(st.session_state.store)
+
+    if st.session_state.get("view") == "analyze" and st.session_state.current_ticker:
+        active_ticker = str(st.session_state.current_ticker).upper().strip()
+        try:
+            if st.query_params.get("ticker") != active_ticker:
+                st.query_params["ticker"] = active_ticker
+        except Exception:
+            pass
 
     st.markdown("---")
     st.markdown(
@@ -6601,7 +6647,14 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 st.session_state.store["watchlist"].remove(pending_del)
                 save_store(st.session_state.store)
                 if pending_del == st.session_state.current_ticker and st.session_state.store["watchlist"]:
-                    st.session_state.current_ticker = st.session_state.store["watchlist"][0]
+                    next_ticker = st.session_state.store["watchlist"][0]
+                    st.session_state.current_ticker = next_ticker
+                    st.session_state.store["last_ticker"] = next_ticker
+                    try:
+                        st.query_params["ticker"] = next_ticker
+                    except Exception:
+                        pass
+                    save_store(st.session_state.store)
                 st.session_state.pop("_pending_wldel", None)
                 st.rerun()
             if c_cancel.button("Cancel", key=f"cancel_wldel_{pending_del}", use_container_width=True):
@@ -6615,6 +6668,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         if st.button(f"+ Add {st.session_state.current_ticker} to watchlist",
                      use_container_width=True, key="add_to_watchlist_btn"):
             st.session_state.store["watchlist"].append(st.session_state.current_ticker)
+            st.session_state.store["last_ticker"] = st.session_state.current_ticker
             save_store(st.session_state.store)
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
@@ -10864,6 +10918,12 @@ if view == "holdings":
                 st.session_state.current_ticker = saved["ticker"]
                 st.session_state["ticker_input"] = saved["ticker"]
                 st.session_state["_last_synced_ticker"] = saved["ticker"]
+                st.session_state.store["last_ticker"] = saved["ticker"]
+                try:
+                    st.query_params["ticker"] = saved["ticker"]
+                except Exception:
+                    pass
+                save_store(st.session_state.store)
                 st.success(f"Added {saved['ticker']} to Holdings.")
                 st.rerun()
             except ValueError as e:
