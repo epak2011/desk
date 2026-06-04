@@ -7841,12 +7841,15 @@ if view == "analyze":
         ticker.upper() in SPECIAL_CONTEXT_REFRESH_TICKERS
         and dossier_cache_needs_upgrade(ticker)
     )
-    allow_dossier_generate = force_pm_refresh or needs_context_refresh
+    # Never auto-generate research during normal ticker navigation. It makes
+    # mobile first-paint painfully slow. Manual refresh/full report can still
+    # regenerate; ordinary Analyze loads use cached/static PM content.
+    allow_dossier_generate = force_pm_refresh
 
     if force_pm_refresh:
         thesis_spinner = f"Refreshing {ticker.upper()} research…"
     elif needs_context_refresh:
-        thesis_spinner = f"Updating {ticker.upper()} special-situation thesis…"
+        thesis_spinner = "Loading cached thesis…"
     elif allow_dossier_generate:
         thesis_spinner = f"Updating {ticker.upper()} research format…"
     else:
