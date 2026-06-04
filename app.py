@@ -5873,11 +5873,8 @@ try:
             st.session_state["_last_synced_ticker"] = refresh_ticker
             st.session_state.store["last_ticker"] = refresh_ticker
             qp_global["ticker"] = refresh_ticker
-            st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
-            clear_pm_cache(refresh_ticker)
-            clear_dossier_cache(refresh_ticker)
-            sidebar_watchlist_snapshot.clear()
-            update_sidebar_watchlist_cache((refresh_ticker,))
+            st.session_state["_force_data_refresh_ticker"] = refresh_ticker
+            refresh_current_ticker_state(refresh_ticker, refresh_research=False)
             st.rerun()
 except Exception:
     pass
@@ -9934,12 +9931,12 @@ if view == "analyze":
 """, unsafe_allow_html=True)
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
         if st.button(
-            f"↻ Refresh {ticker.upper()}",
+            f"↻ Refresh {ticker.upper()} data",
             key=f"refresh_current_research_{ticker.upper()}",
-            help="Refresh prices, fundamentals, sidebar row, and Claude research for this ticker only.",
+            help="Refresh price, fundamentals, and sidebar row for this ticker only.",
             use_container_width=True,
         ):
-            refresh_current_ticker_state(ticker, refresh_research=True)
+            refresh_current_ticker_state(ticker, refresh_research=False)
             st.rerun()
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
