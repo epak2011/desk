@@ -10006,6 +10006,17 @@ DEFAULT_DISCOVERY_UNIVERSE = (
     "ULTA, VFC, WING, ZM"
 )
 
+DEFAULT_DISCOVERY_STARTER_CANDIDATES = [
+    {"ticker": "DASH", "company": "DoorDash", "score": 82, "theme_fit": "Gen-Z/mobile ordering, local commerce, and marketplace habit formation.", "_sector": "Consumer Cyclical", "_industry": "Internet content & information"},
+    {"ticker": "SPOT", "company": "Spotify", "score": 80, "theme_fit": "Streaming, creator economy, podcasts, and music discovery tied to younger consumers.", "_sector": "Communication Services", "_industry": "Entertainment"},
+    {"ticker": "RBLX", "company": "Roblox", "score": 78, "theme_fit": "Gaming, virtual worlds, and younger-user social entertainment.", "_sector": "Communication Services", "_industry": "Electronic gaming"},
+    {"ticker": "DUOL", "company": "Duolingo", "score": 76, "theme_fit": "Mobile-first education app with strong consumer engagement and brand affinity.", "_sector": "Technology", "_industry": "Software"},
+    {"ticker": "ELF", "company": "e.l.f. Beauty", "score": 75, "theme_fit": "Value beauty, TikTok-native demand creation, and younger consumer share gains.", "_sector": "Consumer Defensive", "_industry": "Household & personal products"},
+    {"ticker": "HOOD", "company": "Robinhood", "score": 73, "theme_fit": "Retail investing, crypto access, and younger financial-services adoption.", "_sector": "Financial Services", "_industry": "Capital markets"},
+    {"ticker": "RDDT", "company": "Reddit", "score": 72, "theme_fit": "Online communities, interest graphs, and AI/search-adjacent consumer behavior.", "_sector": "Communication Services", "_industry": "Internet content & information"},
+    {"ticker": "SHOP", "company": "Shopify", "score": 70, "theme_fit": "Creator commerce, DTC brands, and merchant infrastructure for consumer trends.", "_sector": "Technology", "_industry": "Software"},
+]
+
 
 def _extract_json_object(text):
     """Best-effort JSON extraction for Claude responses."""
@@ -10459,20 +10470,21 @@ div[data-testid="stForm"] label {
     latest_query = (latest or {}).get("query") or idea_prompt_seed
     latest_criteria = latest_result.get("criteria") or []
     latest_candidates = latest_result.get("candidates") or []
+    display_candidate_count = len(latest_candidates) if latest_candidates else len(DEFAULT_DISCOVERY_STARTER_CANDIDATES)
 
     left_col, right_col = st.columns([1.05, 4.7], gap="large")
     with left_col:
         st.markdown(
             '<div class="ideas-rail-title">Generated Assets</div>'
             '<div class="ideas-rail-asset">'
-            f'<span>{html.escape(str(latest_query)[:42])}</span><span>{len(latest_candidates) if latest_candidates else 0}</span>'
+            f'<span>{html.escape(str(latest_query)[:42])}</span><span>{display_candidate_count}</span>'
             '</div>',
             unsafe_allow_html=True,
         )
         rail_rules = latest_criteria[:4] if latest_criteria else [
-            "Market cap and liquidity screened before table overlay",
-            "Theme relevance scored by evidence quality",
-            "Financials checked for growth and leverage",
+            "Describe the kind of companies you want to find",
+            "The AI ranks candidate stocks by relevance and evidence",
+            "Trading Desk overlays action, financials, and risk",
         ]
         st.markdown(
             '<div class="ideas-rail-rule">'
@@ -10488,17 +10500,11 @@ div[data-testid="stForm"] label {
                 height=130,
                 placeholder="Example: companies where millennials and Gen Z are the primary consumer, low debt, revenue growing meaningfully YoY",
             )
-            with st.expander("Advanced universe filter", expanded=False):
-                universe_text = st.text_area(
-                    "Tickers to consider",
-                    value=st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE),
-                    height=92,
-                    help="Optional input guardrail. This is not the output.",
-                )
             submit_idea = st.form_submit_button("Run screen →", use_container_width=True)
 
     if submit_idea:
         st.session_state["last_idea_prompt"] = idea_prompt
+        universe_text = st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE)
         st.session_state["last_idea_universe"] = universe_text
         try:
             with st.spinner("Researching theme and ranking candidates…"):
@@ -10528,7 +10534,12 @@ div[data-testid="stForm"] label {
         )
         found_count = len(latest_candidates) if latest_candidates else 0
         bench = fetch_bench()
-        candidates = [enrich_discovery_candidate(c, bench) for c in (result.get("candidates") or [])]
+        raw_candidates = result.get("candidates") or []
+        if raw_candidates:
+            candidates = [enrich_discovery_candidate(c, bench) for c in raw_candidates]
+        else:
+            candidates = [{**c, "_starter": True} for c in DEFAULT_DISCOVERY_STARTER_CANDIDATES]
+            found_count = len(candidates)
         header_html = (
             '<div class="ideas-table">'
             '<div class="ideas-grid ideas-head">'
@@ -10569,6 +10580,13 @@ div[data-testid="stForm"] label {
             growth = cand.get("_revenue_growth") or "—"
             debt = cand.get("_debt_equity") or "—"
             theme_proof = cand.get("theme_fit") or cand.get("why_it_matters") or "—"
+            if cand.get("_starter"):
+                action_label = "Run screen"
+                action_emoji = "↗"
+                price_txt = "—"
+                chg_txt = ""
+                rs_txt = "—"
+                chg_color = "var(--color-muted)"
             row_html.append(
                 '<div class="ideas-grid ideas-row">'
                 f'<div><a class="ideas-ticker" href="?open={html.escape(tkr)}" target="_self">{html.escape(tkr)}</a>'
@@ -10578,7 +10596,9 @@ div[data-testid="stForm"] label {
                 f'<span>{html.escape(str(sector))}</span>'
                 f'<span>{html.escape(str(industry))}</span>'
                 f'<span class="ideas-action">{html.escape(action_emoji)} {html.escape(action_label)}'
-                f'<span class="ideas-company">{html.escape(price_txt)} · <span style="color:{chg_color};">{html.escape(chg_txt)}</span> · RS {html.escape(rs_txt)}</span></span>'
+                f'<span class="ideas-company">{html.escape(price_txt)}'
+                f'{" · " if chg_txt else ""}<span style="color:{chg_color};">{html.escape(chg_txt)}</span>'
+                f' · RS {html.escape(rs_txt)}</span></span>'
                 f'<span>{html.escape(str(growth))}</span>'
                 f'<span>{html.escape(str(debt))}</span>'
                 f'<span>{html.escape(str(theme_proof))}</span>'
@@ -10591,7 +10611,7 @@ div[data-testid="stForm"] label {
             if evidence or verify_next:
                 evidence_blocks.append((tkr, evidence, verify_next))
         empty_html = (
-            '<div class="ideas-empty">Run a screen to populate this table with ranked assets.</div>'
+            '<div class="ideas-empty">Describe a theme and run the screen to rank candidate assets.</div>'
             if not row_html else ""
         )
         table_html = header_html + "".join(row_html) + "</div>" + empty_html
