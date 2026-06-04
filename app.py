@@ -10462,15 +10462,15 @@ div[data-testid="stForm"] label {
         'margin:4px 0 10px;">Ideas · thematic discovery</div>',
         unsafe_allow_html=True,
     )
-    default_prompt = "Millennial and Gen Z consumer brands with low debt and meaningful year-over-year growth"
-    idea_prompt_seed = st.session_state.get("last_idea_prompt", default_prompt)
+    default_prompt = ""
+    idea_prompt_seed = ""
     runs = st.session_state.store.get("idea_discovery_runs", [])
     latest = runs[0] if runs else None
     latest_result = (latest or {}).get("result") or {}
-    latest_query = (latest or {}).get("query") or idea_prompt_seed
+    latest_query = (latest or {}).get("query") or "New thematic screen"
     latest_criteria = latest_result.get("criteria") or []
     latest_candidates = latest_result.get("candidates") or []
-    display_candidate_count = len(latest_candidates) if latest_candidates else len(DEFAULT_DISCOVERY_STARTER_CANDIDATES)
+    display_candidate_count = len(latest_candidates) if latest_candidates else 0
 
     left_col, right_col = st.columns([1.05, 4.7], gap="large")
     with left_col:
@@ -10495,42 +10495,44 @@ div[data-testid="stForm"] label {
         )
         with st.form("idea_discovery_form"):
             idea_prompt = st.text_area(
-                "Modify this generated asset",
+                "Your thematic idea",
                 value=idea_prompt_seed,
                 height=130,
-                placeholder="Example: companies where millennials and Gen Z are the primary consumer, low debt, revenue growing meaningfully YoY",
+                placeholder="Type your thematic investment idea to get stock ideas.",
             )
             submit_idea = st.form_submit_button("Run screen →", use_container_width=True)
 
     if submit_idea:
-        st.session_state["last_idea_prompt"] = idea_prompt
-        universe_text = st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE)
-        st.session_state["last_idea_universe"] = universe_text
-        try:
-            with st.spinner("Researching theme and ranking candidates…"):
-                result = generate_theme_discovery(idea_prompt, universe_text, api_key)
-            run = {
-                "ts": datetime.now().isoformat(timespec="seconds"),
-                "query": idea_prompt.strip(),
-                "universe": universe_text.strip(),
-                "result": result,
-            }
-            runs = st.session_state.store.setdefault("idea_discovery_runs", [])
-            runs.insert(0, run)
-            st.session_state.store["idea_discovery_runs"] = runs[:8]
-            save_store(st.session_state.store)
-            st.rerun()
-        except ValueError as exc:
-            st.warning(str(exc))
-        except Exception as exc:
-            st.error(f"Could not generate ideas: {str(exc)[:160]}")
+        if not idea_prompt.strip():
+            st.warning("Type a thematic investment idea first.")
+        else:
+            st.session_state["last_idea_prompt"] = idea_prompt
+            universe_text = st.session_state.get("last_idea_universe", DEFAULT_DISCOVERY_UNIVERSE)
+            st.session_state["last_idea_universe"] = universe_text
+            try:
+                with st.spinner("Researching theme and ranking candidates…"):
+                    result = generate_theme_discovery(idea_prompt, universe_text, api_key)
+                run = {
+                    "ts": datetime.now().isoformat(timespec="seconds"),
+                    "query": idea_prompt.strip(),
+                    "universe": universe_text.strip(),
+                    "result": result,
+                }
+                runs = st.session_state.store.setdefault("idea_discovery_runs", [])
+                runs.insert(0, run)
+                st.session_state.store["idea_discovery_runs"] = runs[:8]
+                save_store(st.session_state.store)
+                st.rerun()
+            except ValueError as exc:
+                st.warning(str(exc))
+            except Exception as exc:
+                st.error(f"Could not generate ideas: {str(exc)[:160]}")
 
     with right_col:
         result = latest_result
-        asset_title = latest_query if latest else "Gen-Z Consumer Beneficiaries"
+        asset_title = latest_query if latest else "New thematic screen"
         asset_summary = result.get("summary") if latest else (
-            "Companies that disproportionately benefit from a stated consumer or business behavior. "
-            "Run a screen to generate ranked assets with your trading-desk overlays."
+            "Type a thematic investment idea on the left and run the screen to generate candidate stocks."
         )
         found_count = len(latest_candidates) if latest_candidates else 0
         bench = fetch_bench()
@@ -10538,8 +10540,8 @@ div[data-testid="stForm"] label {
         if raw_candidates:
             candidates = [enrich_discovery_candidate(c, bench) for c in raw_candidates]
         else:
-            candidates = [{**c, "_starter": True} for c in DEFAULT_DISCOVERY_STARTER_CANDIDATES]
-            found_count = len(candidates)
+            candidates = []
+            found_count = 0
         header_html = (
             '<div class="ideas-table">'
             '<div class="ideas-grid ideas-head">'
