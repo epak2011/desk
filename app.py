@@ -4648,7 +4648,14 @@ def trigger_text(t):
             return f"Close above ${buy:,.2f}."
         return trg.get("summary", "").capitalize()
     if t["action"] == "watch" and t.get("entry") is not None:
-        return f"Target entry at ${t['entry']:,.2f}; wait for confirmation."
+        entry = t.get("entry")
+        price = t.get("price")
+        try:
+            if price and abs(float(entry) - float(price)) / float(price) <= 0.005:
+                return "Wait for confirmation: close above the current level with expanding volume."
+        except (TypeError, ValueError, ZeroDivisionError):
+            pass
+        return f"Target entry at ${entry:,.2f}; wait for confirmation."
     if t["action"] == "avoid":
         if t["raw_bias"] == "bearish":
             return "No action — wait for a confirmed reversal."
@@ -8004,12 +8011,17 @@ if view == "analyze":
         claude_confidence = int(claude_call.get("confidence", 0) or 0)
     except (TypeError, ValueError):
         claude_confidence = 0
+    claude_source_text = str((dossier_result or {}).get("_source") or "").lower()
+    claude_is_current_enough = not any(
+        marker in claude_source_text
+        for marker in ("refresh to update", "research upgraded", "cached only", "unavailable")
+    )
     hard_rule_lock = (
         (not t.get("atr_ok", True)) or
         bool(t.get("event_risk_hold")) or
         bool(t.get("event_risk_watch"))
     )
-    if claude_action_key and claude_confidence >= 5 and not hard_rule_lock:
+    if claude_action_key and claude_confidence >= 5 and claude_is_current_enough and not hard_rule_lock:
         t = {
             **t,
             "action": claude_action_key,
