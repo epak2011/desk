@@ -12,6 +12,9 @@ Hierarchy (strict, top-down):
 
 import json
 import html
+import time
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -35,6 +38,7 @@ st.set_page_config(
 STORE_PATH = Path.home() / ".desk_store.json"
 LEGACY_STORE_PATH = Path(__file__).parent / "desk_store.json"
 BENCH_CACHE_PATH = Path.home() / ".desk_spy_benchmark_cache.json"
+HISTORY_CACHE_DIR = Path.home() / ".desk_history_cache"
 
 # One-time migration: if the legacy in-folder store exists and the new
 # home-folder store doesn't, move the legacy file forward.
@@ -336,6 +340,9 @@ if "store" not in st.session_state:
         _needs_save = True
     if "idea_discovery_runs" not in st.session_state.store:
         st.session_state.store["idea_discovery_runs"] = []
+        _needs_save = True
+    if "quote_meta_cache" not in st.session_state.store:
+        st.session_state.store["quote_meta_cache"] = {}
         _needs_save = True
     if _needs_save:
         save_store(st.session_state.store)
@@ -2572,6 +2579,102 @@ div.streamlit-expanderHeader {
 # ─────────────────────────────────────────────────────────────────────
 # Data fetch
 # ─────────────────────────────────────────────────────────────────────
+def _history_cache_path(ticker):
+    safe = "".join(ch for ch in str(ticker).upper() if ch.isalnum() or ch in ("-", "_"))
+    return HISTORY_CACHE_DIR / f"{safe}.json"
+
+
+def _prepare_history_frame(hist, source="live"):
+    if hist is None or len(hist) == 0:
+        return None
+    try:
+        hist = hist.copy()
+        if "Close" not in hist.columns:
+            return None
+        hist = hist.dropna(subset=["Close"])
+        if len(hist) == 0:
+            return None
+        for col in ("Open", "High", "Low"):
+            if col not in hist.columns:
+                hist[col] = hist["Close"]
+        if "Volume" not in hist.columns:
+            hist["Volume"] = 0
+        hist = hist.sort_index()
+        hist.attrs["source"] = source
+        return hist
+    except Exception:
+        return None
+
+
+def _write_history_cache(ticker, hist):
+    try:
+        hist = _prepare_history_frame(hist, source="cache-write")
+        if hist is None or len(hist) < 50:
+            return
+        HISTORY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        payload = hist.reset_index().rename(columns={"index": "Date"})
+        payload["Date"] = payload["Date"].astype(str)
+        cols = [c for c in ("Date", "Open", "High", "Low", "Close", "Volume") if c in payload.columns]
+        _history_cache_path(ticker).write_text(payload[cols].tail(540).to_json(orient="records"))
+    except Exception:
+        pass
+
+
+def _read_history_cache(ticker, max_age_hours=24):
+    try:
+        import pandas as pd
+        path = _history_cache_path(ticker)
+        if not path.exists():
+            return None
+        age_hours = (time.time() - path.stat().st_mtime) / 3600
+        if max_age_hours is not None and age_hours > max_age_hours:
+            return None
+        payload = json.loads(path.read_text())
+        hist = pd.DataFrame(payload)
+        if hist.empty or "Date" not in hist.columns or "Close" not in hist.columns:
+            return None
+        hist["Date"] = pd.to_datetime(hist["Date"], errors="coerce")
+        hist = hist.dropna(subset=["Date", "Close"]).set_index("Date").sort_index()
+        return _prepare_history_frame(hist, source="cached")
+    except Exception:
+        return None
+
+
+def _fetch_yahoo_chart_history(ticker):
+    try:
+        import pandas as pd
+        end = int(time.time())
+        start = end - 60 * 60 * 24 * 760
+        symbol = urllib.parse.quote(str(ticker).upper().strip())
+        url = (
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+            f"?period1={start}&period2={end}&interval=1d&includePrePost=false&events=history"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        result = ((payload.get("chart") or {}).get("result") or [None])[0]
+        if not result:
+            return None
+        timestamps = result.get("timestamp") or []
+        quote = (((result.get("indicators") or {}).get("quote") or [{}])[0]) or {}
+        adj = (((result.get("indicators") or {}).get("adjclose") or [{}])[0]) or {}
+        if not timestamps or not quote.get("close"):
+            return None
+        hist = pd.DataFrame({
+            "Date": pd.to_datetime(timestamps, unit="s").normalize(),
+            "Open": quote.get("open"),
+            "High": quote.get("high"),
+            "Low": quote.get("low"),
+            "Close": adj.get("adjclose") or quote.get("close"),
+            "Volume": quote.get("volume"),
+        }).dropna(subset=["Date", "Close"])
+        hist = hist.set_index("Date").sort_index()
+        return _prepare_history_frame(hist, source="yahoo-chart")
+    except Exception:
+        return None
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_history(ticker):
     """Fetch 2y daily history. Returns (hist, name, err_reason).
@@ -2585,17 +2688,46 @@ def fetch_history(ticker):
     slower Yahoo profile/info endpoint. Display metadata comes from the
     separately cached quote-meta fetch.
     """
+    ticker = str(ticker or "").upper().strip()
+    cached = _read_history_cache(ticker, max_age_hours=8)
+    if cached is not None and len(cached) >= 50:
+        return cached, None, None
+
+    last_error = None
     try:
-        yf_ticker = yf.Ticker(ticker)
-        hist = yf_ticker.history(period="2y", interval="1d", auto_adjust=True)
-        if hist is None or len(hist) == 0:
-            return None, None, "Yahoo returned no rows for this ticker (possibly delisted, wrong symbol, or yfinance API drift)"
-        return hist, None, None
+        hist = _fetch_yahoo_chart_history(ticker)
+        if hist is not None and len(hist) >= 50:
+            _write_history_cache(ticker, hist)
+            return hist, None, None
+        last_error = "Yahoo chart endpoint returned no usable rows"
     except Exception as e:
-        # yfinance 1.x can raise AttributeError on internal None/Response
-        # mishandling when Yahoo's API drifts. Treat all exceptions the
-        # same: surface the reason so the user can debug, not just shrug.
-        return None, None, f"{type(e).__name__}: {str(e)[:160]}"
+        last_error = f"{type(e).__name__}: {str(e)[:160]}"
+
+    try:
+        hist = yf.download(
+            ticker, period="2y", interval="1d", auto_adjust=True,
+            progress=False, threads=False, timeout=3,
+        )
+        if hist is not None and len(hist) > 0:
+            if hasattr(hist.columns, "nlevels") and hist.columns.nlevels > 1:
+                try:
+                    hist.columns = hist.columns.get_level_values(0)
+                except Exception:
+                    pass
+            hist = _prepare_history_frame(hist, source="yfinance-download")
+            if hist is not None and len(hist) >= 50:
+                _write_history_cache(ticker, hist)
+                return hist, None, None
+        last_error = last_error or "Yahoo returned no usable rows"
+    except Exception as e:
+        last_error = f"{type(e).__name__}: {str(e)[:160]}"
+
+    stale = _read_history_cache(ticker, max_age_hours=None)
+    if stale is not None and len(stale) >= 50:
+        stale.attrs["source"] = "stale-cache"
+        return stale, None, None
+
+    return None, None, (last_error or "Yahoo returned no rows for this ticker")
 
 
 def _prepare_benchmark_hist(hist, source="live", error=None):
@@ -3790,7 +3922,9 @@ def pm_status_label(source):
 
 def metadata_status_label(meta):
     if not meta:
-        return "not loaded", "stale"
+        return "deferred for fast load", "info"
+    if meta.get("_deferred"):
+        return "deferred for fast load", "info"
     quote_type = str(meta.get("quote_type") or "").upper()
     is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(
         meta.get("category") or meta.get("fund_family") or meta.get("total_assets") or meta.get("net_assets")
@@ -3805,6 +3939,33 @@ def metadata_status_label(meta):
     if available >= max(2, len(key_fields) - 1):
         return f"Yahoo/meta cached ≤1h · partial {available}/{len(key_fields)}", "warn"
     return f"Yahoo/meta sparse · {available}/{len(key_fields)}", "stale"
+
+
+def cached_quote_meta_snapshot(ticker):
+    """Return saved quote metadata without making a network call."""
+    tkr = str(ticker or "").upper().strip()
+    if not tkr:
+        return {"_deferred": True}
+    cache = st.session_state.store.setdefault("quote_meta_cache", {})
+    entry = cache.get(tkr) or {}
+    meta = entry.get("meta") if isinstance(entry, dict) else None
+    if isinstance(meta, dict) and meta:
+        return {**meta, "_cached_snapshot": True}
+    return {"_deferred": True}
+
+
+def remember_quote_meta(ticker, meta):
+    """Persist metadata fetched on slower pages so Analyze can open fast later."""
+    if not isinstance(meta, dict) or not meta:
+        return
+    tkr = str(ticker or "").upper().strip()
+    if not tkr:
+        return
+    slim = {k: v for k, v in meta.items() if not str(k).startswith("_")}
+    st.session_state.store.setdefault("quote_meta_cache", {})[tkr] = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "meta": slim,
+    }
 
 
 def watchlist_pm_status(dossier_cache, tickers):
@@ -3880,6 +4041,11 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
         fetch_quote_meta.clear(refresh_ticker)
     except Exception:
         fetch_quote_meta.clear()
+    try:
+        refreshed_meta = fetch_quote_meta(refresh_ticker)
+        remember_quote_meta(refresh_ticker, refreshed_meta)
+    except Exception:
+        pass
     sidebar_watchlist_snapshot.clear()
     update_sidebar_watchlist_cache((refresh_ticker,))
     if refresh_research:
@@ -3934,6 +4100,7 @@ def render_research_report(ticker):
     hist, name, err_reason = fetch_history(ticker)
     bench = fetch_bench()
     meta = fetch_quote_meta(ticker, include_slow_fallbacks=True)
+    remember_quote_meta(ticker, meta)
     fin = fetch_financial_snapshot(ticker)
     fallback_profile = infer_security_profile(ticker, meta, name)
     company = (
@@ -6308,20 +6475,13 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
         try:
             if st.session_state.view == "watchlist":
                 refreshed = sidebar_watchlist_snapshot(tuple(watchlist))
-            else:
-                active_for_sidebar = current.upper()
-                refreshed = (
-                    sidebar_watchlist_snapshot((active_for_sidebar,))
-                    if active_for_sidebar in {str(t).upper() for t in watchlist}
-                    else {}
-                )
-            if refreshed:
-                saved_sidebar_cache.update({
-                    k: v for k, v in refreshed.items()
-                    if isinstance(v, dict) and v.get("last") is not None
-                })
-                wl_data = dict(saved_sidebar_cache)
-                save_store(st.session_state.store)
+                if refreshed:
+                    saved_sidebar_cache.update({
+                        k: v for k, v in refreshed.items()
+                        if isinstance(v, dict) and v.get("last") is not None
+                    })
+                    wl_data = dict(saved_sidebar_cache)
+                    save_store(st.session_state.store)
         except Exception:
             wl_data = saved_sidebar_cache
 
@@ -7593,7 +7753,7 @@ if view == "analyze":
     with st.spinner(f"Loading {ticker}…"):
         hist, name, err_reason = fetch_history(ticker)
         bench = fetch_bench()
-        meta = fetch_quote_meta(ticker)
+        meta = cached_quote_meta_snapshot(ticker)
         if not name:
             name = (
                 (meta or {}).get("long_name")
@@ -10733,6 +10893,7 @@ if view == "holdings":
                 if not t_state:
                     continue
                 meta = fetch_quote_meta(tkr)
+                remember_quote_meta(tkr, meta)
                 if metadata_status_label(meta)[1] != "fresh":
                     meta_sparse += 1
                 t_state = apply_earnings_event_gate(t_state, meta.get("earnings_days") if meta else None)
@@ -10994,6 +11155,7 @@ if view == "watchlist":
 
                 # Earnings days from quote meta — fetch separately, cached
                 meta = fetch_quote_meta(tkr)
+                remember_quote_meta(tkr, meta)
                 if metadata_status_label(meta)[1] != "fresh":
                     meta_sparse += 1
                 earnings_days = meta.get("earnings_days") if meta else None
@@ -11938,7 +12100,8 @@ if view == "tracker":
             t_state = tactical.compute(hist, bench)
             if not t_state:
                 return None
-            meta = fetch_quote_meta(ticker_value)
+                meta = fetch_quote_meta(ticker_value)
+                remember_quote_meta(ticker_value, meta)
             t_state = apply_earnings_event_gate(t_state, meta.get("earnings_days") if meta else None)
             return position_management_read(entry, t_state)
 
@@ -11976,6 +12139,7 @@ if view == "tracker":
             if hist is None or len(hist) < 50 or bench is None:
                 return False, "Could not load enough price history."
             meta = fetch_quote_meta(ticker_value)
+            remember_quote_meta(ticker_value, meta)
             t_state = tactical.compute(hist, bench)
             if t_state is None:
                 return False, "Could not compute rule-engine state."
