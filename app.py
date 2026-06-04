@@ -12,6 +12,7 @@ Hierarchy (strict, top-down):
 
 import json
 import html
+import math
 import time
 import urllib.parse
 import urllib.request
@@ -280,7 +281,35 @@ def load_store():
     return _store_default()
 
 
+def _json_safe(value):
+    """Recursively convert app state into values Postgres JSONB can store."""
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, set):
+        return [_json_safe(v) for v in sorted(value, key=str)]
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, timedelta):
+        return str(value)
+    if hasattr(value, "isoformat") and value.__class__.__module__.startswith(("datetime", "pandas")):
+        try:
+            return value.isoformat()
+        except Exception:
+            return str(value)
+    if hasattr(value, "item"):
+        try:
+            return _json_safe(value.item())
+        except Exception:
+            return str(value)
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
 def save_store(store):
+    safe_store = _json_safe(store)
     if USE_POSTGRES:
         try:
             with _pg_connect() as conn:
@@ -290,7 +319,7 @@ def save_store(store):
                         VALUES ('default', %s::jsonb, NOW())
                         ON CONFLICT (key) DO UPDATE
                             SET value = EXCLUDED.value, updated_at = NOW()
-                    """, (json.dumps(store),))
+                    """, (json.dumps(safe_store, allow_nan=False),))
             return
         except Exception as e:
             # CRITICAL: Do NOT fall through to local file when USE_POSTGRES
@@ -305,7 +334,7 @@ def save_store(store):
                 pass
             return
     # File fallback — only reached when DATABASE_URL is unset (local dev)
-    STORE_PATH.write_text(json.dumps(store, indent=2))
+    STORE_PATH.write_text(json.dumps(safe_store, indent=2, allow_nan=False))
 
 
 if "store" not in st.session_state:
