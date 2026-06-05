@@ -7999,10 +7999,10 @@ if view == "analyze":
     force_pm_refresh = (
         st.session_state.pop("_force_pm_refresh_ticker", "") == ticker.upper()
     )
-    # Keep Analyze to one paid/slow generation path. The dossier call already
-    # returns PM bullets, quality, and tactical_call, so a refresh should not
-    # also generate the older PM snapshot in parallel.
-    allow_pm_generate = not api_key
+    # Ordinary ticker navigation stays fast/static. The explicit refresh button
+    # regenerates both the PM snapshot and dossier so new names do not get stuck
+    # on "No thesis on file."
+    allow_pm_generate = force_pm_refresh
     needs_context_refresh = (
         ticker.upper() in SPECIAL_CONTEXT_REFRESH_TICKERS
         and dossier_cache_needs_upgrade(ticker)
@@ -10009,25 +10009,14 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
-        refresh_data_col, refresh_research_col = st.columns(2)
-        with refresh_data_col:
-            if st.button(
-                f"↻ Refresh {ticker.upper()} data",
-                key=f"refresh_current_data_{ticker.upper()}",
-                help="Refresh price, fundamentals, and sidebar row for this ticker only.",
-                use_container_width=True,
-            ):
-                refresh_current_ticker_state(ticker, refresh_research=False)
-                st.rerun()
-        with refresh_research_col:
-            if st.button(
-                "🧠 Refresh PM research",
-                key=f"refresh_current_pm_research_{ticker.upper()}",
-                help="Regenerate the PM thesis, quality box, drivers, risks, valuation, and decision dossier.",
-                use_container_width=True,
-            ):
-                refresh_current_ticker_state(ticker, refresh_research=True)
-                st.rerun()
+        if st.button(
+            f"↻ Refresh {ticker.upper()}",
+            key=f"refresh_current_everything_{ticker.upper()}",
+            help="Refresh price, fundamentals, sidebar row, PM thesis, quality box, drivers, risks, valuation, and decision dossier.",
+            use_container_width=True,
+        ):
+            refresh_current_ticker_state(ticker, refresh_research=True)
+            st.rerun()
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
             f'target="_blank" rel="noopener">✨ Full research report ↗</a>',
