@@ -2685,6 +2685,15 @@ def _read_history_cache(ticker, max_age_hours=24):
         return None
 
 
+def _delete_history_cache(ticker):
+    try:
+        path = _history_cache_path(ticker)
+        if path.exists():
+            path.unlink()
+    except Exception:
+        pass
+
+
 def _fetch_yahoo_chart_history(ticker):
     try:
         import pandas as pd
@@ -2720,7 +2729,10 @@ def _fetch_yahoo_chart_history(ticker):
         return None
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+PRICE_CACHE_TTL_SECONDS = 300
+
+
+@st.cache_data(ttl=PRICE_CACHE_TTL_SECONDS, show_spinner=False)
 def fetch_history(ticker):
     """Fetch 2y daily history. Returns (hist, name, err_reason).
 
@@ -2734,7 +2746,7 @@ def fetch_history(ticker):
     separately cached quote-meta fetch.
     """
     ticker = str(ticker or "").upper().strip()
-    cached = _read_history_cache(ticker, max_age_hours=8)
+    cached = _read_history_cache(ticker, max_age_hours=PRICE_CACHE_TTL_SECONDS / 3600)
     if cached is not None and len(cached) >= 50:
         return cached, None, None
 
@@ -2933,6 +2945,40 @@ def update_sidebar_watchlist_cache(tickers):
         })
         save_store(st.session_state.store)
     return refreshed
+
+
+def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None):
+    """Keep the sidebar price/action aligned with the main Analyze read."""
+    tkr = str(ticker or "").upper().strip()
+    if not tkr or not isinstance(t_state, dict):
+        return
+    price = t_state.get("price")
+    change = t_state.get("change")
+    if price is None:
+        return
+    price_age_label, price_age_kind = format_market_data_age(hist)
+    cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+    cache[tkr] = {
+        "last": float(price),
+        "change_pct": float(change) if change is not None else None,
+        "action": t_state.get("action"),
+        "price_age": price_age_label,
+        "price_age_kind": price_age_kind,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    save_store(st.session_state.store)
+
+
+def sidebar_row_needs_refresh(row, *, max_age_minutes=5):
+    if not isinstance(row, dict) or row.get("last") is None:
+        return True
+    try:
+        ts = row.get("updated_at")
+        if not ts:
+            return True
+        return (datetime.now() - datetime.fromisoformat(ts)) > timedelta(minutes=max_age_minutes)
+    except Exception:
+        return True
 
 
 def normalize_action_key(raw):
@@ -4082,6 +4128,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
         fetch_history.clear(refresh_ticker)
     except Exception:
         fetch_history.clear()
+    _delete_history_cache(refresh_ticker)
     try:
         fetch_quote_meta.clear(refresh_ticker)
     except Exception:
@@ -6561,6 +6608,21 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                     })
                     wl_data = dict(saved_sidebar_cache)
                     save_store(st.session_state.store)
+            else:
+                refresh_candidates = []
+                current_upper = str(current or "").upper().strip()
+                ordered_sidebar_tickers = (
+                    [current_upper] if current_upper in watchlist else []
+                ) + [t for t in watchlist if t != current_upper]
+                for candidate in ordered_sidebar_tickers:
+                    if sidebar_row_needs_refresh(saved_sidebar_cache.get(candidate), max_age_minutes=5):
+                        refresh_candidates.append(candidate)
+                    if len(refresh_candidates) >= 3:
+                        break
+                if refresh_candidates:
+                    refreshed = update_sidebar_watchlist_cache(refresh_candidates)
+                    if refreshed:
+                        wl_data = dict(st.session_state.store.setdefault("watchlist_sidebar_cache", {}))
         except Exception:
             wl_data = saved_sidebar_cache
 
@@ -6579,7 +6641,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
                 updated_at = row_snapshot.get("updated_at")
                 if updated_at:
                     sidebar_age = datetime.now() - datetime.fromisoformat(updated_at)
-                    if sidebar_age > timedelta(minutes=20):
+                    if sidebar_age > timedelta(minutes=5):
                         price_age_kind = "stale"
                         minutes_old = int(sidebar_age.total_seconds() // 60)
                         price_age_label = f"sidebar cached {minutes_old}m ago"
@@ -7881,6 +7943,7 @@ if view == "analyze":
         }
     except Exception:
         t = {**t, "technical_prompt_context": {}}
+    remember_sidebar_ticker_snapshot(ticker, t, hist)
 
     earnings_days = meta.get("earnings_days") if meta else None
     t = apply_earnings_event_gate(t, earnings_days)
@@ -11181,6 +11244,8 @@ if view == "watchlist":
                 use_container_width=True,
             ):
                 fetch_history.clear()
+                for tkr in st.session_state.store.get("watchlist", []):
+                    _delete_history_cache(tkr)
                 fetch_quote_meta.clear()
                 sidebar_watchlist_snapshot.clear()
                 st.session_state.store["watchlist_sidebar_cache"] = {}
