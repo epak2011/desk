@@ -10,6 +10,19 @@ Both layers generated in a single Claude call to keep cost at one request per ti
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+
+
+def _call_with_timeout(fn, timeout_seconds, label):
+    """Run a blocking API call with a hard UI timeout."""
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(fn)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except FutureTimeout as exc:
+        raise TimeoutError(f"{label} timed out after {timeout_seconds}s") from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -267,25 +280,17 @@ def _fetch_recent_news(client, ticker, company_name):
     name = company_name or ticker
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
     identity = f"{ticker} {name}".strip()
-    # Three searches is the practical ceiling: enough to catch variant thesis,
-    # earnings, and risk/catalyst facts without turning every refresh into a
-    # research terminal crawl.
+    # Keep this deliberately short. The refresh button should improve the PM
+    # memo, not trap the page in a research crawl.
     search_queries = [
         (
             f"US-listed {identity} stock investment thesis variant view bull case bear case "
-            f"special situation strategic partnership acquisition asset value proxy regulatory catalyst 2025 2026"
+            f"special situation strategic partnership acquisition hidden asset value proxy regulatory catalyst "
+            f"key risks short interest customer concentration insider institutional ownership 2025 2026"
         ),
         (
             f"US-listed {identity} most recent earnings revenue EPS guidance margins backlog cash flow "
             f"analyst call transcript 2025 2026"
-        ),
-        (
-            f"US-listed {identity} key risks short interest institutional ownership debt customer concentration "
-            f"insider selling analyst upgrade downgrade price target recent news 2025 2026"
-        ),
-        (
-            f"US-listed {identity} hidden asset value private company stake shares ownership percentage book value "
-            f"stake value as percent of market cap strategic investment 2025 2026"
         ),
     ]
     all_results = []
@@ -296,20 +301,28 @@ def _fetch_recent_news(client, ticker, company_name):
             msgs = [{"role": "user", "content": query_text}]
             for _ in range(5):
                 try:
-                    resp = client.messages.create(
-                        model="claude-sonnet-4-6",
-                        max_tokens=800,
-                        tools=tools,
-                        messages=msgs,
-                        betas=["web-search-2025-03-05"],
+                    resp = _call_with_timeout(
+                        lambda: client.messages.create(
+                            model="claude-sonnet-4-6",
+                            max_tokens=800,
+                            tools=tools,
+                            messages=msgs,
+                            betas=["web-search-2025-03-05"],
+                        ),
+                        12,
+                        "Claude web search",
                     )
                 except TypeError as err:
                     if "betas" not in str(err):
                         raise
-                    resp = client.messages.create(
-                        model="claude-sonnet-4-6",
-                        max_tokens=800,
-                        messages=msgs,
+                    resp = _call_with_timeout(
+                        lambda: client.messages.create(
+                            model="claude-sonnet-4-6",
+                            max_tokens=800,
+                            messages=msgs,
+                        ),
+                        12,
+                        "Claude fallback search",
                     )
                 text_parts = [b.text for b in resp.content if hasattr(b, "text") and b.text]
                 if resp.stop_reason == "end_turn":
@@ -422,10 +435,14 @@ Return ONLY the JSON, nothing else."""
 
         for _attempt in range(2):
             try:
-                message = client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=2000,
-                    messages=[{"role": "user", "content": prompt}],
+                message = _call_with_timeout(
+                    lambda: client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=2000,
+                        messages=[{"role": "user", "content": prompt}],
+                    ),
+                    45,
+                    "Claude PM note",
                 )
                 break
             except Exception as _e:
@@ -757,10 +774,14 @@ Style across all three:
 
 Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
 
-        message = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=3000,
-            messages=[{"role": "user", "content": prompt}],
+        message = _call_with_timeout(
+            lambda: client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=3000,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            55,
+            "Claude decision dossier",
         )
         text = message.content[0].text.strip()
         # Strip stray code fences if Claude adds them
