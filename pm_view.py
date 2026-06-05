@@ -277,6 +277,10 @@ def _fetch_recent_news(client, ticker, company_name):
     """Web-search call to get recent PM-relevant research context.
     Handles the multi-turn tool-use loop that web_search requires.
     Returns a formatted block ready to inject into any prompt, or empty string."""
+    # Keep the live app responsive. The PM prompt is already instructed to
+    # surface off-statement / special-situation facts, and blocking every
+    # refresh on web search made new tickers feel frozen.
+    return ""
     name = company_name or ticker
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
     identity = f"{ticker} {name}".strip()
@@ -386,7 +390,6 @@ def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
         t = tactical_output or {}
         recent_news = _fetch_recent_news(client, ticker, company_name)
         special_context = _special_context_for(ticker)
-        time.sleep(1)  # brief pause to avoid rate-limiting the main call
         prompt = f"""You are a senior portfolio manager at a long-biased hedge fund. Write a full investment note on {ticker}{' (' + company_name + ')' if company_name else ''}.
 
 CRITICAL: The ticker {ticker} refers to the US-listed security "{company_name if company_name else ticker}" trading on US stock exchanges (NYSE/NASDAQ). Do NOT confuse it with any foreign company that may share the same ticker symbol on another exchange (e.g. a Singapore, London, or Hong Kong-listed company). If the yfinance name seems wrong, trust the US stock market context — {ticker} is a US-listed security. All analysis must be about the US-listed {ticker} only.{recent_news}
@@ -441,7 +444,7 @@ Return ONLY the JSON, nothing else."""
                         max_tokens=2000,
                         messages=[{"role": "user", "content": prompt}],
                     ),
-                    45,
+                    28,
                     "Claude PM note",
                 )
                 break
@@ -780,7 +783,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
                 max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}],
             ),
-            55,
+            32,
             "Claude decision dossier",
         )
         text = message.content[0].text.strip()
