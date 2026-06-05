@@ -783,7 +783,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
                 max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}],
             ),
-            32,
+            14,
             "Claude decision dossier",
         )
         text = message.content[0].text.strip()
