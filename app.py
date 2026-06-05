@@ -387,6 +387,8 @@ if "current_ticker" not in st.session_state:
             st.query_params.get("ticker")
             or st.query_params.get("open")
             or st.query_params.get("pm_refresh")
+            or st.query_params.get("research_refresh")
+            or st.query_params.get("data_refresh")
         )
     except Exception:
         _qp_ticker = ""
@@ -5909,9 +5911,9 @@ try:
             qp_global["ticker"] = tkr_to_watch
             save_store(st.session_state.store)
             st.rerun()
-    if "pm_refresh" in qp_global:
-        tkr_to_refresh = qp_global.get("pm_refresh")
-        del qp_global["pm_refresh"]
+    if "data_refresh" in qp_global:
+        tkr_to_refresh = qp_global.get("data_refresh")
+        del qp_global["data_refresh"]
         if tkr_to_refresh:
             refresh_ticker = str(tkr_to_refresh).upper().strip()
             st.session_state.current_ticker = refresh_ticker
@@ -5922,6 +5924,20 @@ try:
             qp_global["ticker"] = refresh_ticker
             st.session_state["_force_data_refresh_ticker"] = refresh_ticker
             refresh_current_ticker_state(refresh_ticker, refresh_research=False)
+            st.rerun()
+    if "pm_refresh" in qp_global or "research_refresh" in qp_global:
+        refresh_param = "pm_refresh" if "pm_refresh" in qp_global else "research_refresh"
+        tkr_to_refresh = qp_global.get(refresh_param)
+        del qp_global[refresh_param]
+        if tkr_to_refresh:
+            refresh_ticker = str(tkr_to_refresh).upper().strip()
+            st.session_state.current_ticker = refresh_ticker
+            st.session_state.view = "analyze"
+            st.session_state["ticker_input"] = refresh_ticker
+            st.session_state["_last_synced_ticker"] = refresh_ticker
+            st.session_state.store["last_ticker"] = refresh_ticker
+            qp_global["ticker"] = refresh_ticker
+            refresh_current_ticker_state(refresh_ticker, refresh_research=True)
             st.rerun()
 except Exception:
     pass
@@ -9993,14 +10009,25 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
-        if st.button(
-            f"↻ Refresh {ticker.upper()} data",
-            key=f"refresh_current_research_{ticker.upper()}",
-            help="Refresh price, fundamentals, and sidebar row for this ticker only.",
-            use_container_width=True,
-        ):
-            refresh_current_ticker_state(ticker, refresh_research=False)
-            st.rerun()
+        refresh_data_col, refresh_research_col = st.columns(2)
+        with refresh_data_col:
+            if st.button(
+                f"↻ Refresh {ticker.upper()} data",
+                key=f"refresh_current_data_{ticker.upper()}",
+                help="Refresh price, fundamentals, and sidebar row for this ticker only.",
+                use_container_width=True,
+            ):
+                refresh_current_ticker_state(ticker, refresh_research=False)
+                st.rerun()
+        with refresh_research_col:
+            if st.button(
+                "🧠 Refresh PM research",
+                key=f"refresh_current_pm_research_{ticker.upper()}",
+                help="Regenerate the PM thesis, quality box, drivers, risks, valuation, and decision dossier.",
+                use_container_width=True,
+            ):
+                refresh_current_ticker_state(ticker, refresh_research=True)
+                st.rerun()
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
             f'target="_blank" rel="noopener">✨ Full research report ↗</a>',
