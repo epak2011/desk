@@ -438,12 +438,17 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
         st.session_state["claude_calls_this_session"] = (
             st.session_state.get("claude_calls_this_session", 0) + 1
         )
-    cache[ticker] = {
-        "ts": datetime.now().isoformat(timespec="seconds"),
-        "view": {k: v for k, v in pm.items() if not k.startswith("_")},
-        "source": pm.get("_source", "static"),
-    }
-    save_store(st.session_state.store)
+    thesis_text = str(pm.get("thesis") or "")
+    is_placeholder_pm = thesis_text.startswith(f"No thesis on file for {ticker}")
+    # Do not persist a generic "no thesis" fallback after a failed refresh.
+    # Otherwise one bad refresh makes the PM side look permanently stale.
+    if not is_placeholder_pm:
+        cache[ticker] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "view": {k: v for k, v in pm.items() if not k.startswith("_")},
+            "source": pm.get("_source", "static"),
+        }
+        save_store(st.session_state.store)
     return pm
 
 
