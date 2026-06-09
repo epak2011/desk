@@ -444,7 +444,7 @@ Return ONLY the JSON, nothing else."""
                         max_tokens=2000,
                         messages=[{"role": "user", "content": prompt}],
                     ),
-                    28,
+                    45,
                     "Claude PM note",
                 )
                 break
