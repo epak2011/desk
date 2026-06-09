@@ -23,7 +23,7 @@ import streamlit as st
 import yfinance as yf
 
 import tactical
-from pm_view import get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
+from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
 
 st.set_page_config(
@@ -4218,8 +4218,10 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
     update_sidebar_watchlist_cache((refresh_ticker,))
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
-        clear_pm_cache(refresh_ticker)
-        clear_dossier_cache(refresh_ticker)
+        pm_cache = st.session_state.store.setdefault("pm_cache", {})
+        if refresh_ticker in pm_cache:
+            del pm_cache[refresh_ticker]
+            save_store(st.session_state.store)
 
 
 def get_effective_api_key():
@@ -8074,8 +8076,8 @@ if view == "analyze":
         st.session_state.pop("_force_pm_refresh_ticker", "") == ticker.upper()
     )
     # Ordinary ticker navigation stays fast/static. The explicit refresh button
-    # regenerates both the PM snapshot and dossier so new names do not get stuck
-    # on "No thesis on file."
+    # prioritizes the visible PM memo; the full dossier is heavier and remains
+    # cached/fallback so one click does not run two slow Claude jobs.
     allow_pm_generate = force_pm_refresh
     needs_context_refresh = (
         ticker.upper() in SPECIAL_CONTEXT_REFRESH_TICKERS
@@ -8084,7 +8086,7 @@ if view == "analyze":
     # Never auto-generate research during normal ticker navigation. It makes
     # mobile first-paint painfully slow. Manual refresh/full report can still
     # regenerate; ordinary Analyze loads use cached/static PM content.
-    allow_dossier_generate = force_pm_refresh
+    allow_dossier_generate = False
 
     if force_pm_refresh:
         thesis_spinner = f"Refreshing {ticker.upper()} research…"
@@ -8100,6 +8102,9 @@ if view == "analyze":
             api_key=api_key if api_key else None,
             company_name=name,
             allow_generate=allow_pm_generate,
+        )
+        allow_dossier_generate = bool(
+            force_pm_refresh and pm.get("_source") == "claude"
         )
         dossier_result = get_cached_dossier(
             ticker, t, modifiers, meta, pm,
@@ -9342,7 +9347,7 @@ if view == "analyze":
                             reply = ""
                             def _create_followup_message(messages, use_tools=True):
                                 kwargs = {
-                                    "model": "claude-sonnet-4-6",
+                                    "model": CLAUDE_MODEL,
                                     "max_tokens": 600,
                                     "system": sys_prompt,
                                     "messages": messages,
@@ -10550,7 +10555,7 @@ Return ONLY JSON:
     for _ in range(6):
         try:
             response = client.messages.create(
-                model="claude-sonnet-4-6",
+                model=CLAUDE_MODEL,
                 max_tokens=3500,
                 tools=tools,
                 messages=messages,
@@ -10560,7 +10565,7 @@ Return ONLY JSON:
             if "betas" not in str(err):
                 raise
             response = client.messages.create(
-                model="claude-sonnet-4-6",
+                model=CLAUDE_MODEL,
                 max_tokens=3500,
                 messages=messages,
             )
