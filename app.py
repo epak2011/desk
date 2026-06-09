@@ -2066,6 +2066,8 @@ div.streamlit-expanderHeader {
 .desk-freshness-row .v {
     color: var(--color-text);
     text-align: right;
+    max-width: 62%;
+    overflow-wrap: anywhere;
 }
 .desk-freshness-row.stale .v { color: var(--color-negative); }
 .desk-freshness-row.warn .v { color: var(--color-warning-text); }
@@ -4016,6 +4018,53 @@ def pm_status_label(source):
     if "today" in lower or "claude" in lower:
         return source, "fresh"
     return source, "neutral"
+
+
+def research_health_items(pm, dossier_result, api_key):
+    """Explicit research-state rows for the right-side status panel."""
+    pm = pm or {}
+    dossier_result = dossier_result or {}
+    has_key = bool(api_key)
+    pm_source = str(pm.get("_source") or "")
+    dossier_source = str(dossier_result.get("_source") or "")
+    thesis = str(pm.get("thesis") or "")
+    dossier_text = dossier_result.get("dossier")
+
+    if not has_key:
+        return [
+            ("PM memo", "AI key unavailable", "warn"),
+            ("Full dossier", "AI key unavailable", "warn"),
+        ]
+
+    pm_is_placeholder = thesis.startswith("No generated PM thesis yet")
+    pm_label, pm_kind = pm_status_label(pm_source)
+    if pm_is_placeholder:
+        pm_row = ("PM memo", "not generated", "warn")
+    elif "timed out" in pm_source.lower():
+        pm_row = ("PM memo", "timed out", "warn")
+    elif "failed" in pm_source.lower() or "fallback" in pm_source.lower():
+        pm_row = ("PM memo", pm_label, "warn")
+    else:
+        pm_row = ("PM memo", pm_label, pm_kind)
+
+    dossier_lower = dossier_source.lower()
+    if dossier_text:
+        dossier_label, dossier_kind = pm_status_label(dossier_source)
+        dossier_row = ("Full dossier", dossier_label, dossier_kind)
+    elif "timed out" in dossier_lower:
+        dossier_row = ("Full dossier", "timed out", "warn")
+    elif "error:" in dossier_lower:
+        dossier_row = (
+            "Full dossier",
+            dossier_source.replace("error:", "").strip()[:64],
+            "warn",
+        )
+    elif "cached only" in dossier_lower or "fast mode" in dossier_lower:
+        dossier_row = ("Full dossier", "cached/static · fast mode", "info")
+    else:
+        dossier_row = ("Full dossier", "not generated", "warn")
+
+    return [pm_row, dossier_row]
 
 
 def metadata_status_label(meta):
@@ -8054,14 +8103,12 @@ if view == "analyze":
             "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
             "_source": (dossier_result or {}).get("_source", pm.get("_source", "")),
         }
-    pm_label, pm_kind = pm_status_label(
-        (dossier_result or {}).get("_source") or pm.get("_source", "")
-    )
     sidebar_label, sidebar_kind = sidebar_cache_status(ticker)
-    freshness_items = analyze_status_items + [
-        ("Research", pm_label, pm_kind),
-        ("Sidebar", sidebar_label, sidebar_kind),
-    ]
+    freshness_items = (
+        analyze_status_items
+        + research_health_items(pm, dossier_result, api_key)
+        + [("Sidebar", sidebar_label, sidebar_kind)]
+    )
     freshness_rows = "".join(
         f'<div class="desk-freshness-row {html.escape(kind)}">'
         f'<span class="k">{html.escape(label)}</span>'
@@ -8071,7 +8118,7 @@ if view == "analyze":
     )
     freshness_panel_html = (
         '<div class="desk-freshness-panel">'
-        '<div class="desk-freshness-title">Data freshness</div>'
+        '<div class="desk-freshness-title">Research status</div>'
         f'{freshness_rows}'
         '</div>'
     )
