@@ -8258,9 +8258,25 @@ if view == "analyze":
             "action": claude_action_key,
             "_primary_source": "claude",
             "_rule_action": rule_t.get("action"),
+            "_source_note": "Claude primary",
         }
     else:
-        t = {**t, "_primary_source": "rule", "_rule_action": rule_t.get("action")}
+        if hard_rule_lock:
+            fallback_note = "Safety gate · rules override"
+        elif not claude_action_key:
+            fallback_note = "Claude missing · rules fallback"
+        elif claude_confidence < 5:
+            fallback_note = "Claude low confidence · rules fallback"
+        elif not claude_is_current_enough:
+            fallback_note = "Claude stale · rules fallback"
+        else:
+            fallback_note = "Claude unavailable · rules fallback"
+        t = {
+            **t,
+            "_primary_source": "rule",
+            "_rule_action": rule_t.get("action"),
+            "_source_note": fallback_note,
+        }
     t = apply_earnings_event_gate(t, earnings_days)
     st.session_state["_current_tactical"] = {**t, "ticker": ticker.upper()}
     final_action_cache = st.session_state.store.setdefault("final_action_cache", {})
@@ -8335,10 +8351,10 @@ if view == "analyze":
         }.get((t["action"], _state), "")
         # Treat enter as "deploy" in the state copy per spec language
         _state_action_label = "Deploy" if t["action"] == "enter_now" else sty["label"]
-        _source_note = (
+        _source_note = t.get("_source_note") or (
             "Claude primary"
             if t.get("_primary_source") == "claude"
-            else "Rule engine primary"
+            else "Claude unavailable · rules fallback"
         )
 
         # Build the criteria tooltip for the current action.
