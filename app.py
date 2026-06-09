@@ -4058,12 +4058,12 @@ def research_health_items(pm, dossier_result, api_key):
 
     pm_is_placeholder = thesis.startswith("No generated PM thesis yet")
     pm_label, pm_kind = pm_status_label(pm_source)
-    if pm_is_placeholder:
-        pm_row = ("PM memo", "not generated", "warn")
-    elif "timed out" in pm_source.lower():
+    if "timed out" in pm_source.lower():
         pm_row = ("PM memo", "timed out", "warn")
     elif "failed" in pm_source.lower() or "fallback" in pm_source.lower():
         pm_row = ("PM memo", pm_label, "warn")
+    elif pm_is_placeholder:
+        pm_row = ("PM memo", "not generated", "warn")
     else:
         pm_row = ("PM memo", pm_label, pm_kind)
 
@@ -8134,6 +8134,15 @@ if view == "analyze":
             "risks": live_bullets.get("risks") or pm.get("risks", []),
             "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
             "_source": (dossier_result or {}).get("_source", pm.get("_source", "")),
+        }
+    elif live_bullets.get("thesis") and str(pm.get("thesis") or "").startswith("No generated PM thesis yet"):
+        pm = {
+            **pm,
+            "thesis": live_bullets.get("thesis", pm.get("thesis", "")),
+            "drivers": live_bullets.get("drivers") or pm.get("drivers", []),
+            "risks": live_bullets.get("risks") or pm.get("risks", []),
+            "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
+            "_source": "cached dossier fallback · refresh to update",
         }
     sidebar_label, sidebar_kind = sidebar_cache_status(ticker)
     freshness_items = (
