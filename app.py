@@ -2517,6 +2517,20 @@ div[data-baseweb="input"] input {
 /*  Goal: app stays usable on a phone. Not optimal, but readable. */
 /* ────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+    /* Mobile: the desktop sticky brand strip collides with the browser/
+       Streamlit chrome and clips the ticker header. Let it scroll normally. */
+    div[data-testid="stElementContainer"]:has(.desk-bar),
+    div[data-testid="element-container"]:has(.desk-bar) {
+        position: static !important;
+        top: auto !important;
+        z-index: auto !important;
+    }
+    .desk-bar {
+        margin: 0 0 18px !important;
+        padding: 9px 0 10px !important;
+        position: relative !important;
+    }
+
     /* Loosen the desktop max-width and reduce side padding */
     .main .block-container {
         padding-left: 0.8rem !important;
@@ -2547,12 +2561,35 @@ div[data-baseweb="input"] input {
     .desk-trigger-text { font-size: var(--fs-xl) !important; line-height: 1.3 !important; }
     .desk-trigger-text b { font-size: var(--fs-xl) !important; }
 
-    /* Ticker row: shrink sym, hide secondary meta line so the row fits */
+    /* Ticker row: no fixed height on mobile. Metadata often wraps, so the
+       divider must move down instead of cutting the row in half. */
+    .desk-ticker-row {
+        height: auto !important;
+        min-height: 0 !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+        padding-bottom: 12px !important;
+        margin-bottom: 16px !important;
+    }
+    .desk-ticker-row > div:first-child {
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+    }
+    .desk-ticker-row > div:last-child {
+        flex: 0 0 auto !important;
+    }
     .desk-ticker-row .sym { font-size: var(--fs-xl) !important; }
     .desk-ticker-row .name { font-size: var(--fs-sm) !important; margin-left: 6px !important; }
     .desk-ticker-row .price { font-size: var(--fs-md) !important; }
     .desk-ticker-row .chg { font-size: var(--fs-sm) !important; margin-left: 6px !important; }
-    .desk-ticker-row .meta-inline { font-size: var(--fs-xs) !important; }
+    .desk-ticker-row .meta-inline {
+        font-size: var(--fs-xs) !important;
+        line-height: 1.45 !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        word-break: normal !important;
+        overflow-wrap: anywhere !important;
+    }
 
     /* Stack Streamlit columns vertically on mobile.
        This is the critical fix — col_decision (5) + col_pm (3) split
