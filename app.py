@@ -2292,6 +2292,26 @@ div.streamlit-expanderHeader {
     color: var(--color-text);
     font-size: 12px;
 }
+.watchlist-control-note {
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    color: var(--color-muted);
+    line-height: 1.35;
+    padding-top: 5px;
+}
+div[data-baseweb="select"] > div,
+div[data-baseweb="input"] > div,
+div[data-baseweb="popover"],
+ul[role="listbox"] {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+}
+div[data-baseweb="select"] [role="button"],
+div[data-baseweb="select"] input,
+div[data-baseweb="input"] input {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+}
 @media (max-width: 900px) {
     .research-grid {
         grid-template-columns: 1fr;
@@ -11306,9 +11326,9 @@ if view == "watchlist":
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
             if st.button(
-                "↻ Refresh watchlist scan",
+                "↻ Refresh watchlist market scan",
                 key="refresh_watchlist_scan",
-                help="Refresh prices, fundamentals, sidebar rows, and scan metrics for the full watchlist.",
+                help="Refresh prices, fundamentals, sidebar rows, and scan metrics for the full watchlist. PM memos are generated per ticker from Analyze so the watchlist stays fast.",
                 use_container_width=True,
             ):
                 fetch_history.clear()
@@ -11321,9 +11341,8 @@ if view == "watchlist":
                 st.rerun()
         with scan_c2:
             st.markdown(
-                '<div style="font-family:var(--font-sans);font-size:var(--fs-sm);'
-                'color:var(--color-muted);line-height:1.35;padding-top:5px;">'
-                'Full scan refresh lives here so Analyze and mobile ticker switching stay fast.</div>',
+                '<div class="watchlist-control-note">'
+                'Refreshes market data and scan metrics. PM memos stay per-ticker so the watchlist does not stall.</div>',
                 unsafe_allow_html=True,
             )
         bench = fetch_bench()
@@ -11342,17 +11361,23 @@ if view == "watchlist":
                 return "🎯 Near trigger", 2, "var(--color-warning-text)"
             if earnings_days is not None and -1 <= earnings_days <= 7:
                 return "📅 Earnings", 3, "var(--color-warning-text)"
-            if not ((cached.get("result") or {}).get("tactical_call") or {}):
-                return "🧠 PM missing", 4, "var(--color-faint)"
-            try:
-                cache_ts = cached.get("ts")
-                if cache_ts and (datetime.now() - datetime.fromisoformat(cache_ts)).days >= 3:
-                    return "🧠 PM stale", 5, "var(--color-faint)"
-            except Exception:
-                pass
             if action == "watch":
                 return "👀 Watch", 6, "var(--color-warning-text)"
             return "—", 99, "var(--color-faint)"
+
+        def _watchlist_pm_cell(cached):
+            """Return PM memo state for the row without implying scan refresh regenerates it."""
+            if not ((cached.get("result") or {}).get("tactical_call") or {}):
+                return "Missing", "var(--color-faint)"
+            try:
+                cache_ts = cached.get("ts")
+                if cache_ts:
+                    age = datetime.now() - datetime.fromisoformat(cache_ts)
+                    if age.days >= 3:
+                        return f"Stale {age.days}d", "var(--color-warning-text)"
+            except Exception:
+                pass
+            return "Ready", "var(--color-positive)"
 
         # ── Compute everything we'll need for every ticker, in one pass ──
         # Each row: dict with action/state/RS/etc. + tactical engine output.
@@ -11438,6 +11463,7 @@ if view == "watchlist":
                 attention_label, attention_rank, attention_color = _watchlist_attention(
                     tkr, t, trig_dist, earnings_days, cached
                 )
+                pm_row_label, pm_row_color = _watchlist_pm_cell(cached)
                 personality = classify_setup_personality(t, quality_tier)
 
                 rows.append({
@@ -11460,6 +11486,8 @@ if view == "watchlist":
                     "attention": attention_label,
                     "attention_rank": attention_rank,
                     "attention_color": attention_color,
+                    "pm_status": pm_row_label,
+                    "pm_status_color": pm_row_color,
                     "personality": personality["label"],
                     "personality_emoji": personality["emoji"],
                     "personality_rank": personality["rank"],
@@ -11652,8 +11680,8 @@ if view == "watchlist":
         # click and switches the active ticker — works universally without
         # needing Streamlit columns.
 
-        # 14-column grid: ticker / setup / attention / last / chg / action / state
-        #                 / quality / RS / vsMA50 / 52w / vol / trig / earn
+        # 15-column grid: ticker / setup / attention / last / chg / new action
+        #                 / PM / state / quality / RS / vsMA50 / 52w / vol / trig / earn
         grid_cols = (
             'grid-template-columns: '
             'minmax(58px,0.75fr) '
@@ -11662,6 +11690,7 @@ if view == "watchlist":
             'minmax(82px,0.85fr) '
             'minmax(74px,0.82fr) '
             'minmax(92px,0.98fr) '
+            'minmax(72px,0.78fr) '
             'minmax(96px,0.98fr) '
             'minmax(66px,0.72fr) '
             'minmax(66px,0.72fr) '
@@ -11678,6 +11707,8 @@ if view == "watchlist":
   <div>
     <b>Setup</b> descriptive setup type, separate from the action call ·
     <b>Attention</b> highest-signal reason to look now ·
+    <b>New action</b> what the app would do for a fresh position, whether or not you already own it ·
+    <b>PM</b> whether a generated PM memo/dossier is ready for that ticker ·
     <b>Quality</b> long-term PM tier ·
     <b>RS</b> relative strength vs SPY, above 1.0 leads ·
     <b>vs MA50</b> percent above/below the 50-day ·
@@ -11704,7 +11735,8 @@ if view == "watchlist":
             f'<span>Attention</span>'
             f'<span style="text-align:right;">Last</span>'
             f'<span style="text-align:right;">Chg (1D)</span>'
-            f'<span>Action</span>'
+            f'<span>New action</span>'
+            f'<span>PM</span>'
             f'<span>State</span>'
             f'<span>Quality</span>'
             f'<span style="text-align:right;">RS</span>'
@@ -11816,6 +11848,9 @@ if view == "watchlist":
                     f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
                     f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+                    f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
+                    f'{row["pm_status"]}</span>'
                     f'<span style="display:inline-flex;width:max-content;align-items:center;'
                     f'border:1px solid {state_color};border-radius:4px;background:{state_bg};'
                     f'padding:2px 6px;font-family:var(--font-sans);font-size:var(--fs-xs);'
