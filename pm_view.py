@@ -12,6 +12,8 @@ import json
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
+CLAUDE_MODEL = "claude-sonnet-4-20250514"
+
 
 def _call_with_timeout(fn, timeout_seconds, label):
     """Run a blocking API call with a hard UI timeout."""
@@ -307,7 +309,7 @@ def _fetch_recent_news(client, ticker, company_name):
                 try:
                     resp = _call_with_timeout(
                         lambda: client.messages.create(
-                            model="claude-sonnet-4-6",
+                            model=CLAUDE_MODEL,
                             max_tokens=800,
                             tools=tools,
                             messages=msgs,
@@ -321,7 +323,7 @@ def _fetch_recent_news(client, ticker, company_name):
                         raise
                     resp = _call_with_timeout(
                         lambda: client.messages.create(
-                            model="claude-sonnet-4-6",
+                            model=CLAUDE_MODEL,
                             max_tokens=800,
                             messages=msgs,
                         ),
@@ -440,11 +442,11 @@ Return ONLY the JSON, nothing else."""
             try:
                 message = _call_with_timeout(
                     lambda: client.messages.create(
-                        model="claude-sonnet-4-6",
-                        max_tokens=2000,
+                        model=CLAUDE_MODEL,
+                        max_tokens=1400,
                         messages=[{"role": "user", "content": prompt}],
                     ),
-                    45,
+                    55,
                     "Claude PM note",
                 )
                 break
@@ -779,7 +781,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
 
         message = _call_with_timeout(
             lambda: client.messages.create(
-                model="claude-sonnet-4-6",
+                model=CLAUDE_MODEL,
                 max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}],
             ),
