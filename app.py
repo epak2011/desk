@@ -8114,7 +8114,19 @@ if view == "analyze":
     # instead of "Not yet analyzed". Bullets come from the SAME Claude call
     # as the dossier, so there's no extra cost.
     live_bullets = (dossier_result or {}).get("bullets") or {}
-    if live_bullets.get("thesis"):
+    dossier_source_for_bullets = str((dossier_result or {}).get("_source") or "").lower()
+    dossier_bullets_are_current = not any(
+        marker in dossier_source_for_bullets
+        for marker in (
+            "refresh to update",
+            "research upgraded",
+            "cached only",
+            "fast mode",
+            "unavailable",
+            "error:",
+        )
+    )
+    if live_bullets.get("thesis") and dossier_bullets_are_current:
         pm = {
             **pm,
             "thesis": live_bullets.get("thesis", pm.get("thesis", "")),
