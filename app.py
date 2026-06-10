@@ -396,7 +396,16 @@ if "current_ticker" not in st.session_state:
         _qp_ticker or st.session_state.store.get("last_ticker") or "NVDA"
     ).upper().strip()
 if "view" not in st.session_state:
-    st.session_state.view = "analyze"
+    try:
+        _qp_view = str(st.query_params.get("view") or "").strip().lower()
+    except Exception:
+        _qp_view = ""
+    _stored_view = str(st.session_state.store.get("last_view") or "analyze").strip().lower()
+    st.session_state.view = (
+        _qp_view
+        if _qp_view in {"analyze", "watchlist", "holdings", "tracker", "ideas"}
+        else (_stored_view if _stored_view in {"analyze", "watchlist", "holdings", "tracker", "ideas"} else "analyze")
+    )
 if "pm_expanded" not in st.session_state:
     st.session_state.pm_expanded = {}
 if "nav_counter" not in st.session_state:
@@ -5983,7 +5992,6 @@ try:
         tkr_from_url = str(qp_global.get("ticker") or "").upper().strip()
         if tkr_from_url and tkr_from_url != st.session_state.current_ticker:
             st.session_state.current_ticker = tkr_from_url
-            st.session_state.view = "analyze"
             st.session_state.store["last_ticker"] = tkr_from_url
             save_store(st.session_state.store)
             st.rerun()
@@ -5999,9 +6007,10 @@ try:
             st.rerun()
     if "view" in qp_global:
         view_to_open = str(qp_global.get("view") or "").strip().lower()
-        del qp_global["view"]
         if view_to_open in {"analyze", "watchlist", "holdings", "tracker", "ideas"}:
             st.session_state.view = view_to_open
+            st.session_state.store["last_view"] = view_to_open
+            save_store(st.session_state.store)
             st.rerun()
     if "wldel" in qp_global:
         tkr_to_del = qp_global.get("wldel")
@@ -6078,6 +6087,12 @@ with st.sidebar:
     picked_key = next(k for k, v in view_labels.items() if v == picked)
     if picked_key != st.session_state.view:
         st.session_state.view = picked_key
+        st.session_state.store["last_view"] = picked_key
+        try:
+            st.query_params["view"] = picked_key
+        except Exception:
+            pass
+        save_store(st.session_state.store)
         st.rerun()
 
     st.markdown("---")
@@ -12151,7 +12166,7 @@ if view == "tracker":
         calibration_headline = "No accuracy winner yet."
         calibration_body = (
             "You have logged decisions, but none are outcome-scored yet. "
-            "So this is still a workflow tracker, not evidence that Claude, rules, or you are better."
+            "The next job is not logging more inputs — it is forcing an outcome call on the open rows."
         )
 
     if entered_open:
@@ -12185,6 +12200,20 @@ if view == "tracker":
           font-size:var(--fs-sm);line-height:1.45;color:var(--color-muted);">
     <div><b style="color:var(--color-text);">Disagreement:</b> {html.escape(disagreement_note)}</div>
     <div><b style="color:var(--color-text);">Positions:</b> {html.escape(position_note)}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    if unscored:
+        st.markdown(f"""
+<div style="border:1px solid var(--color-border);border-left:3px solid var(--color-warning-text);
+        border-radius:4px;background:#FFFFFF;padding:10px 12px;margin:0 0 14px;">
+  <div style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:750;
+          letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-warning-text);
+          margin-bottom:4px;">Decision required</div>
+  <div style="font-size:var(--fs-base);line-height:1.45;color:var(--color-body);">
+    {len(unscored)} open row{"s" if len(unscored) != 1 else ""} still need a forced outcome.
+    Expand a row and choose who was right. Avoid adding more inputs until those are scored.
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -12594,7 +12623,43 @@ if view == "tracker":
             for entry in entries:
                 entry_id = entry.get("id", "")
                 ticker_value = str(entry.get("ticker", "")).upper()
-                with st.expander(f"Score / notes · {ticker_value} · {entry.get('ts', '')[:10]}", expanded=False):
+                expander_title = (
+                    f"Resolve now · {ticker_value} · {entry.get('ts', '')[:10]}"
+                    if not scored_view
+                    else f"Scored · {ticker_value} · {entry.get('ts', '')[:10]}"
+                )
+                with st.expander(expander_title, expanded=False):
+                    if not scored_view:
+                        st.markdown(
+                            '<div style="font-size:var(--fs-xs);font-weight:750;'
+                            'letter-spacing:var(--ls-caps-lg);text-transform:uppercase;'
+                            'color:var(--color-blue);margin:2px 0 6px;">Final evaluation</div>'
+                            '<div style="font-size:var(--fs-sm);color:var(--color-muted);'
+                            'line-height:1.4;margin-bottom:8px;">'
+                            'Make the call now: which source was most right for this trade/setup?</div>',
+                            unsafe_allow_html=True,
+                        )
+                        outcome_choice = st.selectbox(
+                            "Forced outcome",
+                            options=["Choose outcome", "Rules", "Claude", "You", "All three", "None / unclear"],
+                            key=f"outcome_choice_{entry_id}",
+                            label_visibility="collapsed",
+                        )
+                        if st.button("Score final outcome", key=f"save_outcome_{entry_id}", use_container_width=True):
+                            if outcome_choice == "Choose outcome":
+                                st.warning("Pick an outcome first. This is the point of the tracker.")
+                            else:
+                                right_sources = {"Rules":["rules"],"Claude":["claude"],"You":["user"],"All three":["rules","claude","user"]}.get(outcome_choice,[])
+                                entry["outcome"] = {
+                                    "ts": datetime.now().isoformat(timespec="seconds"),
+                                    "result": "right" if right_sources else "unclear",
+                                    "right_sources": right_sources,
+                                    "result_pct": None,
+                                    "note": "",
+                                }
+                                save_store(st.session_state.store)
+                                st.rerun()
+                        st.markdown('<div style="border-top:1px dashed var(--color-border-soft);margin:12px 0;"></div>', unsafe_allow_html=True)
                     if entry.get("user_note"):
                         st.caption(f"Your note: {entry.get('user_note')}")
                     if entry.get("position_status") == "entered" and entry.get("entry_hit_at"):
@@ -12703,30 +12768,6 @@ if view == "tracker":
                         st.caption(f"Trigger: {entry.get('claude_trigger')}")
                     if entry.get("claude_reasoning"):
                         st.caption(str(entry.get("claude_reasoning"))[:350] + ("…" if len(str(entry.get("claude_reasoning"))) > 350 else ""))
-                    if not scored_view:
-                        outcome_choice = st.radio(
-                            "Who was right?",
-                            options=["Rules", "Claude", "You", "All three", "None / unclear"],
-                            horizontal=True,
-                            key=f"outcome_choice_{entry_id}",
-                            label_visibility="collapsed",
-                        )
-                        c1, c2 = st.columns(2)
-                        outcome_pct  = c1.text_input("Result %", placeholder="+5.2", key=f"outcome_pct_{entry_id}", label_visibility="collapsed")
-                        outcome_note = c2.text_input("Note", placeholder="Optional", key=f"outcome_note_{entry_id}", label_visibility="collapsed")
-                        if st.button("Save", key=f"save_outcome_{entry_id}", use_container_width=True):
-                            right_sources = {"Rules":["rules"],"Claude":["claude"],"You":["user"],"All three":["rules","claude","user"]}.get(outcome_choice,[])
-                            try: pct_val = float(outcome_pct) if outcome_pct else None
-                            except ValueError: pct_val = None
-                            entry["outcome"] = {
-                                "ts": datetime.now().isoformat(timespec="seconds"),
-                                "result": "right" if right_sources else "unclear",
-                                "right_sources": right_sources,
-                                "result_pct": pct_val,
-                                "note": outcome_note.strip() if outcome_note else "",
-                            }
-                            save_store(st.session_state.store)
-                            st.rerun()
                     if st.button("Delete", key=f"del_decision_{entry_id}"):
                         st.session_state.store["decisions_log"] = [
                             d for d in st.session_state.store["decisions_log"] if d.get("id") != entry_id
