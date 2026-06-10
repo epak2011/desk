@@ -5303,10 +5303,15 @@ def auto_close_tracker_outcomes(force_all=False):
             "claude": entry.get("claude_action"),
             "user": entry.get("user_action"),
         }
+        credit_families = {
+            "long": {"long"},
+            "avoid": {"avoid", "wait"},
+            "wait": {"wait"},
+        }.get(winning_family, {winning_family})
         right_sources = [
             source
             for source, action in source_actions.items()
-            if _tracker_action_family(action) == winning_family
+            if _tracker_action_family(action) in credit_families
         ]
         entry["outcome"] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
@@ -5319,6 +5324,7 @@ def auto_close_tracker_outcomes(force_all=False):
             ),
             "auto_scored": True,
             "winning_family": winning_family,
+            "credit_families": sorted(credit_families),
         }
         changed += 1
 
