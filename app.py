@@ -337,6 +337,11 @@ def save_store(store):
     STORE_PATH.write_text(json.dumps(safe_store, indent=2, allow_nan=False))
 
 
+ACTIVE_VIEWS = {"analyze", "watchlist", "holdings", "ideas"}
+ARCHIVED_VIEWS = {"tracker"}
+SHOW_ARCHIVED_TRACKER = False
+
+
 if "store" not in st.session_state:
     st.session_state.store = load_store()
     # Track whether any defaults were applied so we save once after init.
@@ -403,8 +408,8 @@ if "view" not in st.session_state:
     _stored_view = str(st.session_state.store.get("last_view") or "analyze").strip().lower()
     st.session_state.view = (
         _qp_view
-        if _qp_view in {"analyze", "watchlist", "holdings", "tracker", "ideas"}
-        else (_stored_view if _stored_view in {"analyze", "watchlist", "holdings", "tracker", "ideas"} else "analyze")
+        if _qp_view in ACTIVE_VIEWS
+        else (_stored_view if _stored_view in ACTIVE_VIEWS else "analyze")
     )
 if "pm_expanded" not in st.session_state:
     st.session_state.pm_expanded = {}
@@ -6224,7 +6229,15 @@ try:
             st.rerun()
     if "view" in qp_global:
         view_to_open = str(qp_global.get("view") or "").strip().lower()
-        if view_to_open in {"analyze", "watchlist", "holdings", "tracker", "ideas"}:
+        if view_to_open in ARCHIVED_VIEWS and not SHOW_ARCHIVED_TRACKER:
+            st.session_state.view = "analyze"
+            st.session_state.store["last_view"] = "analyze"
+            del qp_global["view"]
+            save_store(st.session_state.store)
+            st.rerun()
+        if view_to_open in ACTIVE_VIEWS or (
+            SHOW_ARCHIVED_TRACKER and view_to_open in ARCHIVED_VIEWS
+        ):
             st.session_state.view = view_to_open
             st.session_state.store["last_view"] = view_to_open
             save_store(st.session_state.store)
@@ -6293,7 +6306,16 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    view_labels = {"analyze": "Analyze", "watchlist": "Watchlist", "holdings": "Holdings", "tracker": "Tracker", "ideas": "Ideas"}
+    view_labels = {
+        "analyze": "Analyze",
+        "watchlist": "Watchlist",
+        "holdings": "Holdings",
+        "ideas": "Ideas",
+    }
+    if SHOW_ARCHIVED_TRACKER:
+        view_labels["tracker"] = "Tracker"
+    if st.session_state.view not in view_labels:
+        st.session_state.view = "analyze"
     current_view_label = view_labels[st.session_state.view]
     picked = st.radio(
         "View",
@@ -6886,6 +6908,12 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
 }
 
 /* Decision comparison controls: no cream, no pills */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.desk-cmp-header),
+div[data-testid="stElementContainer"]:has(.desk-cmp-header),
+div[data-testid="element-container"]:has(.desk-cmp-header) {
+    display: none !important;
+}
+
 .desk-cmp-badge {
     border-radius: 5px !important;
 }
@@ -11647,16 +11675,6 @@ if view == "watchlist":
     if not st.session_state.store["watchlist"]:
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
-        trial_snapshot = tracker_trial_snapshot()
-        needs_rescore = any(
-            (d.get("outcome") or {}).get("auto_scored")
-            and (d.get("outcome") or {}).get("score_version", 0) < AUTO_SCORE_VERSION
-            for d in trial_snapshot.get("decisions", [])
-        )
-        if trial_snapshot.get("overdue") or needs_rescore:
-            auto_scored = auto_close_tracker_outcomes(force_all=True)
-            if auto_scored:
-                st.success(f"Auto-scored {auto_scored} overdue tracker rows before running the watchlist.")
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
             if st.button(
