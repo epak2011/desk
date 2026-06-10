@@ -12477,8 +12477,8 @@ if view == "tracker":
             t_state = tactical.compute(hist, bench)
             if not t_state:
                 return None
-                meta = fetch_quote_meta(ticker_value)
-                remember_quote_meta(ticker_value, meta)
+            meta = fetch_quote_meta(ticker_value)
+            remember_quote_meta(ticker_value, meta)
             t_state = apply_earnings_event_gate(t_state, meta.get("earnings_days") if meta else None)
             return position_management_read(entry, t_state)
 
