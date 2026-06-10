@@ -6914,6 +6914,20 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
     display: none !important;
 }
 
+.desk-cmp-header,
+.desk-cmp-read,
+.desk-cmp-resolution,
+.desk-cmp-grid,
+.desk-cmp-reasoning,
+.desk-cmp-trigger,
+.desk-cmp-yourcall-label,
+.main [class*="st-key-decision_compare_user_pick_"],
+.main [class*="st-key-decision_compare_user_note_"],
+.main [class*="st-key-log_compare_"],
+.main [class*="st-key-mark_entered_"] {
+    display: none !important;
+}
+
 .desk-cmp-badge {
     border-radius: 5px !important;
 }
@@ -7561,20 +7575,37 @@ div[data-testid="element-container"]:has(.desk-bar) {
 }
 
 .desk-decision-stack {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
     border: 1px solid var(--desk-border);
-    border-radius: 6px;
-    background: var(--desk-border);
+    border-radius: 8px;
+    background: #FFFFFF;
     overflow: hidden;
     margin: -2px 0 16px;
 }
 
 .desk-stack-cell {
     background: #FFFFFF;
-    padding: 10px 12px;
-    min-height: 68px;
+    padding: 9px 12px;
+    min-height: 0;
+    border-top: 1px solid var(--desk-border);
+}
+
+.desk-stack-cell:first-child {
+    border-top: 0;
+}
+
+.desk-stack-cell.compact {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 14px;
+    align-items: baseline;
+}
+
+.desk-stack-cell.hero {
+    padding: 11px 12px;
+    background: #FBFCFE;
 }
 
 .desk-stack-label {
@@ -7584,7 +7615,7 @@ div[data-testid="element-container"]:has(.desk-bar) {
     letter-spacing: 0.13em;
     text-transform: uppercase;
     color: var(--desk-muted);
-    margin-bottom: 5px;
+    margin-bottom: 0;
 }
 
 .desk-stack-value {
@@ -7600,10 +7631,21 @@ div[data-testid="element-container"]:has(.desk-bar) {
 }
 
 .desk-stack-call {
-    font-size: 19px;
+    font-size: 18px;
     font-weight: 850;
     line-height: 1.1;
     margin-right: 6px;
+}
+
+.desk-stack-context {
+    color: var(--desk-muted);
+    font-size: 14px;
+}
+
+.desk-stack-owned {
+    color: var(--desk-muted);
+    font-size: 13px;
+    margin-left: 6px;
 }
 
 @media (max-width: 760px) {
@@ -8758,29 +8800,28 @@ if view == "analyze":
         else:
             owned_value = (
                 '<span class="desk-stack-call" style="color:var(--desk-muted);">Not tracked</span>'
-                '<span>Add a holding to get trim/sell logic.</span>'
+                '<span class="desk-stack-owned">Add a holding to get trim/sell logic.</span>'
             )
 
         st.markdown(f"""
 <div class="desk-decision-stack">
-  <div class="desk-stack-cell">
-    <div class="desk-stack-label">Fresh entry</div>
+  <div class="desk-stack-cell hero">
     <div class="desk-stack-value">
       <span class="desk-stack-call" style="color:{sty['color']};">{sty['emoji']} {html.escape(sty['label'])}</span>
-      <span>{html.escape(decision_context(t))}</span>
+      <span class="desk-stack-context">{html.escape(decision_context(t))}</span>
     </div>
   </div>
-  <div class="desk-stack-cell">
-    <div class="desk-stack-label">If owned</div>
-    <div class="desk-stack-value">{owned_value}</div>
-  </div>
-  <div class="desk-stack-cell">
+  <div class="desk-stack-cell compact">
     <div class="desk-stack-label">Trigger</div>
     <div class="desk-stack-value">{bold_numbers(stack_trigger_line)}</div>
   </div>
-  <div class="desk-stack-cell">
-    <div class="desk-stack-label">Risk / invalidation</div>
+  <div class="desk-stack-cell compact">
+    <div class="desk-stack-label">Risk</div>
     <div class="desk-stack-value">{bold_numbers(stack_risk_line)}</div>
+  </div>
+  <div class="desk-stack-cell compact">
+    <div class="desk-stack-label">If owned</div>
+    <div class="desk-stack-value">{owned_value}</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
