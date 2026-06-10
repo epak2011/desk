@@ -5244,7 +5244,10 @@ def auto_close_tracker_outcomes(force_all=False):
     changed = 0
     today = datetime.now().date()
     for entry in decisions:
-        if entry.get("outcome") is not None:
+        existing_outcome = entry.get("outcome") or {}
+        if entry.get("outcome") is not None and not (
+            force_all and existing_outcome.get("auto_scored")
+        ):
             continue
         try:
             logged_dt = datetime.fromisoformat(str(entry.get("ts"))).date()
@@ -5279,36 +5282,21 @@ def auto_close_tracker_outcomes(force_all=False):
 
         ref_price = _num(entry.get("price")) or current_price
         entry_px = _num(entry.get("entry_hit_price")) or _num(entry.get("entry_price")) or ref_price
-        target_px = _num(entry.get("target1_price"))
-        stop_px = _num(entry.get("stop_price"))
-        start_date = logged_dt
-        if entry.get("entry_hit_at"):
-            try:
-                start_date = datetime.fromisoformat(str(entry.get("entry_hit_at"))).date()
-            except Exception:
-                start_date = logged_dt
+        ref_return = (current_price - ref_price) / ref_price if ref_price else 0
+        entry_return = (current_price - entry_px) / entry_px if entry_px else ref_return
+        score_return = ref_return
+        if entry.get("position_status") == "entered" and entry_px:
+            score_return = entry_return
 
-        target_hit = _tracker_first_hit(hist, start_date, target_px, "up")
-        stop_hit = _tracker_first_hit(hist, start_date, stop_px, "down")
-
-        if target_hit and (not stop_hit or target_hit <= stop_hit):
+        if score_return >= 0.03:
             winning_family = "long"
-            reason = f"target hit on {target_hit.isoformat()}"
-        elif stop_hit and (not target_hit or stop_hit < target_hit):
+            reason = f"today's price is {score_return * 100:.1f}% above the logged reference"
+        elif score_return <= -0.03:
             winning_family = "avoid"
-            reason = f"stop hit on {stop_hit.isoformat()}"
+            reason = f"today's price is {score_return * 100:.1f}% below the logged reference"
         else:
-            ref_return = (current_price - ref_price) / ref_price if ref_price else 0
-            entry_return = (current_price - entry_px) / entry_px if entry_px else ref_return
-            if max(ref_return, entry_return) >= 0.07:
-                winning_family = "long"
-                reason = f"price advanced {max(ref_return, entry_return) * 100:.1f}% without hitting the logged target"
-            elif min(ref_return, entry_return) <= -0.05:
-                winning_family = "avoid"
-                reason = f"price fell {min(ref_return, entry_return) * 100:.1f}% without hitting the logged stop"
-            else:
-                winning_family = "wait"
-                reason = f"no decisive target/stop move after {age_days} days"
+            winning_family = "wait"
+            reason = f"today's price is only {score_return * 100:.1f}% from the logged reference"
 
         source_actions = {
             "rules": entry.get("rule_action"),
@@ -5326,7 +5314,7 @@ def auto_close_tracker_outcomes(force_all=False):
             "right_sources": right_sources,
             "result_pct": None,
             "note": (
-                f"Auto-scored by price action: {reason}. "
+                f"Auto-scored from today's price: {reason}. "
                 f"Current {current_price:.2f}; logged/ref {ref_price:.2f}."
             ),
             "auto_scored": True,
@@ -12715,7 +12703,12 @@ if view == "tracker":
                 return "Open"
             srcs = outcome.get("right_sources") or []
             if not srcs:
-                return "Unclear"
+                family_label = {
+                    "long": "Long worked",
+                    "avoid": "Avoid right",
+                    "wait": "Wait right",
+                }.get(outcome.get("winning_family"), "No source right")
+                return family_label
             return ", ".join(s.title() for s in srcs)
 
         def _refresh_claude_for_tracker_entry(entry):
