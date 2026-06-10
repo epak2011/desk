@@ -3093,21 +3093,12 @@ def sidebar_action_hint(ticker, snapshot=None):
     final_cached = (
         st.session_state.store.get("final_action_cache", {}).get(tkr, {}) or {}
     )
-    final_action = normalize_action_key(final_cached.get("action"))
+    final_action = (
+        normalize_action_key(final_cached.get("action"))
+        if final_cached.get("source") != "claude" else ""
+    )
     if final_action:
         return final_action
-
-    cached_call = (
-        ((st.session_state.store.get("dossier_cache", {}).get(tkr, {}) or {}).get("result") or {})
-        .get("tactical_call") or {}
-    )
-    cached_action = normalize_action_key(cached_call.get("action"))
-    try:
-        cached_confidence = int(cached_call.get("confidence", 0) or 0)
-    except (TypeError, ValueError):
-        cached_confidence = 0
-    if cached_action and cached_confidence >= 5:
-        return cached_action
 
     action = snapshot.get("action")
     if action:
@@ -5214,6 +5205,32 @@ def _tracker_action_family(action):
     if action in {"WATCH", "HOLD OFF", "HOLD"}:
         return "wait"
     return ""
+
+
+def claude_dissent_signal(rule_action, claude_action, confidence):
+    """Flag high-confidence Claude disagreement without letting it replace rules."""
+    rule_family = _tracker_action_family(rule_action)
+    claude_family = _tracker_action_family(claude_action)
+    try:
+        confidence = int(confidence or 0)
+    except (TypeError, ValueError):
+        confidence = 0
+    if not rule_family or not claude_family or confidence < 7:
+        return {"flag": False, "label": "", "reason": ""}
+    if rule_family == claude_family:
+        return {"flag": False, "label": "", "reason": ""}
+    rule_label = STATE_STYLES.get(rule_action, {}).get(
+        "label", str(rule_action or "rules").replace("_", " ").title()
+    )
+    claude_key = normalize_action_key(claude_action)
+    claude_label = STATE_STYLES.get(claude_key, {}).get(
+        "label", str(claude_action or "Claude").replace("_", " ").title()
+    )
+    return {
+        "flag": True,
+        "label": "★ Claude dissent",
+        "reason": f"Claude {claude_label} ({confidence}/10) vs rules {rule_label}",
+    }
 
 
 def _tracker_first_hit(hist, start_date, level, direction):
@@ -8505,9 +8522,8 @@ if view == "analyze":
             else:
                 support_trigger_override = None  # don't render banner
 
-    # Claude is the primary PM read when available; the rule engine is the
-    # deterministic baseline. Keep the rule output for comparison/logging,
-    # but let Claude own the headline unless a hard safety gate fired.
+    # The rule engine owns the actionable headline. Claude works as a PM
+    # context / dissent layer, not as a replacement for the tactical gate.
     rule_t = dict(t)
     claude_call = (dossier_result or {}).get("tactical_call") or {}
     claude_action_raw = (claude_call.get("action") or "").upper()
@@ -8530,13 +8546,24 @@ if view == "analyze":
         bool(t.get("event_risk_hold")) or
         bool(t.get("event_risk_watch"))
     )
-    if claude_action_key and claude_confidence >= 5 and claude_is_current_enough and not hard_rule_lock:
+    if claude_action_key and claude_is_current_enough:
+        dissent_signal = claude_dissent_signal(
+            rule_t.get("action"), claude_action_raw, claude_confidence
+        )
+        if dissent_signal.get("flag"):
+            source_note = dissent_signal["reason"]
+        else:
+            source_note = "Rules primary · Claude checked"
+        if hard_rule_lock:
+            source_note = "Safety gate · rules override"
         t = {
             **t,
-            "action": claude_action_key,
-            "_primary_source": "claude",
+            "_primary_source": "rule",
             "_rule_action": rule_t.get("action"),
-            "_source_note": "Claude primary",
+            "_claude_action": claude_action_raw,
+            "_claude_confidence": claude_confidence,
+            "_claude_dissent": dissent_signal,
+            "_source_note": source_note,
         }
     else:
         if hard_rule_lock:
@@ -8553,6 +8580,9 @@ if view == "analyze":
             **t,
             "_primary_source": "rule",
             "_rule_action": rule_t.get("action"),
+            "_claude_action": claude_action_raw,
+            "_claude_confidence": claude_confidence,
+            "_claude_dissent": {"flag": False, "label": "", "reason": ""},
             "_source_note": fallback_note,
         }
     t = apply_earnings_event_gate(t, earnings_days)
@@ -8630,9 +8660,9 @@ if view == "analyze":
         # Treat enter as "deploy" in the state copy per spec language
         _state_action_label = "Deploy" if t["action"] == "enter_now" else sty["label"]
         _source_note = t.get("_source_note") or (
-            "Claude primary"
-            if t.get("_primary_source") == "claude"
-            else "Claude unavailable · rules fallback"
+            "Rules primary · Claude checked"
+            if t.get("_primary_source") == "rule"
+            else "Rules primary"
         )
 
         # Build the criteria tooltip for the current action.
@@ -11657,14 +11687,23 @@ if view == "watchlist":
             """Compact attention label + priority for the watchlist table."""
             ticker_key = str(tkr).upper()
             action = t_state.get("action")
+            cached_call = ((cached.get("result") or {}).get("tactical_call") or {})
+            cached_action = normalize_action_key(cached_call.get("action"))
+            try:
+                cached_confidence = int(cached_call.get("confidence", 0) or 0)
+            except (TypeError, ValueError):
+                cached_confidence = 0
+            dissent = claude_dissent_signal(action, cached_action, cached_confidence)
+            if dissent.get("flag"):
+                return "★ Claude dissent", 0, "var(--color-blue)"
             if action == "enter_now":
-                return "🚀 Enter", 0, "var(--color-positive)"
+                return "🚀 Enter", 1, "var(--color-positive)"
             if ticker_key in owned_ticker_set:
-                return "🟢 Position", 1, "var(--color-blue)"
+                return "🟢 Position", 2, "var(--color-blue)"
             if trig_dist is not None and abs(trig_dist) <= 3:
-                return "🎯 Near trigger", 2, "var(--color-warning-text)"
+                return "🎯 Near trigger", 3, "var(--color-warning-text)"
             if earnings_days is not None and -1 <= earnings_days <= 7:
-                return "📅 Earnings", 3, "var(--color-warning-text)"
+                return "📅 Earnings", 4, "var(--color-warning-text)"
             if action == "watch":
                 return "👀 Watch", 6, "var(--color-warning-text)"
             return "—", 99, "var(--color-faint)"
@@ -11734,15 +11773,9 @@ if view == "watchlist":
                     bool(t.get("event_risk_hold")) or
                     bool(t.get("event_risk_watch"))
                 )
-                if cached_action and cached_confidence >= 5 and not hard_rule_lock:
-                    t = {**t, "action": cached_action}
-                    t = apply_earnings_event_gate(t, earnings_days)
-                final_cached = (
-                    st.session_state.store.get("final_action_cache", {}).get(tkr.upper(), {}) or {}
+                dissent_signal = claude_dissent_signal(
+                    t.get("action"), cached_action, cached_confidence
                 )
-                final_cached_action = normalize_action_key(final_cached.get("action"))
-                if final_cached_action:
-                    t = {**t, "action": final_cached_action}
 
                 # Trigger distance % — how close to a logged trigger?
                 trig = t.get("trigger") or {}
@@ -11792,6 +11825,7 @@ if view == "watchlist":
                     "attention_color": attention_color,
                     "pm_status": pm_row_label,
                     "pm_status_color": pm_row_color,
+                    "claude_dissent": dissent_signal,
                     "personality": personality["label"],
                     "personality_emoji": personality["emoji"],
                     "personality_rank": personality["rank"],
@@ -12010,10 +12044,10 @@ if view == "watchlist":
   <summary>Column key</summary>
   <div>
     <b>Setup</b> descriptive setup type, separate from the action call ·
-    <b>Attention</b> highest-signal reason to look now ·
-    <b>New action</b> what the app would do for a fresh position, whether or not you already own it ·
-    <b>PM</b> whether a generated PM memo/dossier is ready for that ticker ·
-    <b>Quality</b> long-term PM tier ·
+	    <b>Attention</b> highest-signal reason to look now ·
+	    <b>New action</b> what the app would do for a fresh position, whether or not you already own it ·
+	    <b>PM</b> whether a generated PM memo/dossier is ready; ★ means Claude strongly dissents from rules ·
+	    <b>Quality</b> long-term PM tier ·
     <b>RS</b> relative strength vs SPY, above 1.0 leads ·
     <b>vs MA50</b> percent above/below the 50-day ·
     <b>52w pos</b> position in the 52-week range ·
@@ -12137,6 +12171,12 @@ if view == "watchlist":
                     f'font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;'
                     f'color:var(--color-faint);">{row["personality_emoji"]} {row["personality"]}</span>'
                 )
+                dissent = row.get("claude_dissent") or {}
+                dissent_star = (
+                    f'<span title="{html.escape(dissent.get("reason", ""), quote=True)}" '
+                    f'style="margin-left:6px;color:var(--color-blue);font-weight:900;">★</span>'
+                    if dissent.get("flag") else ""
+                )
 
                 st.markdown(
                     f'<div style="display:grid; {grid_cols} '
@@ -12154,7 +12194,7 @@ if view == "watchlist":
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                     f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
-                    f'{row["pm_status"]}</span>'
+                    f'{row["pm_status"]}{dissent_star}</span>'
                     f'<span style="display:inline-flex;width:max-content;align-items:center;'
                     f'border:1px solid {state_color};border-radius:4px;background:{state_bg};'
                     f'padding:2px 6px;font-family:var(--font-sans);font-size:var(--fs-xs);'
