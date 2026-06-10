@@ -9355,7 +9355,7 @@ if view == "analyze":
         # indented lines as code blocks). Use Streamlit's native columns
         # for the side-by-side rather than CSS grid, since the HTML
         # markdown block doesn't share a DOM with the widget block.
-        with st.container(border=True):
+        if SHOW_ARCHIVED_TRACKER:
             # Header row: "Decision comparison" + agree/disagree badge
             st.markdown(
                 f'<div class="desk-cmp-header"><span>Decision comparison</span>{disagree_marker}</div>',
