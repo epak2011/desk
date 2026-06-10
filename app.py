@@ -5141,6 +5141,7 @@ def active_position_tickers():
 
 TRIAL_DAYS = 14
 TARGET_COMPARISONS = 15
+AUTO_SCORE_VERSION = 2
 
 
 def tracker_trial_snapshot():
@@ -5246,7 +5247,9 @@ def auto_close_tracker_outcomes(force_all=False):
     for entry in decisions:
         existing_outcome = entry.get("outcome") or {}
         if entry.get("outcome") is not None and not (
-            force_all and existing_outcome.get("auto_scored")
+            force_all
+            and existing_outcome.get("auto_scored")
+            and existing_outcome.get("score_version", 0) < AUTO_SCORE_VERSION
         ):
             continue
         try:
@@ -5313,7 +5316,7 @@ def auto_close_tracker_outcomes(force_all=False):
             for source, action in source_actions.items()
             if _tracker_action_family(action) in credit_families
         ]
-        entry["outcome"] = {
+        new_outcome = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "result": "auto_scored",
             "right_sources": right_sources,
@@ -5325,8 +5328,11 @@ def auto_close_tracker_outcomes(force_all=False):
             "auto_scored": True,
             "winning_family": winning_family,
             "credit_families": sorted(credit_families),
+            "score_version": AUTO_SCORE_VERSION,
         }
-        changed += 1
+        if entry.get("outcome") != new_outcome:
+            entry["outcome"] = new_outcome
+            changed += 1
 
     if changed:
         save_store(st.session_state.store)
@@ -11612,7 +11618,12 @@ if view == "watchlist":
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
         trial_snapshot = tracker_trial_snapshot()
-        if trial_snapshot.get("overdue"):
+        needs_rescore = any(
+            (d.get("outcome") or {}).get("auto_scored")
+            and (d.get("outcome") or {}).get("score_version", 0) < AUTO_SCORE_VERSION
+            for d in trial_snapshot.get("decisions", [])
+        )
+        if trial_snapshot.get("overdue") or needs_rescore:
             auto_scored = auto_close_tracker_outcomes(force_all=True)
             if auto_scored:
                 st.success(f"Auto-scored {auto_scored} overdue tracker rows before running the watchlist.")
@@ -12175,7 +12186,12 @@ if view == "tracker":
     # is N days from there. Goal is volume of comparisons to evaluate.
     decisions_log_for_banner = st.session_state.store.get("decisions_log", [])
     trial_snapshot = tracker_trial_snapshot()
-    if trial_snapshot.get("overdue"):
+    needs_rescore = any(
+        (d.get("outcome") or {}).get("auto_scored")
+        and (d.get("outcome") or {}).get("score_version", 0) < AUTO_SCORE_VERSION
+        for d in trial_snapshot.get("decisions", [])
+    )
+    if trial_snapshot.get("overdue") or needs_rescore:
         auto_scored = auto_close_tracker_outcomes(force_all=True)
         if auto_scored:
             st.success(f"Auto-scored {auto_scored} overdue tracker rows.")
