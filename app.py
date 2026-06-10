@@ -5139,6 +5139,206 @@ def active_position_tickers():
     return {t for t in tickers if t}
 
 
+TRIAL_DAYS = 14
+TARGET_COMPARISONS = 15
+
+
+def tracker_trial_snapshot():
+    """Return calibration-trial status shared by Tracker and Watchlist."""
+    decisions = st.session_state.store.get("decisions_log", [])
+    scored = [d for d in decisions if d.get("outcome") is not None]
+    unscored = [d for d in decisions if d.get("outcome") is None]
+    snapshot = {
+        "decisions": decisions,
+        "scored": scored,
+        "unscored": unscored,
+        "days_in": 0,
+        "days_remaining": TRIAL_DAYS,
+        "progress_pct": 0,
+        "status": (
+            f"Trial period: {TRIAL_DAYS} days from first log · "
+            f"target {TARGET_COMPARISONS} comparisons · not started yet"
+        ),
+        "overdue": False,
+    }
+    if not decisions:
+        return snapshot
+    try:
+        first_ts = min(
+            datetime.fromisoformat(d["ts"])
+            for d in decisions if d.get("ts")
+        )
+        trial_end = first_ts + timedelta(days=TRIAL_DAYS)
+        days_in = (datetime.now() - first_ts).days
+        days_remaining = max(0, (trial_end - datetime.now()).days)
+        progress_pct = min(100, round(100 * len(decisions) / TARGET_COMPARISONS))
+        status = (
+            f"Day {days_in} of {TRIAL_DAYS} · "
+            f"{len(decisions)}/{TARGET_COMPARISONS} comparisons logged · "
+            f"{days_remaining}d remaining"
+        )
+        overdue = days_remaining == 0 and bool(unscored)
+        if days_remaining == 0:
+            status += " · trial complete — score outcomes"
+        snapshot.update({
+            "days_in": days_in,
+            "days_remaining": days_remaining,
+            "progress_pct": progress_pct,
+            "status": status,
+            "overdue": overdue,
+        })
+    except Exception:
+        snapshot["status"] = f"{len(decisions)} comparisons logged"
+        snapshot["overdue"] = bool(unscored)
+    return snapshot
+
+
+def open_tracker_view():
+    st.session_state.view = "tracker"
+    st.session_state.store["last_view"] = "tracker"
+    try:
+        st.query_params["view"] = "tracker"
+    except Exception:
+        pass
+    save_store(st.session_state.store)
+    st.rerun()
+
+
+def _tracker_action_family(action):
+    action = str(action or "").upper().replace("_NOW", "").replace("_", " ")
+    if action in {"ENTER", "ACCUMULATE"}:
+        return "long"
+    if action == "AVOID":
+        return "avoid"
+    if action in {"WATCH", "HOLD OFF", "HOLD"}:
+        return "wait"
+    return ""
+
+
+def _tracker_first_hit(hist, start_date, level, direction):
+    if hist is None or level is None:
+        return None
+    try:
+        level = float(level)
+    except (TypeError, ValueError):
+        return None
+    for idx, bar in hist.iterrows():
+        try:
+            bar_date = idx.date() if hasattr(idx, "date") else idx.to_pydatetime().date()
+            if start_date and bar_date < start_date:
+                continue
+            high = float(bar.get("High", bar.get("Close")))
+            low = float(bar.get("Low", bar.get("Close")))
+        except Exception:
+            continue
+        if direction == "up" and high >= level:
+            return bar_date
+        if direction == "down" and low <= level:
+            return bar_date
+    return None
+
+
+def auto_close_tracker_outcomes(force_all=False):
+    """Auto-score stale calibration rows so the trial produces decisions."""
+    decisions = st.session_state.store.get("decisions_log", [])
+    changed = 0
+    today = datetime.now().date()
+    for entry in decisions:
+        if entry.get("outcome") is not None:
+            continue
+        try:
+            logged_dt = datetime.fromisoformat(str(entry.get("ts"))).date()
+        except Exception:
+            logged_dt = today
+        age_days = (today - logged_dt).days
+        if not force_all and age_days < TRIAL_DAYS:
+            continue
+
+        ticker = str(entry.get("ticker") or "").upper().strip()
+        if not ticker:
+            continue
+        hist, _, _ = fetch_history(ticker)
+        if hist is None or len(hist) == 0:
+            continue
+
+        try:
+            after = hist[hist.index.date >= logged_dt] if hasattr(hist.index, "date") else hist
+            if after is None or len(after) == 0:
+                after = hist
+            current_price = float(after["Close"].iloc[-1])
+        except Exception:
+            continue
+
+        def _num(value):
+            try:
+                if value is None:
+                    return None
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        ref_price = _num(entry.get("price")) or current_price
+        entry_px = _num(entry.get("entry_hit_price")) or _num(entry.get("entry_price")) or ref_price
+        target_px = _num(entry.get("target1_price"))
+        stop_px = _num(entry.get("stop_price"))
+        start_date = logged_dt
+        if entry.get("entry_hit_at"):
+            try:
+                start_date = datetime.fromisoformat(str(entry.get("entry_hit_at"))).date()
+            except Exception:
+                start_date = logged_dt
+
+        target_hit = _tracker_first_hit(hist, start_date, target_px, "up")
+        stop_hit = _tracker_first_hit(hist, start_date, stop_px, "down")
+
+        if target_hit and (not stop_hit or target_hit <= stop_hit):
+            winning_family = "long"
+            reason = f"target hit on {target_hit.isoformat()}"
+        elif stop_hit and (not target_hit or stop_hit < target_hit):
+            winning_family = "avoid"
+            reason = f"stop hit on {stop_hit.isoformat()}"
+        else:
+            ref_return = (current_price - ref_price) / ref_price if ref_price else 0
+            entry_return = (current_price - entry_px) / entry_px if entry_px else ref_return
+            if max(ref_return, entry_return) >= 0.07:
+                winning_family = "long"
+                reason = f"price advanced {max(ref_return, entry_return) * 100:.1f}% without hitting the logged target"
+            elif min(ref_return, entry_return) <= -0.05:
+                winning_family = "avoid"
+                reason = f"price fell {min(ref_return, entry_return) * 100:.1f}% without hitting the logged stop"
+            else:
+                winning_family = "wait"
+                reason = f"no decisive target/stop move after {age_days} days"
+
+        source_actions = {
+            "rules": entry.get("rule_action"),
+            "claude": entry.get("claude_action"),
+            "user": entry.get("user_action"),
+        }
+        right_sources = [
+            source
+            for source, action in source_actions.items()
+            if _tracker_action_family(action) == winning_family
+        ]
+        entry["outcome"] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "result": "auto_scored",
+            "right_sources": right_sources,
+            "result_pct": None,
+            "note": (
+                f"Auto-scored by price action: {reason}. "
+                f"Current {current_price:.2f}; logged/ref {ref_price:.2f}."
+            ),
+            "auto_scored": True,
+            "winning_family": winning_family,
+        }
+        changed += 1
+
+    if changed:
+        save_store(st.session_state.store)
+    return changed
+
+
 def _decision_signal_snapshot(t_state):
     """Compact tape snapshot used by the Claude-vs-rules comparison."""
     price = t_state.get("price") or 0
@@ -11417,6 +11617,11 @@ if view == "watchlist":
     if not st.session_state.store["watchlist"]:
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
+        trial_snapshot = tracker_trial_snapshot()
+        if trial_snapshot.get("overdue"):
+            auto_scored = auto_close_tracker_outcomes(force_all=True)
+            if auto_scored:
+                st.success(f"Auto-scored {auto_scored} overdue tracker rows before running the watchlist.")
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
             if st.button(
@@ -11975,8 +12180,12 @@ if view == "tracker":
     # Date math: trial starts when the FIRST entry was logged. Target
     # is N days from there. Goal is volume of comparisons to evaluate.
     decisions_log_for_banner = st.session_state.store.get("decisions_log", [])
-    TRIAL_DAYS = 14
-    TARGET_COMPARISONS = 15
+    trial_snapshot = tracker_trial_snapshot()
+    if trial_snapshot.get("overdue"):
+        auto_scored = auto_close_tracker_outcomes(force_all=True)
+        if auto_scored:
+            st.success(f"Auto-scored {auto_scored} overdue tracker rows.")
+            decisions_log_for_banner = st.session_state.store.get("decisions_log", [])
 
     if decisions_log_for_banner:
         try:
