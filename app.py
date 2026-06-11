@@ -2347,6 +2347,13 @@ div.streamlit-expanderHeader {
     font-weight: 850;
     text-decoration: none !important;
 }
+.watchlist-dissent-note {
+    margin-top: 2px;
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    color: var(--color-muted);
+    line-height: 1.4;
+}
 .watchlist-grid-row {
     min-width: 0;
 }
@@ -5276,7 +5283,17 @@ def _tracker_action_family(action):
     return ""
 
 
-def claude_dissent_signal(rule_action, claude_action, confidence):
+def _compact_dissent_note(text, limit=260):
+    """Keep Claude's stock-specific dissent readable in scan panels."""
+    text = " ".join(str(text or "").strip().split())
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(" .") + "..."
+
+
+def claude_dissent_signal(rule_action, claude_action, confidence, note=""):
     """Flag high-confidence Claude disagreement without letting it replace rules."""
     rule_family = _tracker_action_family(rule_action)
     claude_family = _tracker_action_family(claude_action)
@@ -5299,6 +5316,7 @@ def claude_dissent_signal(rule_action, claude_action, confidence):
         "flag": True,
         "label": "★ Claude dissent",
         "reason": f"Claude {claude_label} ({confidence}/10) vs rules {rule_label}",
+        "note": _compact_dissent_note(note),
     }
 
 
@@ -7658,6 +7676,15 @@ div[data-testid="element-container"]:has(.desk-bar) {
     color: var(--desk-muted);
 }
 
+.desk-analyze-dissent-note {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--desk-border);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--desk-muted);
+}
+
 .desk-decision-stack {
     display: flex;
     flex-direction: column;
@@ -8692,7 +8719,10 @@ if view == "analyze":
     )
     if claude_action_key and claude_is_current_enough:
         dissent_signal = claude_dissent_signal(
-            rule_t.get("action"), claude_action_raw, claude_confidence
+            rule_t.get("action"),
+            claude_action_raw,
+            claude_confidence,
+            claude_call.get("reasoning") or claude_call.get("trigger") or "",
         )
         if dissent_signal.get("flag"):
             source_note = f"★ {dissent_signal['reason']}"
@@ -8839,13 +8869,18 @@ if view == "analyze":
 
         analyze_dissent = t.get("_claude_dissent") or {}
         if analyze_dissent.get("flag"):
+            analyze_dissent_note = analyze_dissent.get("note") or ""
+            analyze_dissent_note_html = (
+                f'<div class="desk-analyze-dissent-note">{html.escape(analyze_dissent_note)}</div>'
+                if analyze_dissent_note else ""
+            )
             st.markdown(
                 f'<div class="desk-analyze-dissent">'
                 f'<div class="desk-analyze-dissent-title">★ Claude dissent</div>'
                 f'<div class="desk-analyze-dissent-copy">'
                 f'{html.escape(analyze_dissent.get("reason", "Claude disagrees with rules."))} '
                 f'<span>Rules remain the primary action; use this as a manual review flag.</span>'
-                f'</div></div>',
+                f'</div>{analyze_dissent_note_html}</div>',
                 unsafe_allow_html=True,
             )
 
@@ -11731,7 +11766,12 @@ if view == "watchlist":
                 cached_confidence = int(cached_call.get("confidence", 0) or 0)
             except (TypeError, ValueError):
                 cached_confidence = 0
-            dissent = claude_dissent_signal(action, cached_action, cached_confidence)
+            dissent = claude_dissent_signal(
+                action,
+                cached_action,
+                cached_confidence,
+                cached_call.get("reasoning") or cached_call.get("trigger") or "",
+            )
             if dissent.get("flag"):
                 return "★ Claude dissent", 0, "var(--color-blue)"
             if action == "enter_now":
@@ -11812,7 +11852,10 @@ if view == "watchlist":
                     bool(t.get("event_risk_watch"))
                 )
                 dissent_signal = claude_dissent_signal(
-                    t.get("action"), cached_action, cached_confidence
+                    t.get("action"),
+                    cached_action,
+                    cached_confidence,
+                    cached_call.get("reasoning") or cached_call.get("trigger") or "",
                 )
 
                 # Trigger distance % — how close to a logged trigger?
@@ -12086,11 +12129,16 @@ if view == "watchlist":
             for row in dissent_rows[:8]:
                 dissent = row.get("claude_dissent") or {}
                 reason = dissent.get("reason") or "Claude disagrees with rules."
+                note = dissent.get("note") or ""
+                note_html = (
+                    f'<div class="watchlist-dissent-note">{html.escape(note)}</div>'
+                    if note else ""
+                )
                 dissent_items.append(
                     f'<div class="watchlist-dissent-item">'
                     f'<a href="?open={html.escape(row["ticker"])}" target="_self">'
                     f'{html.escape(row["ticker"])}</a> · {html.escape(reason)}'
-                    f'</div>'
+                    f'{note_html}</div>'
                 )
             if len(dissent_rows) > 8:
                 dissent_items.append(
