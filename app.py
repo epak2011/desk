@@ -8604,11 +8604,11 @@ if view == "analyze":
             rule_t.get("action"), claude_action_raw, claude_confidence
         )
         if dissent_signal.get("flag"):
-            source_note = dissent_signal["reason"]
+            source_note = f"★ {dissent_signal['reason']}"
         else:
-            source_note = "Rules primary · Claude checked"
+            source_note = "Rules primary"
         if hard_rule_lock:
-            source_note = "Safety gate · rules override"
+            source_note = "Rules primary · safety gate active"
         t = {
             **t,
             "_primary_source": "rule",
@@ -8620,15 +8620,9 @@ if view == "analyze":
         }
     else:
         if hard_rule_lock:
-            fallback_note = "Safety gate · rules override"
-        elif not claude_action_key:
-            fallback_note = "Claude missing · rules fallback"
-        elif claude_confidence < 5:
-            fallback_note = "Claude low confidence · rules fallback"
-        elif not claude_is_current_enough:
-            fallback_note = "Claude stale · rules fallback"
+            fallback_note = "Rules primary · safety gate active"
         else:
-            fallback_note = "Claude unavailable · rules fallback"
+            fallback_note = "Rules primary"
         t = {
             **t,
             "_primary_source": "rule",
@@ -8713,7 +8707,7 @@ if view == "analyze":
         # Treat enter as "deploy" in the state copy per spec language
         _state_action_label = "Deploy" if t["action"] == "enter_now" else sty["label"]
         _source_note = t.get("_source_note") or (
-            "Rules primary · Claude checked"
+            "Rules primary"
             if t.get("_primary_source") == "rule"
             else "Rules primary"
         )
