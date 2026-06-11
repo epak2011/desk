@@ -8484,7 +8484,7 @@ if view == "analyze":
     research_items = research_health_items(pm, dossier_result, api_key)
     pm_status_item = research_items[0] if research_items else ("PM memo", "not generated", "warn")
     dossier_status_item = research_items[1] if len(research_items) > 1 else ("Full dossier", "not generated", "warn")
-    freshness_panel_html = render_data_strip([
+    freshness_panel_html = data_status_html([
         ("Price", price_age_label, price_age_kind),
         ("Fundamentals", metadata_status_label(meta)[0], metadata_status_label(meta)[1]),
         ("PM", pm_status_item[1], pm_status_item[2]),
