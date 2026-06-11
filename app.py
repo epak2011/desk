@@ -2354,6 +2354,14 @@ div.streamlit-expanderHeader {
     color: var(--color-muted);
     line-height: 1.4;
 }
+.watchlist-review-link {
+    color: var(--color-blue) !important;
+    font-weight: 850;
+    text-decoration: none !important;
+}
+.watchlist-review-link:hover {
+    text-decoration: underline !important;
+}
 .watchlist-grid-row {
     min-width: 0;
 }
@@ -11983,7 +11991,7 @@ if view == "watchlist":
             ("Fundamentals", f"{meta_sparse} sparse" if meta_sparse else "cached ≤1h", "warn" if meta_sparse else "fresh"),
         ]), unsafe_allow_html=True)
 
-        sort_c1, sort_c2, sort_c3 = st.columns([2, 2, 4])
+        sort_c1, sort_c2, sort_c3 = st.columns([2, 2, 2])
         with sort_c1:
             sort_by = st.selectbox(
                 "Sort by",
@@ -12014,7 +12022,12 @@ if view == "watchlist":
                 label_visibility="collapsed",
             )
         with sort_c3:
-            st.empty()
+            watchlist_layout = st.selectbox(
+                "View",
+                options=["Decision queue", "Full metrics"],
+                key="watchlist_layout",
+                label_visibility="collapsed",
+            )
 
         # Action priority order
         action_priority = {
@@ -12099,26 +12112,41 @@ if view == "watchlist":
         # click and switches the active ticker — works universally without
         # needing Streamlit columns.
 
-        # 15-column grid: ticker / setup / attention / last / chg / new action
-        #                 / PM / state / quality / RS / vsMA50 / 52w / vol / trig / earn
-        grid_cols = (
-            'grid-template-columns: '
-            'minmax(0,0.76fr) '
-            'minmax(0,1.10fr) '
-            'minmax(0,1.15fr) '
-            'minmax(0,0.78fr) '
-            'minmax(0,0.72fr) '
-            'minmax(0,0.96fr) '
-            'minmax(0,0.78fr) '
-            'minmax(0,0.92fr) '
-            'minmax(0,0.58fr) '
-            'minmax(0,0.58fr) '
-            'minmax(0,0.72fr) '
-            'minmax(0,0.72fr) '
-            'minmax(0,0.58fr) '
-            'minmax(0,0.58fr) '
-            'minmax(0,0.48fr);'
-        )
+        compact_watchlist = watchlist_layout == "Decision queue"
+        if compact_watchlist:
+            # Default: decision queue. Keep only the fields that answer:
+            # what is it, why should I look, what action, what trigger, and
+            # whether Claude needs a second look.
+            grid_cols = (
+                'grid-template-columns: '
+                'minmax(0,0.82fr) '
+                'minmax(0,1.16fr) '
+                'minmax(0,1.12fr) '
+                'minmax(0,0.80fr) '
+                'minmax(0,1.02fr) '
+                'minmax(0,0.78fr) '
+                'minmax(0,1.00fr);'
+            )
+        else:
+            # Dense research view: all metrics for sorting/comparison.
+            grid_cols = (
+                'grid-template-columns: '
+                'minmax(0,0.76fr) '
+                'minmax(0,1.10fr) '
+                'minmax(0,1.15fr) '
+                'minmax(0,0.78fr) '
+                'minmax(0,0.72fr) '
+                'minmax(0,0.96fr) '
+                'minmax(0,0.78fr) '
+                'minmax(0,0.92fr) '
+                'minmax(0,0.58fr) '
+                'minmax(0,0.58fr) '
+                'minmax(0,0.72fr) '
+                'minmax(0,0.72fr) '
+                'minmax(0,0.58fr) '
+                'minmax(0,0.58fr) '
+                'minmax(0,0.48fr);'
+            )
 
         dissent_rows = [
             r for r in rows
@@ -12158,7 +12186,21 @@ if view == "watchlist":
                 unsafe_allow_html=True,
             )
 
-        column_key_html = """
+        if compact_watchlist:
+            column_key_html = """
+<details class="watchlist-column-key">
+  <summary>Column key</summary>
+  <div>
+    <b>Setup</b> descriptive setup type, separate from the action call ·
+    <b>Attention</b> highest-signal reason to look now ·
+    <b>New action</b> what the app would do for a fresh position ·
+    <b>Trigger</b> percent to the trigger, if defined ·
+    <b>PM / dissent</b> PM memo state; <b>Review ★</b> opens Analyze when Claude materially disagrees with rules.
+  </div>
+</details>
+"""
+        else:
+            column_key_html = """
 <details class="watchlist-column-key">
   <summary>Column key</summary>
   <div>
@@ -12179,6 +12221,34 @@ if view == "watchlist":
         st.markdown(column_key_html, unsafe_allow_html=True)
 
         # Header
+        if compact_watchlist:
+            header_cells = (
+                '<span>Ticker</span>'
+                '<span>Setup</span>'
+                '<span>Attention</span>'
+                '<span style="text-align:right;">Last</span>'
+                '<span>New action</span>'
+                '<span style="text-align:right;">Trigger</span>'
+                '<span>PM / dissent</span>'
+            )
+        else:
+            header_cells = (
+                '<span>Ticker</span>'
+                '<span>Setup</span>'
+                '<span>Attention</span>'
+                '<span style="text-align:right;">Last</span>'
+                '<span style="text-align:right;">Chg (1D)</span>'
+                '<span>New action</span>'
+                '<span>PM</span>'
+                '<span>State</span>'
+                '<span>Quality</span>'
+                '<span style="text-align:right;">RS</span>'
+                '<span style="text-align:right;">vs MA50</span>'
+                '<span style="text-align:right;">52w pos</span>'
+                '<span style="text-align:right;">Vol ×</span>'
+                '<span style="text-align:right;">Trig</span>'
+                '<span style="text-align:right;">Earn</span>'
+            )
         st.markdown(
             f'<div class="watchlist-grid-row watchlist-grid-head" style="display:grid; {grid_cols} '
             f'column-gap: 10px; row-gap: 0; padding: 8px 6px; margin-top: 16px; '
@@ -12186,23 +12256,7 @@ if view == "watchlist":
             f'font-family: var(--font-sans); '
             f'font-size: var(--fs-xs); font-weight: 600; '
             f'letter-spacing: var(--ls-caps-md); text-transform: uppercase; '
-            f'color: var(--color-muted);">'
-            f'<span>Ticker</span>'
-            f'<span>Setup</span>'
-            f'<span>Attention</span>'
-            f'<span style="text-align:right;">Last</span>'
-            f'<span style="text-align:right;">Chg (1D)</span>'
-            f'<span>New action</span>'
-            f'<span>PM</span>'
-            f'<span>State</span>'
-            f'<span>Quality</span>'
-            f'<span style="text-align:right;">RS</span>'
-            f'<span style="text-align:right;">vs MA50</span>'
-            f'<span style="text-align:right;">52w pos</span>'
-            f'<span style="text-align:right;">Vol ×</span>'
-            f'<span style="text-align:right;">Trig</span>'
-            f'<span style="text-align:right;">Earn</span>'
-            f'</div>',
+            f'color: var(--color-muted);">{header_cells}</div>',
             unsafe_allow_html=True,
         )
 
@@ -12296,37 +12350,60 @@ if view == "watchlist":
                     f'style="margin-left:6px;color:var(--color-blue);font-weight:900;">★</span>'
                     if dissent.get("flag") else ""
                 )
+                pm_cell_html = (
+                    f'<a class="watchlist-review-link" href="?open={html.escape(row["ticker"])}" '
+                    f'target="_self" title="{html.escape(dissent.get("reason", ""), quote=True)}">'
+                    f'Review ★</a>'
+                    if dissent.get("flag")
+                    else html.escape(str(row["pm_status"]))
+                )
+                if compact_watchlist:
+                    row_cells = (
+                        f'{ticker_link}'
+                        f'{personality_html}'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+                        f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
+                        f'{row["attention"]}</span>'
+                        f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                        f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:800;'
+                        f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
+                        f'{pm_cell_html}</span>'
+                    )
+                else:
+                    row_cells = (
+                        f'{ticker_link}'
+                        f'{personality_html}'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+                        f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
+                        f'{row["attention"]}</span>'
+                        f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
+                        f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+                        f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
+                        f'{row["pm_status"]}{dissent_star}</span>'
+                        f'<span class="state-pill" style="display:inline-flex;width:max-content;align-items:center;'
+                        f'border:1px solid {state_color};border-radius:4px;background:{state_bg};'
+                        f'padding:2px 6px;font-family:var(--font-sans);font-size:var(--fs-xs);'
+                        f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{state_color};'
+                        f'font-weight:700;">{row["state"]}</span>'
+                        f'{q_html}'
+                        f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
+                        f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
+                        f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
+                        f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
+                        f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
+                        f'<span style="text-align:right;color:var(--color-faint);">{earn_str}</span>'
+                    )
 
                 st.markdown(
                     f'<div class="watchlist-grid-row" style="display:grid; {grid_cols} '
                     f'column-gap: 10px; row-gap: 0; padding: 8px 6px; '
                     f'border-bottom: 1px dashed var(--color-border-soft); '
                     f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
-                    f'font-size: var(--fs-base); align-items: baseline;">'
-                    f'{ticker_link}'
-                    f'{personality_html}'
-                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
-                    f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
-                    f'{row["attention"]}</span>'
-                    f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
-                    f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
-                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
-                    f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
-                    f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
-                    f'{row["pm_status"]}{dissent_star}</span>'
-                    f'<span class="state-pill" style="display:inline-flex;width:max-content;align-items:center;'
-                    f'border:1px solid {state_color};border-radius:4px;background:{state_bg};'
-                    f'padding:2px 6px;font-family:var(--font-sans);font-size:var(--fs-xs);'
-                    f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{state_color};'
-                    f'font-weight:700;">{row["state"]}</span>'
-                    f'{q_html}'
-                    f'<span style="text-align:right;color:{rs_color};">{row["rs"]:.2f}</span>'
-                    f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
-                    f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
-                    f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
-                    f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
-                    f'<span style="text-align:right;color:var(--color-faint);">{earn_str}</span>'
-                    f'</div>',
+                    f'font-size: var(--fs-base); align-items: baseline;">{row_cells}</div>',
                     unsafe_allow_html=True,
                 )
 
