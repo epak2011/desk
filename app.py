@@ -2306,6 +2306,62 @@ div.streamlit-expanderHeader {
     color: var(--color-text);
     font-size: 12px;
 }
+.watchlist-dissent-panel {
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-blue);
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 10px 12px;
+    margin: 12px 0 10px;
+}
+.watchlist-dissent-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-blue);
+    margin-bottom: 5px;
+}
+.watchlist-dissent-copy {
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    color: var(--color-muted);
+    line-height: 1.45;
+    margin-bottom: 7px;
+}
+.watchlist-dissent-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 14px;
+}
+.watchlist-dissent-item {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-body);
+    line-height: 1.45;
+    min-width: 0;
+}
+.watchlist-dissent-item a {
+    color: var(--color-text) !important;
+    font-weight: 850;
+    text-decoration: none !important;
+}
+.watchlist-grid-row {
+    min-width: 0;
+}
+.watchlist-grid-row > * {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.watchlist-grid-row span,
+.watchlist-grid-row a {
+    white-space: nowrap;
+}
+.watchlist-grid-row .state-pill {
+    max-width: 100%;
+}
 .watchlist-control-note {
     font-family: var(--font-sans);
     font-size: var(--fs-sm);
@@ -2339,6 +2395,11 @@ div[data-baseweb="input"] input {
     }
     .research-layout { grid-template-columns: 1fr; }
     .research-page h1 { font-size: 42px; }
+    .watchlist-dissent-list { grid-template-columns: 1fr; }
+    .watchlist-grid-row {
+        font-size: 11px !important;
+        column-gap: 7px !important;
+    }
     .watch-queue-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .desk-chart-label {
@@ -11957,22 +12018,55 @@ if view == "watchlist":
         #                 / PM / state / quality / RS / vsMA50 / 52w / vol / trig / earn
         grid_cols = (
             'grid-template-columns: '
-            'minmax(58px,0.75fr) '
-            'minmax(112px,1.05fr) '
-            'minmax(118px,1.15fr) '
-            'minmax(82px,0.85fr) '
-            'minmax(74px,0.82fr) '
-            'minmax(92px,0.98fr) '
-            'minmax(72px,0.78fr) '
-            'minmax(96px,0.98fr) '
-            'minmax(66px,0.72fr) '
-            'minmax(66px,0.72fr) '
-            'minmax(78px,0.78fr) '
-            'minmax(78px,0.78fr) '
-            'minmax(66px,0.72fr) '
-            'minmax(78px,0.78fr) '
-            'minmax(66px,0.72fr);'
+            'minmax(0,0.76fr) '
+            'minmax(0,1.10fr) '
+            'minmax(0,1.15fr) '
+            'minmax(0,0.78fr) '
+            'minmax(0,0.72fr) '
+            'minmax(0,0.96fr) '
+            'minmax(0,0.78fr) '
+            'minmax(0,0.92fr) '
+            'minmax(0,0.58fr) '
+            'minmax(0,0.58fr) '
+            'minmax(0,0.72fr) '
+            'minmax(0,0.72fr) '
+            'minmax(0,0.58fr) '
+            'minmax(0,0.58fr) '
+            'minmax(0,0.48fr);'
         )
+
+        dissent_rows = [
+            r for r in rows
+            if (r.get("claude_dissent") or {}).get("flag")
+        ]
+        if dissent_rows:
+            dissent_items = []
+            for row in dissent_rows[:8]:
+                dissent = row.get("claude_dissent") or {}
+                reason = dissent.get("reason") or "Claude disagrees with rules."
+                dissent_items.append(
+                    f'<div class="watchlist-dissent-item">'
+                    f'<a href="?open={html.escape(row["ticker"])}" target="_self">'
+                    f'{html.escape(row["ticker"])}</a> · {html.escape(reason)}'
+                    f'</div>'
+                )
+            if len(dissent_rows) > 8:
+                dissent_items.append(
+                    f'<div class="watchlist-dissent-item">'
+                    f'+{len(dissent_rows) - 8} more in the table</div>'
+                )
+            st.markdown(
+                '<div class="watchlist-dissent-panel">'
+                '<div class="watchlist-dissent-title">★ Claude dissent review</div>'
+                '<div class="watchlist-dissent-copy">'
+                'Rules still drive the action. These are the names where Claude '
+                'materially disagrees, so they deserve a manual second look.'
+                '</div>'
+                '<div class="watchlist-dissent-list">'
+                + "".join(dissent_items) +
+                '</div></div>',
+                unsafe_allow_html=True,
+            )
 
         column_key_html = """
 <details class="watchlist-column-key">
@@ -11996,8 +12090,8 @@ if view == "watchlist":
 
         # Header
         st.markdown(
-            f'<div style="display:grid; {grid_cols} '
-            f'column-gap: 14px; row-gap: 0; padding: 8px 6px; margin-top: 16px; '
+            f'<div class="watchlist-grid-row watchlist-grid-head" style="display:grid; {grid_cols} '
+            f'column-gap: 10px; row-gap: 0; padding: 8px 6px; margin-top: 16px; '
             f'border-bottom: 1px solid var(--color-border); '
             f'font-family: var(--font-sans); '
             f'font-size: var(--fs-xs); font-weight: 600; '
@@ -12114,8 +12208,8 @@ if view == "watchlist":
                 )
 
                 st.markdown(
-                    f'<div style="display:grid; {grid_cols} '
-                    f'column-gap: 14px; row-gap: 0; padding: 8px 6px; '
+                    f'<div class="watchlist-grid-row" style="display:grid; {grid_cols} '
+                    f'column-gap: 10px; row-gap: 0; padding: 8px 6px; '
                     f'border-bottom: 1px dashed var(--color-border-soft); '
                     f'font-family: var(--font-mono); font-variant-numeric: tabular-nums; '
                     f'font-size: var(--fs-base); align-items: baseline;">'
@@ -12130,7 +12224,7 @@ if view == "watchlist":
                     f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                     f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
                     f'{row["pm_status"]}{dissent_star}</span>'
-                    f'<span style="display:inline-flex;width:max-content;align-items:center;'
+                    f'<span class="state-pill" style="display:inline-flex;width:max-content;align-items:center;'
                     f'border:1px solid {state_color};border-radius:4px;background:{state_bg};'
                     f'padding:2px 6px;font-family:var(--font-sans);font-size:var(--fs-xs);'
                     f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{state_color};'
