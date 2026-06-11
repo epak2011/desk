@@ -7628,6 +7628,36 @@ div[data-testid="element-container"]:has(.desk-bar) {
     color: var(--desk-muted);
 }
 
+.desk-analyze-dissent {
+    border: 1px solid var(--desk-border);
+    border-left: 3px solid var(--desk-blue);
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 9px 12px;
+    margin: -6px 0 14px;
+}
+
+.desk-analyze-dissent-title {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--desk-blue);
+    margin-bottom: 4px;
+}
+
+.desk-analyze-dissent-copy {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--desk-text);
+}
+
+.desk-analyze-dissent-copy span {
+    color: var(--desk-muted);
+}
+
 .desk-decision-stack {
     display: flex;
     flex-direction: column;
@@ -8806,6 +8836,18 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
+
+        analyze_dissent = t.get("_claude_dissent") or {}
+        if analyze_dissent.get("flag"):
+            st.markdown(
+                f'<div class="desk-analyze-dissent">'
+                f'<div class="desk-analyze-dissent-title">★ Claude dissent</div>'
+                f'<div class="desk-analyze-dissent-copy">'
+                f'{html.escape(analyze_dissent.get("reason", "Claude disagrees with rules."))} '
+                f'<span>Rules remain the primary action; use this as a manual review flag.</span>'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
 
         active_position_entry = get_active_position_entry(ticker)
         active_holding = st.session_state.store.setdefault("holdings", {}).get(ticker.upper())
