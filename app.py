@@ -4867,7 +4867,7 @@ def trigger_text(t):
         price = t.get("price")
         try:
             if price and abs(float(entry) - float(price)) / float(price) <= 0.005:
-                return "Wait for confirmation: close above the current level with expanding volume."
+                return f"Watch ${float(entry):,.2f}: close above this level with expanding volume."
         except (TypeError, ValueError, ZeroDivisionError):
             pass
         return f"Target entry at ${entry:,.2f}; wait for confirmation."
