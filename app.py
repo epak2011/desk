@@ -4256,8 +4256,11 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
         remember_quote_meta(refresh_ticker, refreshed_meta)
     except Exception:
         pass
+    # Keep refresh scoped to the active ticker. The next Analyze render writes
+    # the current price/action into the sidebar cache via
+    # remember_sidebar_ticker_snapshot(); full sidebar/watchlist scans belong
+    # on the Watchlist page.
     sidebar_watchlist_snapshot.clear()
-    update_sidebar_watchlist_cache((refresh_ticker,))
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
         pm_cache = st.session_state.store.setdefault("pm_cache", {})
@@ -7012,20 +7015,10 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
                     wl_data = dict(saved_sidebar_cache)
                     save_store(st.session_state.store)
             else:
-                refresh_candidates = []
-                current_upper = str(current or "").upper().strip()
-                ordered_sidebar_tickers = (
-                    [current_upper] if current_upper in watchlist else []
-                ) + [t for t in watchlist if t != current_upper]
-                for candidate in ordered_sidebar_tickers:
-                    if sidebar_row_needs_refresh(saved_sidebar_cache.get(candidate), max_age_minutes=5):
-                        refresh_candidates.append(candidate)
-                    if len(refresh_candidates) >= 3:
-                        break
-                if refresh_candidates:
-                    refreshed = update_sidebar_watchlist_cache(refresh_candidates)
-                    if refreshed:
-                        wl_data = dict(st.session_state.store.setdefault("watchlist_sidebar_cache", {}))
+                # Analyze should not scan the watchlist. It uses cached
+                # sidebar rows, while the active ticker is refreshed by the
+                # main Analyze fetch and written via remember_sidebar_ticker_snapshot().
+                wl_data = dict(saved_sidebar_cache)
         except Exception:
             wl_data = saved_sidebar_cache
 
@@ -8488,25 +8481,15 @@ if view == "analyze":
             "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
             "_source": "cached dossier fallback · refresh to update",
         }
-    sidebar_label, sidebar_kind = sidebar_cache_status(ticker)
-    freshness_items = (
-        analyze_status_items
-        + research_health_items(pm, dossier_result, api_key)
-        + [("Sidebar", sidebar_label, sidebar_kind)]
-    )
-    freshness_rows = "".join(
-        f'<div class="desk-freshness-row {html.escape(kind)}">'
-        f'<span class="k">{html.escape(label)}</span>'
-        f'<span class="v">{html.escape(value)}</span>'
-        f'</div>'
-        for label, value, kind in freshness_items
-    )
-    freshness_panel_html = (
-        '<div class="desk-freshness-panel">'
-        '<div class="desk-freshness-title">Research status</div>'
-        f'{freshness_rows}'
-        '</div>'
-    )
+    research_items = research_health_items(pm, dossier_result, api_key)
+    pm_status_item = research_items[0] if research_items else ("PM memo", "not generated", "warn")
+    dossier_status_item = research_items[1] if len(research_items) > 1 else ("Full dossier", "not generated", "warn")
+    freshness_panel_html = render_data_strip([
+        ("Price", price_age_label, price_age_kind),
+        ("Fundamentals", metadata_status_label(meta)[0], metadata_status_label(meta)[1]),
+        ("PM", pm_status_item[1], pm_status_item[2]),
+        ("Dossier", dossier_status_item[1], dossier_status_item[2]),
+    ])
 
     # Accumulation Watch override: if compute() flagged the name as
     # accumulation-eligible (deep drawdown + near low + stabilizing + not
