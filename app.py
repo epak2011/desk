@@ -3455,6 +3455,46 @@ def fetch_marketbeat_earnings_date(ticker, exchange_hint=None):
     return None
 
 
+def normalize_earnings_date(value):
+    """Return a naive datetime for known earnings date shapes."""
+    if value is None:
+        return None
+    try:
+        if hasattr(value, "to_pydatetime"):
+            value = value.to_pydatetime()
+        if hasattr(value, "date") and hasattr(value, "strftime"):
+            return value.replace(tzinfo=None) if hasattr(value, "replace") else value
+        text = str(value).strip()
+        if not text or text in {"—", "-", "None", "nan", "NaT"}:
+            return None
+        text = text.replace("Z", "").split("T")[0].strip()
+        try:
+            return datetime.fromisoformat(text).replace(tzinfo=None)
+        except Exception:
+            pass
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%b %d, %Y", "%B %d, %Y"):
+            try:
+                return datetime.strptime(text, fmt)
+            except Exception:
+                continue
+        for fmt in ("%b %d", "%B %d"):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                return parsed.replace(year=datetime.now().year)
+            except Exception:
+                continue
+    except Exception:
+        return None
+    return None
+
+
+def format_earnings_date_label(value, fallback="—"):
+    normalized = normalize_earnings_date(value)
+    if normalized is None:
+        return str(value).strip() if value else fallback
+    return normalized.strftime("%b %d")
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_quote_meta(ticker, include_slow_fallbacks=False):
     """Pull sector, market cap, short interest, earnings date, valuation ratios,
@@ -3696,8 +3736,11 @@ def fetch_quote_meta(ticker, include_slow_fallbacks=False):
 
         if out["earnings_date"] is not None:
             try:
-                days = (out["earnings_date"].date() - datetime.now().date()).days
-                out["earnings_days"] = days
+                normalized_earnings_date = normalize_earnings_date(out["earnings_date"])
+                if normalized_earnings_date is not None:
+                    out["earnings_date"] = normalized_earnings_date
+                    days = (normalized_earnings_date.date() - datetime.now().date()).days
+                    out["earnings_days"] = days
             except Exception:
                 pass
     except Exception:
@@ -3982,7 +4025,7 @@ def format_earnings(meta):
     if not meta.get("earnings_date") or meta.get("earnings_days") is None:
         return None, None
     days = meta["earnings_days"]
-    date_str = meta["earnings_date"].strftime("%b %d")
+    date_str = format_earnings_date_label(meta.get("earnings_date"))
     if days < 0:
         # Old stale date — ignore
         return None, None
@@ -4566,7 +4609,7 @@ def render_research_report(ticker):
     earnings_label = "Next earnings"
     if meta.get("earnings_date") and meta.get("earnings_days") is not None:
         d = meta["earnings_days"]
-        earnings_value = meta["earnings_date"].strftime("%b %d") + (f" · in {d}d" if d >= 0 else f" · {abs(d)}d ago")
+        earnings_value = format_earnings_date_label(meta.get("earnings_date")) + (f" · in {d}d" if d >= 0 else f" · {abs(d)}d ago")
     else:
         earnings_value = "—"
     earnings_rows = [
@@ -10635,7 +10678,7 @@ if view == "analyze":
         if meta.get("earnings_date"):
             eps = meta.get("expected_eps")
             days = meta.get("earnings_days")
-            date_str = meta["earnings_date"].strftime("%b %d")
+            date_str = format_earnings_date_label(meta.get("earnings_date"))
             # Only show if upcoming OR reported within the last 45 days
             if days is not None and days >= -45:
                 if days < 0:
