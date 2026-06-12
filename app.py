@@ -7704,6 +7704,16 @@ div[data-testid="element-container"]:has(.desk-bar) {
     margin: -2px 0 16px;
 }
 
+.desk-trade-plan-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+    margin: 0 0 6px;
+}
+
 .desk-stack-cell {
     background: #FFFFFF;
     padding: 9px 12px;
@@ -7759,6 +7769,44 @@ div[data-testid="element-container"]:has(.desk-bar) {
 .desk-stack-context {
     color: var(--desk-muted);
     font-size: 14px;
+}
+
+.desk-pm-utility {
+    border: 1px solid var(--desk-border);
+    border-radius: 6px;
+    background: #FFFFFF;
+    padding: 8px 10px;
+    margin: 0 0 14px;
+}
+
+.desk-pm-utility-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+    margin-bottom: 6px;
+}
+
+.desk-pm-memo {
+    border-top: 1px solid var(--desk-border);
+    margin-top: 14px;
+    padding-top: 14px;
+}
+
+.desk-pm-memo .desk-pm-block {
+    margin: 0;
+    padding: 11px 0;
+    border-bottom: 1px dashed var(--desk-border);
+}
+
+.desk-pm-memo .desk-pm-block:first-child {
+    padding-top: 0;
+}
+
+.desk-pm-memo .desk-pm-block:last-child {
+    border-bottom: 0;
 }
 
 .desk-stack-owned {
@@ -8870,7 +8918,7 @@ if view == "analyze":
   <div style="font-family: var(--font-mono); font-size:var(--fs-sm); font-weight:600;
               letter-spacing: var(--ls-caps-sm); text-transform:uppercase; color:{sty['color']};
               margin-top:8px; opacity:0.85;">
-    {_state_action_label} — {_state_copy} · {_source_note}
+    {_state_action_label} — {_state_copy}
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -8927,6 +8975,7 @@ if view == "analyze":
             )
 
         st.markdown(f"""
+<div class="desk-trade-plan-label">Trade plan</div>
 <div class="desk-decision-stack">
   <div class="desk-stack-cell hero">
     <div class="desk-stack-value">
@@ -10495,6 +10544,11 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="desk-pm-utility">'
+            '<div class="desk-pm-utility-label">Data / actions</div>',
+            unsafe_allow_html=True,
+        )
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
         if st.button(
             f"↻ Refresh {ticker.upper()}",
@@ -10509,6 +10563,7 @@ if view == "analyze":
             f'target="_blank" rel="noopener">✨ Full research report ↗</a>',
             unsafe_allow_html=True,
         )
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # Quality tier badge — informational, NOT a gate. Sourced from the
         # dossier Claude call (5th field). Shows long-term ownership read
@@ -10556,7 +10611,7 @@ if view == "analyze":
 
         # Layer 1 — snapshot
         st.markdown(f"""
-<div>
+<div class="desk-pm-memo">
   <div class="desk-pm-block">
     <div class="lb">🧭 Thesis</div>
     <div class="body">{pm.get('thesis', '')}</div>
