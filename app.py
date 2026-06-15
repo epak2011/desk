@@ -11881,26 +11881,30 @@ if view == "watchlist":
     if not st.session_state.store["watchlist"]:
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
+        def _run_watchlist_market_scan():
+            """Refresh watchlist market inputs only when explicitly requested."""
+            fetch_history.clear()
+            for scan_tkr in st.session_state.store.get("watchlist", []):
+                _delete_history_cache(scan_tkr)
+            fetch_quote_meta.clear()
+            sidebar_watchlist_snapshot.clear()
+            st.session_state.store["watchlist_sidebar_cache"] = {}
+            update_sidebar_watchlist_cache(st.session_state.store.get("watchlist", []))
+
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
             if st.button(
-                "↻ Refresh watchlist market scan",
+                "↻ Update watchlist now",
                 key="refresh_watchlist_scan",
-                help="Refresh prices, fundamentals, sidebar rows, and scan metrics for the full watchlist. PM memos are generated per ticker from Analyze so the watchlist stays fast.",
+                help="Refresh prices, fundamentals, sidebar rows, and scan metrics for the full watchlist. PM memos stay per ticker so the watchlist can load fast.",
                 use_container_width=True,
             ):
-                fetch_history.clear()
-                for tkr in st.session_state.store.get("watchlist", []):
-                    _delete_history_cache(tkr)
-                fetch_quote_meta.clear()
-                sidebar_watchlist_snapshot.clear()
-                st.session_state.store["watchlist_sidebar_cache"] = {}
-                update_sidebar_watchlist_cache(st.session_state.store.get("watchlist", []))
+                _run_watchlist_market_scan()
                 st.rerun()
         with scan_c2:
             st.markdown(
                 '<div class="watchlist-control-note">'
-                'Refreshes market data and scan metrics. PM memos stay per-ticker so the watchlist does not stall.</div>',
+                'Default view opens from saved setup data for speed. Click Update watchlist now to refresh prices/actions; use Full metrics for the heavier scan.</div>',
                 unsafe_allow_html=True,
             )
         watchlist_layout_pref = st.session_state.get("watchlist_layout", "Decision queue")
@@ -12018,7 +12022,7 @@ if view == "watchlist":
             )
             pm_row_label, pm_row_color = _watchlist_pm_cell(cached)
             personality = {
-                "label": "Cached read",
+                "label": "Saved setup",
                 "emoji": STATE_STYLES.get(action, STATE_STYLES["watch"]).get("emoji", "👀"),
                 "rank": 99,
             }
@@ -12243,6 +12247,23 @@ if view == "watchlist":
             ("PM memo", pm_label.replace("PM ", ""), pm_kind),
             ("Sidebar", f"{len(rows)}/{len(st.session_state.store['watchlist'])} rows updated", "fresh" if rows else "stale"),
         ]), unsafe_allow_html=True)
+        if fast_watchlist:
+            refresh_note_c1, refresh_note_c2 = st.columns([1.35, 4])
+            with refresh_note_c1:
+                if st.button(
+                    "↻ Refresh saved queue",
+                    key="refresh_watchlist_scan_inline",
+                    help="Updates the saved watchlist queue without opening every ticker's PM memo.",
+                    use_container_width=True,
+                ):
+                    _run_watchlist_market_scan()
+                    st.rerun()
+            with refresh_note_c2:
+                st.markdown(
+                    '<div class="watchlist-control-note">'
+                    'Showing saved setup rows so the page opens quickly. Refresh saved queue when you want the latest prices and rule actions.</div>',
+                    unsafe_allow_html=True,
+                )
 
         sort_c1, sort_c2, sort_c3 = st.columns([2, 2, 2])
         with sort_c1:
