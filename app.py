@@ -10849,7 +10849,21 @@ if view == "analyze":
         # readable on first load.
         pm_narrative = dossier_result.get("pm_narrative") if dossier_result else None
         deep = pm.get("deep_dive") or {}
-        has_deep = (deep.get("expanded_thesis") and pm.get("_source", "").startswith("claude")) or deep.get("catalysts")
+        has_deep = any(
+            deep.get(key)
+            for key in (
+                "expanded_thesis",
+                "business",
+                "variant_bull",
+                "variant_bear",
+                "variant_needs",
+                "catalysts",
+                "risk_scenarios",
+                "valuation_context",
+                "must_be_true",
+                "would_change_mind",
+            )
+        )
 
         if pm_narrative:
             paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
@@ -10875,89 +10889,74 @@ if view == "analyze":
         ticker_key = ticker.upper()
         expanded = st.session_state.pm_expanded.get(ticker_key, False)
 
-        show_deep_button = has_deep or not pm.get("_source", "").startswith("claude")
-        if show_deep_button:
+        if has_deep:
             btn_label = "Hide expanded thesis ↑" if expanded else "Expanded thesis ↓"
             if st.button(btn_label, key=f"pm_expand_{ticker_key}", use_container_width=False):
                 st.session_state.pm_expanded[ticker_key] = not expanded
                 st.rerun()
-
-        if expanded and not has_deep:
-            st.markdown(f"""
-<div class="desk-pm-deep">
-  <div class="sub-body" style="color:var(--color-faint);">
-    Expanded thesis is generated when an Anthropic API key is configured in the sidebar.
-    Paste a key, then click ↻ next to the Portfolio manager header to regenerate.
-  </div>
-</div>
-""", unsafe_allow_html=True)
+        elif expanded:
+            st.session_state.pm_expanded[ticker_key] = False
 
         if expanded and has_deep:
             # Structured deep-dive: variant perception, catalysts, risks,
             # what-must-be-true, what-would-change-my-mind.
+            html_parts = ['<div class="desk-pm-deep">']
             if deep.get("expanded_thesis"):
-                html_parts = ['<div class="desk-pm-deep">']
                 html_parts.append(f'<div class="sub-lb">Expanded thesis</div>')
                 html_parts.append(f'<div class="sub-body">{deep.get("expanded_thesis", "")}</div>')
 
-                # Business
-                if deep.get("business"):
-                    html_parts.append(f'<div class="sub-lb">Business</div>')
-                    html_parts.append(f'<div class="sub-body">{deep["business"]}</div>')
+            # Business
+            if deep.get("business"):
+                html_parts.append(f'<div class="sub-lb">Business</div>')
+                html_parts.append(f'<div class="sub-body">{deep["business"]}</div>')
 
-                # Variant perception — bull vs bear, side by side
-                if deep.get("variant_bull") or deep.get("variant_bear"):
-                    html_parts.append(f'<div class="sub-lb">Variant perception</div>')
-                    html_parts.append('<div class="variant-grid">')
-                    if deep.get("variant_bull"):
-                        html_parts.append(f'''
+            # Variant perception — bull vs bear, side by side
+            if deep.get("variant_bull") or deep.get("variant_bear"):
+                html_parts.append(f'<div class="sub-lb">Variant perception</div>')
+                html_parts.append('<div class="variant-grid">')
+                if deep.get("variant_bull"):
+                    html_parts.append(f'''
 <div class="variant-card">
   <div class="lb lb-bull">Bull case</div>
   <div class="body">{deep["variant_bull"]}</div>
 </div>''')
-                    if deep.get("variant_bear"):
-                        html_parts.append(f'''
+                if deep.get("variant_bear"):
+                    html_parts.append(f'''
 <div class="variant-card">
   <div class="lb lb-bear">Bear case</div>
   <div class="body">{deep["variant_bear"]}</div>
 </div>''')
-                    html_parts.append('</div>')
-                    if deep.get("variant_needs"):
-                        html_parts.append(f'<div class="sub-body" style="margin-top:8px;"><em>What needs to happen:</em> {deep["variant_needs"]}</div>')
-
-                # Catalysts
-                if deep.get("catalysts"):
-                    html_parts.append(f'<div class="sub-lb">Catalysts · next 1–2 quarters</div>')
-                    html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
-
-                # Risk scenarios
-                if deep.get("risk_scenarios"):
-                    html_parts.append(f'<div class="sub-lb">Specific risk scenarios</div>')
-                    html_parts.extend(f'<div class="desk-pm-item">{r}</div>' for r in deep["risk_scenarios"])
-
-                # Valuation context
-                if deep.get("valuation_context"):
-                    html_parts.append(f'<div class="sub-lb">Valuation context</div>')
-                    html_parts.append(f'<div class="sub-body">{deep["valuation_context"]}</div>')
-
-                # What must be true
-                if deep.get("must_be_true"):
-                    html_parts.append(f'<div class="sub-lb">What must be true</div>')
-                    html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["must_be_true"])
-
-                # What would change my mind
-                if deep.get("would_change_mind"):
-                    html_parts.append(f'<div class="sub-lb">What would change my mind</div>')
-                    html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["would_change_mind"])
-
                 html_parts.append('</div>')
-                st.markdown("".join(html_parts), unsafe_allow_html=True)
-            elif deep.get("catalysts"):
-                html_parts = ['<div class="desk-pm-deep">']
+                if deep.get("variant_needs"):
+                    html_parts.append(f'<div class="sub-body" style="margin-top:8px;"><em>What needs to happen:</em> {deep["variant_needs"]}</div>')
+
+            # Catalysts
+            if deep.get("catalysts"):
                 html_parts.append(f'<div class="sub-lb">Catalysts · next 1–2 quarters</div>')
                 html_parts.extend(f'<div class="desk-pm-item">{c}</div>' for c in deep["catalysts"])
-                html_parts.append('</div>')
-                st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+            # Risk scenarios
+            if deep.get("risk_scenarios"):
+                html_parts.append(f'<div class="sub-lb">Specific risk scenarios</div>')
+                html_parts.extend(f'<div class="desk-pm-item">{r}</div>' for r in deep["risk_scenarios"])
+
+            # Valuation context
+            if deep.get("valuation_context"):
+                html_parts.append(f'<div class="sub-lb">Valuation context</div>')
+                html_parts.append(f'<div class="sub-body">{deep["valuation_context"]}</div>')
+
+            # What must be true
+            if deep.get("must_be_true"):
+                html_parts.append(f'<div class="sub-lb">What must be true</div>')
+                html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["must_be_true"])
+
+            # What would change my mind
+            if deep.get("would_change_mind"):
+                html_parts.append(f'<div class="sub-lb">What would change my mind</div>')
+                html_parts.extend(f'<div class="desk-pm-item">{m}</div>' for m in deep["would_change_mind"])
+
+            html_parts.append('</div>')
+            st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────
