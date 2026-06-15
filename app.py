@@ -2086,6 +2086,15 @@ div.streamlit-expanderHeader {
 .desk-freshness-row.stale .v { color: var(--color-negative); }
 .desk-freshness-row.warn .v { color: var(--color-warning-text); }
 .desk-freshness-row.fresh .v { color: var(--color-positive); }
+.desk-refresh-receipt {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--color-border-soft);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--color-positive);
+}
 .position-decision-panel {
     border: 1px solid var(--color-border);
     border-radius: 8px;
@@ -4331,6 +4340,33 @@ def data_status_html(items):
     return f'<div class="desk-data-strip">{chips}</div>'
 
 
+def canonical_freshness_html(items, refreshed_at=None):
+    """One canonical freshness panel so status language stays consistent."""
+    receipt = ""
+    if refreshed_at:
+        receipt = (
+            f'<div class="desk-refresh-receipt">Updated price, fundamentals, '
+            f'PM memo, and sidebar row at {html.escape(refreshed_at)}.</div>'
+        )
+    return (
+        '<div class="desk-freshness-panel">'
+        '<div class="desk-freshness-title">Freshness</div>'
+        f'{data_status_html(items)}'
+        f'{receipt}'
+        '</div>'
+    )
+
+
+def active_refresh_receipt(ticker):
+    """Return a refresh receipt time only for the currently viewed ticker."""
+    event = st.session_state.pop("_refresh_result", None)
+    if not isinstance(event, dict):
+        return None
+    if str(event.get("ticker") or "").upper() != str(ticker or "").upper():
+        return None
+    return event.get("time")
+
+
 def sidebar_cache_status(ticker):
     """Freshness label for the active ticker row in the sidebar cache."""
     entry = st.session_state.store.get("watchlist_sidebar_cache", {}).get(str(ticker).upper(), {})
@@ -4350,7 +4386,7 @@ def sidebar_cache_status(ticker):
 
 
 def refresh_current_ticker_state(ticker, *, refresh_research=False):
-    """Clear the exact caches behind the currently viewed ticker."""
+    """Refresh the four visible ticker layers: price, fundamentals, PM, sidebar."""
     refresh_ticker = str(ticker or "").upper().strip()
     if not refresh_ticker:
         return
@@ -4370,22 +4406,39 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
         fetch_quote_meta.clear(refresh_ticker)
     except Exception:
         fetch_quote_meta.clear()
+    refreshed_hist = None
+    refreshed_meta = None
     try:
-        refreshed_meta = fetch_quote_meta(refresh_ticker)
+        refreshed_meta = fetch_quote_meta(refresh_ticker, include_slow_fallbacks=True)
         remember_quote_meta(refresh_ticker, refreshed_meta)
     except Exception:
         pass
-    # Keep refresh scoped to the active ticker. The next Analyze render writes
-    # the current price/action into the sidebar cache via
-    # remember_sidebar_ticker_snapshot(); full sidebar/watchlist scans belong
-    # on the Watchlist page.
+    try:
+        refreshed_hist, _name, _err = fetch_history(refresh_ticker)
+        refreshed_bench = fetch_bench()
+        if refreshed_hist is not None and refreshed_bench is not None:
+            refreshed_t = tactical.compute(refreshed_hist, refreshed_bench)
+            if refreshed_t is not None:
+                remember_sidebar_ticker_snapshot(refresh_ticker, refreshed_t, refreshed_hist)
+    except Exception:
+        pass
     sidebar_watchlist_snapshot.clear()
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
         pm_cache = st.session_state.store.setdefault("pm_cache", {})
         if refresh_ticker in pm_cache:
             del pm_cache[refresh_ticker]
-            save_store(st.session_state.store)
+        # The visible PM memo is regenerated on the next Analyze render.
+        # Clear dossier cache too so the PM/fundamental memo is not half old.
+        dossier_cache = st.session_state.store.setdefault("dossier_cache", {})
+        if refresh_ticker in dossier_cache:
+            del dossier_cache[refresh_ticker]
+    st.session_state["_refresh_result"] = {
+        "ticker": refresh_ticker,
+        "time": datetime.now().strftime("%-I:%M %p"),
+        "research": bool(refresh_research),
+    }
+    save_store(st.session_state.store)
 
 
 def get_effective_api_key():
@@ -8611,12 +8664,6 @@ if view == "analyze":
     )
     meta_html = html.escape(meta_line)
     price_age_label, price_age_kind = format_market_data_age(hist)
-    bench_label, bench_kind = benchmark_source_label(bench)
-    analyze_status_items = [
-        ("Price", price_age_label, price_age_kind),
-        ("Benchmark", bench_label, bench_kind),
-        ("Fundamentals", metadata_status_label(meta)[0], metadata_status_label(meta)[1]),
-    ]
 
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
@@ -8700,13 +8747,14 @@ if view == "analyze":
         }
     research_items = research_health_items(pm, dossier_result, api_key)
     pm_status_item = research_items[0] if research_items else ("PM memo", "not generated", "warn")
-    dossier_status_item = research_items[1] if len(research_items) > 1 else ("Full dossier", "not generated", "warn")
-    freshness_panel_html = data_status_html([
+    sidebar_status_item = sidebar_cache_status(ticker)
+    refresh_receipt_time = active_refresh_receipt(ticker)
+    freshness_panel_html = canonical_freshness_html([
         ("Price", price_age_label, price_age_kind),
         ("Fundamentals", metadata_status_label(meta)[0], metadata_status_label(meta)[1]),
-        ("PM", pm_status_item[1], pm_status_item[2]),
-        ("Dossier", dossier_status_item[1], dossier_status_item[2]),
-    ])
+        ("PM memo", pm_status_item[1], pm_status_item[2]),
+        ("Sidebar", sidebar_status_item[0], sidebar_status_item[1]),
+    ], refreshed_at=refresh_receipt_time)
 
     # Accumulation Watch override: if compute() flagged the name as
     # accumulation-eligible (deep drawdown + near low + stabilizing + not
@@ -10576,14 +10624,11 @@ if view == "analyze":
 
         # ───── RIGHT COLUMN: PM view (two layers) ─────
     with col_pm:
-        src_note = format_source_note(pm.get("_source", "the thesis"))
-
         # PM header + refresh button
         st.markdown(f"""
 <div class="desk-pm-header">
   <div>
     <div><span class="em">🧠</span>Portfolio manager</div>
-    <div class="src">{src_note}</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -12078,15 +12123,13 @@ if view == "watchlist":
             '<div class="watch-queue-grid">' + "".join(queue_html) + '</div>',
             unsafe_allow_html=True,
         )
-        bench_label, bench_kind = benchmark_source_label(bench)
         pm_label, pm_kind = watchlist_pm_status(dossier_cache, [r["ticker"] for r in rows])
         watch_price_kind = "fresh" if price_age_kinds and all(k == "fresh" for k in price_age_kinds) else ("warn" if price_age_kinds else "stale")
-        st.markdown(data_status_html([
-            ("Scan", f"{len(rows)}/{len(st.session_state.store['watchlist'])} rows loaded", "fresh" if rows else "stale"),
-            ("Prices", "last close data", watch_price_kind),
-            ("Benchmark", bench_label, bench_kind),
-            ("PM", pm_label, pm_kind),
+        st.markdown(canonical_freshness_html([
+            ("Price", "last close data", watch_price_kind),
             ("Fundamentals", f"{meta_sparse} sparse" if meta_sparse else "cached ≤1h", "warn" if meta_sparse else "fresh"),
+            ("PM memo", pm_label.replace("PM ", ""), pm_kind),
+            ("Sidebar", f"{len(rows)}/{len(st.session_state.store['watchlist'])} rows updated", "fresh" if rows else "stale"),
         ]), unsafe_allow_html=True)
 
         sort_c1, sort_c2, sort_c3 = st.columns([2, 2, 2])
