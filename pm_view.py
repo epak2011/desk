@@ -253,7 +253,7 @@ TICKER-SPECIFIC PM CONTEXT - mandatory to incorporate:
 
 def _empty_deep_dive(ticker):
     return {
-        "expanded_thesis": f"Deep dive on {ticker} not available without an Anthropic API key. Paste one in the sidebar to unlock this layer.",
+        "expanded_thesis": None,
         "business": None,
         "variant_bull": None,
         "variant_bear": None,
