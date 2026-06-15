@@ -3077,15 +3077,28 @@ def sidebar_watchlist_snapshot(tickers):
         prev = float(hist["Close"].iloc[-2])
         price_age_label, price_age_kind = format_market_data_age(hist)
         action = None
+        t_state = None
         if bench is not None:
             try:
-                action = (tactical.compute(hist, bench) or {}).get("action")
+                t_state = tactical.compute(hist, bench) or {}
+                action = t_state.get("action")
             except Exception:
+                t_state = None
                 action = None
         snapshot[tkr] = {
             "last": last,
             "change_pct": (last / prev - 1) * 100 if prev else 0,
             "action": action,
+            "state": (t_state or {}).get("state"),
+            "rs": (t_state or {}).get("rs"),
+            "pct_ma50": (
+                ((t_state or {}).get("price") - (t_state or {}).get("ma50")) / (t_state or {}).get("ma50") * 100
+                if (t_state or {}).get("price") and (t_state or {}).get("ma50") else None
+            ),
+            "high_52w": (t_state or {}).get("high_52w"),
+            "low_52w": (t_state or {}).get("low_52w"),
+            "pct_52w_range": (t_state or {}).get("pct_of_52w_range"),
+            "vol_ratio": (t_state or {}).get("vol_ratio"),
             "price_age": price_age_label,
             "price_age_kind": price_age_kind,
             "updated_at": datetime.now().isoformat(timespec="seconds"),
@@ -3127,6 +3140,16 @@ def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None):
         "last": float(price),
         "change_pct": float(change) if change is not None else None,
         "action": t_state.get("action"),
+        "state": t_state.get("state"),
+        "rs": t_state.get("rs"),
+        "pct_ma50": (
+            (t_state.get("price") - t_state.get("ma50")) / t_state.get("ma50") * 100
+            if t_state.get("price") and t_state.get("ma50") else None
+        ),
+        "high_52w": t_state.get("high_52w"),
+        "low_52w": t_state.get("low_52w"),
+        "pct_52w_range": t_state.get("pct_of_52w_range"),
+        "vol_ratio": t_state.get("vol_ratio"),
         "price_age": price_age_label,
         "price_age_kind": price_age_kind,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
@@ -12036,11 +12059,13 @@ if view == "watchlist":
                 "state": t_stub["state"],
                 "rs": t_stub["rs"],
                 "rs_delta": 0,
-                "pct_ma50": 0,
+                "pct_ma50": _safe_float(snapshot.get("pct_ma50"), 0),
                 "trig_dist": None,
                 "earnings_days": meta.get("earnings_days") if isinstance(meta, dict) else None,
                 "quality": quality_tier,
                 "sector": sector,
+                "high_52w": snapshot.get("high_52w"),
+                "low_52w": snapshot.get("low_52w"),
                 "pct_52w_range": _safe_float(snapshot.get("pct_52w_range"), 50),
                 "vol_ratio": _safe_float(snapshot.get("vol_ratio"), 1.0),
                 "tech_delta": 0,
@@ -12164,6 +12189,8 @@ if view == "watchlist":
                         "earnings_days": earnings_days,
                         "quality": quality_tier,
                         "sector": sector,
+                        "high_52w": t.get("high_52w"),
+                        "low_52w": t.get("low_52w"),
                         "pct_52w_range": t.get("pct_of_52w_range", 50),
                         "vol_ratio": t.get("vol_ratio", 1.0),
                         "tech_delta": t.get("tech_delta", 0),
@@ -12387,18 +12414,11 @@ if view == "watchlist":
 
         compact_watchlist = watchlist_layout == "Decision queue"
         if compact_watchlist:
-            # Default: decision queue. Keep only the fields that answer:
-            # what is it, why should I look, what action, what trigger, and
-            # whether Claude needs a second look.
+            # Default: decision queue, but with enough market context to scan
+            # without switching into the heavier full-metrics pass.
             grid_cols = (
                 'grid-template-columns: '
-                'minmax(0,0.82fr) '
-                'minmax(0,1.16fr) '
-                'minmax(0,1.12fr) '
-                'minmax(0,0.80fr) '
-                'minmax(0,1.02fr) '
-                'minmax(0,0.78fr) '
-                'minmax(0,1.00fr);'
+                'repeat(11, minmax(0, 1fr));'
             )
         else:
             # Dense research view: all metrics for sorting/comparison.
@@ -12467,6 +12487,8 @@ if view == "watchlist":
     <b>Setup</b> descriptive setup type, separate from the action call ·
     <b>Attention</b> highest-signal reason to look now ·
     <b>New action</b> what the app would do for a fresh position ·
+    <b>52w high/low</b> saved during the last watchlist refresh ·
+    <b>52w pos</b> position in the 52-week range ·
     <b>Trigger</b> percent to the trigger, if defined ·
     <b>PM / dissent</b> PM memo state; <b>Review ★</b> opens Analyze when Claude materially disagrees with rules.
   </div>
@@ -12497,12 +12519,16 @@ if view == "watchlist":
         if compact_watchlist:
             header_cells = (
                 '<span>Ticker</span>'
-                '<span>Setup</span>'
+                '<span style="text-align:right;">Price</span>'
+                '<span style="text-align:right;">Chg</span>'
+                '<span>Action</span>'
                 '<span>Attention</span>'
-                '<span style="text-align:right;">Last</span>'
-                '<span>New action</span>'
+                '<span style="text-align:right;">52w high</span>'
+                '<span style="text-align:right;">52w low</span>'
+                '<span style="text-align:right;">52w pos</span>'
+                '<span style="text-align:right;">Vol ×</span>'
                 '<span style="text-align:right;">Trigger</span>'
-                '<span>PM / dissent</span>'
+                '<span>PM</span>'
             )
         else:
             header_cells = (
@@ -12588,6 +12614,10 @@ if view == "watchlist":
                 )
                 price_value = row.get("price")
                 price_str = f'${price_value:,.2f}' if price_value else "—"
+                high_52w = row.get("high_52w")
+                low_52w = row.get("low_52w")
+                high_52w_str = f'${float(high_52w):,.2f}' if high_52w else "—"
+                low_52w_str = f'${float(low_52w):,.2f}' if low_52w else "—"
 
                 # Quality tier styling
                 q_tier = row.get("quality") or ""
@@ -12635,12 +12665,16 @@ if view == "watchlist":
                 if compact_watchlist:
                     row_cells = (
                         f'{ticker_link}'
-                        f'{personality_html}'
+                        f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
+                        f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
+                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
                         f'{row["attention"]}</span>'
-                        f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                        f'<span style="text-align:right;color:var(--color-faint);">{high_52w_str}</span>'
+                        f'<span style="text-align:right;color:var(--color-faint);">{low_52w_str}</span>'
+                        f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
+                        f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
                         f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:800;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
