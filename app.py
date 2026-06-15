@@ -11903,7 +11903,9 @@ if view == "watchlist":
                 'Refreshes market data and scan metrics. PM memos stay per-ticker so the watchlist does not stall.</div>',
                 unsafe_allow_html=True,
             )
-        bench = fetch_bench()
+        watchlist_layout_pref = st.session_state.get("watchlist_layout", "Decision queue")
+        fast_watchlist = watchlist_layout_pref == "Decision queue"
+        bench = None if fast_watchlist else fetch_bench()
         dossier_cache = st.session_state.store.get("dossier_cache", {})
         owned_ticker_set = active_position_tickers()
 
@@ -11951,118 +11953,228 @@ if view == "watchlist":
                 pass
             return "Ready", "var(--color-positive)"
 
+        def _safe_float(value, default=0.0):
+            try:
+                if value is None:
+                    return default
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _cached_watchlist_row(tkr):
+            """Fast watchlist row from saved sidebar/dossier snapshots only."""
+            key = str(tkr).upper().strip()
+            sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+            snapshot = sidebar_cache.get(key, {}) if isinstance(sidebar_cache, dict) else {}
+            cached = dossier_cache.get(key, {}) if isinstance(dossier_cache, dict) else {}
+            meta = cached_quote_meta_snapshot(key)
+            cached_call = ((cached.get("result") or {}).get("tactical_call") or {})
+            cached_action = normalize_action_key(cached_call.get("action"))
+            try:
+                cached_confidence = int(cached_call.get("confidence", 0) or 0)
+            except (TypeError, ValueError):
+                cached_confidence = 0
+            final_cached = (
+                st.session_state.store.get("final_action_cache", {}).get(key, {}) or {}
+            )
+            action = (
+                normalize_action_key(final_cached.get("action"))
+                or normalize_action_key(snapshot.get("action"))
+                or cached_action
+                or "watch"
+            )
+            fallback_profile = infer_security_profile(key, meta, key)
+            if (
+                fallback_profile.get("sector") in {"ETF", "Fund"}
+                or str(meta.get("quote_type") or "").upper() in {"ETF", "MUTUALFUND", "FUND"}
+            ):
+                sector = (
+                    fallback_profile.get("category")
+                    or meta.get("category")
+                    or fallback_profile.get("sector")
+                    or "ETF"
+                )
+            else:
+                sector = meta.get("sector") or fallback_profile.get("sector") or "—"
+            quality_tier = (
+                ((cached.get("result") or {}).get("quality") or {}).get("tier", "")
+            )
+            dissent_signal = claude_dissent_signal(
+                action,
+                cached_action,
+                cached_confidence,
+                cached_call.get("reasoning") or cached_call.get("trigger") or "",
+            )
+            t_stub = {
+                "action": action,
+                "state": snapshot.get("state") or "CACHED",
+                "price": _safe_float(snapshot.get("last")),
+                "change": _safe_float(snapshot.get("change_pct")),
+                "rs": _safe_float(snapshot.get("rs"), 1.0),
+                "tech_delta": 0,
+            }
+            attention_label, attention_rank, attention_color = _watchlist_attention(
+                key, t_stub, None, None, cached
+            )
+            pm_row_label, pm_row_color = _watchlist_pm_cell(cached)
+            personality = {
+                "label": "Cached read",
+                "emoji": STATE_STYLES.get(action, STATE_STYLES["watch"]).get("emoji", "👀"),
+                "rank": 99,
+            }
+            if cached_call.get("setup_type"):
+                personality["label"] = str(cached_call.get("setup_type"))
+            return {
+                "ticker": key,
+                "name": display_security_name(key, key, meta, fallback_profile) or key,
+                "price": t_stub["price"],
+                "change": t_stub["change"],
+                "action": action,
+                "state": t_stub["state"],
+                "rs": t_stub["rs"],
+                "rs_delta": 0,
+                "pct_ma50": 0,
+                "trig_dist": None,
+                "earnings_days": meta.get("earnings_days") if isinstance(meta, dict) else None,
+                "quality": quality_tier,
+                "sector": sector,
+                "pct_52w_range": _safe_float(snapshot.get("pct_52w_range"), 50),
+                "vol_ratio": _safe_float(snapshot.get("vol_ratio"), 1.0),
+                "tech_delta": 0,
+                "attention": attention_label,
+                "attention_rank": attention_rank,
+                "attention_color": attention_color,
+                "pm_status": pm_row_label,
+                "pm_status_color": pm_row_color,
+                "claude_dissent": dissent_signal,
+                "personality": personality["label"],
+                "personality_emoji": personality["emoji"],
+                "personality_rank": personality["rank"],
+                "_t": t_stub,
+            }
+
         # ── Compute everything we'll need for every ticker, in one pass ──
         # Each row: dict with action/state/RS/etc. + tactical engine output.
         rows = []
         price_age_kinds = []
         meta_sparse = 0
-        with st.spinner("Analyzing watchlist…"):
+        if fast_watchlist:
             for tkr in st.session_state.store["watchlist"]:
-                hist, name, _err = fetch_history(tkr)
-                if hist is None or bench is None:
-                    continue
-                _price_label, _price_kind = format_market_data_age(hist)
-                price_age_kinds.append(_price_kind)
-                t = tactical.compute(hist, bench)
-                if t is None:
-                    continue
-
-                # Apply accumulation override using cached quality
-                if t.get("is_accumulation_eligible") and t["action"] == "avoid":
-                    cached = dossier_cache.get(tkr.upper(), {})
-                    cached_quality = ((cached.get("result") or {}).get("quality") or {})
-                    q_tier = cached_quality.get("tier", "")
-                    new_action = tactical.apply_accumulation_override(
-                        t["action"], True, q_tier
-                    )
-                    if new_action != t["action"]:
-                        t = {**t, "action": new_action}
-
-                # Quality tier from dossier cache (if available)
-                cached = dossier_cache.get(tkr.upper(), {})
-                quality_tier = (
-                    ((cached.get("result") or {}).get("quality") or {}).get("tier", "")
+                row = _cached_watchlist_row(tkr)
+                rows.append(row)
+                cached_age_kind = (
+                    st.session_state.store
+                    .get("watchlist_sidebar_cache", {})
+                    .get(row["ticker"], {})
+                    .get("price_age_kind")
                 )
-
-                # Earnings days from quote meta — fetch separately, cached
-                meta = fetch_quote_meta(tkr)
-                remember_quote_meta(tkr, meta)
+                price_age_kinds.append(cached_age_kind or "stale")
+                meta = cached_quote_meta_snapshot(row["ticker"])
                 if metadata_status_label(meta)[1] != "fresh":
                     meta_sparse += 1
-                earnings_days = meta.get("earnings_days") if meta else None
-                t = apply_earnings_event_gate(t, earnings_days)
-                cached_call = ((cached.get("result") or {}).get("tactical_call") or {})
-                cached_action = normalize_action_key(cached_call.get("action"))
-                try:
-                    cached_confidence = int(cached_call.get("confidence", 0) or 0)
-                except (TypeError, ValueError):
-                    cached_confidence = 0
-                hard_rule_lock = (
-                    (not t.get("atr_ok", True)) or
-                    bool(t.get("event_risk_hold")) or
-                    bool(t.get("event_risk_watch"))
-                )
-                dissent_signal = claude_dissent_signal(
-                    t.get("action"),
-                    cached_action,
-                    cached_confidence,
-                    cached_call.get("reasoning") or cached_call.get("trigger") or "",
-                )
+        else:
+            with st.spinner("Analyzing full metrics…"):
+                for tkr in st.session_state.store["watchlist"]:
+                    hist, name, _err = fetch_history(tkr)
+                    if hist is None or bench is None:
+                        continue
+                    _price_label, _price_kind = format_market_data_age(hist)
+                    price_age_kinds.append(_price_kind)
+                    t = tactical.compute(hist, bench)
+                    if t is None:
+                        continue
 
-                # Trigger distance % — how close to a logged trigger?
-                trig = t.get("trigger") or {}
-                buy_above = trig.get("levels", {}).get("buy_above") if trig else None
-                trig_dist = (
-                    (buy_above - t["price"]) / t["price"] * 100
-                    if buy_above and t["price"] else None
-                )
+                    # Apply accumulation override using cached quality
+                    if t.get("is_accumulation_eligible") and t["action"] == "avoid":
+                        cached = dossier_cache.get(tkr.upper(), {})
+                        cached_quality = ((cached.get("result") or {}).get("quality") or {})
+                        q_tier = cached_quality.get("tier", "")
+                        new_action = tactical.apply_accumulation_override(
+                            t["action"], True, q_tier
+                        )
+                        if new_action != t["action"]:
+                            t = {**t, "action": new_action}
 
-                # % from MA50
-                pct_ma50 = (
-                    (t["price"] - t["ma50"]) / t["ma50"] * 100
-                    if t["ma50"] else 0
-                )
+                    # Quality tier from dossier cache (if available)
+                    cached = dossier_cache.get(tkr.upper(), {})
+                    quality_tier = (
+                        ((cached.get("result") or {}).get("quality") or {}).get("tier", "")
+                    )
 
-                # Sector/category from yfinance + display fallback — used for grouping.
-                fallback_profile = infer_security_profile(tkr, meta, name)
-                if (fallback_profile.get("sector") in {"ETF", "Fund"} or str(meta.get("quote_type") or "").upper() in {"ETF", "MUTUALFUND", "FUND"}):
-                    sector = fallback_profile.get("category") or meta.get("category") or fallback_profile.get("sector") or "ETF"
-                else:
-                    sector = (meta.get("sector") if meta else None) or fallback_profile.get("sector") or "—"
-                attention_label, attention_rank, attention_color = _watchlist_attention(
-                    tkr, t, trig_dist, earnings_days, cached
-                )
-                pm_row_label, pm_row_color = _watchlist_pm_cell(cached)
-                personality = classify_setup_personality(t, quality_tier)
+                    # Earnings days from quote meta — fetch separately, cached
+                    meta = fetch_quote_meta(tkr)
+                    remember_quote_meta(tkr, meta)
+                    if metadata_status_label(meta)[1] != "fresh":
+                        meta_sparse += 1
+                    earnings_days = meta.get("earnings_days") if meta else None
+                    t = apply_earnings_event_gate(t, earnings_days)
+                    cached_call = ((cached.get("result") or {}).get("tactical_call") or {})
+                    cached_action = normalize_action_key(cached_call.get("action"))
+                    try:
+                        cached_confidence = int(cached_call.get("confidence", 0) or 0)
+                    except (TypeError, ValueError):
+                        cached_confidence = 0
+                    dissent_signal = claude_dissent_signal(
+                        t.get("action"),
+                        cached_action,
+                        cached_confidence,
+                        cached_call.get("reasoning") or cached_call.get("trigger") or "",
+                    )
 
-                rows.append({
-                    "ticker": tkr,
-                    "name": display_security_name(tkr, name, meta, fallback_profile) or tkr,
-                    "price": t["price"],
-                    "change": t["change"],
-                    "action": t["action"],
-                    "state": t.get("state", "TRENDING"),
-                    "rs": t.get("rs", 1.0),
-                    "rs_delta": t.get("rs_delta", 0),
-                    "pct_ma50": pct_ma50,
-                    "trig_dist": trig_dist,
-                    "earnings_days": earnings_days,
-                    "quality": quality_tier,
-                    "sector": sector,
-                    "pct_52w_range": t.get("pct_of_52w_range", 50),
-                    "vol_ratio": t.get("vol_ratio", 1.0),
-                    "tech_delta": t.get("tech_delta", 0),
-                    "attention": attention_label,
-                    "attention_rank": attention_rank,
-                    "attention_color": attention_color,
-                    "pm_status": pm_row_label,
-                    "pm_status_color": pm_row_color,
-                    "claude_dissent": dissent_signal,
-                    "personality": personality["label"],
-                    "personality_emoji": personality["emoji"],
-                    "personality_rank": personality["rank"],
-                    "_t": t,
-                })
+                    # Trigger distance % — how close to a logged trigger?
+                    trig = t.get("trigger") or {}
+                    buy_above = trig.get("levels", {}).get("buy_above") if trig else None
+                    trig_dist = (
+                        (buy_above - t["price"]) / t["price"] * 100
+                        if buy_above and t["price"] else None
+                    )
+
+                    # % from MA50
+                    pct_ma50 = (
+                        (t["price"] - t["ma50"]) / t["ma50"] * 100
+                        if t["ma50"] else 0
+                    )
+
+                    # Sector/category from yfinance + display fallback — used for grouping.
+                    fallback_profile = infer_security_profile(tkr, meta, name)
+                    if (fallback_profile.get("sector") in {"ETF", "Fund"} or str(meta.get("quote_type") or "").upper() in {"ETF", "MUTUALFUND", "FUND"}):
+                        sector = fallback_profile.get("category") or meta.get("category") or fallback_profile.get("sector") or "ETF"
+                    else:
+                        sector = (meta.get("sector") if meta else None) or fallback_profile.get("sector") or "—"
+                    attention_label, attention_rank, attention_color = _watchlist_attention(
+                        tkr, t, trig_dist, earnings_days, cached
+                    )
+                    pm_row_label, pm_row_color = _watchlist_pm_cell(cached)
+                    personality = classify_setup_personality(t, quality_tier)
+
+                    rows.append({
+                        "ticker": tkr,
+                        "name": display_security_name(tkr, name, meta, fallback_profile) or tkr,
+                        "price": t["price"],
+                        "change": t["change"],
+                        "action": t["action"],
+                        "state": t.get("state", "TRENDING"),
+                        "rs": t.get("rs", 1.0),
+                        "rs_delta": t.get("rs_delta", 0),
+                        "pct_ma50": pct_ma50,
+                        "trig_dist": trig_dist,
+                        "earnings_days": earnings_days,
+                        "quality": quality_tier,
+                        "sector": sector,
+                        "pct_52w_range": t.get("pct_of_52w_range", 50),
+                        "vol_ratio": t.get("vol_ratio", 1.0),
+                        "tech_delta": t.get("tech_delta", 0),
+                        "attention": attention_label,
+                        "attention_rank": attention_rank,
+                        "attention_color": attention_color,
+                        "pm_status": pm_row_label,
+                        "pm_status_color": pm_row_color,
+                        "claude_dissent": dissent_signal,
+                        "personality": personality["label"],
+                        "personality_emoji": personality["emoji"],
+                        "personality_rank": personality["rank"],
+                        "_t": t,
+                    })
 
         def _watch_queue_bucket(row):
             attention = str(row.get("attention") or "")
@@ -12454,6 +12566,8 @@ if view == "watchlist":
                     f'{row["earnings_days"]}d' if row["earnings_days"] is not None
                     else "—"
                 )
+                price_value = row.get("price")
+                price_str = f'${price_value:,.2f}' if price_value else "—"
 
                 # Quality tier styling
                 q_tier = row.get("quality") or ""
@@ -12505,7 +12619,7 @@ if view == "watchlist":
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
                         f'{row["attention"]}</span>'
-                        f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
+                        f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
                         f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:800;'
@@ -12519,7 +12633,7 @@ if view == "watchlist":
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
                         f'{row["attention"]}</span>'
-                        f'<span style="text-align:right;color:var(--color-text);">${row["price"]:,.2f}</span>'
+                        f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
                         f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
