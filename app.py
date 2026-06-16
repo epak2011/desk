@@ -381,6 +381,9 @@ if "store" not in st.session_state:
     if "quote_meta_cache" not in st.session_state.store:
         st.session_state.store["quote_meta_cache"] = {}
         _needs_save = True
+    if "ticker_snapshots" not in st.session_state.store:
+        st.session_state.store["ticker_snapshots"] = {}
+        _needs_save = True
     if "last_ticker" not in st.session_state.store:
         st.session_state.store["last_ticker"] = "NVDA"
         _needs_save = True
@@ -646,6 +649,7 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
             },
             "source": result.get("_source", "claude"),
         }
+        merge_ticker_snapshot(ticker, pm_entry=cache[ticker])
         save_store(st.session_state.store)
 
     # Substitute on freshly-generated result too. If Claude used tokens,
@@ -3121,22 +3125,33 @@ def update_sidebar_watchlist_cache(tickers):
             k: v for k, v in refreshed.items()
             if isinstance(v, dict) and v.get("last") is not None
         })
+        for k, v in refreshed.items():
+            if isinstance(v, dict) and v.get("last") is not None:
+                merge_ticker_snapshot(k, market=v)
         save_store(st.session_state.store)
     return refreshed
 
 
-def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None):
-    """Keep the sidebar price/action aligned with the main Analyze read."""
-    tkr = str(ticker or "").upper().strip()
-    if not tkr or not isinstance(t_state, dict):
-        return
+def _ticker_key(ticker):
+    return str(ticker or "").upper().strip()
+
+
+def _slim_dict(data):
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items() if not str(k).startswith("_")}
+
+
+def _market_snapshot_from_t_state(t_state, hist=None):
+    """Canonical market/rule payload used by sidebar, watchlist, and Analyze."""
+    if not isinstance(t_state, dict):
+        return {}
     price = t_state.get("price")
     change = t_state.get("change")
     if price is None:
-        return
+        return {}
     price_age_label, price_age_kind = format_market_data_age(hist)
-    cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
-    cache[tkr] = {
+    return {
         "last": float(price),
         "change_pct": float(change) if change is not None else None,
         "action": t_state.get("action"),
@@ -3150,10 +3165,108 @@ def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None):
         "low_52w": t_state.get("low_52w"),
         "pct_52w_range": t_state.get("pct_of_52w_range"),
         "vol_ratio": t_state.get("vol_ratio"),
+        "trigger": t_state.get("trigger"),
+        "entry": t_state.get("entry"),
+        "stop": t_state.get("stop"),
+        "t1": t_state.get("t1"),
         "price_age": price_age_label,
         "price_age_kind": price_age_kind,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
     }
+
+
+def merge_ticker_snapshot(ticker, *, market=None, meta=None, pm_entry=None, final_action=None):
+    """Merge one or more layers into the canonical per-ticker snapshot."""
+    tkr = _ticker_key(ticker)
+    if not tkr:
+        return {}
+    snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
+    current = snapshots.get(tkr, {}) if isinstance(snapshots.get(tkr), dict) else {}
+    updated = dict(current)
+    now = datetime.now().isoformat(timespec="seconds")
+    if isinstance(market, dict) and market:
+        updated["market"] = {**(updated.get("market") or {}), **_slim_dict(market)}
+        updated["market_updated_at"] = now
+    if isinstance(meta, dict) and meta:
+        updated["meta"] = {**(updated.get("meta") or {}), **_slim_dict(meta)}
+        updated["meta_updated_at"] = now
+    if isinstance(pm_entry, dict):
+        result = pm_entry.get("result") if isinstance(pm_entry.get("result"), dict) else {}
+        tactical_call = result.get("tactical_call") if isinstance(result, dict) else {}
+        quality = result.get("quality") if isinstance(result, dict) else {}
+        updated["pm"] = {
+            "source": result.get("_source") or pm_entry.get("_source"),
+            "ts": pm_entry.get("ts"),
+            "action": normalize_action_key((tactical_call or {}).get("action")),
+            "confidence": (tactical_call or {}).get("confidence"),
+            "quality": (quality or {}).get("tier"),
+            "has_memo": bool(tactical_call),
+        }
+        updated["pm_updated_at"] = now
+    if isinstance(final_action, dict) and final_action:
+        updated["final_action"] = _slim_dict(final_action)
+        updated["final_action_updated_at"] = now
+    updated["updated_at"] = now
+    snapshots[tkr] = updated
+    return updated
+
+
+def ticker_snapshot(ticker):
+    """Canonical per-ticker read model with legacy cache fallbacks."""
+    tkr = _ticker_key(ticker)
+    if not tkr:
+        return {}
+    snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
+    snap = dict(snapshots.get(tkr, {}) or {})
+    market = dict(snap.get("market") or {})
+    legacy_market = st.session_state.store.get("watchlist_sidebar_cache", {}).get(tkr, {})
+    if isinstance(legacy_market, dict):
+        market = {**legacy_market, **market}
+    meta = dict(snap.get("meta") or {})
+    legacy_meta_entry = st.session_state.store.get("quote_meta_cache", {}).get(tkr, {})
+    legacy_meta = legacy_meta_entry.get("meta") if isinstance(legacy_meta_entry, dict) else {}
+    if isinstance(legacy_meta, dict):
+        meta = {**legacy_meta, **meta}
+    pm = dict(snap.get("pm") or {})
+    dossier_entry = st.session_state.store.get("dossier_cache", {}).get(tkr, {})
+    if isinstance(dossier_entry, dict):
+        result = dossier_entry.get("result") or {}
+        call = (result.get("tactical_call") or {}) if isinstance(result, dict) else {}
+        quality = (result.get("quality") or {}) if isinstance(result, dict) else {}
+        pm = {
+            **pm,
+            "source": result.get("_source") or dossier_entry.get("_source") or pm.get("source"),
+            "ts": dossier_entry.get("ts") or pm.get("ts"),
+            "action": normalize_action_key(call.get("action")) or pm.get("action"),
+            "confidence": call.get("confidence", pm.get("confidence")),
+            "quality": quality.get("tier", pm.get("quality")),
+            "has_memo": bool(call) or pm.get("has_memo"),
+        }
+    final_action = dict(snap.get("final_action") or {})
+    legacy_final = st.session_state.store.get("final_action_cache", {}).get(tkr, {})
+    if isinstance(legacy_final, dict):
+        final_action = {**legacy_final, **final_action}
+    return {
+        **snap,
+        "ticker": tkr,
+        "market": market,
+        "meta": meta,
+        "pm": pm,
+        "final_action": final_action,
+    }
+
+
+def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None):
+    """Keep the sidebar price/action aligned with the main Analyze read."""
+    tkr = str(ticker or "").upper().strip()
+    if not tkr or not isinstance(t_state, dict):
+        return
+    market_payload = _market_snapshot_from_t_state(t_state, hist)
+    if not market_payload:
+        return
+    cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+    cache[tkr] = market_payload
+    merge_ticker_snapshot(tkr, market=market_payload)
     save_store(st.session_state.store)
 
 
@@ -3203,9 +3316,7 @@ def sidebar_action_hint(ticker, snapshot=None):
         ):
             return current_t.get("action")
 
-    final_cached = (
-        st.session_state.store.get("final_action_cache", {}).get(tkr, {}) or {}
-    )
+    final_cached = (ticker_snapshot(tkr).get("final_action") or {})
     final_action = (
         normalize_action_key(final_cached.get("action"))
         if final_cached.get("source") != "claude" else ""
@@ -4306,6 +4417,9 @@ def cached_quote_meta_snapshot(ticker):
     tkr = str(ticker or "").upper().strip()
     if not tkr:
         return {"_deferred": True}
+    snap_meta = (ticker_snapshot(tkr).get("meta") or {})
+    if isinstance(snap_meta, dict) and snap_meta:
+        return {**snap_meta, "_cached_snapshot": True}
     cache = st.session_state.store.setdefault("quote_meta_cache", {})
     entry = cache.get(tkr) or {}
     meta = entry.get("meta") if isinstance(entry, dict) else None
@@ -4326,6 +4440,7 @@ def remember_quote_meta(ticker, meta):
         "ts": datetime.now().isoformat(timespec="seconds"),
         "meta": slim,
     }
+    merge_ticker_snapshot(tkr, meta=slim)
 
 
 def watchlist_pm_status(dossier_cache, tickers):
@@ -4392,7 +4507,7 @@ def active_refresh_receipt(ticker):
 
 def sidebar_cache_status(ticker):
     """Freshness label for the active ticker row in the sidebar cache."""
-    entry = st.session_state.store.get("watchlist_sidebar_cache", {}).get(str(ticker).upper(), {})
+    entry = ticker_snapshot(ticker).get("market") or {}
     try:
         ts = entry.get("updated_at")
         if not ts:
@@ -7209,7 +7324,10 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
         # Keep Analyze fast: refresh the active ticker row only, and reserve
         # full-watchlist price/action scans for the Watchlist page.
         saved_sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
-        wl_data = dict(saved_sidebar_cache)
+        wl_data = {
+            str(tkr).upper(): (ticker_snapshot(tkr).get("market") or {})
+            for tkr in watchlist
+        }
         try:
             if st.session_state.view == "watchlist":
                 refreshed = sidebar_watchlist_snapshot(tuple(watchlist))
@@ -7218,13 +7336,22 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
                         k: v for k, v in refreshed.items()
                         if isinstance(v, dict) and v.get("last") is not None
                     })
-                    wl_data = dict(saved_sidebar_cache)
+                    for k, v in refreshed.items():
+                        if isinstance(v, dict) and v.get("last") is not None:
+                            merge_ticker_snapshot(k, market=v)
+                    wl_data = {
+                        str(tkr).upper(): (ticker_snapshot(tkr).get("market") or {})
+                        for tkr in watchlist
+                    }
                     save_store(st.session_state.store)
             else:
                 # Analyze should not scan the watchlist. It uses cached
                 # sidebar rows, while the active ticker is refreshed by the
                 # main Analyze fetch and written via remember_sidebar_ticker_snapshot().
-                wl_data = dict(saved_sidebar_cache)
+                wl_data = {
+                    str(tkr).upper(): (ticker_snapshot(tkr).get("market") or {})
+                    for tkr in watchlist
+                }
         except Exception:
             wl_data = saved_sidebar_cache
 
@@ -8931,8 +9058,16 @@ if view == "analyze":
         "action": t.get("action"),
         "source": t.get("_primary_source", "rule"),
     }
-    if cached_final != final_payload:
+    snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
+    snapshot_entry = snapshots.get(ticker.upper(), {})
+    snapshot_final = (
+        snapshot_entry.get("final_action")
+        if isinstance(snapshot_entry, dict)
+        else {}
+    ) or {}
+    if cached_final != final_payload or snapshot_final != final_payload:
         final_action_cache[ticker.upper()] = final_payload
+        merge_ticker_snapshot(ticker, final_action=final_payload)
         save_store(st.session_state.store)
     rendered_sidebar_action = st.session_state.get("_active_sidebar_action_rendered")
     sync_key = f"{ticker.upper()}:{t.get('action')}"
@@ -11906,12 +12041,22 @@ if view == "watchlist":
         def _run_watchlist_market_scan():
             """Refresh watchlist market inputs only when explicitly requested."""
             fetch_history.clear()
-            for scan_tkr in st.session_state.store.get("watchlist", []):
+            watchlist_tickers = [
+                str(scan_tkr).upper().strip()
+                for scan_tkr in st.session_state.store.get("watchlist", [])
+                if str(scan_tkr or "").strip()
+            ]
+            snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
+            for scan_tkr in watchlist_tickers:
                 _delete_history_cache(scan_tkr)
+                snapshot_entry = snapshots.get(scan_tkr)
+                if isinstance(snapshot_entry, dict):
+                    snapshot_entry.pop("market", None)
+                    snapshot_entry.pop("market_updated_at", None)
             fetch_quote_meta.clear()
             sidebar_watchlist_snapshot.clear()
             st.session_state.store["watchlist_sidebar_cache"] = {}
-            update_sidebar_watchlist_cache(st.session_state.store.get("watchlist", []))
+            update_sidebar_watchlist_cache(watchlist_tickers)
 
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
@@ -11988,21 +12133,19 @@ if view == "watchlist":
                 return default
 
         def _cached_watchlist_row(tkr):
-            """Fast watchlist row from saved sidebar/dossier snapshots only."""
+            """Fast watchlist row from the canonical per-ticker snapshot."""
             key = str(tkr).upper().strip()
-            sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
-            snapshot = sidebar_cache.get(key, {}) if isinstance(sidebar_cache, dict) else {}
+            canonical = ticker_snapshot(key)
+            snapshot = canonical.get("market") or {}
             cached = dossier_cache.get(key, {}) if isinstance(dossier_cache, dict) else {}
-            meta = cached_quote_meta_snapshot(key)
+            meta = canonical.get("meta") or cached_quote_meta_snapshot(key)
             cached_call = ((cached.get("result") or {}).get("tactical_call") or {})
             cached_action = normalize_action_key(cached_call.get("action"))
             try:
                 cached_confidence = int(cached_call.get("confidence", 0) or 0)
             except (TypeError, ValueError):
                 cached_confidence = 0
-            final_cached = (
-                st.session_state.store.get("final_action_cache", {}).get(key, {}) or {}
-            )
+            final_cached = canonical.get("final_action") or {}
             action = (
                 normalize_action_key(final_cached.get("action"))
                 or normalize_action_key(snapshot.get("action"))
@@ -12091,13 +12234,10 @@ if view == "watchlist":
                 row = _cached_watchlist_row(tkr)
                 rows.append(row)
                 cached_age_kind = (
-                    st.session_state.store
-                    .get("watchlist_sidebar_cache", {})
-                    .get(row["ticker"], {})
-                    .get("price_age_kind")
+                    (ticker_snapshot(row["ticker"]).get("market") or {}).get("price_age_kind")
                 )
                 price_age_kinds.append(cached_age_kind or "stale")
-                meta = cached_quote_meta_snapshot(row["ticker"])
+                meta = ticker_snapshot(row["ticker"]).get("meta") or cached_quote_meta_snapshot(row["ticker"])
                 if metadata_status_label(meta)[1] != "fresh":
                     meta_sparse += 1
         else:
