@@ -5222,6 +5222,29 @@ def position_management_read(entry, t):
 
     if price is None or entry_px is None:
         return None
+    if entry_px <= 0:
+        return None
+
+    entry_ratio = entry_px / price if price else None
+    if entry_ratio is not None and (entry_ratio < 0.20 or entry_ratio > 5.0):
+        return {
+            "action": "Confirm entry",
+            "emoji": "⚠️",
+            "color": "var(--color-warning-text)",
+            "summary": (
+                "Saved entry price looks inconsistent with the current stock price. "
+                "Update the holding before using trim/sell guidance."
+            ),
+            "stats": [
+                ("Now", f"${price:,.2f}"),
+                ("Saved entry", f"${entry_px:,.2f}"),
+                ("P/L", "not shown"),
+            ],
+            "pnl_pct": None,
+            "r_multiple": None,
+            "target_hit": False,
+            "stop_broken": False,
+        }
 
     pnl_pct = (price / entry_px - 1) * 100
     risk_per_share = entry_px - stop_px if stop_px is not None else None
@@ -10818,6 +10841,16 @@ if view == "analyze":
         # better entry. Hidden when no quality data (no API key or pre-
         # cache miss).
         quality = (dossier_result or {}).get("quality") or {}
+        if not (quality.get("tier") or "").strip():
+            snapshot_quality = ((ticker_snapshot(ticker).get("pm") or {}).get("quality") or "").strip()
+            if snapshot_quality:
+                quality = {
+                    "tier": snapshot_quality,
+                    "rationale": (
+                        (pm.get("thesis") or "").strip()
+                        if isinstance(pm, dict) else ""
+                    ),
+                }
         q_tier = (quality.get("tier") or "").strip()
         q_rationale = (quality.get("rationale") or "").strip()
         if q_tier:
