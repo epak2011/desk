@@ -9,10 +9,16 @@ Both layers generated in a single Claude call to keep cost at one request per ti
 """
 
 import json
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest").strip()
+CLAUDE_MODEL_FALLBACKS = [
+    CLAUDE_MODEL,
+    "claude-3-7-sonnet-latest",
+    "claude-3-5-sonnet-20241022",
+]
 
 
 def _call_with_timeout(fn, timeout_seconds, label):
@@ -25,6 +31,36 @@ def _call_with_timeout(fn, timeout_seconds, label):
         raise TimeoutError(f"{label} timed out after {timeout_seconds}s") from exc
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _model_candidates():
+    seen = set()
+    for model in CLAUDE_MODEL_FALLBACKS:
+        model = str(model or "").strip()
+        if model and model not in seen:
+            seen.add(model)
+            yield model
+
+
+def _is_model_not_found(exc):
+    text = str(exc).lower()
+    return "not_found_error" in text or "model" in text and "not found" in text
+
+
+def _messages_create(client, **kwargs):
+    """Create an Anthropic message with model fallback on 404/model rename."""
+    last_exc = None
+    for model in _model_candidates():
+        try:
+            return client.messages.create(model=model, **kwargs)
+        except Exception as exc:
+            if _is_model_not_found(exc):
+                last_exc = exc
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("No Claude model configured.")
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -308,8 +344,7 @@ def _fetch_recent_news(client, ticker, company_name):
             for _ in range(5):
                 try:
                     resp = _call_with_timeout(
-                        lambda: client.messages.create(
-                            model=CLAUDE_MODEL,
+                        lambda: _messages_create(client,
                             max_tokens=800,
                             tools=tools,
                             messages=msgs,
@@ -322,8 +357,7 @@ def _fetch_recent_news(client, ticker, company_name):
                     if "betas" not in str(err):
                         raise
                     resp = _call_with_timeout(
-                        lambda: client.messages.create(
-                            model=CLAUDE_MODEL,
+                        lambda: _messages_create(client,
                             max_tokens=800,
                             messages=msgs,
                         ),
@@ -441,8 +475,7 @@ Return ONLY the JSON, nothing else."""
         for _attempt in range(2):
             try:
                 message = _call_with_timeout(
-                    lambda: client.messages.create(
-                        model=CLAUDE_MODEL,
+                    lambda: _messages_create(client,
                         max_tokens=1400,
                         messages=[{"role": "user", "content": prompt}],
                     ),
@@ -780,8 +813,7 @@ Style across all three:
 Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
 
         message = _call_with_timeout(
-            lambda: client.messages.create(
-                model=CLAUDE_MODEL,
+            lambda: _messages_create(client,
                 max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}],
             ),
