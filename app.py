@@ -23,7 +23,7 @@ import streamlit as st
 import yfinance as yf
 
 import tactical
-from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
+from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS, _messages_create
 
 
 st.set_page_config(
@@ -10102,7 +10102,6 @@ if view == "analyze":
                             reply = ""
                             def _create_followup_message(messages, use_tools=True):
                                 kwargs = {
-                                    "model": CLAUDE_MODEL,
                                     "max_tokens": 600,
                                     "system": sys_prompt,
                                     "messages": messages,
@@ -10111,7 +10110,7 @@ if view == "analyze":
                                     kwargs["tools"] = _tools
                                     kwargs["betas"] = ["web-search-2025-03-05"]
                                 try:
-                                    return _client.messages.create(**kwargs)
+                                    return _messages_create(_client, **kwargs)
                                 except TypeError as _err:
                                     if "betas" not in str(_err):
                                         raise
@@ -10120,7 +10119,7 @@ if view == "analyze":
                                     # chat rather than surfacing an SDK error.
                                     kwargs.pop("betas", None)
                                     kwargs.pop("tools", None)
-                                    return _client.messages.create(**kwargs)
+                                    return _messages_create(_client, **kwargs)
 
                             for _ in range(6):
                                 _resp = _create_followup_message(_msgs, use_tools=True)
@@ -11334,8 +11333,8 @@ Return ONLY JSON:
 
     for _ in range(6):
         try:
-            response = client.messages.create(
-                model=CLAUDE_MODEL,
+            response = _messages_create(
+                client,
                 max_tokens=3500,
                 tools=tools,
                 messages=messages,
@@ -11344,8 +11343,8 @@ Return ONLY JSON:
         except TypeError as err:
             if "betas" not in str(err):
                 raise
-            response = client.messages.create(
-                model=CLAUDE_MODEL,
+            response = _messages_create(
+                client,
                 max_tokens=3500,
                 messages=messages,
             )
