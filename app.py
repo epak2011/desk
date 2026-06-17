@@ -420,11 +420,11 @@ if "nav_counter" not in st.session_state:
     st.session_state.nav_counter = 0
 
 
-def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate=True):
+def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate=True, force_generate=False):
     ticker = ticker.upper()
     cache = st.session_state.store["pm_cache"]
     entry = cache.get(ticker)
-    if entry:
+    if entry and not force_generate:
         ts = entry.get("ts")
         try:
             age = datetime.now() - datetime.fromisoformat(ts)
@@ -446,6 +446,14 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
         pm = get_pm_view(ticker, tactical_output, api_key=None, company_name=company_name)
         pm["_source"] = "static · fast mode"
         return pm
+    if not api_key and entry:
+        try:
+            age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
+            pm = dict(entry["view"])
+            pm["_source"] = (entry.get("source") or "cached") + f" · {age.days}d old · API key unavailable"
+            return pm
+        except Exception:
+            pass
 
     pm = get_pm_view(ticker, tactical_output, api_key=api_key, company_name=company_name)
     # Count this fresh Claude call if it actually hit the API. Source is
@@ -457,6 +465,18 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
         )
     thesis_text = str(pm.get("thesis") or "")
     is_placeholder_pm = thesis_text.startswith(f"No thesis on file for {ticker}")
+    if (is_placeholder_pm or pm.get("_source") != "claude") and entry:
+        try:
+            age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
+            fallback = dict(entry["view"])
+            reason = str(pm.get("_source") or "refresh failed")
+            fallback["_source"] = (
+                (entry.get("source") or "cached")
+                + f" · {age.days}d old · refresh failed ({reason})"
+            )
+            return fallback
+        except Exception:
+            pass
     # Do not persist a generic "no thesis" fallback after a failed refresh.
     # Otherwise one bad refresh makes the PM side look permanently stale.
     if not is_placeholder_pm:
@@ -496,7 +516,7 @@ def clear_pm_cache(ticker):
         save_store(st.session_state.store)
 
 
-def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name, allow_generate=True):
+def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name, allow_generate=True, force_generate=False):
     """Cache decision dossiers with staleness rules + live-value substitution.
 
     Cost-saving design:
@@ -515,13 +535,33 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
     budget only when the qualitative interpretation might genuinely have
     shifted. Target cost: ~$5-8/month at 30 tickers/regular use.
     """
-    if not api_key:
-        return {"dossier": None, "technical_narrative": None,
-                "pm_narrative": None, "bullets": {}, "quality": {},
-                "_source": "unavailable"}
     ticker = ticker.upper()
     cache = st.session_state.store.setdefault("dossier_cache", {})
     entry = cache.get(ticker)
+    if not api_key:
+        if entry:
+            try:
+                age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
+                full = entry.get("result") or {
+                    "dossier": entry.get("text"),
+                    "technical_narrative": None,
+                    "pm_narrative": None,
+                    "bullets": {},
+                    "quality": {},
+                    "tactical_call": {},
+                }
+                full.setdefault("quality", {})
+                full.setdefault("tactical_call", {})
+                age_label = "today" if age.days == 0 else f"{age.days}d ago"
+                return {
+                    **full,
+                    "_source": (entry.get("source") or "claude") + f" · {age_label} · API key unavailable",
+                }
+            except Exception:
+                pass
+        return {"dossier": None, "technical_narrative": None,
+                "pm_narrative": None, "bullets": {}, "quality": {},
+                "_source": "unavailable"}
     current_price = t_state.get("price") if isinstance(t_state, dict) else None
     current_action = t_state.get("action") if isinstance(t_state, dict) else None
     cache_schema_stale = bool(
@@ -564,7 +604,7 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
                 if cached_action != current_action:
                     staleness_failed = True
 
-            if not staleness_failed:
+            if not staleness_failed and not force_generate:
                 # Live-value substitution. Free — uses already-cached
                 # yfinance data via the tactical engine output we already
                 # have. Replaces {{price}}, {{rs}}, etc. with current.
@@ -657,6 +697,29 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
         }
         merge_ticker_snapshot(ticker, pm_entry=cache[ticker])
         save_store(st.session_state.store)
+    elif stale_cached_result:
+        try:
+            from pm_view import substitute_live_values
+            substituted = {**stale_cached_result}
+            if isinstance(t_state, dict):
+                for k in ("dossier", "technical_narrative", "pm_narrative"):
+                    if substituted.get(k):
+                        substituted[k] = substitute_live_values(substituted[k], t_state)
+            age_days = stale_cached_age.days if stale_cached_age else 0
+            reason = str(result.get("_source") or "refresh failed")
+            return {
+                **substituted,
+                "_source": f"refresh failed ({reason}) · using cached {age_days}d old",
+                "_freshness": {
+                    "age_days": age_days,
+                    "price_at_generation": stale_cached_price,
+                    "current_price": current_price,
+                    "stale": True,
+                    "refresh_failed": True,
+                },
+            }
+        except Exception:
+            pass
 
     # Substitute on freshly-generated result too. If Claude used tokens,
     # this replaces them with current values. If not, this is a no-op.
@@ -4569,7 +4632,6 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
     sidebar_watchlist_snapshot.clear()
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
-        clear_pm_cache(refresh_ticker)
     st.session_state["_refresh_result"] = {
         "ticker": refresh_ticker,
         "time": datetime.now().strftime("%-I:%M %p"),
@@ -8870,6 +8932,7 @@ if view == "analyze":
             api_key=api_key if api_key else None,
             company_name=name,
             allow_generate=allow_pm_generate,
+            force_generate=force_pm_refresh,
         )
         allow_dossier_generate = bool(force_pm_refresh and api_key)
         dossier_result = get_cached_dossier(
@@ -8877,6 +8940,7 @@ if view == "analyze":
             api_key=api_key if api_key else None,
             company_name=name,
             allow_generate=allow_dossier_generate,
+            force_generate=force_pm_refresh,
         )
 
     # Live PM bullets: when the dossier call returned bullets, prefer those
@@ -10882,6 +10946,19 @@ if view == "analyze":
   </div>
   <div style="font-size:var(--fs-sm); color:var(--color-muted); margin-top:2px;">{ts['sub']}</div>
   {rationale_html}
+</div>
+""", unsafe_allow_html=True)
+        else:
+            st.markdown("""
+<div class="desk-quality-card" style="background:#F8FAFC; border-left:3px solid #94A3B8;
+            padding:8px 12px; border-radius:4px;">
+  <div style="font-family: var(--font-mono); font-size:var(--fs-sm); font-weight:600;
+              letter-spacing: var(--ls-caps-xs); text-transform:uppercase; color:#64748B;">
+    Quality pending<span class="desk-quality-info" title="Quality appears after PM research is generated for this ticker. If refresh cannot reach Claude, the app keeps any prior research instead of replacing it with a blank memo.">i</span>
+  </div>
+  <div style="font-size:var(--fs-sm); color:var(--color-muted); margin-top:2px;">
+    PM research has not produced a long-term quality tier for this ticker yet.
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
