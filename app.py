@@ -10908,6 +10908,10 @@ if view == "analyze":
         # cache miss).
         quality = (dossier_result or {}).get("quality") or {}
         if not (quality.get("tier") or "").strip():
+            pm_quality = (pm.get("quality") or {}) if isinstance(pm, dict) else {}
+            if isinstance(pm_quality, dict) and (pm_quality.get("tier") or "").strip():
+                quality = pm_quality
+        if not (quality.get("tier") or "").strip():
             snapshot_quality = ((ticker_snapshot(ticker).get("pm") or {}).get("quality") or "").strip()
             if snapshot_quality:
                 quality = {
