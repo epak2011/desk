@@ -468,6 +468,10 @@ PM MEMO QUALITY BAR:
 Return ONLY JSON in exactly this shape. No preamble, no code fences.
 
 {{
+  "quality": {{
+    "tier": "A | B | Speculative | Avoid",
+    "rationale": "1 sentence. Long-term ownership quality, independent of the tactical entry."
+  }},
   "thesis": "1-2 sentences. State the actual underwriting view and what the market may be mispricing.",
   "drivers": ["3 short items, no period at end"],
   "risks": ["3 short items, no period at end"],
