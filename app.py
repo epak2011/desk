@@ -486,6 +486,12 @@ def clear_pm_cache(ticker):
     if ticker in st.session_state.store.get("dossier_cache", {}):
         del st.session_state.store["dossier_cache"][ticker]
         changed = True
+    snapshot = st.session_state.store.setdefault("ticker_snapshots", {}).get(ticker)
+    if isinstance(snapshot, dict):
+        for key in ("pm", "pm_updated_at"):
+            if key in snapshot:
+                snapshot.pop(key, None)
+                changed = True
     if changed:
         save_store(st.session_state.store)
 
@@ -4563,14 +4569,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
     sidebar_watchlist_snapshot.clear()
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
-        pm_cache = st.session_state.store.setdefault("pm_cache", {})
-        if refresh_ticker in pm_cache:
-            del pm_cache[refresh_ticker]
-        # The visible PM memo is regenerated on the next Analyze render.
-        # Clear dossier cache too so the PM/fundamental memo is not half old.
-        dossier_cache = st.session_state.store.setdefault("dossier_cache", {})
-        if refresh_ticker in dossier_cache:
-            del dossier_cache[refresh_ticker]
+        clear_pm_cache(refresh_ticker)
     st.session_state["_refresh_result"] = {
         "ticker": refresh_ticker,
         "time": datetime.now().strftime("%-I:%M %p"),
@@ -8845,8 +8844,8 @@ if view == "analyze":
         st.session_state.pop("_force_pm_refresh_ticker", "") == ticker.upper()
     )
     # Ordinary ticker navigation stays fast/static. The explicit refresh button
-    # prioritizes the visible PM memo; the full dossier is heavier and remains
-    # cached/fallback so one click does not run two slow Claude jobs.
+    # is intentionally heavier: it refreshes both the PM memo and the dossier
+    # because quality/thesis/drivers live in the dossier layer.
     allow_pm_generate = force_pm_refresh
     needs_context_refresh = (
         ticker.upper() in SPECIAL_CONTEXT_REFRESH_TICKERS
@@ -8872,9 +8871,7 @@ if view == "analyze":
             company_name=name,
             allow_generate=allow_pm_generate,
         )
-        allow_dossier_generate = bool(
-            force_pm_refresh and pm.get("_source") == "claude"
-        )
+        allow_dossier_generate = bool(force_pm_refresh and api_key)
         dossier_result = get_cached_dossier(
             ticker, t, modifiers, meta, pm,
             api_key=api_key if api_key else None,
