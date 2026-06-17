@@ -13,11 +13,11 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
-CLAUDE_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest").strip()
+CLAUDE_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6-20260217").strip()
 CLAUDE_MODEL_FALLBACKS = [
     CLAUDE_MODEL,
-    "claude-3-7-sonnet-latest",
-    "claude-3-5-sonnet-20241022",
+    "claude-sonnet-4-5-20250929",
+    "claude-haiku-4-5-20251015",
 ]
 
 
