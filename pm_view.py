@@ -63,6 +63,23 @@ def _messages_create(client, **kwargs):
     raise RuntimeError("No Claude model configured.")
 
 
+def _parse_json_response(text):
+    """Parse Claude JSON even if it adds fences or surrounding prose."""
+    text = str(text or "").strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        text = parts[1] if len(parts) > 1 else text
+        if text.lower().startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        text = text[start:end + 1]
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+    return json.loads(text)
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Live-value substitution
 # ─────────────────────────────────────────────────────────────────────
@@ -476,7 +493,8 @@ Return ONLY the JSON, nothing else."""
             try:
                 message = _call_with_timeout(
                     lambda: _messages_create(client,
-                        max_tokens=1400,
+                        max_tokens=2400,
+                        temperature=0,
                         messages=[{"role": "user", "content": prompt}],
                     ),
                     55,
@@ -494,7 +512,7 @@ Return ONLY the JSON, nothing else."""
             if text.startswith("json"):
                 text = text[4:]
             text = text.strip()
-        parsed = json.loads(text)
+        parsed = _parse_json_response(text)
         parsed["_source"] = "claude"
         return parsed
     except Exception as e:
@@ -815,6 +833,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
         message = _call_with_timeout(
             lambda: _messages_create(client,
                 max_tokens=3000,
+                temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             ),
             14,
@@ -828,7 +847,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
             if text.lower().startswith("json"):
                 text = text[4:]
             text = text.strip()
-        parsed = _json.loads(text)
+        parsed = _parse_json_response(text)
         return {
             "dossier": parsed.get("dossier"),
             "technical_narrative": parsed.get("technical_narrative"),
