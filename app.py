@@ -23,7 +23,13 @@ import streamlit as st
 import yfinance as yf
 
 import tactical
-from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS, _messages_create
+from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
+
+try:
+    from pm_view import _messages_create as anthropic_messages_create
+except ImportError:
+    def anthropic_messages_create(client, **kwargs):
+        return client.messages.create(model=CLAUDE_MODEL, **kwargs)
 
 
 st.set_page_config(
@@ -10110,7 +10116,7 @@ if view == "analyze":
                                     kwargs["tools"] = _tools
                                     kwargs["betas"] = ["web-search-2025-03-05"]
                                 try:
-                                    return _messages_create(_client, **kwargs)
+                                    return anthropic_messages_create(_client, **kwargs)
                                 except TypeError as _err:
                                     if "betas" not in str(_err):
                                         raise
@@ -10119,7 +10125,7 @@ if view == "analyze":
                                     # chat rather than surfacing an SDK error.
                                     kwargs.pop("betas", None)
                                     kwargs.pop("tools", None)
-                                    return _messages_create(_client, **kwargs)
+                                    return anthropic_messages_create(_client, **kwargs)
 
                             for _ in range(6):
                                 _resp = _create_followup_message(_msgs, use_tools=True)
@@ -11333,7 +11339,7 @@ Return ONLY JSON:
 
     for _ in range(6):
         try:
-            response = _messages_create(
+            response = anthropic_messages_create(
                 client,
                 max_tokens=3500,
                 tools=tools,
@@ -11343,7 +11349,7 @@ Return ONLY JSON:
         except TypeError as err:
             if "betas" not in str(err):
                 raise
-            response = _messages_create(
+            response = anthropic_messages_create(
                 client,
                 max_tokens=3500,
                 messages=messages,
