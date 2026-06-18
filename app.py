@@ -10022,6 +10022,14 @@ if view == "analyze":
             else:
                 import html as _html
 
+                def _chat_display_text(value):
+                    text = _html.unescape(str(value or "")).strip()
+                    # Normalize common escaped/model-formatting artifacts so
+                    # chat answers render as clean prose instead of raw code.
+                    text = text.replace("`", "")
+                    text = text.replace("\\n", "\n")
+                    return text
+
                 def _chat_norm(text):
                     return " ".join((text or "").strip().lower().split())
 
@@ -10053,7 +10061,7 @@ if view == "analyze":
                     items_html = []
                     for item in saved_answers[-5:][::-1]:
                         q_html = _html.escape(item["question"])
-                        a_preview = item["answer"].replace("\n", " ").strip()
+                        a_preview = _chat_display_text(item["answer"]).replace("\n", " ").strip()
                         if len(a_preview) > 170:
                             a_preview = a_preview[:170].rstrip() + "..."
                         a_html = _html.escape(a_preview)
@@ -10083,14 +10091,8 @@ if view == "analyze":
                             unsafe_allow_html=True,
                         )
                     else:
-                        st.markdown(
-                            f'<div style="margin-bottom:16px;padding:12px 14px;'
-                            f'background:var(--color-surface);border-radius:4px;'
-                            f'border-left:2px solid var(--color-border);'
-                            f'font-size:var(--fs-md);line-height:1.65;color:var(--color-body);">'
-                            f'{_html.escape(msg["content"])}</div>',
-                            unsafe_allow_html=True,
-                        )
+                        with st.container(border=True):
+                            st.markdown(_chat_display_text(msg["content"]))
 
                 # Centered input module. Use a form + text input so pressing
                 # Enter submits the question, matching the Ask button.
