@@ -4438,7 +4438,11 @@ def research_health_items(pm, dossier_result, api_key):
     pm_is_placeholder = thesis.startswith("No generated PM thesis yet")
     pm_label, pm_kind = pm_status_label(pm_source)
     if "timed out" in pm_source.lower():
-        pm_row = ("PM memo", "timed out", "warn")
+        pm_row = (
+            ("PM memo", "cached after timeout", "info")
+            if not pm_is_placeholder
+            else ("PM memo", "timed out", "warn")
+        )
     elif "failed" in pm_source.lower() or "fallback" in pm_source.lower():
         pm_row = ("PM memo", pm_label, "warn")
     elif pm_is_placeholder:
@@ -4464,6 +4468,43 @@ def research_health_items(pm, dossier_result, api_key):
         dossier_row = ("Full dossier", "not generated", "warn")
 
     return [pm_row, dossier_row]
+
+
+def inferred_quality_from_pm(pm, t_state=None):
+    """Conservative quality tier when an older PM memo lacks a quality object."""
+    if not isinstance(pm, dict):
+        return {}
+    thesis = str(pm.get("thesis") or "").strip()
+    if not thesis or thesis.startswith("No generated PM thesis yet"):
+        return {}
+    drivers = " ".join(str(x) for x in (pm.get("drivers") or []))
+    risks = " ".join(str(x) for x in (pm.get("risks") or []))
+    valuation = str(pm.get("valuation") or "")
+    text = f"{thesis} {drivers} {risks} {valuation}".lower()
+
+    if any(term in text for term in (
+        "pre-revenue", "binary", "clinical", "single-asset",
+        "going concern",
+    )):
+        tier = "Speculative"
+        rationale = "Generated PM memo describes a real upside path, but the risk profile is binary or balance-sheet sensitive."
+    elif any(term in text for term in (
+        "structural decline", "secular decline", "no moat",
+        "melting ice cube", "avoid", "broken business",
+    )):
+        tier = "Avoid"
+        rationale = "Generated PM memo flags structural business-quality concerns rather than only timing risk."
+    elif any(term in text for term in (
+        "dominant", "category leader", "durable", "irreplaceable",
+        "wide moat", "switching costs", "platform", "mission-critical",
+    )):
+        tier = "A"
+        rationale = "Generated PM memo points to durable leadership or platform economics; tactical timing remains separate."
+    else:
+        tier = "B"
+        rationale = "Generated PM memo supports a real business thesis, but quality is treated as selective until Claude returns a formal tier."
+
+    return {"tier": tier, "rationale": rationale}
 
 
 def metadata_status_label(meta):
@@ -10921,6 +10962,8 @@ if view == "analyze":
                         if isinstance(pm, dict) else ""
                     ),
                 }
+        if not (quality.get("tier") or "").strip():
+            quality = inferred_quality_from_pm(pm, t)
         q_tier = (quality.get("tier") or "").strip()
         q_rationale = (quality.get("rationale") or "").strip()
         if q_tier:
