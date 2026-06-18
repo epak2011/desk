@@ -10092,20 +10092,20 @@ if view == "analyze":
                             unsafe_allow_html=True,
                         )
 
-                # Centered input module. Keep the text area and action button
-                # visually grouped so the control reads as one ask surface.
+                # Centered input module. Use a form + text input so pressing
+                # Enter submits the question, matching the Ask button.
                 _, chat_col, _ = st.columns([1, 10, 1])
                 with chat_col:
-                    user_q = st.text_area(
-                        "Ask anything about this ticker",
-                        key=f"chat_input_{ticker}",
-                        label_visibility="collapsed",
-                        placeholder=f"Ask anything about {ticker}…",
-                        height=90,
-                    )
-                _, ask_col, _ = st.columns([5, 2, 5])
-                with ask_col:
-                    send = st.button("Ask", key=f"chat_send_{ticker}", use_container_width=True)
+                    with st.form(key=f"chat_form_{ticker}", clear_on_submit=True):
+                        user_q = st.text_input(
+                            "Ask anything about this ticker",
+                            key=f"chat_input_{ticker}",
+                            label_visibility="collapsed",
+                            placeholder=f"Ask anything about {ticker}…",
+                        )
+                        _, ask_col, _ = st.columns([5, 2, 5])
+                        with ask_col:
+                            send = st.form_submit_button("Ask", use_container_width=True)
 
                 if chat_store[chat_key]:
                     _, clear_col, _ = st.columns([5, 2, 5])
