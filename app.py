@@ -11468,6 +11468,43 @@ def enrich_discovery_candidate(candidate, bench):
     return enriched
 
 
+def cached_discovery_candidate(candidate):
+    """Fast Ideas row using saved snapshots only; never hits Yahoo/Claude."""
+    ticker = str(candidate.get("ticker", "")).upper().strip()
+    if not ticker:
+        return {**candidate, "_action": None, "_price": None}
+    canonical = ticker_snapshot(ticker)
+    market = canonical.get("market") or {}
+    meta = canonical.get("meta") or cached_quote_meta_snapshot(ticker)
+    fallback_profile = get_ticker_profile(ticker)
+    enriched = {**candidate}
+    enriched["_name"] = (
+        meta.get("long_name")
+        or meta.get("short_name")
+        or candidate.get("company")
+        or ticker
+    )
+    enriched["_market_cap"] = format_market_cap(meta.get("market_cap"))
+    enriched["_sector"] = meta.get("sector") or fallback_profile.get("sector") or "—"
+    enriched["_industry"] = (
+        meta.get("industry")
+        or meta.get("category")
+        or fallback_profile.get("industry")
+        or fallback_profile.get("category")
+        or "—"
+    )
+    enriched["_revenue_growth"] = format_plain_pct(meta.get("revenue_growth"), digits=1)
+    enriched["_debt_equity"] = format_plain_pct(meta.get("debt_to_equity"), digits=0)
+    enriched["_earnings_days"] = meta.get("earnings_days")
+    enriched["_price"] = market.get("last")
+    enriched["_change"] = market.get("change_pct")
+    enriched["_action"] = normalize_action_key(market.get("action"))
+    enriched["_state"] = market.get("state")
+    enriched["_rs"] = market.get("rs")
+    enriched["_cached_metrics"] = True
+    return enriched
+
+
 if view == "ideas":
     st.markdown("""
 <style>
@@ -11770,6 +11807,13 @@ div[data-testid="stForm"] label {
                 placeholder="Type your thematic investment idea to get stock ideas.",
             )
             submit_idea = st.form_submit_button("Run screen →", use_container_width=True)
+        refresh_candidate_metrics = st.button(
+            "Refresh candidate metrics",
+            key="refresh_idea_candidate_metrics",
+            help="Optional heavier refresh: pulls live market/fundamental data for the generated candidate table.",
+            use_container_width=True,
+            disabled=not bool(latest_candidates),
+        )
 
     if submit_idea:
         if not idea_prompt.strip():
@@ -11804,12 +11848,21 @@ div[data-testid="stForm"] label {
             "Type a thematic investment idea on the left and run the screen to generate candidate stocks."
         )
         found_count = len(latest_candidates) if latest_candidates else 0
-        bench = fetch_bench()
         raw_candidates = result.get("candidates") or []
+        candidates = []
         if raw_candidates:
-            candidates = [enrich_discovery_candidate(c, bench) for c in raw_candidates]
+            if refresh_candidate_metrics:
+                with st.spinner("Refreshing candidate metrics…"):
+                    bench = fetch_bench()
+                    candidates = [enrich_discovery_candidate(c, bench) for c in raw_candidates]
+                if latest is not None:
+                    latest.setdefault("result", {})["candidates"] = candidates
+                    latest["metrics_refreshed_at"] = datetime.now().isoformat(timespec="seconds")
+                    save_store(st.session_state.store)
+                    st.rerun()
+            else:
+                candidates = [cached_discovery_candidate(c) for c in raw_candidates]
         else:
-            candidates = []
             found_count = 0
         header_html = (
             '<div class="ideas-table">'
