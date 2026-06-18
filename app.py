@@ -3331,7 +3331,7 @@ def ticker_snapshot(ticker):
     }
 
 
-def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None):
+def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None, *, persist=False):
     """Keep the sidebar price/action aligned with the main Analyze read."""
     tkr = str(ticker or "").upper().strip()
     if not tkr or not isinstance(t_state, dict):
@@ -3342,7 +3342,8 @@ def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None):
     cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
     cache[tkr] = market_payload
     merge_ticker_snapshot(tkr, market=market_payload)
-    save_store(st.session_state.store)
+    if persist:
+        save_store(st.session_state.store)
 
 
 def sidebar_row_needs_refresh(row, *, max_age_minutes=5):
@@ -7460,29 +7461,15 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
             for tkr in watchlist
         }
         try:
-            if st.session_state.view == "watchlist":
-                refreshed = sidebar_watchlist_snapshot(tuple(watchlist))
-                if refreshed:
-                    saved_sidebar_cache.update({
-                        k: v for k, v in refreshed.items()
-                        if isinstance(v, dict) and v.get("last") is not None
-                    })
-                    for k, v in refreshed.items():
-                        if isinstance(v, dict) and v.get("last") is not None:
-                            merge_ticker_snapshot(k, market=v)
-                    wl_data = {
-                        str(tkr).upper(): (ticker_snapshot(tkr).get("market") or {})
-                        for tkr in watchlist
-                    }
-                    save_store(st.session_state.store)
-            else:
-                # Analyze should not scan the watchlist. It uses cached
-                # sidebar rows, while the active ticker is refreshed by the
-                # main Analyze fetch and written via remember_sidebar_ticker_snapshot().
-                wl_data = {
-                    str(tkr).upper(): (ticker_snapshot(tkr).get("market") or {})
-                    for tkr in watchlist
-                }
+            # Never scan the full watchlist during ordinary page load. A
+            # 20-name watchlist means 20 network/history fetches on every
+            # rerun, which is exactly why mobile feels frozen. The Watchlist
+            # page has explicit refresh buttons for the heavier scan; sidebar
+            # rows read the latest saved snapshots only.
+            wl_data = {
+                str(tkr).upper(): (ticker_snapshot(tkr).get("market") or {})
+                for tkr in watchlist
+            }
         except Exception:
             wl_data = saved_sidebar_cache
 
