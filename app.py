@@ -6670,7 +6670,13 @@ try:
         tkr_from_url = str(qp_global.get("ticker") or "").upper().strip()
         if tkr_from_url and tkr_from_url != st.session_state.current_ticker:
             st.session_state.current_ticker = tkr_from_url
+            st.session_state.view = "analyze"
             st.session_state.store["last_ticker"] = tkr_from_url
+            st.session_state.store["last_view"] = "analyze"
+            try:
+                qp_global["view"] = "analyze"
+            except Exception:
+                pass
             save_store(st.session_state.store)
             st.rerun()
     if "open" in qp_global:
@@ -6831,13 +6837,17 @@ with st.sidebar:
     # so any difference here is genuine user input.
     if input_ticker and input_ticker != st.session_state.current_ticker:
         st.session_state.current_ticker = input_ticker
+        st.session_state.view = "analyze"
         st.session_state["_last_synced_ticker"] = input_ticker
         st.session_state.store["last_ticker"] = input_ticker
+        st.session_state.store["last_view"] = "analyze"
         try:
             st.query_params["ticker"] = input_ticker
+            st.query_params["view"] = "analyze"
         except Exception:
             pass
         save_store(st.session_state.store)
+        st.rerun()
 
     if st.session_state.get("view") == "analyze" and st.session_state.current_ticker:
         active_ticker = str(st.session_state.current_ticker).upper().strip()
