@@ -6654,6 +6654,84 @@ def render_technical_table(title, rows):
     )
 
 
+def _valid_view(value, default="analyze"):
+    view_value = str(value or "").strip().lower()
+    if view_value in ACTIVE_VIEWS:
+        return view_value
+    if SHOW_ARCHIVED_TRACKER and view_value in ARCHIVED_VIEWS:
+        return view_value
+    return default
+
+
+def _clean_ticker(value):
+    return str(value or "").upper().strip()
+
+
+def _query_get(key):
+    try:
+        return st.query_params.get(key)
+    except Exception:
+        return None
+
+
+def _query_set(key, value):
+    try:
+        if value is None:
+            if key in st.query_params:
+                del st.query_params[key]
+        elif st.query_params.get(key) != str(value):
+            st.query_params[key] = str(value)
+    except Exception:
+        pass
+
+
+def route_to(*, ticker=None, view=None, reason="", sync_url=True, rerun=False, persist=True):
+    """Single owner for app navigation state.
+
+    Returns True when ticker/view changed. Query params are updated only when
+    needed, and persistence happens only on a real state transition.
+    """
+    changed = False
+    ticker_value = _clean_ticker(ticker) if ticker is not None else None
+    view_value = _valid_view(view, st.session_state.get("view", "analyze")) if view is not None else None
+
+    if ticker_value and ticker_value != st.session_state.get("current_ticker"):
+        st.session_state.current_ticker = ticker_value
+        st.session_state.store["last_ticker"] = ticker_value
+        changed = True
+        if "ticker_input" in st.session_state:
+            st.session_state["ticker_input"] = ticker_value
+            st.session_state["_last_synced_ticker"] = ticker_value
+
+    if view_value and view_value != st.session_state.get("view"):
+        st.session_state.view = view_value
+        st.session_state.store["last_view"] = view_value
+        changed = True
+    elif view_value and st.session_state.store.get("last_view") != view_value:
+        st.session_state.store["last_view"] = view_value
+        if persist:
+            save_store(st.session_state.store)
+
+    if sync_url:
+        if ticker_value:
+            _query_set("ticker", ticker_value)
+        if view_value:
+            _query_set("view", view_value)
+
+    if changed:
+        st.session_state["_last_route_event"] = {
+            "reason": reason,
+            "ticker": st.session_state.get("current_ticker"),
+            "view": st.session_state.get("view"),
+            "ts": datetime.now().isoformat(timespec="seconds"),
+        }
+        if persist:
+            save_store(st.session_state.store)
+        if rerun:
+            st.rerun()
+    return changed
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Global query-param handlers — run before any view renders
 # ─────────────────────────────────────────────────────────────────────
@@ -6669,46 +6747,21 @@ try:
     if "ticker" in qp_global:
         tkr_from_url = str(qp_global.get("ticker") or "").upper().strip()
         if tkr_from_url and tkr_from_url != st.session_state.current_ticker:
-            st.session_state.current_ticker = tkr_from_url
-            st.session_state.view = "analyze"
-            st.session_state.store["last_ticker"] = tkr_from_url
-            st.session_state.store["last_view"] = "analyze"
-            try:
-                qp_global["view"] = "analyze"
-            except Exception:
-                pass
-            save_store(st.session_state.store)
-            st.rerun()
+            route_to(ticker=tkr_from_url, view="analyze", reason="url ticker", rerun=True)
     if "open" in qp_global:
         tkr_to_open = str(qp_global.get("open") or "").upper().strip()
         del qp_global["open"]
         if tkr_to_open:
-            st.session_state.current_ticker = tkr_to_open
-            st.session_state.view = "analyze"
-            st.session_state.store["last_ticker"] = tkr_to_open
-            qp_global["ticker"] = tkr_to_open
-            save_store(st.session_state.store)
-            st.rerun()
+            route_to(ticker=tkr_to_open, view="analyze", reason="open ticker", rerun=True)
     if "view" in qp_global:
         view_to_open = str(qp_global.get("view") or "").strip().lower()
         if view_to_open in ARCHIVED_VIEWS and not SHOW_ARCHIVED_TRACKER:
             del qp_global["view"]
-            if st.session_state.view != "analyze" or st.session_state.store.get("last_view") != "analyze":
-                st.session_state.view = "analyze"
-                st.session_state.store["last_view"] = "analyze"
-                save_store(st.session_state.store)
-                st.rerun()
+            route_to(view="analyze", reason="archived view", rerun=True)
         if view_to_open in ACTIVE_VIEWS or (
             SHOW_ARCHIVED_TRACKER and view_to_open in ARCHIVED_VIEWS
         ):
-            if st.session_state.view != view_to_open:
-                st.session_state.view = view_to_open
-                st.session_state.store["last_view"] = view_to_open
-                save_store(st.session_state.store)
-                st.rerun()
-            elif st.session_state.store.get("last_view") != view_to_open:
-                st.session_state.store["last_view"] = view_to_open
-                save_store(st.session_state.store)
+            route_to(view=view_to_open, reason="url view", rerun=True)
     if "wldel" in qp_global:
         tkr_to_del = qp_global.get("wldel")
         del qp_global["wldel"]
@@ -6724,23 +6777,13 @@ try:
                 watchlist_store.append(tkr_to_watch)
                 update_sidebar_watchlist_cache((tkr_to_watch,))
                 save_store(st.session_state.store)
-            st.session_state.current_ticker = tkr_to_watch
-            st.session_state.view = "analyze"
-            st.session_state.store["last_ticker"] = tkr_to_watch
-            qp_global["ticker"] = tkr_to_watch
-            save_store(st.session_state.store)
-            st.rerun()
+            route_to(ticker=tkr_to_watch, view="analyze", reason="idea watch", rerun=True)
     if "data_refresh" in qp_global:
         tkr_to_refresh = qp_global.get("data_refresh")
         del qp_global["data_refresh"]
         if tkr_to_refresh:
             refresh_ticker = str(tkr_to_refresh).upper().strip()
-            st.session_state.current_ticker = refresh_ticker
-            st.session_state.view = "analyze"
-            st.session_state["ticker_input"] = refresh_ticker
-            st.session_state["_last_synced_ticker"] = refresh_ticker
-            st.session_state.store["last_ticker"] = refresh_ticker
-            qp_global["ticker"] = refresh_ticker
+            route_to(ticker=refresh_ticker, view="analyze", reason="data refresh", rerun=False)
             st.session_state["_force_data_refresh_ticker"] = refresh_ticker
             refresh_current_ticker_state(refresh_ticker, refresh_research=False)
             st.rerun()
@@ -6750,12 +6793,7 @@ try:
         del qp_global[refresh_param]
         if tkr_to_refresh:
             refresh_ticker = str(tkr_to_refresh).upper().strip()
-            st.session_state.current_ticker = refresh_ticker
-            st.session_state.view = "analyze"
-            st.session_state["ticker_input"] = refresh_ticker
-            st.session_state["_last_synced_ticker"] = refresh_ticker
-            st.session_state.store["last_ticker"] = refresh_ticker
-            qp_global["ticker"] = refresh_ticker
+            route_to(ticker=refresh_ticker, view="analyze", reason="research refresh", rerun=False)
             refresh_current_ticker_state(refresh_ticker, refresh_research=True)
             st.rerun()
 except Exception:
@@ -6792,14 +6830,7 @@ with st.sidebar:
     )
     picked_key = next(k for k, v in view_labels.items() if v == picked)
     if picked_key != st.session_state.view:
-        st.session_state.view = picked_key
-        st.session_state.store["last_view"] = picked_key
-        try:
-            st.query_params["view"] = picked_key
-        except Exception:
-            pass
-        save_store(st.session_state.store)
-        st.rerun()
+        route_to(view=picked_key, reason="sidebar view", rerun=True)
 
     st.markdown("---")
     st.markdown(
@@ -6841,26 +6872,12 @@ with st.sidebar:
     # The sync above guarantees current_ticker matches what was rendered,
     # so any difference here is genuine user input.
     if input_ticker and input_ticker != st.session_state.current_ticker:
-        st.session_state.current_ticker = input_ticker
-        st.session_state.view = "analyze"
-        st.session_state["_last_synced_ticker"] = input_ticker
-        st.session_state.store["last_ticker"] = input_ticker
-        st.session_state.store["last_view"] = "analyze"
-        try:
-            st.query_params["ticker"] = input_ticker
-            st.query_params["view"] = "analyze"
-        except Exception:
-            pass
-        save_store(st.session_state.store)
-        st.rerun()
+        route_to(ticker=input_ticker, view="analyze", reason="sidebar ticker", rerun=True)
 
     if st.session_state.get("view") == "analyze" and st.session_state.current_ticker:
         active_ticker = str(st.session_state.current_ticker).upper().strip()
-        try:
-            if st.query_params.get("ticker") != active_ticker:
-                st.query_params["ticker"] = active_ticker
-        except Exception:
-            pass
+        _query_set("ticker", active_ticker)
+        _query_set("view", "analyze")
 
     st.markdown("---")
     st.markdown(
