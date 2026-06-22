@@ -6692,18 +6692,23 @@ try:
     if "view" in qp_global:
         view_to_open = str(qp_global.get("view") or "").strip().lower()
         if view_to_open in ARCHIVED_VIEWS and not SHOW_ARCHIVED_TRACKER:
-            st.session_state.view = "analyze"
-            st.session_state.store["last_view"] = "analyze"
             del qp_global["view"]
-            save_store(st.session_state.store)
-            st.rerun()
+            if st.session_state.view != "analyze" or st.session_state.store.get("last_view") != "analyze":
+                st.session_state.view = "analyze"
+                st.session_state.store["last_view"] = "analyze"
+                save_store(st.session_state.store)
+                st.rerun()
         if view_to_open in ACTIVE_VIEWS or (
             SHOW_ARCHIVED_TRACKER and view_to_open in ARCHIVED_VIEWS
         ):
-            st.session_state.view = view_to_open
-            st.session_state.store["last_view"] = view_to_open
-            save_store(st.session_state.store)
-            st.rerun()
+            if st.session_state.view != view_to_open:
+                st.session_state.view = view_to_open
+                st.session_state.store["last_view"] = view_to_open
+                save_store(st.session_state.store)
+                st.rerun()
+            elif st.session_state.store.get("last_view") != view_to_open:
+                st.session_state.store["last_view"] = view_to_open
+                save_store(st.session_state.store)
     if "wldel" in qp_global:
         tkr_to_del = qp_global.get("wldel")
         del qp_global["wldel"]
