@@ -10369,262 +10369,277 @@ if view == "analyze":
     </div>
     """, unsafe_allow_html=True)
 
-        # 4. Chart — TradingView Lightweight Charts (open-source, ~40KB).
-        # Renders client-side from our existing OHLCV data. Replaces the
-        # earlier Plotly attempt because Lightweight Charts produces a
-        # professional-looking trading chart (matches the paid TradingView
-        # widget aesthetic) with full styling control — the free TradingView
-        # embed widget doesn't allow per-MA color overrides, which is why
-        # we own the rendering ourselves.
-        st.markdown(f"""
-    <div class="desk-chart-label">
-      <span style="color:var(--color-muted);">📈 Chart · </span>
-      <span style="color:#F97316;font-weight:700;">MA 20</span>
-      <span style="color:var(--color-muted);"> · </span>
-      <span style="color:#2563EB;font-weight:700;">MA 50</span>
-      <span style="color:var(--color-muted);"> · </span>
-      <span style="color:#9333EA;font-weight:700;">MA 100</span>
-      <span style="color:var(--color-muted);"> · </span>
-      <span style="color:#DC2626;font-weight:700;">MA 200</span>
-    </div>
-    """, unsafe_allow_html=True)
+        show_deep_technicals = st.toggle(
+            "Show chart + detailed technicals",
+            value=False,
+            key=f"show_deep_technicals_{ticker.upper()}",
+            help="Loads the chart, technical memo, tape detail, and rule inputs only when you ask for them.",
+        )
+        if show_deep_technicals:
+            # 4. Chart — TradingView Lightweight Charts (open-source, ~40KB).
+            # Renders client-side from our existing OHLCV data. Replaces the
+            # earlier Plotly attempt because Lightweight Charts produces a
+            # professional-looking trading chart (matches the paid TradingView
+            # widget aesthetic) with full styling control — the free TradingView
+            # embed widget doesn't allow per-MA color overrides, which is why
+            # we own the rendering ourselves.
+            st.markdown(f"""
+        <div class="desk-chart-label">
+          <span style="color:var(--color-muted);">📈 Chart · </span>
+          <span style="color:#F97316;font-weight:700;">MA 20</span>
+          <span style="color:var(--color-muted);"> · </span>
+          <span style="color:#2563EB;font-weight:700;">MA 50</span>
+          <span style="color:var(--color-muted);"> · </span>
+          <span style="color:#9333EA;font-weight:700;">MA 100</span>
+          <span style="color:var(--color-muted);"> · </span>
+          <span style="color:#DC2626;font-weight:700;">MA 200</span>
+        </div>
+        """, unsafe_allow_html=True)
 
-        try:
-            import json as _chart_json
+            try:
+                import json as _chart_json
 
-            # Build the data payload for Lightweight Charts.
-            # Show 1 year so MA200 has proper context. MAs are computed
-            # on the FULL hist series so they're valid even at the start
-            # of the visible window.
-            chart_hist = hist.iloc[-252:].copy()
-            chart_hist["MA20"] = hist["Close"].rolling(20).mean().iloc[-252:]
-            chart_hist["MA50"] = hist["Close"].rolling(50).mean().iloc[-252:]
-            chart_hist["MA100"] = hist["Close"].rolling(100).mean().iloc[-252:]
-            chart_hist["MA200"] = hist["Close"].rolling(200).mean().iloc[-252:]
+                # Build the data payload for Lightweight Charts.
+                # Show 1 year so MA200 has proper context. MAs are computed
+                # on the FULL hist series so they're valid even at the start
+                # of the visible window.
+                chart_hist = hist.iloc[-252:].copy()
+                chart_hist["MA20"] = hist["Close"].rolling(20).mean().iloc[-252:]
+                chart_hist["MA50"] = hist["Close"].rolling(50).mean().iloc[-252:]
+                chart_hist["MA100"] = hist["Close"].rolling(100).mean().iloc[-252:]
+                chart_hist["MA200"] = hist["Close"].rolling(200).mean().iloc[-252:]
 
-            # Lightweight Charts wants seconds-since-epoch (UTCTimestamp)
-            # for time values. The hist index is daily DatetimeIndex.
-            def _ts(idx):
-                return int(idx.timestamp())
+                # Lightweight Charts wants seconds-since-epoch (UTCTimestamp)
+                # for time values. The hist index is daily DatetimeIndex.
+                def _ts(idx):
+                    return int(idx.timestamp())
 
-            candles = [
-                {
-                    "time": _ts(idx),
-                    "open": round(float(row["Open"]), 4),
-                    "high": round(float(row["High"]), 4),
-                    "low": round(float(row["Low"]), 4),
-                    "close": round(float(row["Close"]), 4),
-                }
-                for idx, row in chart_hist.iterrows()
-            ]
-            volume = [
-                {
-                    "time": _ts(idx),
-                    "value": float(row["Volume"]),
-                    "color": ("rgba(22,163,74,0.45)" if row["Close"] >= row["Open"]
-                              else "rgba(220,38,38,0.45)"),
-                }
-                for idx, row in chart_hist.iterrows()
-            ]
+                candles = [
+                    {
+                        "time": _ts(idx),
+                        "open": round(float(row["Open"]), 4),
+                        "high": round(float(row["High"]), 4),
+                        "low": round(float(row["Low"]), 4),
+                        "close": round(float(row["Close"]), 4),
+                    }
+                    for idx, row in chart_hist.iterrows()
+                ]
+                volume = [
+                    {
+                        "time": _ts(idx),
+                        "value": float(row["Volume"]),
+                        "color": ("rgba(22,163,74,0.45)" if row["Close"] >= row["Open"]
+                                  else "rgba(220,38,38,0.45)"),
+                    }
+                    for idx, row in chart_hist.iterrows()
+                ]
 
-            def _ma_series(col):
-                out = []
-                for idx, val in chart_hist[col].items():
-                    # Lightweight Charts skips points with None/null
-                    if val is None:
-                        continue
-                    try:
-                        if val != val:  # NaN check
+                def _ma_series(col):
+                    out = []
+                    for idx, val in chart_hist[col].items():
+                        # Lightweight Charts skips points with None/null
+                        if val is None:
                             continue
-                    except Exception:
-                        continue
-                    out.append({"time": _ts(idx), "value": round(float(val), 4)})
-                return out
+                        try:
+                            if val != val:  # NaN check
+                                continue
+                        except Exception:
+                            continue
+                        out.append({"time": _ts(idx), "value": round(float(val), 4)})
+                    return out
 
-            ma_data = {
-                "MA20":  _ma_series("MA20"),
-                "MA50":  _ma_series("MA50"),
-                "MA100": _ma_series("MA100"),
-                "MA200": _ma_series("MA200"),
-            }
+                ma_data = {
+                    "MA20":  _ma_series("MA20"),
+                    "MA50":  _ma_series("MA50"),
+                    "MA100": _ma_series("MA100"),
+                    "MA200": _ma_series("MA200"),
+                }
 
-            payload = _chart_json.dumps({
-                "candles": candles,
-                "volume": volume,
-                "ma": ma_data,
-            })
+                payload = _chart_json.dumps({
+                    "candles": candles,
+                    "volume": volume,
+                    "ma": ma_data,
+                })
 
-            chart_html = f"""
-    <div id="lwchart_{ticker}" style="width:100%;height:480px;background:#FFFFFF;"></div>
-    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-    <script>
-    (function() {{
-      const data = {payload};
-      const container = document.getElementById('lwchart_{ticker}');
-      if (!container) return;
+                chart_html = f"""
+        <div id="lwchart_{ticker}" style="width:100%;height:480px;background:#FFFFFF;"></div>
+        <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+        <script>
+        (function() {{
+          const data = {payload};
+          const container = document.getElementById('lwchart_{ticker}');
+          if (!container) return;
 
-      const chart = LightweightCharts.createChart(container, {{
-    width: container.clientWidth,
-    height: 480,
-    layout: {{
-      background: {{ type: 'solid', color: '#FFFFFF' }},
-      textColor: '#334155',
-      fontFamily: 'Geist Mono, monospace',
-      fontSize: 11,
-    }},
-    grid: {{
-      vertLines: {{ color: '#E5E7EB' }},
-      horzLines: {{ color: '#E5E7EB' }},
-    }},
-    rightPriceScale: {{
-      borderColor: '#DCE3EA',
-      scaleMargins: {{ top: 0.08, bottom: 0.28 }},
-    }},
-    timeScale: {{
-      borderColor: '#DCE3EA',
-      timeVisible: false,
-      secondsVisible: false,
-    }},
-    crosshair: {{
-      mode: LightweightCharts.CrosshairMode.Normal,
-      vertLine: {{ color: '#94A3B8', width: 1, style: 2 }},
-      horzLine: {{ color: '#94A3B8', width: 1, style: 2 }},
-    }},
-    handleScroll: true,
-    handleScale: true,
-      }});
+          const chart = LightweightCharts.createChart(container, {{
+        width: container.clientWidth,
+        height: 480,
+        layout: {{
+          background: {{ type: 'solid', color: '#FFFFFF' }},
+          textColor: '#334155',
+          fontFamily: 'Geist Mono, monospace',
+          fontSize: 11,
+        }},
+        grid: {{
+          vertLines: {{ color: '#E5E7EB' }},
+          horzLines: {{ color: '#E5E7EB' }},
+        }},
+        rightPriceScale: {{
+          borderColor: '#DCE3EA',
+          scaleMargins: {{ top: 0.08, bottom: 0.28 }},
+        }},
+        timeScale: {{
+          borderColor: '#DCE3EA',
+          timeVisible: false,
+          secondsVisible: false,
+        }},
+        crosshair: {{
+          mode: LightweightCharts.CrosshairMode.Normal,
+          vertLine: {{ color: '#94A3B8', width: 1, style: 2 }},
+          horzLine: {{ color: '#94A3B8', width: 1, style: 2 }},
+        }},
+        handleScroll: true,
+        handleScale: true,
+          }});
 
-      // Candlesticks
-      const candleSeries = chart.addCandlestickSeries({{
-    upColor: '#16A34A',
-    downColor: '#DC2626',
-    borderUpColor: '#16A34A',
-    borderDownColor: '#DC2626',
-    wickUpColor: '#16A34A',
-    wickDownColor: '#DC2626',
-    priceLineVisible: true,
-    priceLineColor: '#94A3B8',
-    priceLineWidth: 1,
-    priceLineStyle: 2,
-      }});
-      candleSeries.setData(data.candles);
+          // Candlesticks
+          const candleSeries = chart.addCandlestickSeries({{
+        upColor: '#16A34A',
+        downColor: '#DC2626',
+        borderUpColor: '#16A34A',
+        borderDownColor: '#DC2626',
+        wickUpColor: '#16A34A',
+        wickDownColor: '#DC2626',
+        priceLineVisible: true,
+        priceLineColor: '#94A3B8',
+        priceLineWidth: 1,
+        priceLineStyle: 2,
+          }});
+          candleSeries.setData(data.candles);
 
-      // Four colored MA lines — the whole reason we're not using the
-      // free TradingView embed widget, which doesn't allow per-study colors.
-      const maConfigs = [
-    {{ key: 'MA20',  color: '#F97316' }},
-    {{ key: 'MA50',  color: '#2563EB' }},
-    {{ key: 'MA100', color: '#9333EA' }},
-    {{ key: 'MA200', color: '#DC2626' }},
-      ];
-      for (const cfg of maConfigs) {{
-    const series = chart.addLineSeries({{
-      color: cfg.color,
-      lineWidth: 1.5,
-      priceLineVisible: false,
-      lastValueVisible: true,
-      title: cfg.key,
-      crosshairMarkerVisible: false,
-    }});
-    series.setData(data.ma[cfg.key]);
-      }}
+          // Four colored MA lines — the whole reason we're not using the
+          // free TradingView embed widget, which doesn't allow per-study colors.
+          const maConfigs = [
+        {{ key: 'MA20',  color: '#F97316' }},
+        {{ key: 'MA50',  color: '#2563EB' }},
+        {{ key: 'MA100', color: '#9333EA' }},
+        {{ key: 'MA200', color: '#DC2626' }},
+          ];
+          for (const cfg of maConfigs) {{
+        const series = chart.addLineSeries({{
+          color: cfg.color,
+          lineWidth: 1.5,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: cfg.key,
+          crosshairMarkerVisible: false,
+        }});
+        series.setData(data.ma[cfg.key]);
+          }}
 
-      // Volume on a separate price scale at the bottom (overlay)
-      const volumeSeries = chart.addHistogramSeries({{
-    priceFormat: {{ type: 'volume' }},
-    priceScaleId: 'volume',
-    color: 'rgba(107, 101, 91, 0.4)',
-      }});
-      volumeSeries.priceScale().applyOptions({{
-    scaleMargins: {{ top: 0.78, bottom: 0 }},
-      }});
-      volumeSeries.setData(data.volume);
+          // Volume on a separate price scale at the bottom (overlay)
+          const volumeSeries = chart.addHistogramSeries({{
+        priceFormat: {{ type: 'volume' }},
+        priceScaleId: 'volume',
+        color: 'rgba(107, 101, 91, 0.4)',
+          }});
+          volumeSeries.priceScale().applyOptions({{
+        scaleMargins: {{ top: 0.78, bottom: 0 }},
+          }});
+          volumeSeries.setData(data.volume);
 
-      chart.timeScale().fitContent();
+          chart.timeScale().fitContent();
 
-      // Re-fit on window resize so the chart stays full-width
-      const resize = () => {{
-    chart.applyOptions({{ width: container.clientWidth }});
-      }};
-      window.addEventListener('resize', resize);
-    }})();
-    </script>
-    """
-            st.components.v1.html(chart_html, height=500)
-        except Exception as _chart_err:
-            st.warning(f"Chart could not render: {_chart_err}")
+          // Re-fit on window resize so the chart stays full-width
+          const resize = () => {{
+        chart.applyOptions({{ width: container.clientWidth }});
+          }};
+          window.addEventListener('resize', resize);
+        }})();
+        </script>
+        """
+                st.components.v1.html(chart_html, height=500)
+            except Exception as _chart_err:
+                st.warning(f"Chart could not render: {_chart_err}")
 
-        # 5. Technical details — footer, collapsed
-        with st.expander("Technical details"):
-            ma_rows, momentum_rows, strength_rows, timeframe_rows, levels_rows = detailed_technical_rows(hist, bench, t)
-            st.markdown(
-                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                'color:var(--color-muted);margin-bottom:8px;">Technical memo</div>'
-                '<div class="tech-memo-grid">'
-                f'{render_technical_table("Trend / moving averages", ma_rows)}'
-                f'{render_technical_table("Momentum", momentum_rows)}'
-                f'{render_technical_table("Relative strength / volume", strength_rows)}'
-                f'{render_technical_table("Daily vs weekly", timeframe_rows)}'
-                f'{render_technical_table("Levels / volatility", levels_rows)}'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-            if commentary_lines:
-                commentary_html = "".join(
-                    f'<p style="margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.65; '
-                    f'color: var(--color-body); font-family: Geist, sans-serif;">'
-                    f'{bold_numbers(line)}</p>'
-                    for line in commentary_lines
-                )
+            # 5. Technical details — footer, collapsed
+            with st.expander("Technical details"):
+                ma_rows, momentum_rows, strength_rows, timeframe_rows, levels_rows = detailed_technical_rows(hist, bench, t)
                 st.markdown(
-                    f'<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                    f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                    f'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
-                    f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin-bottom:8px;">Technical memo</div>'
+                    '<div class="tech-memo-grid">'
+                    f'{render_technical_table("Trend / moving averages", ma_rows)}'
+                    f'{render_technical_table("Momentum", momentum_rows)}'
+                    f'{render_technical_table("Relative strength / volume", strength_rows)}'
+                    f'{render_technical_table("Daily vs weekly", timeframe_rows)}'
+                    f'{render_technical_table("Levels / volatility", levels_rows)}'
+                    '</div>',
                     unsafe_allow_html=True,
                 )
-            if tech_narrative:
-                paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
-                paras_html = "".join(
-                    f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.65; '
-                    f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
-                    for p in paragraphs
-                )
+                if commentary_lines:
+                    commentary_html = "".join(
+                        f'<p style="margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.65; '
+                        f'color: var(--color-body); font-family: Geist, sans-serif;">'
+                        f'{bold_numbers(line)}</p>'
+                        for line in commentary_lines
+                    )
+                    st.markdown(
+                        f'<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                        f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                        f'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                        f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
+                        f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
+                        unsafe_allow_html=True,
+                    )
+                if tech_narrative:
+                    paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
+                    paras_html = "".join(
+                        f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.65; '
+                        f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
+                        for p in paragraphs
+                    )
+                    st.markdown(
+                        '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                        '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                        'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                        'color:var(--color-muted);margin-bottom:8px;">Narrative</div>'
+                        f'<div style="padding: 0 2px;">{paras_html}</div>',
+                        unsafe_allow_html=True,
+                    )
                 st.markdown(
                     '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
                     '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
                     'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color:var(--color-muted);margin-bottom:8px;">Narrative</div>'
-                    f'<div style="padding: 0 2px;">{paras_html}</div>',
+                    'color:var(--color-muted);margin-bottom:8px;">Rule engine inputs</div>',
                     unsafe_allow_html=True,
                 )
+                rows = [
+                    ("Bias", f"{t['bias'].capitalize() if t['bias'] else '—'} ({t['bias_score']:+d} on ±10 scale)"),
+                    ("Technical score", f"{t['setup_score']:.1f} / 10"),
+                    ("50-day moving average", f"${t['ma50']:,.2f}"),
+                    ("200-day moving average", f"${t['ma200']:,.2f}"),
+                    ("Average true range", f"{t['atr_pct']*100:.2f}%" + (" · below 1.5% gate" if not t['atr_ok'] else "")),
+                    ("Relative strength vs S&P 500", f"{t['rs']:.3f} · 10d {'+' if t['rs_delta'] >= 0 else ''}{t['rs_delta']:.3f}"),
+                    ("52-week high", f"${t['high_52w']:,.2f}"),
+                    ("20-day average volume", f"{t['avg_vol_20d']:,.0f}"),
+                    ("Today volume / average", f"{t['vol_ratio']:.2f}×"),
+                    ("Structure quality", f"{t['structure_quality']:.1f} / 10"),
+                ]
+                for label, value in rows:
+                    st.markdown(f"""
+        <div style="display:flex;justify-content:space-between;font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);padding:3px 0;">
+          <span>{label}</span><span style="color:var(--color-text);">{value}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        else:
             st.markdown(
-                '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                'color:var(--color-muted);margin-bottom:8px;">Rule engine inputs</div>',
+                '<div style="margin:18px 0 8px;padding:10px 12px;border:1px solid var(--color-border);'
+                'border-radius:4px;background:#FFFFFF;color:var(--color-muted);font-family:var(--font-mono);'
+                'font-size:var(--fs-sm);">Chart and detailed technicals are deferred for faster ticker loads.</div>',
                 unsafe_allow_html=True,
             )
-            rows = [
-                ("Bias", f"{t['bias'].capitalize() if t['bias'] else '—'} ({t['bias_score']:+d} on ±10 scale)"),
-                ("Technical score", f"{t['setup_score']:.1f} / 10"),
-                ("50-day moving average", f"${t['ma50']:,.2f}"),
-                ("200-day moving average", f"${t['ma200']:,.2f}"),
-                ("Average true range", f"{t['atr_pct']*100:.2f}%" + (" · below 1.5% gate" if not t['atr_ok'] else "")),
-                ("Relative strength vs S&P 500", f"{t['rs']:.3f} · 10d {'+' if t['rs_delta'] >= 0 else ''}{t['rs_delta']:.3f}"),
-                ("52-week high", f"${t['high_52w']:,.2f}"),
-                ("20-day average volume", f"{t['avg_vol_20d']:,.0f}"),
-                ("Today volume / average", f"{t['vol_ratio']:.2f}×"),
-                ("Structure quality", f"{t['structure_quality']:.1f} / 10"),
-            ]
-            for label, value in rows:
-                st.markdown(f"""
-    <div style="display:flex;justify-content:space-between;font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);padding:3px 0;">
-      <span>{label}</span><span style="color:var(--color-text);">{value}</span>
-    </div>
-    """, unsafe_allow_html=True)
 
         # 7. Key Levels — auto-detected support/resistance, focused on
         # proximate actionable levels. Collapsed by default; opens to show
