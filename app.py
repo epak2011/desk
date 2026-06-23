@@ -10444,12 +10444,9 @@ if view == "analyze":
     </div>
     """, unsafe_allow_html=True)
 
-        show_deep_technicals = st.toggle(
-            "Show chart + detailed technicals",
-            value=False,
-            key=f"show_deep_technicals_{ticker.upper()}",
-            help="Loads the chart, technical memo, tape detail, and rule inputs only when you ask for them.",
-        )
+        # Keep chart and detailed technicals visible by default. This is the
+        # core tape-read surface, not an optional advanced view.
+        show_deep_technicals = True
         if show_deep_technicals:
             # 4. Chart — TradingView Lightweight Charts (open-source, ~40KB).
             # Renders client-side from our existing OHLCV data. Replaces the
@@ -10707,14 +10704,6 @@ if view == "analyze":
           <span>{label}</span><span style="color:var(--color-text);">{value}</span>
         </div>
         """, unsafe_allow_html=True)
-
-        else:
-            st.markdown(
-                '<div style="margin:18px 0 8px;padding:10px 12px;border:1px solid var(--color-border);'
-                'border-radius:4px;background:#FFFFFF;color:var(--color-muted);font-family:var(--font-mono);'
-                'font-size:var(--fs-sm);">Chart and detailed technicals are deferred for faster ticker loads.</div>',
-                unsafe_allow_html=True,
-            )
 
         # 7. Key Levels — auto-detected support/resistance, focused on
         # proximate actionable levels. Collapsed by default; opens to show
