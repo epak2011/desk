@@ -6685,7 +6685,7 @@ def _query_set(key, value):
         pass
 
 
-def route_to(*, ticker=None, view=None, reason="", sync_url=True, rerun=False, persist=True):
+def route_to(*, ticker=None, view=None, reason="", sync_url=True, sync_widget=True, rerun=False, persist=True):
     """Single owner for app navigation state.
 
     Returns True when ticker/view changed. Query params are updated only when
@@ -6699,7 +6699,7 @@ def route_to(*, ticker=None, view=None, reason="", sync_url=True, rerun=False, p
         st.session_state.current_ticker = ticker_value
         st.session_state.store["last_ticker"] = ticker_value
         changed = True
-        if "ticker_input" in st.session_state:
+        if sync_widget and "ticker_input" in st.session_state:
             st.session_state["ticker_input"] = ticker_value
             st.session_state["_last_synced_ticker"] = ticker_value
 
@@ -6872,7 +6872,13 @@ with st.sidebar:
     # The sync above guarantees current_ticker matches what was rendered,
     # so any difference here is genuine user input.
     if input_ticker and input_ticker != st.session_state.current_ticker:
-        route_to(ticker=input_ticker, view="analyze", reason="sidebar ticker", rerun=True)
+        route_to(
+            ticker=input_ticker,
+            view="analyze",
+            reason="sidebar ticker",
+            sync_widget=False,
+            rerun=True,
+        )
 
     if st.session_state.get("view") == "analyze" and st.session_state.current_ticker:
         active_ticker = str(st.session_state.current_ticker).upper().strip()
