@@ -5218,6 +5218,10 @@ def decision_context(t):
             src = "user-marked" if meta.get("source") == "manual" else (
                 "key support level"
             )
+            if meta.get("status") == "held_above":
+                return f"{src.capitalize()} at ${level:,.2f} has held — wait for continuation."
+            if meta.get("status") == "wick_test":
+                return f"Testing {src} at ${level:,.2f} — needs a reclaim close."
             return f"Approaching {src} at ${level:,.2f} — buy on a hold."
         return f"{bias} — needs confirmation."
     if a == "hold_off":
@@ -5308,6 +5312,10 @@ def trigger_text(t):
             descriptor = "user-marked support" if meta.get("source") == "manual" else (
                 "key support level"
             )
+            if meta.get("status") == "held_above":
+                return f"Support at ${buy:,.2f} has held — wait for continuation with volume."
+            if meta.get("status") == "wick_test":
+                return f"Testing ${buy:,.2f} support now — needs a reclaim close."
             return f"Hold of ${buy:,.2f} — {descriptor}, wait for tap-and-bounce."
         if buy:
             return f"Close above ${buy:,.2f}."
@@ -5367,14 +5375,17 @@ def position_management_read(entry, t):
 
     entry_ratio = entry_px / price if price else None
     if entry_ratio is not None and (entry_ratio < 0.20 or entry_ratio > 5.0):
+        source = str(entry.get("source") or "position").lower()
+        action = "Fix holding entry" if source == "holding" else "Confirm entry"
+        summary = (
+            f"The saved {source} entry (${entry_px:,.2f}) is far away from the current "
+            f"price (${price:,.2f}), so the app will not calculate P/L or trim/sell logic from it."
+        )
         return {
-            "action": "Confirm entry",
+            "action": action,
             "emoji": "⚠️",
             "color": "var(--color-warning-text)",
-            "summary": (
-                "Saved entry price looks inconsistent with the current stock price. "
-                "Update the holding before using trim/sell guidance."
-            ),
+            "summary": summary,
             "stats": [
                 ("Now", f"${price:,.2f}"),
                 ("Saved entry", f"${entry_px:,.2f}"),
