@@ -2174,6 +2174,9 @@ div.streamlit-expanderHeader {
     line-height: 1.35;
     color: var(--color-positive);
 }
+.desk-refresh-receipt.warn {
+    color: var(--color-warning-text);
+}
 .position-decision-panel {
     border: 1px solid var(--color-border);
     border-radius: 8px;
@@ -4595,14 +4598,42 @@ def data_status_html(items):
     return f'<div class="desk-data-strip">{chips}</div>'
 
 
-def canonical_freshness_html(items, refreshed_at=None):
+def canonical_freshness_html(items, refresh_event=None):
     """One canonical freshness panel so status language stays consistent."""
     receipt = ""
+    if isinstance(refresh_event, dict):
+        refreshed_at = refresh_event.get("time")
+        research_requested = bool(refresh_event.get("research"))
+    else:
+        refreshed_at = refresh_event
+        research_requested = False
     if refreshed_at:
-        receipt = (
-            f'<div class="desk-refresh-receipt">Updated price, fundamentals, '
-            f'PM memo, and sidebar row at {html.escape(refreshed_at)}.</div>'
-        )
+        if research_requested:
+            pm_label = str(refresh_event.get("pm_label") or "").strip()
+            pm_kind = str(refresh_event.get("pm_kind") or "").strip()
+            dossier_label = str(refresh_event.get("dossier_label") or "").strip()
+            pm_ok = pm_kind in ("fresh", "info") and not any(
+                marker in pm_label.lower()
+                for marker in ("timeout", "failed", "not generated", "unavailable", "cached/static")
+            )
+            if pm_ok:
+                status = f"PM refreshed ({pm_label})."
+            else:
+                status = (
+                    f"Market data updated; PM did not refresh cleanly"
+                    f"{': ' + pm_label if pm_label else ''}."
+                )
+            if dossier_label and "not generated" not in dossier_label.lower():
+                status += f" Dossier: {dossier_label}."
+            receipt = (
+                f'<div class="desk-refresh-receipt {"" if pm_ok else "warn"}">'
+                f'{html.escape(status)} Updated at {html.escape(refreshed_at)}.</div>'
+            )
+        else:
+            receipt = (
+                f'<div class="desk-refresh-receipt">Updated price, fundamentals, '
+                f'and sidebar row at {html.escape(refreshed_at)}.</div>'
+            )
     return (
         '<div class="desk-freshness-panel">'
         '<div class="desk-freshness-title">Freshness</div>'
@@ -4612,14 +4643,14 @@ def canonical_freshness_html(items, refreshed_at=None):
     )
 
 
-def active_refresh_receipt(ticker):
-    """Return a refresh receipt time only for the currently viewed ticker."""
+def active_refresh_event(ticker):
+    """Return a refresh event only for the currently viewed ticker."""
     event = st.session_state.pop("_refresh_result", None)
     if not isinstance(event, dict):
         return None
     if str(event.get("ticker") or "").upper() != str(ticker or "").upper():
         return None
-    return event.get("time")
+    return event
 
 
 def sidebar_cache_status(ticker):
@@ -9053,14 +9084,24 @@ if view == "analyze":
         }
     research_items = research_health_items(pm, dossier_result, api_key)
     pm_status_item = research_items[0] if research_items else ("PM memo", "not generated", "warn")
+    dossier_status_item = (
+        research_items[1] if len(research_items) > 1 else ("Full dossier", "not generated", "warn")
+    )
     sidebar_status_item = sidebar_cache_status(ticker)
-    refresh_receipt_time = active_refresh_receipt(ticker)
+    refresh_event = active_refresh_event(ticker)
+    if isinstance(refresh_event, dict) and refresh_event.get("research"):
+        refresh_event.update({
+            "pm_label": pm_status_item[1],
+            "pm_kind": pm_status_item[2],
+            "dossier_label": dossier_status_item[1],
+            "dossier_kind": dossier_status_item[2],
+        })
     freshness_panel_html = canonical_freshness_html([
         ("Price", price_age_label, price_age_kind),
         ("Fundamentals", metadata_status_label(meta)[0], metadata_status_label(meta)[1]),
         ("PM memo", pm_status_item[1], pm_status_item[2]),
         ("Sidebar", sidebar_status_item[0], sidebar_status_item[1]),
-    ], refreshed_at=refresh_receipt_time)
+    ], refresh_event=refresh_event)
 
     # Accumulation Watch override: if compute() flagged the name as
     # accumulation-eligible (deep drawdown + near low + stabilizing + not
