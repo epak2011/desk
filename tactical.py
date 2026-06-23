@@ -518,7 +518,10 @@ def historical_support_trigger(price, ma50, atr_pct, support_levels,
     source = best.get("source", "auto")
 
     support_status = "testing"
-    if pct_above >= max(0.015, atr_pct * 0.75):
+    # If price is already comfortably above the level, stop presenting this
+    # as "approaching" support. ATR can be very large in volatile names, so
+    # do not let it keep stale support-test copy alive for days.
+    if pct_above >= 0.015:
         support_status = "held_above"
     elif pct_above < 0:
         support_status = "wick_test"
