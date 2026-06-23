@@ -4711,6 +4711,8 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
     sidebar_watchlist_snapshot.clear()
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
+        pending = st.session_state.setdefault("_pending_pm_refreshes", {})
+        pending[refresh_ticker] = datetime.now().isoformat(timespec="seconds")
     st.session_state["_refresh_result"] = {
         "ticker": refresh_ticker,
         "time": datetime.now().strftime("%-I:%M %p"),
@@ -9016,8 +9018,11 @@ if view == "analyze":
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
     # the snapshot. Both share the same cached fetch.
+    ticker_key = ticker.upper()
+    pending_pm_refreshes = st.session_state.setdefault("_pending_pm_refreshes", {})
     force_pm_refresh = (
-        st.session_state.pop("_force_pm_refresh_ticker", "") == ticker.upper()
+        st.session_state.pop("_force_pm_refresh_ticker", "") == ticker_key
+        or ticker_key in pending_pm_refreshes
     )
     # Ordinary ticker navigation stays fast/static. The explicit refresh button
     # is intentionally heavier: it refreshes both the PM memo and the dossier
@@ -9056,6 +9061,8 @@ if view == "analyze":
             allow_generate=allow_dossier_generate,
             force_generate=force_pm_refresh,
         )
+    if force_pm_refresh:
+        pending_pm_refreshes.pop(ticker_key, None)
 
     # Live PM bullets: when the dossier call returned bullets, prefer those
     # over the static template. This is what makes non-hardcoded tickers
