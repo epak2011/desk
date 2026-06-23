@@ -343,7 +343,7 @@ def save_store(store):
     STORE_PATH.write_text(json.dumps(safe_store, indent=2, allow_nan=False))
 
 
-ACTIVE_VIEWS = {"daily", "analyze", "watchlist", "holdings", "ideas"}
+ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "holdings", "ideas"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -414,11 +414,11 @@ if "view" not in st.session_state:
         _qp_view = str(st.query_params.get("view") or "").strip().lower()
     except Exception:
         _qp_view = ""
-    _stored_view = str(st.session_state.store.get("last_view") or "daily").strip().lower()
+    _stored_view = str(st.session_state.store.get("last_view") or "regime").strip().lower()
     st.session_state.view = (
         _qp_view
         if _qp_view in ACTIVE_VIEWS
-        else (_stored_view if _stored_view in ACTIVE_VIEWS else "daily")
+        else (_stored_view if _stored_view in ACTIVE_VIEWS else "regime")
     )
 if "pm_expanded" not in st.session_state:
     st.session_state.pm_expanded = {}
@@ -6866,7 +6866,7 @@ with st.sidebar:
     )
 
     view_labels = {
-        "daily": "Daily Desk",
+        "regime": "Market Regime",
         "analyze": "Analyze",
         "watchlist": "Watchlist",
         "holdings": "Holdings",
@@ -6875,7 +6875,7 @@ with st.sidebar:
     if SHOW_ARCHIVED_TRACKER:
         view_labels["tracker"] = "Tracker"
     if st.session_state.view not in view_labels:
-        st.session_state.view = "daily"
+        st.session_state.view = "regime"
     current_view_label = view_labels[st.session_state.view]
     picked = st.radio(
         "View",
@@ -11630,243 +11630,257 @@ def cached_discovery_candidate(candidate):
     return enriched
 
 
-if view == "daily":
+if view == "regime":
     st.markdown(
         """
         <style>
-        .daily-shell{max-width:1480px;margin:0 auto;padding:18px 8px 48px}
-        .daily-kicker{font-family:var(--font-mono);font-size:var(--fs-xs);letter-spacing:var(--ls-caps-xl);text-transform:uppercase;color:var(--color-muted);font-weight:800;margin-bottom:8px}
-        .daily-title{font-family:var(--font-sans);font-size:clamp(30px,4vw,48px);line-height:1;margin:0 0 10px;color:var(--color-text);letter-spacing:0;font-weight:850}
-        .daily-subtitle{font-size:var(--fs-md);color:var(--color-muted);max-width:780px;margin-bottom:20px}
-        .daily-status-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 18px}
-        .daily-chip{border:1px solid var(--color-border);border-radius:6px;background:var(--color-panel);padding:8px 10px;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:800;letter-spacing:.04em;color:var(--color-muted)}
-        .daily-chip strong{color:var(--color-text)}
-        .daily-table-wrap{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);overflow-x:auto;box-shadow:var(--shadow-soft)}
-        .daily-table{width:100%;min-width:1180px;border-collapse:collapse;font-size:var(--fs-sm)}
-        .daily-table th{font-family:var(--font-mono);font-size:var(--fs-xs);letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);font-weight:800;text-align:left;padding:13px 12px;border-bottom:1px solid var(--color-border);white-space:nowrap}
-        .daily-table td{padding:15px 12px;border-bottom:1px solid rgba(148,163,184,.18);vertical-align:top;color:var(--color-text)}
-        .daily-table tr:last-child td{border-bottom:0}
-        .daily-ticker{font-weight:900;font-size:var(--fs-md);white-space:nowrap}
-        .daily-name{display:block;margin-top:3px;color:var(--color-muted);font-size:var(--fs-xs);font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .daily-price{font-family:var(--font-mono);font-weight:900;white-space:nowrap}
-        .daily-change{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:800;margin-top:3px}
-        .daily-action{font-weight:900;white-space:nowrap}
-        .daily-note{color:var(--color-muted);font-size:var(--fs-xs);line-height:1.35;max-width:310px}
-        .daily-attention{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:900;letter-spacing:.04em;text-transform:uppercase}
-        .daily-pill{display:inline-block;border:1px solid var(--color-border);border-radius:5px;padding:5px 7px;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:800;white-space:nowrap}
-        @media(max-width:760px){.daily-shell{padding:6px 0 36px}.daily-title{font-size:34px}.daily-subtitle{font-size:15px}}
+        .regime-shell{max-width:1480px;margin:0 auto;padding:18px 10px 48px}
+        .regime-top{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:28px;align-items:start}
+        .regime-label{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:800;letter-spacing:var(--ls-caps-xl);text-transform:uppercase;color:var(--color-muted)}
+        .regime-action{font-size:clamp(48px,7vw,96px);line-height:.95;font-weight:900;letter-spacing:0;color:var(--color-heading);margin:28px 0 16px}
+        .regime-sub{font-size:clamp(20px,2.2vw,32px);line-height:1.22;color:var(--color-text);max-width:980px;margin:0 0 18px}
+        .regime-meta{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:800;letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
+        .regime-divider{height:1px;background:var(--color-border);margin:28px 0}
+        .regime-panel{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);box-shadow:var(--shadow-soft);overflow:hidden}
+        .regime-panel-pad{padding:20px}
+        .regime-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+        .regime-metric{border:1px solid var(--color-border);border-radius:7px;background:rgba(255,255,255,.62);padding:14px 14px 13px}
+        .regime-metric .k{display:block;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
+        .regime-metric .v{display:block;font-family:var(--font-mono);font-size:22px;font-weight:900;color:var(--color-text)}
+        .regime-metric .s{display:block;margin-top:6px;font-size:var(--fs-xs);color:var(--color-muted);line-height:1.35}
+        .regime-table{width:100%;border-collapse:collapse}
+        .regime-table td{border-top:1px solid var(--color-border);padding:14px 16px;vertical-align:top}
+        .regime-table tr:first-child td{border-top:0}
+        .regime-table .t{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);width:170px}
+        .regime-table .r{font-size:var(--fs-md);line-height:1.35;color:var(--color-text)}
+        .regime-chip{display:inline-block;border:1px solid var(--color-border);border-radius:5px;background:var(--color-panel);padding:7px 9px;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:.04em;color:var(--color-muted);margin:0 6px 6px 0}
+        .regime-side-title{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-xl);text-transform:uppercase;color:var(--color-muted);margin-bottom:12px}
+        .regime-watch{border-left:3px solid var(--color-border);padding:10px 0 10px 14px;margin:0 0 12px;color:var(--color-text);line-height:1.35}
+        .regime-watch strong{font-family:var(--font-mono);font-size:var(--fs-xs);letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
+        @media(max-width:900px){.regime-top{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
+        @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    def _daily_money(value):
+    def _regime_fmt(value, suffix="", digits=1):
         try:
-            return f"${float(value):,.2f}" if value is not None else "—"
+            if value is None or (isinstance(value, float) and math.isnan(value)):
+                return "—"
+            return f"{float(value):,.{digits}f}{suffix}"
         except (TypeError, ValueError):
             return "—"
 
-    def _daily_pct(value):
+    def _regime_signed(value, suffix="%", digits=1):
         try:
-            return f"{float(value):+.2f}%" if value is not None else "—"
+            if value is None or (isinstance(value, float) and math.isnan(value)):
+                return "—"
+            return f"{float(value):+,.{digits}f}{suffix}"
         except (TypeError, ValueError):
             return "—"
 
-    def _daily_age_minutes(value):
-        if not value:
-            return None
+    @st.cache_data(ttl=60 * 60, show_spinner=False)
+    def _fred_recent(series_id, limit=6):
         try:
-            return (datetime.now() - datetime.fromisoformat(str(value))).total_seconds() / 60
+            import pandas as pd
+            url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={urllib.parse.quote(series_id)}"
+            df = pd.read_csv(url).tail(limit)
+            df[series_id] = pd.to_numeric(df[series_id], errors="coerce")
+            df = df.dropna(subset=[series_id])
+            if df.empty:
+                return []
+            return [
+                {"date": str(row["observation_date"]), "value": float(row[series_id])}
+                for _, row in df.iterrows()
+            ]
         except Exception:
-            return None
+            return []
 
-    def _daily_age_label(value):
-        mins = _daily_age_minutes(value)
-        if mins is None:
-            return "missing"
-        if mins < 5:
-            return "just now"
-        if mins < 60:
-            return f"{int(mins)}m old"
-        if mins < 36 * 60:
-            return f"{int(mins / 60)}h old"
-        return f"{int(mins / 1440)}d old"
+    @st.cache_data(ttl=15 * 60, show_spinner=False)
+    def _market_quote(symbol):
+        try:
+            hist = yf.Ticker(symbol).history(period="5d", interval="1d", auto_adjust=True)
+            if hist is None or len(hist) < 2:
+                return {"last": None, "change": None}
+            closes = hist["Close"].dropna()
+            if len(closes) < 2:
+                return {"last": None, "change": None}
+            last = float(closes.iloc[-1])
+            prev = float(closes.iloc[-2])
+            return {"last": last, "change": (last / prev - 1) * 100 if prev else None}
+        except Exception:
+            return {"last": None, "change": None}
 
-    def _daily_pm_status(snapshot):
-        pm = snapshot.get("pm") or {}
-        if not pm.get("has_memo"):
-            return "Missing", "var(--color-faint)"
-        mins = _daily_age_minutes(pm.get("ts") or snapshot.get("pm_updated_at"))
-        if mins is None:
-            return "Unknown", "var(--color-muted)"
-        days = int(mins / 1440)
-        if days >= 7:
-            return f"Stale {days}d", "var(--color-warning-text)"
-        return "Ready", "var(--color-positive)"
+    @st.cache_data(ttl=60 * 60, show_spinner=False)
+    def _regime_snapshot():
+        ism = _fred_recent("NAPMPMI")
+        unemp = _fred_recent("UNRATE")
+        hy = _fred_recent("BAMLH0A0HYM2")
+        curve = _fred_recent("T10Y2Y")
+        spx = _market_quote("^GSPC")
+        qqq = _market_quote("QQQ")
+        vix = _market_quote("^VIX")
 
-    def _daily_trigger_text(market, action_key, price):
-        trigger = market.get("trigger") if isinstance(market.get("trigger"), dict) else {}
-        levels = trigger.get("levels") if isinstance(trigger.get("levels"), dict) else {}
-        buy_above = levels.get("buy_above") or market.get("entry")
-        stop = market.get("stop") or levels.get("stop") or levels.get("abort_below")
-        if action_key == "enter_now":
-            return f"Market entry near {_daily_money(price)}"
-        if action_key == "avoid":
-            return "No entry. Structure is broken or risk is unacceptable."
-        if action_key == "hold_off":
-            return "Wait for cleaner structure before acting."
-        if buy_above:
-            dist = None
-            try:
-                if price:
-                    dist = (float(buy_above) - float(price)) / float(price) * 100
-            except (TypeError, ValueError, ZeroDivisionError):
-                dist = None
-            suffix = f" · {dist:+.1f}% away" if dist is not None else ""
-            stop_txt = f" · stop {_daily_money(stop)}" if stop else ""
-            return f"Trigger {_daily_money(buy_above)}{suffix}{stop_txt}"
-        return "Trigger not available until next market refresh."
+        ism_now = ism[-1]["value"] if ism else None
+        unemp_now = unemp[-1]["value"] if unemp else None
+        unemp_prev = unemp[-2]["value"] if len(unemp) >= 2 else None
+        hy_now = hy[-1]["value"] * 100 if hy else None
+        curve_now = curve[-1]["value"] * 100 if curve else None
+        unemp_rising = unemp_now is not None and unemp_prev is not None and unemp_now > unemp_prev
 
-    def _daily_attention(ticker, snapshot, action_key, price):
-        market = snapshot.get("market") or {}
-        meta = snapshot.get("meta") or {}
-        pm_status, _pm_color = _daily_pm_status(snapshot)
-        age = _daily_age_minutes(market.get("updated_at") or snapshot.get("market_updated_at"))
-        if not price:
-            return "Needs data", 0, "var(--color-negative)"
-        if age is None or age > 1440:
-            return "Refresh needed", 1, "var(--color-warning-text)"
-        if action_key == "enter_now":
-            return "Actionable now", 2, "var(--color-positive)"
-        if ticker in active_position_tickers():
-            return "Owned position", 3, "var(--color-blue)"
-        days = meta.get("earnings_days") if isinstance(meta, dict) else None
-        if days is not None and -1 <= days <= 7:
-            return "Earnings risk", 4, "var(--color-warning-text)"
-        if pm_status.startswith("Missing") or pm_status.startswith("Stale"):
-            return "PM review", 5, "var(--color-warning-text)"
-        if action_key == "watch":
-            return "Monitor trigger", 6, "var(--color-warning-text)"
-        return "No action", 9, "var(--color-muted)"
+        score = 0.0
+        flags = []
+        if ism_now is not None:
+            if ism_now < 50:
+                score -= 2.0
+                flags.append(("T1", "ISM below 50 — manufacturing contraction trigger is firing.", "neg"))
+            elif ism_now < 52:
+                score -= 0.7
+                flags.append(("T1", "ISM is soft but still expansionary.", "warn"))
+            else:
+                score += 0.4
+                flags.append(("T1", "ISM is expansionary.", "pos"))
+        if unemp_now is not None:
+            if unemp_now >= 4.2 and unemp_rising:
+                score -= 2.5
+                flags.append(("T2", "Unemployment is above 4.2% and rising.", "neg"))
+            elif unemp_now >= 4.0:
+                score -= 0.7
+                flags.append(("T2", "Labor market is near the watch zone.", "warn"))
+            else:
+                score += 0.3
+                flags.append(("T2", "Labor market is clear.", "pos"))
+        if hy_now is not None:
+            if hy_now >= 600:
+                score -= 2.5
+                flags.append(("T3", "High-yield spreads are in stress territory.", "neg"))
+            elif hy_now >= 450:
+                score -= 1.0
+                flags.append(("T3", "Credit stress is elevated.", "warn"))
+            else:
+                score += 0.4
+                flags.append(("T3", "Credit spreads are contained.", "pos"))
+        if curve_now is not None:
+            if curve_now < 0:
+                score -= 0.5
+                flags.append(("YC", "Yield curve is inverted.", "warn"))
+            else:
+                score += 0.2
+                flags.append(("YC", "Yield curve is positive.", "pos"))
+        if vix.get("last") is not None:
+            if vix["last"] >= 30:
+                score -= 1.2
+                flags.append(("VIX", "Volatility stress is elevated.", "neg"))
+            elif vix["last"] >= 22:
+                score -= 0.5
+                flags.append(("VIX", "Volatility is elevated.", "warn"))
+            else:
+                score += 0.2
+                flags.append(("VIX", "Volatility is contained.", "pos"))
 
-    watchlist_tickers = [
-        str(t).upper().strip()
-        for t in st.session_state.store.get("watchlist", [])
-        if str(t or "").strip()
-    ]
-    holding_tickers = sorted(active_position_tickers())
-    desk_tickers = []
-    for raw_ticker in watchlist_tickers + holding_tickers:
-        if raw_ticker and raw_ticker not in desk_tickers:
-            desk_tickers.append(raw_ticker)
+        if score <= -3.0:
+            action = "Reduce risk"
+            color = "var(--color-negative)"
+            read = "Macro risk is high enough to lower gross exposure and avoid forcing new longs."
+            posture = "Defensive"
+        elif score <= -1.0:
+            action = "Tighten up"
+            color = "var(--color-warning-text)"
+            read = "Risk is not broken, but the tape deserves smaller size, cleaner triggers, and faster invalidation."
+            posture = "Selective"
+        else:
+            action = "Stay risk-on"
+            color = "var(--color-positive)"
+            read = "Macro and market stress are contained. Let stock-specific rules drive entries and exits."
+            posture = "Constructive"
 
-    st.markdown('<div class="daily-shell">', unsafe_allow_html=True)
+        return {
+            "score": score,
+            "action": action,
+            "action_color": color,
+            "read": read,
+            "posture": posture,
+            "flags": flags,
+            "metrics": {
+                "SPX": spx,
+                "QQQ": qqq,
+                "VIX": vix,
+                "ISM": {"last": ism_now, "change": None},
+                "Unemployment": {
+                    "last": unemp_now,
+                    "change": (unemp_now - unemp_prev) if unemp_now is not None and unemp_prev is not None else None,
+                },
+                "HY OAS": {"last": hy_now, "change": None},
+                "10Y-2Y": {"last": curve_now, "change": None},
+            },
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }
+
+    if st.button("↻ Refresh market regime", key="refresh_market_regime", help="Refresh macro and market-regime inputs."):
+        _fred_recent.clear()
+        _market_quote.clear()
+        _regime_snapshot.clear()
+        st.rerun()
+
+    regime = _regime_snapshot()
+    flags = regime["flags"]
+    neg_count = sum(1 for _, _, sev in flags if sev == "neg")
+    warn_count = sum(1 for _, _, sev in flags if sev == "warn")
+    pos_count = sum(1 for _, _, sev in flags if sev == "pos")
+    updated_label = datetime.fromisoformat(regime["updated_at"]).strftime("%b %d · %-I:%M %p")
+
+    st.markdown('<div class="regime-shell">', unsafe_allow_html=True)
     st.markdown(
-        '<div class="daily-kicker">Daily Desk</div>'
-        '<div class="daily-title">Decision queue</div>'
-        '<div class="daily-subtitle">A fast morning view for what needs action, what is stale, and what can be ignored. Rules drive the call; PM notes only flag where a deeper review is warranted.</div>',
+        '<div class="regime-top"><div>'
+        '<div class="regime-label">Market Regime & Risk Engine</div>'
+        f'<div class="regime-action" style="color:{regime["action_color"]};">{html.escape(regime["action"])}</div>'
+        f'<div class="regime-sub">{html.escape(regime["read"])}</div>'
+        f'<div class="regime-meta" style="color:{regime["action_color"]};">{html.escape(regime["posture"])} · score {regime["score"]:+.1f} · updated {html.escape(updated_label)}</div>'
+        '</div><div class="regime-panel"><div class="regime-panel-pad">'
+        '<div class="regime-side-title">Risk stack</div>'
+        f'<span class="regime-chip">{pos_count} clear</span><span class="regime-chip">{warn_count} watch</span><span class="regime-chip">{neg_count} firing</span>'
+        '<div class="regime-divider"></div>'
+        '<div class="regime-side-title">Operating rule</div>'
+        '<div class="regime-watch"><strong>Position sizing</strong><br>Macro does not make single-stock decisions. It sets how aggressive the stock rules are allowed to be.</div>'
+        '</div></div></div>'
+        '<div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
-    refresh_col, note_col = st.columns([1.25, 3])
-    with refresh_col:
-        if st.button(
-            "↻ Refresh Daily Desk",
-            key="daily_desk_refresh",
-            help="Refresh watchlist and holding market snapshots without generating Claude reports.",
-            use_container_width=True,
-        ):
-            update_sidebar_watchlist_cache(desk_tickers)
-            st.session_state["_daily_desk_last_refresh"] = datetime.now().isoformat(timespec="seconds")
-            st.rerun()
-    with note_col:
-        last_refresh = _daily_age_label(st.session_state.get("_daily_desk_last_refresh"))
-        st.markdown(
-            f'<div class="daily-status-row"><span class="daily-chip"><strong>{len(desk_tickers)}</strong> tickers</span>'
-            f'<span class="daily-chip">Last page refresh: <strong>{html.escape(last_refresh)}</strong></span>'
-            '<span class="daily-chip">No Claude calls on load</span></div>',
-            unsafe_allow_html=True,
-        )
 
-    if not desk_tickers:
-        st.info("Add tickers to the watchlist or holdings to populate the Daily Desk.")
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        rows = []
-        owned_set = set(holding_tickers)
-        for tkr in desk_tickers:
-            snapshot = ticker_snapshot(tkr)
-            market = snapshot.get("market") or {}
-            meta = snapshot.get("meta") or {}
-            price = market.get("last")
-            final = snapshot.get("final_action") or {}
-            action_key = (
-                normalize_action_key(final.get("action"))
-                or normalize_action_key(market.get("action"))
-                or sidebar_action_hint(tkr, market)
-                or "watch"
-            )
-            action_style = STATE_STYLES.get(action_key, STATE_STYLES["watch"])
-            attention_label, attention_rank, attention_color = _daily_attention(tkr, snapshot, action_key, price)
-            pm_status, pm_color = _daily_pm_status(snapshot)
-            fallback_profile = infer_security_profile(tkr, meta, tkr)
-            name = display_security_name(tkr, tkr, meta, fallback_profile) or tkr
-            earnings_banner, earnings_footer = format_earnings(meta if isinstance(meta, dict) else {})
-            rows.append({
-                "ticker": tkr,
-                "name": name,
-                "price": price,
-                "change": market.get("change_pct"),
-                "freshness": _daily_age_label(market.get("updated_at") or snapshot.get("market_updated_at")),
-                "action_key": action_key,
-                "action_style": action_style,
-                "attention_label": attention_label,
-                "attention_rank": attention_rank,
-                "attention_color": attention_color,
-                "trigger": _daily_trigger_text(market, action_key, price),
-                "position": "Owned" if tkr in owned_set else "—",
-                "earnings": earnings_banner or earnings_footer or "—",
-                "pm_status": pm_status,
-                "pm_color": pm_color,
-            })
-        rows.sort(key=lambda row: (row["attention_rank"], row["ticker"]))
-        st.markdown(
-            '<div class="daily-status-row">'
-            f'<span class="daily-chip"><strong>{sum(1 for row in rows if row["action_key"] == "enter_now")}</strong> actionable</span>'
-            f'<span class="daily-chip"><strong>{sum(1 for row in rows if row["position"] == "Owned")}</strong> owned</span>'
-            f'<span class="daily-chip"><strong>{sum(1 for row in rows if row["attention_label"] in {"Refresh needed", "Needs data"})}</strong> stale/missing</span>'
-            f'<span class="daily-chip"><strong>{sum(1 for row in rows if row["attention_label"] == "PM review")}</strong> PM review</span>'
-            '</div>',
-            unsafe_allow_html=True,
+    metric_specs = [
+        ("SPX", _regime_fmt(regime["metrics"]["SPX"]["last"], "", 0), _regime_signed(regime["metrics"]["SPX"]["change"])),
+        ("QQQ", _regime_fmt(regime["metrics"]["QQQ"]["last"], "", 2), _regime_signed(regime["metrics"]["QQQ"]["change"])),
+        ("VIX", _regime_fmt(regime["metrics"]["VIX"]["last"], "", 1), _regime_signed(regime["metrics"]["VIX"]["change"])),
+        ("ISM", _regime_fmt(regime["metrics"]["ISM"]["last"], "", 1), "T1 manufacturing trigger"),
+        ("Unemployment", _regime_fmt(regime["metrics"]["Unemployment"]["last"], "%", 1), f"{_regime_signed(regime['metrics']['Unemployment']['change'], ' pts', 1)} vs prior"),
+        ("HY OAS", _regime_fmt(regime["metrics"]["HY OAS"]["last"], " bps", 0), "T3 credit stress"),
+        ("10Y-2Y", _regime_fmt(regime["metrics"]["10Y-2Y"]["last"], " bps", 0), "curve slope"),
+        ("Posture", regime["posture"], "risk budget for stock setups"),
+    ]
+    st.markdown(
+        '<div class="regime-grid">'
+        + "".join(
+            f'<div class="regime-metric"><span class="k">{html.escape(k)}</span><span class="v">{html.escape(str(v))}</span><span class="s">{html.escape(str(s))}</span></div>'
+            for k, v, s in metric_specs
         )
-        row_html = []
-        for row in rows:
-            change_color = "var(--color-positive)" if (row["change"] or 0) >= 0 else "var(--color-negative)"
-            action_color = row["action_style"].get("color", "var(--color-text)")
-            tkr_html = html.escape(row["ticker"])
-            row_html.append(
-                "<tr>"
-                f'<td><a href="?open={tkr_html}" target="_self" class="daily-ticker">{tkr_html} {row["action_style"].get("emoji", "")}</a>'
-                f'<span class="daily-name">{html.escape(str(row["name"]))}</span></td>'
-                f'<td><div class="daily-price">{html.escape(_daily_money(row["price"]))}</div>'
-                f'<div class="daily-change" style="color:{change_color};">{html.escape(_daily_pct(row["change"]))}</div></td>'
-                f'<td><span class="daily-action" style="color:{action_color};">{row["action_style"].get("emoji", "")} {html.escape(row["action_style"].get("label", "Watch"))}</span>'
-                f'<div class="daily-note">{html.escape(str(row["freshness"]))}</div></td>'
-                f'<td><span class="daily-attention" style="color:{row["attention_color"]};">{html.escape(row["attention_label"])}</span></td>'
-                f'<td><div class="daily-note">{bold_numbers(html.escape(row["trigger"]))}</div></td>'
-                f'<td><span class="daily-pill">{html.escape(row["position"])}</span></td>'
-                f'<td><div class="daily-note">{html.escape(str(row["earnings"]))}</div></td>'
-                f'<td><span class="daily-pill" style="color:{row["pm_color"]};">{html.escape(row["pm_status"])}</span></td>'
-                "</tr>"
-            )
-        st.markdown(
-            '<div class="daily-table-wrap"><table class="daily-table">'
-            '<thead><tr><th>Ticker</th><th>Price</th><th>Rules call</th><th>Attention</th>'
-            '<th>Trigger / next step</th><th>Position</th><th>Earnings</th><th>PM</th></tr></thead><tbody>'
-            + "".join(row_html)
-            + '</tbody></table></div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
+        + '</div><div class="regime-divider"></div>',
+        unsafe_allow_html=True,
+    )
+
+    sev_color = {"pos": "var(--color-positive)", "warn": "var(--color-warning-text)", "neg": "var(--color-negative)"}
+    trigger_rows = [
+        f'<tr><td class="t" style="color:{sev_color.get(sev, "var(--color-muted)")};">{html.escape(key)}</td>'
+        f'<td class="r">{html.escape(text)}</td></tr>'
+        for key, text, sev in flags
+    ]
+    st.markdown(
+        '<div class="regime-panel"><table class="regime-table">'
+        + "".join(trigger_rows)
+        + '</table></div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 if view == "ideas":
