@@ -462,7 +462,7 @@ def tactical_action(bias, bias_score, setup_score, atr_ok, price, ma50,
 
 
 def historical_support_trigger(price, ma50, atr_pct, support_levels,
-                               approach_tolerance=0.05,
+                               approach_tolerance=0.04,
                                wick_tolerance=0.003):
     """Generate a Watch trigger if price is approaching a meaningful
     historical support level.
@@ -475,7 +475,7 @@ def historical_support_trigger(price, ma50, atr_pct, support_levels,
         "touches": int, "is_flip": bool, "_score": float, "source":
         "auto"|"manual"}.
       approach_tolerance: how close (above) does price need to be? Default
-        5% — close enough that the test is imminent, far enough that we
+        4% — close enough that the test is imminent, far enough that we
         get notice before the bounce.
       wick_tolerance: small allowance for closes that print just below
         the level (default 0.3%) — handles intraday wicks below support.
@@ -517,6 +517,12 @@ def historical_support_trigger(price, ma50, atr_pct, support_levels,
     is_flip = best.get("is_flip", False)
     source = best.get("source", "auto")
 
+    support_status = "testing"
+    if pct_above >= max(0.015, atr_pct * 0.75):
+        support_status = "held_above"
+    elif pct_above < 0:
+        support_status = "wick_test"
+
     # Build the trigger dict
     # Buy rule: hold of the level on volume confirmation
     # Abort: clean break below the level (allow a small buffer)
@@ -534,8 +540,8 @@ def historical_support_trigger(price, ma50, atr_pct, support_levels,
         "kind": "historical_support_test",
         "summary": f"hold of ${level:.2f} {descriptor}",
         "buy_rule": (
-            f"Buy on a hold of ${level:.2f} — wait for either a tap-and-bounce "
-            f"with confirming volume, or two daily closes back above the level."
+            f"Buy only after ${level:.2f} proves support — either a tap-and-bounce "
+            f"with confirming volume, or continued closes above the level."
         ),
         "abort_rule": (
             f"Abandon if price closes below ${abort_below:.2f} on volume — "
@@ -550,6 +556,7 @@ def historical_support_trigger(price, ma50, atr_pct, support_levels,
             "touches": touches,
             "is_flip": is_flip,
             "source": source,
+            "status": support_status,
             "pct_above_currently": round(pct_above * 100, 2),
         },
     }
