@@ -5221,7 +5221,12 @@ def decision_context(t):
                 "key support level"
             )
             if meta.get("status") == "held_above":
-                return f"{src.capitalize()} at ${level:,.2f} has held — wait for continuation."
+                price = t.get("price")
+                price_part = f" above ${float(price):,.2f}" if price else ""
+                return (
+                    f"{src.capitalize()} at ${level:,.2f} already held. "
+                    f"Still Watch; Enter only on continuation{price_part} with volume."
+                )
             if meta.get("status") == "wick_test":
                 return f"Testing {src} at ${level:,.2f} — needs a reclaim close."
             return f"Approaching {src} at ${level:,.2f} — buy on a hold."
@@ -5315,7 +5320,12 @@ def trigger_text(t):
                 "key support level"
             )
             if meta.get("status") == "held_above":
-                return f"Support at ${buy:,.2f} has held — wait for continuation with volume."
+                price = t.get("price")
+                price_part = f" above ${float(price):,.2f}" if price else ""
+                return (
+                    f"Support held at ${buy:,.2f}; this is not an entry by itself. "
+                    f"Enter only on continuation{price_part} with expanding volume."
+                )
             if meta.get("status") == "wick_test":
                 return f"Testing ${buy:,.2f} support now — needs a reclaim close."
             return f"Hold of ${buy:,.2f} — {descriptor}, wait for tap-and-bounce."
