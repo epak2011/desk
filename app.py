@@ -7548,6 +7548,19 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
         # Keep Analyze fast: refresh the active ticker row only, and reserve
         # full-watchlist price/action scans for the Watchlist page.
         saved_sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+        current_key = str(current or "").upper().strip()
+        if current_key in {str(t or "").upper().strip() for t in watchlist}:
+            current_market = ticker_snapshot(current_key).get("market") or {}
+            if sidebar_row_needs_refresh(current_market, max_age_minutes=5):
+                try:
+                    hist_current, _name_current, _err_current = fetch_history(current_key)
+                    bench_current = fetch_bench()
+                    if hist_current is not None and bench_current is not None:
+                        t_current = tactical.compute(hist_current, bench_current)
+                        if t_current is not None:
+                            remember_sidebar_ticker_snapshot(current_key, t_current, hist_current)
+                except Exception:
+                    pass
         wl_data = {
             str(tkr).upper(): (ticker_snapshot(tkr).get("market") or {})
             for tkr in watchlist
