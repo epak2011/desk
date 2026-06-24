@@ -11634,21 +11634,21 @@ if view == "regime":
     st.markdown(
         """
         <style>
-        .regime-shell{max-width:1480px;margin:0 auto;padding:18px 10px 48px}
+        .regime-shell{max-width:1480px;margin:0 auto;padding:18px 10px 56px}
         .regime-top{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr);gap:28px;align-items:start}
         .regime-label{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-xl);text-transform:uppercase;color:var(--color-muted)}
         .regime-action{font-size:clamp(48px,7vw,96px);line-height:.95;font-weight:900;letter-spacing:0;margin:28px 0 16px}
         .regime-sub{font-size:clamp(19px,2vw,30px);line-height:1.25;color:var(--color-text);max-width:980px;margin:0 0 18px}
         .regime-meta{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
-        .regime-divider{height:1px;background:var(--color-border);margin:26px 0}
+        .regime-divider{height:1px;background:var(--color-border);margin:30px 0}
         .regime-panel{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);box-shadow:var(--shadow-soft);overflow:hidden}
-        .regime-pad{padding:20px}
+        .regime-pad{padding:24px}
         .regime-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
         .regime-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-        .regime-metric{border:1px solid var(--color-border);border-radius:7px;background:rgba(255,255,255,.62);padding:14px 14px 13px}
-        .regime-metric .k,.regime-section-title{display:block;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
-        .regime-metric .v{display:block;font-family:var(--font-mono);font-size:22px;font-weight:900;color:var(--color-text)}
-        .regime-metric .s{display:block;margin-top:6px;font-size:var(--fs-xs);color:var(--color-muted);line-height:1.35}
+        .regime-metric{border:1px solid var(--color-border);border-radius:7px;background:rgba(255,255,255,.72);padding:17px 16px 16px}
+        .regime-metric .k,.regime-section-title{display:block;font-family:var(--font-mono);font-size:13px;font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
+        .regime-metric .v{display:block;font-family:var(--font-mono);font-size:28px;font-weight:900;color:var(--color-text)}
+        .regime-metric .s{display:block;margin-top:8px;font-size:14px;color:var(--color-muted);line-height:1.45}
         .regime-table{width:100%;border-collapse:collapse}
         .regime-table td{border-top:1px solid var(--color-border);padding:14px 16px;vertical-align:top}
         .regime-table tr:first-child td{border-top:0}
@@ -11659,36 +11659,41 @@ if view == "regime":
         .regime-watch strong{font-family:var(--font-mono);font-size:var(--fs-xs);letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
         .regime-layer{border:1px solid var(--color-border);border-radius:7px;background:rgba(255,255,255,.55);padding:14px}
         .regime-layer .n{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted)}
-        .regime-layer .v{display:block;margin-top:8px;font-size:22px;font-weight:850}
+        .regime-layer .v{display:block;margin-top:8px;font-size:26px;font-weight:850}
         .regime-bullet{display:flex;gap:9px;padding:6px 0;border-top:1px dashed rgba(148,163,184,.26);line-height:1.35}
         .regime-bullet:first-child{border-top:0}
         .regime-bullet span:first-child{color:var(--color-muted)}
-        .regime-brief{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:14px;align-items:stretch}
-        .regime-implication{display:grid;grid-template-columns:140px minmax(0,1fr);gap:18px;padding:14px 0;border-top:1px solid var(--color-border)}
-        .regime-implication:first-of-type{border-top:0;padding-top:2px}
+        .regime-brief{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(360px,.88fr);gap:18px;align-items:stretch}
+        .regime-implication{display:block;padding:18px 0;border-top:1px solid var(--color-border)}
+        .regime-implication:first-of-type{border-top:0;padding-top:4px}
         .regime-implication .h{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted)}
-        .regime-implication .b{font-size:var(--fs-md);line-height:1.42;color:var(--color-text)}
-        .regime-scenario{border-top:1px solid var(--color-border);padding:13px 0}
+        .regime-implication .b{font-size:19px;line-height:1.48;color:var(--color-text);margin-top:5px}
+        .regime-scenario{border-top:1px solid var(--color-border);padding:17px 0}
         .regime-scenario:first-of-type{border-top:0;padding-top:2px}
         .regime-scenario .h{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;margin-bottom:7px}
-        .regime-scenario .b{font-size:var(--fs-sm);line-height:1.42;color:var(--color-text)}
-        .regime-forward-row{display:grid;grid-template-columns:28px 160px minmax(0,1fr);gap:12px;align-items:start;padding:13px 0;border-top:1px solid var(--color-border)}
-        .regime-forward-row:first-of-type{border-top:0;padding-top:2px}
-        .regime-forward-row .num{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:900;color:var(--color-muted)}
-        .regime-forward-row .trig{font-weight:850;color:var(--color-text)}
-        .regime-forward-row .why{font-size:var(--fs-sm);line-height:1.4;color:var(--color-muted)}
-        .regime-forward-row .status{display:inline-block;margin-top:7px;border:1px solid var(--color-border);border-radius:5px;padding:4px 7px;font-family:var(--font-mono);font-size:11px;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+        .regime-scenario .b{font-size:17px;line-height:1.48;color:var(--color-text)}
+        .regime-forward-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+        .regime-forward-row{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;align-items:start;padding:16px;border:1px solid var(--color-border);border-radius:8px;background:rgba(255,255,255,.68)}
+        .regime-forward-row .num{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:var(--color-bg-soft);font-family:var(--font-mono);font-size:13px;font-weight:900;color:var(--color-muted)}
+        .regime-forward-row .trig{font-size:17px;font-weight:850;color:var(--color-text)}
+        .regime-forward-row .why{font-size:15px;line-height:1.45;color:var(--color-muted);margin-top:7px}
+        .regime-forward-row .status{display:inline-block;margin-top:8px;border:1px solid var(--color-border);border-radius:5px;padding:4px 7px;font-family:var(--font-mono);font-size:12px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:var(--color-muted)}
         .regime-dashboard{border:1px solid var(--color-border);border-radius:10px;background:var(--color-panel);overflow:hidden;box-shadow:var(--shadow-soft)}
-        .regime-dark{background:#101828;color:white;border-left:4px solid var(--color-blue);padding:20px 22px}
-        .regime-dark-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:16px;margin-bottom:16px}
-        .regime-dark-cell{padding:0 18px;border-right:1px solid rgba(255,255,255,.12)}
+        .regime-dark{background:#101828;color:white;border-left:4px solid var(--color-blue);padding:25px 28px}
+        .regime-dark-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:20px;margin-bottom:20px}
+        .regime-dark-cell{padding:0 20px;border-right:1px solid rgba(255,255,255,.12)}
         .regime-dark-cell:first-child{padding-left:0}
         .regime-dark-cell:last-child{border-right:0;padding-right:0}
-        .regime-dark .k{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#98A2B3;margin-bottom:7px}
-        .regime-dark .v{font-size:22px;font-weight:900;line-height:1.05}
+        .regime-dark .k{font-family:var(--font-mono);font-size:13px;font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#98A2B3;margin-bottom:8px}
+        .regime-dark .v{font-size:30px;font-weight:900;line-height:1.08}
         .regime-dark-bottom{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.9fr);gap:24px}
-        .regime-highlight{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.10);font-size:13px}
+        .regime-highlight{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.10);font-size:15px}
         .regime-highlight:last-child{border-bottom:0}
+        .regime-signal-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+        .regime-signal-card{border:1px solid var(--color-border);border-radius:8px;background:rgba(255,255,255,.72);padding:16px;min-height:148px}
+        .regime-signal-card .name{font-family:var(--font-mono);font-size:12px;font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted)}
+        .regime-signal-card .state{font-size:22px;font-weight:900;margin:8px 0 8px}
+        .regime-signal-card .copy{font-size:15px;line-height:1.45;color:var(--color-muted)}
         .regime-signal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--color-border);border-radius:8px;overflow:hidden;background:var(--color-panel)}
         .regime-signal-box{padding:16px 18px;border-right:1px solid var(--color-border)}
         .regime-signal-box:last-child{border-right:0}
@@ -11707,27 +11712,28 @@ if view == "regime":
         .crypto-price-cell:first-child{padding-left:0}
         .crypto-price-cell:last-child{border-right:0;padding-right:0}
         .crypto-price-cell .k{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#98A2B3;margin-bottom:5px}
-        .crypto-price-cell .v{font-family:var(--font-mono);font-size:24px;font-weight:950}
+        .crypto-price-cell .v{font-family:var(--font-mono);font-size:30px;font-weight:950}
         .crypto-decisions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
-        .crypto-card{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:14px}
+        .crypto-card{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:18px}
         .crypto-card .q{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
-        .crypto-card .answer{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--color-border);border-radius:6px;padding:6px 9px;font-weight:850;margin-bottom:10px}
+        .crypto-card .answer{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--color-border);border-radius:6px;padding:7px 10px;font-size:18px;font-weight:850;margin-bottom:10px}
         .crypto-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
         .crypto-tag{display:inline-block;margin:0 5px 6px 0;border:1px solid var(--color-border);border-radius:5px;padding:3px 6px;font-family:var(--font-mono);font-size:11px;color:var(--color-muted);background:#F8FAFC}
-        .crypto-note{font-size:var(--fs-sm);line-height:1.45;color:var(--color-muted)}
+        .crypto-note{font-size:15px;line-height:1.45;color:var(--color-muted)}
         .crypto-cycle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
         .crypto-phase{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:12px}
         .crypto-phase.current{border:2px solid var(--color-blue);background:#EFF6FF}
         .crypto-phase .phase{font-family:var(--font-mono);font-size:11px;font-weight:850;color:var(--color-muted);text-transform:uppercase}
-        .crypto-phase .name{font-weight:900;margin:5px 0 6px;color:var(--color-text)}
-        .crypto-phase .desc{font-size:12px;line-height:1.4;color:var(--color-muted)}
+        .crypto-phase .name{font-size:17px;font-weight:900;margin:5px 0 6px;color:var(--color-text)}
+        .crypto-phase .desc{font-size:14px;line-height:1.45;color:var(--color-muted)}
         .crypto-narrative{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:0 18px}
         .crypto-narrative-row{padding:13px 0;border-bottom:1px solid var(--color-border)}
         .crypto-narrative-row:last-child{border-bottom:0}
         .crypto-narrative-row .h{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:5px}
-        .crypto-narrative-row .b{font-size:var(--fs-md);line-height:1.48;color:var(--color-text)}
+        .crypto-narrative-row .b{font-size:19px;line-height:1.52;color:var(--color-text)}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
-        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.regime-forward-row{grid-template-columns:24px minmax(0,1fr)}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}}
+        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.regime-forward-row .why{grid-column:2}}
         @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
@@ -12325,8 +12331,8 @@ if view == "regime":
         '</div>'
         '<div class="regime-dark-bottom">'
         '<div>'
-        f'<div class="k">Why today</div><div style="font-size:20px;line-height:1.35;font-weight:760;">{html.escape(s["action_detail"])}</div>'
-        f'<div style="font-family:var(--font-mono);font-size:12px;color:#98A2B3;margin-top:12px;">score {s["score"]:+.2f} · updated {html.escape(updated_label)}</div>'
+        f'<div class="k">Why today</div><div style="font-size:24px;line-height:1.38;font-weight:760;">{html.escape(s["action_detail"])}</div>'
+        f'<div style="font-family:var(--font-mono);font-size:13px;color:#98A2B3;margin-top:14px;">score {s["score"]:+.2f} · updated {html.escape(updated_label)}</div>'
         '</div>'
         f'<div><div class="k">Market highlights</div>{highlight_html}</div>'
         '</div></div></div>'
@@ -12371,9 +12377,16 @@ if view == "regime":
         ("Liquidity", s["liq_status"], f'{s["liq_detail"]} Fed {s["liq_numbers"]["Fed"] if s["liq_numbers"]["Fed"] is not None else "—"}B · RRP {s["liq_numbers"]["RRP"] if s["liq_numbers"]["RRP"] is not None else "—"}B · TGA {s["liq_numbers"]["TGA"] if s["liq_numbers"]["TGA"] is not None else "—"}B'),
     ]
     st.markdown(
-        '<div class="regime-panel"><table class="regime-table">'
-        + "".join(f'<tr><td class="t" style="color:{sev_color.get(status, "var(--color-muted)")};">{html.escape(label)}<br>{html.escape(status)}</td><td class="r">{html.escape(text)}</td></tr>' for label, status, text in rows)
-        + '</table></div><div class="regime-divider"></div>',
+        '<div class="regime-signal-cards">'
+        + "".join(
+            f'<div class="regime-signal-card">'
+            f'<div class="name">{html.escape(label)}</div>'
+            f'<div class="state" style="color:{sev_color.get(status, "var(--color-muted)")};">{html.escape(status)}</div>'
+            f'<div class="copy">{html.escape(text)}</div>'
+            f'</div>'
+            for label, status, text in rows
+        )
+        + '</div><div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
 
@@ -12392,7 +12405,7 @@ if view == "regime":
         for title, body, color in scenarios
     )
     forward_html = "".join(
-        f'<div class="regime-forward-row"><div class="num">{idx}</div><div class="trig">{html.escape(trigger)}<br><span class="status">{html.escape(status)}</span></div><div class="why">{html.escape(why)}</div></div>'
+        f'<div class="regime-forward-row"><div class="num">{idx}</div><div><div class="trig">{html.escape(trigger)}</div><span class="status">{html.escape(status)}</span><div class="why">{html.escape(why)}</div></div></div>'
         for idx, (trigger, status, why) in enumerate(forward_items, 1)
     )
     st.markdown(
@@ -12408,8 +12421,8 @@ if view == "regime":
         '</div><div class="regime-divider"></div>'
         '<div class="regime-panel regime-pad">'
         '<span class="regime-section-title">Forward watch</span>'
-        '<div style="font-size:var(--fs-sm);color:var(--color-muted);line-height:1.45;margin:-2px 0 12px;">The next things that would change positioning. These are not headlines; they are decision gates.</div>'
-        f'{forward_html}'
+        '<div style="font-size:17px;color:var(--color-muted);line-height:1.5;margin:-2px 0 12px;">The next things that would change positioning. These are not headlines; they are decision gates.</div>'
+        f'<div class="regime-forward-list">{forward_html}</div>'
         '</div><div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
