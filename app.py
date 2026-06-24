@@ -11635,36 +11635,42 @@ if view == "regime":
         """
         <style>
         .regime-shell{max-width:1480px;margin:0 auto;padding:18px 10px 48px}
-        .regime-top{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:28px;align-items:start}
-        .regime-label{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:800;letter-spacing:var(--ls-caps-xl);text-transform:uppercase;color:var(--color-muted)}
-        .regime-action{font-size:clamp(48px,7vw,96px);line-height:.95;font-weight:900;letter-spacing:0;color:var(--color-heading);margin:28px 0 16px}
-        .regime-sub{font-size:clamp(20px,2.2vw,32px);line-height:1.22;color:var(--color-text);max-width:980px;margin:0 0 18px}
-        .regime-meta{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:800;letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
-        .regime-divider{height:1px;background:var(--color-border);margin:28px 0}
+        .regime-top{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr);gap:28px;align-items:start}
+        .regime-label{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-xl);text-transform:uppercase;color:var(--color-muted)}
+        .regime-action{font-size:clamp(48px,7vw,96px);line-height:.95;font-weight:900;letter-spacing:0;margin:28px 0 16px}
+        .regime-sub{font-size:clamp(19px,2vw,30px);line-height:1.25;color:var(--color-text);max-width:980px;margin:0 0 18px}
+        .regime-meta{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
+        .regime-divider{height:1px;background:var(--color-border);margin:26px 0}
         .regime-panel{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);box-shadow:var(--shadow-soft);overflow:hidden}
-        .regime-panel-pad{padding:20px}
+        .regime-pad{padding:20px}
         .regime-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+        .regime-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
         .regime-metric{border:1px solid var(--color-border);border-radius:7px;background:rgba(255,255,255,.62);padding:14px 14px 13px}
-        .regime-metric .k{display:block;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
+        .regime-metric .k,.regime-section-title{display:block;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
         .regime-metric .v{display:block;font-family:var(--font-mono);font-size:22px;font-weight:900;color:var(--color-text)}
         .regime-metric .s{display:block;margin-top:6px;font-size:var(--fs-xs);color:var(--color-muted);line-height:1.35}
         .regime-table{width:100%;border-collapse:collapse}
         .regime-table td{border-top:1px solid var(--color-border);padding:14px 16px;vertical-align:top}
         .regime-table tr:first-child td{border-top:0}
-        .regime-table .t{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);width:170px}
+        .regime-table .t{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;width:170px}
         .regime-table .r{font-size:var(--fs-md);line-height:1.35;color:var(--color-text)}
         .regime-chip{display:inline-block;border:1px solid var(--color-border);border-radius:5px;background:var(--color-panel);padding:7px 9px;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:.04em;color:var(--color-muted);margin:0 6px 6px 0}
-        .regime-side-title{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-xl);text-transform:uppercase;color:var(--color-muted);margin-bottom:12px}
         .regime-watch{border-left:3px solid var(--color-border);padding:10px 0 10px 14px;margin:0 0 12px;color:var(--color-text);line-height:1.35}
         .regime-watch strong{font-family:var(--font-mono);font-size:var(--fs-xs);letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
-        @media(max-width:900px){.regime-top{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
+        .regime-layer{border:1px solid var(--color-border);border-radius:7px;background:rgba(255,255,255,.55);padding:14px}
+        .regime-layer .n{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted)}
+        .regime-layer .v{display:block;margin-top:8px;font-size:22px;font-weight:850}
+        .regime-bullet{display:flex;gap:9px;padding:6px 0;border-top:1px dashed rgba(148,163,184,.26);line-height:1.35}
+        .regime-bullet:first-child{border-top:0}
+        .regime-bullet span:first-child{color:var(--color-muted)}
+        @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    def _regime_fmt(value, suffix="", digits=1):
+    def _fmt_regime(value, suffix="", digits=1):
         try:
             if value is None or (isinstance(value, float) and math.isnan(value)):
                 return "—"
@@ -11672,7 +11678,7 @@ if view == "regime":
         except (TypeError, ValueError):
             return "—"
 
-    def _regime_signed(value, suffix="%", digits=1):
+    def _signed_regime(value, suffix="%", digits=1):
         try:
             if value is None or (isinstance(value, float) and math.isnan(value)):
                 return "—"
@@ -11681,206 +11687,392 @@ if view == "regime":
             return "—"
 
     @st.cache_data(ttl=60 * 60, show_spinner=False)
-    def _fred_recent(series_id, limit=6):
+    def _fred_rows(series_id, limit=24):
         try:
             import pandas as pd
             url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={urllib.parse.quote(series_id)}"
             df = pd.read_csv(url).tail(limit)
             df[series_id] = pd.to_numeric(df[series_id], errors="coerce")
             df = df.dropna(subset=[series_id])
-            if df.empty:
-                return []
-            return [
-                {"date": str(row["observation_date"]), "value": float(row[series_id])}
-                for _, row in df.iterrows()
-            ]
+            return [{"date": str(r["observation_date"]), "value": float(r[series_id])} for _, r in df.iterrows()]
         except Exception:
             return []
 
     @st.cache_data(ttl=15 * 60, show_spinner=False)
-    def _market_quote(symbol):
+    def _quote(symbol, period="5d"):
         try:
-            hist = yf.Ticker(symbol).history(period="5d", interval="1d", auto_adjust=True)
-            if hist is None or len(hist) < 2:
-                return {"last": None, "change": None}
-            closes = hist["Close"].dropna()
+            hist = yf.Ticker(symbol).history(period=period, interval="1d", auto_adjust=True)
+            closes = hist["Close"].dropna() if hist is not None and "Close" in hist else []
             if len(closes) < 2:
                 return {"last": None, "change": None}
-            last = float(closes.iloc[-1])
-            prev = float(closes.iloc[-2])
+            last, prev = float(closes.iloc[-1]), float(closes.iloc[-2])
             return {"last": last, "change": (last / prev - 1) * 100 if prev else None}
         except Exception:
             return {"last": None, "change": None}
 
     @st.cache_data(ttl=60 * 60, show_spinner=False)
-    def _regime_snapshot():
-        ism = _fred_recent("NAPMPMI")
-        unemp = _fred_recent("UNRATE")
-        hy = _fred_recent("BAMLH0A0HYM2")
-        curve = _fred_recent("T10Y2Y")
-        spx = _market_quote("^GSPC")
-        qqq = _market_quote("QQQ")
-        vix = _market_quote("^VIX")
+    def _fear_greed():
+        try:
+            req = urllib.request.Request("https://api.alternative.me/fng/", headers={"User-Agent": "TradingDesk/1.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            item = (payload.get("data") or [{}])[0]
+            return {"value": int(item.get("value")), "label": item.get("value_classification") or "—"}
+        except Exception:
+            return {"value": None, "label": "—"}
 
-        ism_now = ism[-1]["value"] if ism else None
-        unemp_now = unemp[-1]["value"] if unemp else None
-        unemp_prev = unemp[-2]["value"] if len(unemp) >= 2 else None
-        hy_now = hy[-1]["value"] * 100 if hy else None
-        curve_now = curve[-1]["value"] * 100 if curve else None
-        unemp_rising = unemp_now is not None and unemp_prev is not None and unemp_now > unemp_prev
-
-        score = 0.0
-        flags = []
-        if ism_now is not None:
-            if ism_now < 50:
-                score -= 2.0
-                flags.append(("T1", "ISM below 50 — manufacturing contraction trigger is firing.", "neg"))
-            elif ism_now < 52:
-                score -= 0.7
-                flags.append(("T1", "ISM is soft but still expansionary.", "warn"))
-            else:
-                score += 0.4
-                flags.append(("T1", "ISM is expansionary.", "pos"))
-        if unemp_now is not None:
-            if unemp_now >= 4.2 and unemp_rising:
-                score -= 2.5
-                flags.append(("T2", "Unemployment is above 4.2% and rising.", "neg"))
-            elif unemp_now >= 4.0:
-                score -= 0.7
-                flags.append(("T2", "Labor market is near the watch zone.", "warn"))
-            else:
-                score += 0.3
-                flags.append(("T2", "Labor market is clear.", "pos"))
-        if hy_now is not None:
-            if hy_now >= 600:
-                score -= 2.5
-                flags.append(("T3", "High-yield spreads are in stress territory.", "neg"))
-            elif hy_now >= 450:
-                score -= 1.0
-                flags.append(("T3", "Credit stress is elevated.", "warn"))
-            else:
-                score += 0.4
-                flags.append(("T3", "Credit spreads are contained.", "pos"))
-        if curve_now is not None:
-            if curve_now < 0:
-                score -= 0.5
-                flags.append(("YC", "Yield curve is inverted.", "warn"))
-            else:
-                score += 0.2
-                flags.append(("YC", "Yield curve is positive.", "pos"))
-        if vix.get("last") is not None:
-            if vix["last"] >= 30:
-                score -= 1.2
-                flags.append(("VIX", "Volatility stress is elevated.", "neg"))
-            elif vix["last"] >= 22:
-                score -= 0.5
-                flags.append(("VIX", "Volatility is elevated.", "warn"))
-            else:
-                score += 0.2
-                flags.append(("VIX", "Volatility is contained.", "pos"))
-
-        if score <= -3.0:
-            action = "Reduce risk"
-            color = "var(--color-negative)"
-            read = "Macro risk is high enough to lower gross exposure and avoid forcing new longs."
-            posture = "Defensive"
-        elif score <= -1.0:
-            action = "Tighten up"
-            color = "var(--color-warning-text)"
-            read = "Risk is not broken, but the tape deserves smaller size, cleaner triggers, and faster invalidation."
-            posture = "Selective"
+    def _score_regime(d):
+        cfg = {"ism_warn": 50, "t2_trigger": 4.2, "t2_approach": 4.0, "hy_alert": 450, "hy_fire": 600}
+        s = {}
+        ism = d.get("ism")
+        unemp = d.get("unemp")
+        unemp_prev = d.get("unemp_prev")
+        hy_bps = d.get("hy_bps")
+        yc_bps = d.get("yc_bps")
+        if ism is not None and ism < cfg["ism_warn"]:
+            s.update(t1="WARNING", t1_score=-2.5, t1_dist=ism - 50, t1_short=f"ISM Manufacturing {ism:.1f}% — BELOW 50, first miss", t1_detail=f"ISM {ism:.1f}% BELOW 50 — T1 WARNING. Reduce risk now.")
         else:
-            action = "Stay risk-on"
-            color = "var(--color-positive)"
-            read = "Macro and market stress are contained. Let stock-specific rules drive entries and exits."
-            posture = "Constructive"
+            s.update(t1="CLEAR", t1_score=1.0, t1_dist=(ism - 50 if ism is not None else None), t1_short=f"ISM Manufacturing {ism:.1f}% — above 50, no miss" if ism is not None else "ISM unavailable", t1_detail=f"ISM {ism:.1f}% expanding. T1 clear." if ism is not None else "ISM unavailable.")
+        rising = unemp is not None and unemp_prev is not None and unemp > unemp_prev
+        falling = unemp is not None and unemp_prev is not None and unemp < unemp_prev
+        if unemp is not None and unemp >= cfg["t2_trigger"] and rising:
+            s.update(t2="FIRING", t2_score=-2.5, t2_dist=unemp - cfg["t2_trigger"], t2_short=f"Unemployment {unemp:.1f}% — above 4.2% and rising", t2_detail=f"Unemployment {unemp:.1f}% above 4.2% and RISING. T2 active.")
+        elif unemp is not None and unemp >= cfg["t2_trigger"] and falling:
+            s.update(t2="RETREATING", t2_score=0.0, t2_dist=-(cfg["t2_trigger"] - unemp + 0.1), t2_short=f"Unemployment {unemp:.1f}% — was {unemp_prev:.1f}%, now falling", t2_detail=f"Unemployment {unemp:.1f}% above trigger but FALLING. Near-miss.")
+        elif unemp is not None and unemp >= cfg["t2_approach"] and rising:
+            s.update(t2="APPROACHING", t2_score=-0.75, t2_dist=unemp - cfg["t2_trigger"], t2_short=f"Unemployment {unemp:.1f}% — rising toward 4.2%", t2_detail=f"Unemployment {unemp:.1f}% approaching 4.2% and rising.")
+        else:
+            s.update(t2="CLEAR", t2_score=0.25, t2_dist=(unemp - cfg["t2_trigger"] if unemp is not None else None), t2_short=f"Unemployment {unemp:.1f}% — stable, below 4.2%" if unemp is not None else "Unemployment unavailable", t2_detail=f"Unemployment {unemp:.1f}% stable." if unemp is not None else "Unemployment unavailable.")
+        if hy_bps is not None and hy_bps >= cfg["hy_fire"]:
+            s.update(t3="FIRING", t3_score=-1.5, t3_detail=f"HY OAS {hy_bps:.0f}bps above 600bps crisis threshold.")
+        elif hy_bps is not None and hy_bps >= cfg["hy_alert"]:
+            s.update(t3="ELEVATED", t3_score=-1.0, t3_detail=f"HY OAS {hy_bps:.0f}bps elevated, {cfg['hy_fire'] - hy_bps:.0f}bps from trigger.")
+        else:
+            s.update(t3="CLEAR", t3_score=0.25, t3_detail=f"HY OAS {hy_bps:.0f}bps normal, {cfg['hy_fire'] - hy_bps:.0f}bps from trigger." if hy_bps is not None else "HY OAS unavailable.")
+        if yc_bps is not None and yc_bps < 0:
+            s.update(yc="INVERTED", yc_score=-2.0, yc_detail=f"Yield curve {yc_bps:.0f}bps inverted — leading bear signal.")
+        elif yc_bps is not None and yc_bps < 50:
+            s.update(yc="FLAT", yc_score=-0.5, yc_detail=f"Yield curve +{yc_bps:.0f}bps flat.")
+        else:
+            s.update(yc="STEEPENING", yc_score=0.5, yc_detail=f"Yield curve +{yc_bps:.0f}bps steepening — positive." if yc_bps is not None else "Yield curve unavailable.")
+        score = s["t1_score"] + s["t2_score"] * 0.5 + s["t3_score"] * 0.25 + s["yc_score"] * 0.25
+        s["score"] = score
+        if s["t1"] == "WARNING":
+            s.update(regime="LATE EXPANSION / REDUCE", action_label="REDUCE", action_detail="T1 fired below 50. Cut equity to 30–50%. Raise cash, trim cyclicals first.", action_short="REDUCE: Cut to 30–50% equity. Trim cyclicals first.")
+        elif s["yc"] == "INVERTED" and s["t1"] == "CLEAR":
+            s.update(regime="LATE CYCLE / INVERTED", action_label="REDUCE", action_detail="Yield curve inverted while T1 is still clear. Cut to 40–60% equity. Do not wait for T1 to confirm.", action_short="REDUCE: Inverted curve. Cut to 40–60% equity now.")
+        elif s["t2"] == "RETREATING" and s["t1"] == "CLEAR":
+            s.update(regime="FRAGILE / IMPROVING", action_label="ADD", action_detail="T2 retreating. Near-miss confirmed. Target 60–70% equity, deployed over 1–2 weeks on weakness.", action_short="ADD: Deploy gradually on weakness.")
+        elif s["t2"] == "FIRING" and s["t1"] == "CLEAR":
+            s.update(regime="FRAGILE / NEAR-MISS", action_label="HOLD", action_detail="T2 firing but T1 still clear. Hold current exposure. Do not add. One ISM miss below 50 triggers REDUCE.", action_short="HOLD: Do not add. One ISM miss = REDUCE.")
+        elif s["t1"] == "CLEAR" and s["t2"] == "CLEAR":
+            s.update(regime="EXPANSION", action_label="HOLD", action_detail="All primary signals clear. Hold full base positioning; stock-specific rules decide adds.", action_short="HOLD: All clear. Maintain base exposure.")
+        else:
+            s.update(regime="FRAGILE", action_label="HOLD", action_detail="Mixed signals. Hold current positioning and monitor T1 closely.", action_short="HOLD: Mixed signals.")
+        if s["t1"] == "WARNING":
+            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Contraction Risk", "Risk Off", "Raise Cash"
+        elif s["yc"] == "INVERTED" and s["t1"] == "CLEAR":
+            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Late Cycle", "Defensive", "Reduce Weak Exposure"
+        elif s["t2"] == "FIRING" and s["t1"] == "CLEAR":
+            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Late Cycle", "Neutral", "Wait for Confirmation"
+        elif s["t2"] == "RETREATING" and s["t1"] == "CLEAR":
+            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Recovery", "Moderately Risk On", "Deploy Gradually"
+        elif s["t1"] == "CLEAR" and s["t2"] == "CLEAR" and s["t3"] == "CLEAR":
+            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Expansion", "Risk On", "Maintain Full Positioning"
+        else:
+            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Transition", "Neutral", "Wait for Confirmation"
+        vix = d.get("vix")
+        fg = d.get("fg")
+        pcr = d.get("pcr")
+        cluster_n = int(vix is not None and vix > 35) + int(fg is not None and fg < 25) + int(pcr is not None and pcr > 0.9)
+        if cluster_n >= 2:
+            s["short_term_cond"] = "Oversold"
+        elif fg is not None and fg >= 75:
+            s["short_term_cond"] = "Extended"
+        elif vix is not None and vix > 25:
+            s["short_term_cond"] = "Choppy"
+        elif fg is not None and fg < 35 and (d.get("spx_change") or 0) < 0:
+            s["short_term_cond"] = "Healthy Pullback"
+        elif (d.get("spx_change") or 0) > 1:
+            s["short_term_cond"] = "Momentum Acceleration"
+        else:
+            s["short_term_cond"] = "Constructive"
+        s["why_today"] = []
+        if s["t1"] == "WARNING":
+            s["why_today"].append(f"ISM {ism:.1f}% below 50 → primary recession trigger fired")
+        elif s["t2"] == "RETREATING":
+            s["why_today"].append(f"Unemployment retreating {unemp_prev:.1f}%→{unemp:.1f}% → near-miss confirmed")
+        elif s["t2"] == "FIRING":
+            s["why_today"].append(f"Unemployment {unemp:.1f}% rising above 4.2% → labor stress building")
+        elif s["t1"] == "CLEAR" and ism is not None:
+            s["why_today"].append(f"ISM {ism:.1f}% above 50 → expansion intact, no T1 trigger")
+        if s["yc"] == "INVERTED":
+            s["why_today"].append(f"Yield curve {yc_bps:.0f}bps inverted → late-cycle risk elevated")
+        elif s["t3"] == "FIRING":
+            s["why_today"].append(f"HY spreads {hy_bps:.0f}bps above 600 → credit stress firing")
+        elif s["t3"] == "ELEVATED":
+            s["why_today"].append(f"HY spreads {hy_bps:.0f}bps elevated → credit caution rising")
+        elif hy_bps is not None and hy_bps < 350 and len(s["why_today"]) < 2:
+            s["why_today"].append(f"HY spreads {hy_bps:.0f}bps stable → no credit stress")
+        s["why_today"] = s["why_today"][:2]
+        s["change_if"] = []
+        s["change_if"].append("ISM prints below 50 → shift to REDUCE" if s["t1"] == "CLEAR" else "ISM recovers above 50 → begin rebuilding")
+        if s["t3"] != "FIRING" and hy_bps is not None and hy_bps < 475:
+            s["change_if"].append("HY spreads above 475bps → tail-risk activates")
+        elif s["t2"] not in {"FIRING", "RETREATING"}:
+            s["change_if"].append("Unemployment re-accelerates above 4.4% rising → regime deteriorates")
+        return s
 
+    @st.cache_data(ttl=60 * 60, show_spinner=False)
+    def _crypto_snapshot():
+        btc = _quote("BTC-USD", "260d")
+        ethbtc_hist = yf.Ticker("ETH-BTC").history(period="35d", interval="1d", auto_adjust=True)
+        btc_hist = yf.Ticker("BTC-USD").history(period="260d", interval="1d", auto_adjust=True)
+        fg = _fear_greed()
+        if btc_hist is None or btc_hist.empty:
+            return {}
+        closes = btc_hist["Close"].dropna()
+        if len(closes) < 50:
+            return {}
+        btc_price = float(closes.iloc[-1])
+        ma200 = float(closes.tail(200).mean())
+        ma20 = float(closes.tail(20).mean())
+        btc_vs_200 = (btc_price / ma200 - 1) * 100 if ma200 else None
+        btc_vs_20 = (btc_price / ma20 - 1) * 100 if ma20 else None
+        ethbtc_change = None
+        if ethbtc_hist is not None and not ethbtc_hist.empty:
+            ethbtc = ethbtc_hist["Close"].dropna()
+            if len(ethbtc) >= 20:
+                ethbtc_change = (float(ethbtc.iloc[-1]) / float(ethbtc.tail(30).mean()) - 1) * 100
+        if btc_vs_200 is not None and btc_vs_20 is not None and btc_vs_200 > 0 and btc_vs_20 > 0:
+            q1 = "Bull — above 200d and 20d MA"
+            q1_color = "var(--color-positive)"
+        elif btc_vs_200 is not None and btc_vs_200 > 0:
+            q1 = "Mixed — structure intact, momentum fading"
+            q1_color = "var(--color-warning-text)"
+        else:
+            q1 = "Bear/reclaim attempt — 200d is the hurdle"
+            q1_color = "var(--color-negative)"
+        fg_value = fg.get("value")
+        if btc_vs_200 and btc_vs_200 > 0 and fg_value is not None and fg_value < 40:
+            add = "Yes — pro-trend dip"
+        elif fg_value is not None and fg_value >= 65:
+            add = "Wait — sentiment extended"
+        else:
+            add = "Selective — no clear sentiment edge"
+        if ethbtc_change is not None and ethbtc_change > 5:
+            rotation = "Lean alts — ETH/BTC improving"
+        elif ethbtc_change is not None and ethbtc_change < -5:
+            rotation = "Lean BTC — ETH/BTC weakening"
+        else:
+            rotation = "Neutral — default BTC"
         return {
-            "score": score,
-            "action": action,
-            "action_color": color,
-            "read": read,
-            "posture": posture,
-            "flags": flags,
-            "metrics": {
-                "SPX": spx,
-                "QQQ": qqq,
-                "VIX": vix,
-                "ISM": {"last": ism_now, "change": None},
-                "Unemployment": {
-                    "last": unemp_now,
-                    "change": (unemp_now - unemp_prev) if unemp_now is not None and unemp_prev is not None else None,
-                },
-                "HY OAS": {"last": hy_now, "change": None},
-                "10Y-2Y": {"last": curve_now, "change": None},
-            },
-            "updated_at": datetime.now().isoformat(timespec="seconds"),
+            "price": btc_price,
+            "change": btc.get("change"),
+            "btc_vs_200": btc_vs_200,
+            "btc_vs_20": btc_vs_20,
+            "fg": fg,
+            "q1": q1,
+            "q1_color": q1_color,
+            "add": add,
+            "rotation": rotation,
+            "ethbtc_change": ethbtc_change,
         }
 
-    if st.button("↻ Refresh market regime", key="refresh_market_regime", help="Refresh macro and market-regime inputs."):
-        _fred_recent.clear()
-        _market_quote.clear()
+    @st.cache_data(ttl=60 * 60, show_spinner=False)
+    def _regime_snapshot():
+        ism = _fred_rows("NAPMPMI")
+        unemp = _fred_rows("UNRATE")
+        hy = _fred_rows("BAMLH0A0HYM2")
+        yc = _fred_rows("T10Y2Y")
+        fed = _fred_rows("WALCL")
+        rrp = _fred_rows("WLRRAL")
+        tga = _fred_rows("WTREGEN")
+        fg = _fear_greed()
+        spx = _quote("^GSPC")
+        qqq = _quote("QQQ")
+        vix = _quote("^VIX")
+        d = {
+            "ism": ism[-1]["value"] if ism else None,
+            "unemp": unemp[-1]["value"] if unemp else None,
+            "unemp_prev": unemp[-2]["value"] if len(unemp) >= 2 else None,
+            "hy_bps": hy[-1]["value"] * 100 if hy else None,
+            "yc_bps": yc[-1]["value"] * 100 if yc else None,
+            "fed_now": fed[-1]["value"] if fed else None,
+            "fed_prev": fed[-5]["value"] if len(fed) >= 5 else None,
+            "rrp_now": rrp[-1]["value"] if rrp else None,
+            "rrp_prev": rrp[-5]["value"] if len(rrp) >= 5 else None,
+            "tga_now": tga[-1]["value"] if tga else None,
+            "tga_prev": tga[-5]["value"] if len(tga) >= 5 else None,
+            "spx": spx.get("last"),
+            "spx_change": spx.get("change"),
+            "qqq": qqq.get("last"),
+            "qqq_change": qqq.get("change"),
+            "vix": vix.get("last"),
+            "vix_change": vix.get("change"),
+            "fg": fg.get("value"),
+            "fg_label": fg.get("label"),
+            "pcr": None,
+        }
+        s = _score_regime(d)
+        liq_signals = 0
+        liq_count = 0
+        if d["fed_now"] is not None and d["fed_prev"] is not None:
+            liq_count += 1
+            liq_signals += 1 if d["fed_now"] > d["fed_prev"] * 1.001 else (-1 if d["fed_now"] < d["fed_prev"] * 0.999 else 0)
+        if d["rrp_now"] is not None and d["rrp_prev"] is not None:
+            liq_count += 1
+            liq_signals += 1 if d["rrp_now"] < d["rrp_prev"] * 0.99 else (-1 if d["rrp_now"] > d["rrp_prev"] * 1.01 else 0)
+        if d["tga_now"] is not None and d["tga_prev"] is not None:
+            liq_count += 1
+            liq_signals += 1 if d["tga_now"] < d["tga_prev"] * 0.99 else (-1 if d["tga_now"] > d["tga_prev"] * 1.01 else 0)
+        if liq_count == 0:
+            s.update(liq_status="NEUTRAL", liq_detail="Liquidity data unavailable.", liq_color="var(--color-muted)")
+        elif liq_signals >= 2:
+            s.update(liq_status="IMPROVING", liq_detail="Net liquidity expanding — Fed balance sheet, RRP, and TGA skew positive.", liq_color="var(--color-positive)")
+        elif liq_signals <= -2:
+            s.update(liq_status="TIGHTENING", liq_detail="Net liquidity tightening — medium-term headwind for risk assets.", liq_color="var(--color-negative)")
+        else:
+            s.update(liq_status="NEUTRAL", liq_detail="Mixed liquidity signals — neither clear tailwind nor headwind.", liq_color="var(--color-warning-text)")
+        def _bchg(now, prev):
+            return round((now - prev) / 1000) if now is not None and prev is not None else None
+        s["liq_numbers"] = {
+            "Fed": _bchg(d["fed_now"], d["fed_prev"]),
+            "RRP": _bchg(d["rrp_now"], d["rrp_prev"]),
+            "TGA": _bchg(d["tga_now"], d["tga_prev"]),
+        }
+        s["alerts"] = []
+        if s["t1"] == "WARNING":
+            s["alerts"].append("T1 WARNING")
+        if s["yc"] == "INVERTED" and s["t1"] == "CLEAR":
+            s["alerts"].append("CURVE INVERTED")
+        if s["t2"] == "FIRING":
+            s["alerts"].append("T2 FIRING")
+        if s["t2"] == "APPROACHING":
+            s["alerts"].append("T2 APPROACHING")
+        if s["t3"] == "ELEVATED":
+            s["alerts"].append("HY ELEVATED")
+        return {"data": d, "signals": s, "crypto": _crypto_snapshot(), "updated_at": datetime.now().isoformat(timespec="seconds")}
+
+    if st.button("↻ Refresh market regime", key="refresh_market_regime", help="Refresh macro, short-term, liquidity, and crypto inputs."):
+        _fred_rows.clear()
+        _quote.clear()
+        _fear_greed.clear()
+        _crypto_snapshot.clear()
         _regime_snapshot.clear()
         st.rerun()
 
-    regime = _regime_snapshot()
-    flags = regime["flags"]
-    neg_count = sum(1 for _, _, sev in flags if sev == "neg")
-    warn_count = sum(1 for _, _, sev in flags if sev == "warn")
-    pos_count = sum(1 for _, _, sev in flags if sev == "pos")
-    updated_label = datetime.fromisoformat(regime["updated_at"]).strftime("%b %d · %-I:%M %p")
+    snap = _regime_snapshot()
+    d, s, crypto = snap["data"], snap["signals"], snap.get("crypto") or {}
+    color_map = {
+        "Risk Off": "var(--color-negative)",
+        "Defensive": "var(--color-warning-text)",
+        "Neutral": "var(--color-blue)",
+        "Moderately Risk On": "var(--color-positive)",
+        "Risk On": "var(--color-positive)",
+    }
+    action_color = color_map.get(s["portfolio_stance"], "var(--color-text)")
+    updated_label = datetime.fromisoformat(snap["updated_at"]).strftime("%b %d · %-I:%M %p")
 
     st.markdown('<div class="regime-shell">', unsafe_allow_html=True)
+    if s["alerts"]:
+        st.markdown(
+            '<div class="regime-panel regime-pad" style="border-color:rgba(209,69,69,.45);margin-bottom:18px;">'
+            f'<span class="regime-section-title" style="color:var(--color-negative);">Alert</span>{html.escape(" · ".join(s["alerts"]))}</div>',
+            unsafe_allow_html=True,
+        )
     st.markdown(
         '<div class="regime-top"><div>'
         '<div class="regime-label">Market Regime & Risk Engine</div>'
-        f'<div class="regime-action" style="color:{regime["action_color"]};">{html.escape(regime["action"])}</div>'
-        f'<div class="regime-sub">{html.escape(regime["read"])}</div>'
-        f'<div class="regime-meta" style="color:{regime["action_color"]};">{html.escape(regime["posture"])} · score {regime["score"]:+.1f} · updated {html.escape(updated_label)}</div>'
-        '</div><div class="regime-panel"><div class="regime-panel-pad">'
-        '<div class="regime-side-title">Risk stack</div>'
-        f'<span class="regime-chip">{pos_count} clear</span><span class="regime-chip">{warn_count} watch</span><span class="regime-chip">{neg_count} firing</span>'
+        f'<div class="regime-action" style="color:{action_color};">{html.escape(s["action_guidance"])}</div>'
+        f'<div class="regime-sub">{html.escape(s["action_detail"])}</div>'
+        f'<div class="regime-meta" style="color:{action_color};">{html.escape(s["portfolio_stance"])} · {html.escape(s["regime_layer"])} · score {s["score"]:+.2f} · updated {html.escape(updated_label)}</div>'
+        '</div><div class="regime-panel"><div class="regime-pad">'
+        '<span class="regime-section-title">4-layer decision read</span>'
+        f'<span class="regime-chip">Regime: {html.escape(s["regime_layer"])}</span>'
+        f'<span class="regime-chip">Stance: {html.escape(s["portfolio_stance"])}</span>'
+        f'<span class="regime-chip">Action: {html.escape(s["action_guidance"])}</span>'
+        f'<span class="regime-chip">Tape: {html.escape(s["short_term_cond"])}</span>'
         '<div class="regime-divider"></div>'
-        '<div class="regime-side-title">Operating rule</div>'
-        '<div class="regime-watch"><strong>Position sizing</strong><br>Macro does not make single-stock decisions. It sets how aggressive the stock rules are allowed to be.</div>'
+        '<div class="regime-watch"><strong>Operating rule</strong><br>Macro sets the risk budget. Single-stock rules still decide individual entries.</div>'
         '</div></div></div>'
         '<div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
 
+    layer_html = "".join(
+        f'<div class="regime-layer"><span class="n">{html.escape(label)}</span><span class="v" style="color:{color};">{html.escape(value)}</span></div>'
+        for label, value, color in [
+            ("Regime", s["regime_layer"], action_color),
+            ("Portfolio stance", s["portfolio_stance"], action_color),
+            ("Action guidance", s["action_guidance"], action_color),
+            ("Short-term condition", s["short_term_cond"], "var(--color-text)"),
+        ]
+    )
+    st.markdown(f'<div class="regime-grid">{layer_html}</div><div class="regime-divider"></div>', unsafe_allow_html=True)
+
     metric_specs = [
-        ("SPX", _regime_fmt(regime["metrics"]["SPX"]["last"], "", 0), _regime_signed(regime["metrics"]["SPX"]["change"])),
-        ("QQQ", _regime_fmt(regime["metrics"]["QQQ"]["last"], "", 2), _regime_signed(regime["metrics"]["QQQ"]["change"])),
-        ("VIX", _regime_fmt(regime["metrics"]["VIX"]["last"], "", 1), _regime_signed(regime["metrics"]["VIX"]["change"])),
-        ("ISM", _regime_fmt(regime["metrics"]["ISM"]["last"], "", 1), "T1 manufacturing trigger"),
-        ("Unemployment", _regime_fmt(regime["metrics"]["Unemployment"]["last"], "%", 1), f"{_regime_signed(regime['metrics']['Unemployment']['change'], ' pts', 1)} vs prior"),
-        ("HY OAS", _regime_fmt(regime["metrics"]["HY OAS"]["last"], " bps", 0), "T3 credit stress"),
-        ("10Y-2Y", _regime_fmt(regime["metrics"]["10Y-2Y"]["last"], " bps", 0), "curve slope"),
-        ("Posture", regime["posture"], "risk budget for stock setups"),
+        ("SPX", _fmt_regime(d["spx"], "", 0), _signed_regime(d["spx_change"])),
+        ("QQQ", _fmt_regime(d["qqq"], "", 2), _signed_regime(d["qqq_change"])),
+        ("VIX", _fmt_regime(d["vix"], "", 1), _signed_regime(d["vix_change"])),
+        ("Fear & Greed", _fmt_regime(d["fg"], "", 0), d.get("fg_label") or "—"),
+        ("ISM", _fmt_regime(d["ism"], "", 1), s["t1_short"]),
+        ("Unemployment", _fmt_regime(d["unemp"], "%", 1), s["t2_short"]),
+        ("HY OAS", _fmt_regime(d["hy_bps"], " bps", 0), s["t3_detail"]),
+        ("10Y-2Y", _fmt_regime(d["yc_bps"], " bps", 0), s["yc_detail"]),
     ]
     st.markdown(
         '<div class="regime-grid">'
-        + "".join(
-            f'<div class="regime-metric"><span class="k">{html.escape(k)}</span><span class="v">{html.escape(str(v))}</span><span class="s">{html.escape(str(s))}</span></div>'
-            for k, v, s in metric_specs
-        )
+        + "".join(f'<div class="regime-metric"><span class="k">{html.escape(k)}</span><span class="v">{html.escape(v)}</span><span class="s">{html.escape(sub)}</span></div>' for k, v, sub in metric_specs)
         + '</div><div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
 
-    sev_color = {"pos": "var(--color-positive)", "warn": "var(--color-warning-text)", "neg": "var(--color-negative)"}
-    trigger_rows = [
-        f'<tr><td class="t" style="color:{sev_color.get(sev, "var(--color-muted)")};">{html.escape(key)}</td>'
-        f'<td class="r">{html.escape(text)}</td></tr>'
-        for key, text, sev in flags
+    sev_color = {"CLEAR": "var(--color-positive)", "RETREATING": "var(--color-positive)", "APPROACHING": "var(--color-warning-text)", "ELEVATED": "var(--color-warning-text)", "WARNING": "var(--color-negative)", "FIRING": "var(--color-negative)", "INVERTED": "var(--color-warning-text)", "FLAT": "var(--color-warning-text)", "STEEPENING": "var(--color-positive)"}
+    rows = [
+        ("T1 · ISM", s["t1"], s["t1_detail"]),
+        ("T2 · Unemployment", s["t2"], s["t2_detail"]),
+        ("T3 · HY OAS", s["t3"], s["t3_detail"]),
+        ("Yield curve", s["yc"], s["yc_detail"]),
+        ("Liquidity", s["liq_status"], f'{s["liq_detail"]} Fed {s["liq_numbers"]["Fed"] if s["liq_numbers"]["Fed"] is not None else "—"}B · RRP {s["liq_numbers"]["RRP"] if s["liq_numbers"]["RRP"] is not None else "—"}B · TGA {s["liq_numbers"]["TGA"] if s["liq_numbers"]["TGA"] is not None else "—"}B'),
     ]
     st.markdown(
         '<div class="regime-panel"><table class="regime-table">'
-        + "".join(trigger_rows)
-        + '</table></div>',
+        + "".join(f'<tr><td class="t" style="color:{sev_color.get(status, "var(--color-muted)")};">{html.escape(label)}<br>{html.escape(status)}</td><td class="r">{html.escape(text)}</td></tr>' for label, status, text in rows)
+        + '</table></div><div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+
+    def _bullets(items):
+        return "".join(f'<div class="regime-bullet"><span>•</span><span>{html.escape(item)}</span></div>' for item in items)
+
+    forward_items = s["change_if"] + [
+        "If VIX spikes above 35 with Fear & Greed below 25 → short-term oversold cluster fires",
+        "If T1/T2/T3 remain clear → maintain full base positioning and let stock rules drive adds",
+    ]
+    st.markdown(
+        '<div class="regime-two">'
+        '<div class="regime-panel regime-pad"><span class="regime-section-title">Why today</span>'
+        + _bullets(s["why_today"])
+        + '</div><div class="regime-panel regime-pad"><span class="regime-section-title">Forward watch</span>'
+        + _bullets(forward_items[:4])
+        + '</div></div><div class="regime-divider"></div>',
+        unsafe_allow_html=True,
+    )
+
+    crypto_cards = [
+        ("BTC", f'${crypto.get("price"):,.0f}' if crypto.get("price") is not None else "—", _signed_regime(crypto.get("change"))),
+        ("BTC vs 200d", _signed_regime(crypto.get("btc_vs_200")), crypto.get("q1") or "—"),
+        ("BTC vs 20d", _signed_regime(crypto.get("btc_vs_20")), crypto.get("add") or "—"),
+        ("ETH/BTC", _signed_regime(crypto.get("ethbtc_change")), crypto.get("rotation") or "—"),
+    ]
+    st.markdown(
+        '<div class="regime-panel regime-pad"><span class="regime-section-title">Crypto regime</span>'
+        '<div class="regime-grid">'
+        + "".join(f'<div class="regime-metric"><span class="k">{html.escape(k)}</span><span class="v">{html.escape(v)}</span><span class="s">{html.escape(sub)}</span></div>' for k, v, sub in crypto_cards)
+        + '</div></div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 if view == "ideas":
