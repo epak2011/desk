@@ -11678,8 +11678,56 @@ if view == "regime":
         .regime-forward-row .trig{font-weight:850;color:var(--color-text)}
         .regime-forward-row .why{font-size:var(--fs-sm);line-height:1.4;color:var(--color-muted)}
         .regime-forward-row .status{display:inline-block;margin-top:7px;border:1px solid var(--color-border);border-radius:5px;padding:4px 7px;font-family:var(--font-mono);font-size:11px;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+        .regime-dashboard{border:1px solid var(--color-border);border-radius:10px;background:var(--color-panel);overflow:hidden;box-shadow:var(--shadow-soft)}
+        .regime-dark{background:#101828;color:white;border-left:4px solid var(--color-blue);padding:20px 22px}
+        .regime-dark-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:16px;margin-bottom:16px}
+        .regime-dark-cell{padding:0 18px;border-right:1px solid rgba(255,255,255,.12)}
+        .regime-dark-cell:first-child{padding-left:0}
+        .regime-dark-cell:last-child{border-right:0;padding-right:0}
+        .regime-dark .k{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#98A2B3;margin-bottom:7px}
+        .regime-dark .v{font-size:22px;font-weight:900;line-height:1.05}
+        .regime-dark-bottom{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.9fr);gap:24px}
+        .regime-highlight{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.10);font-size:13px}
+        .regime-highlight:last-child{border-bottom:0}
+        .regime-signal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--color-border);border-radius:8px;overflow:hidden;background:var(--color-panel)}
+        .regime-signal-box{padding:16px 18px;border-right:1px solid var(--color-border)}
+        .regime-signal-box:last-child{border-right:0}
+        .regime-signal-box .label{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;margin-bottom:5px}
+        .regime-signal-box .value{font-family:var(--font-mono);font-size:24px;font-weight:950;margin:8px 0 4px;color:var(--color-text)}
+        .regime-signal-box .detail{font-size:var(--fs-sm);line-height:1.4;color:var(--color-muted)}
+        .regime-action-box{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px;background:#101828;color:white;border-radius:10px;padding:18px 22px;border:1px solid rgba(255,255,255,.08)}
+        .regime-action-box li{list-style:none;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08);line-height:1.45}
+        .regime-action-box li:last-child{border-bottom:0}
+        .crypto-wrap{margin-top:4px}
+        .crypto-header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+        .crypto-accent{width:4px;height:22px;border-radius:2px;background:var(--color-blue)}
+        .crypto-badge{border:1px solid var(--color-border);border-radius:5px;padding:4px 7px;font-family:var(--font-mono);font-size:11px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;background:var(--color-panel)}
+        .crypto-price-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:#101828;border-radius:10px;padding:16px 18px;margin-bottom:12px;color:white}
+        .crypto-price-cell{border-right:1px solid rgba(255,255,255,.12);padding:0 16px}
+        .crypto-price-cell:first-child{padding-left:0}
+        .crypto-price-cell:last-child{border-right:0;padding-right:0}
+        .crypto-price-cell .k{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#98A2B3;margin-bottom:5px}
+        .crypto-price-cell .v{font-family:var(--font-mono);font-size:24px;font-weight:950}
+        .crypto-decisions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
+        .crypto-card{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:14px}
+        .crypto-card .q{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
+        .crypto-card .answer{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--color-border);border-radius:6px;padding:6px 9px;font-weight:850;margin-bottom:10px}
+        .crypto-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+        .crypto-tag{display:inline-block;margin:0 5px 6px 0;border:1px solid var(--color-border);border-radius:5px;padding:3px 6px;font-family:var(--font-mono);font-size:11px;color:var(--color-muted);background:#F8FAFC}
+        .crypto-note{font-size:var(--fs-sm);line-height:1.45;color:var(--color-muted)}
+        .crypto-cycle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
+        .crypto-phase{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:12px}
+        .crypto-phase.current{border:2px solid var(--color-blue);background:#EFF6FF}
+        .crypto-phase .phase{font-family:var(--font-mono);font-size:11px;font-weight:850;color:var(--color-muted);text-transform:uppercase}
+        .crypto-phase .name{font-weight:900;margin:5px 0 6px;color:var(--color-text)}
+        .crypto-phase .desc{font-size:12px;line-height:1.4;color:var(--color-muted)}
+        .crypto-narrative{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:0 18px}
+        .crypto-narrative-row{padding:13px 0;border-bottom:1px solid var(--color-border)}
+        .crypto-narrative-row:last-child{border-bottom:0}
+        .crypto-narrative-row .h{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:5px}
+        .crypto-narrative-row .b{font-size:var(--fs-md);line-height:1.48;color:var(--color-text)}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
-        @media(max-width:900px){.regime-brief{grid-template-columns:1fr}.regime-forward-row{grid-template-columns:24px minmax(0,1fr)}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.regime-forward-row{grid-template-columns:24px minmax(0,1fr)}.regime-forward-row .why{grid-column:2}}
         @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
@@ -11948,6 +11996,7 @@ if view == "regime":
     @st.cache_data(ttl=60 * 60, show_spinner=False)
     def _crypto_snapshot():
         btc = _quote("BTC-USD", "260d")
+        eth = _quote("ETH-USD", "260d")
         ethbtc_hist = yf.Ticker("ETH-BTC").history(period="35d", interval="1d", auto_adjust=True)
         btc_hist = yf.Ticker("BTC-USD").history(period="260d", interval="1d", auto_adjust=True)
         fg = _fear_greed()
@@ -11962,44 +12011,195 @@ if view == "regime":
         btc_vs_200 = (btc_price / ma200 - 1) * 100 if ma200 else None
         btc_vs_20 = (btc_price / ma20 - 1) * 100 if ma20 else None
         ethbtc_change = None
+        ethbtc_now = None
         if ethbtc_hist is not None and not ethbtc_hist.empty:
             ethbtc = ethbtc_hist["Close"].dropna()
+            if len(ethbtc):
+                ethbtc_now = float(ethbtc.iloc[-1])
             if len(ethbtc) >= 20:
                 ethbtc_change = (float(ethbtc.iloc[-1]) / float(ethbtc.tail(30).mean()) - 1) * 100
-        if btc_vs_200 is not None and btc_vs_20 is not None and btc_vs_200 > 0 and btc_vs_20 > 0:
-            q1 = "Bull — above 200d and 20d MA"
-            q1_color = "var(--color-positive)"
-        elif btc_vs_200 is not None and btc_vs_200 > 0:
-            q1 = "Mixed — structure intact, momentum fading"
-            q1_color = "var(--color-warning-text)"
-        else:
-            q1 = "Bear/reclaim attempt — 200d is the hurdle"
-            q1_color = "var(--color-negative)"
-        fg_value = fg.get("value")
-        if btc_vs_200 and btc_vs_200 > 0 and fg_value is not None and fg_value < 40:
-            add = "Yes — pro-trend dip"
-        elif fg_value is not None and fg_value >= 65:
-            add = "Wait — sentiment extended"
-        else:
-            add = "Selective — no clear sentiment edge"
-        if ethbtc_change is not None and ethbtc_change > 5:
-            rotation = "Lean alts — ETH/BTC improving"
-        elif ethbtc_change is not None and ethbtc_change < -5:
-            rotation = "Lean BTC — ETH/BTC weakening"
-        else:
-            rotation = "Neutral — default BTC"
+        halving = datetime(2024, 4, 20)
+        now = datetime.now()
+        months_since_halving = max(0, (now.year - halving.year) * 12 + now.month - halving.month)
         return {
             "price": btc_price,
             "change": btc.get("change"),
+            "eth_price": eth.get("last"),
+            "eth_change": eth.get("change"),
             "btc_vs_200": btc_vs_200,
             "btc_vs_20": btc_vs_20,
             "fg": fg,
-            "q1": q1,
-            "q1_color": q1_color,
-            "add": add,
-            "rotation": rotation,
             "ethbtc_change": ethbtc_change,
+            "ethbtc_now": ethbtc_now,
+            "btc_dom": 55.0,
+            "stable_dom": None,
+            "stable_chg": None,
+            "months_since_halving": months_since_halving,
         }
+
+    def _crypto_color(name):
+        return {
+            "green": "var(--color-positive)",
+            "yellow": "var(--color-warning-text)",
+            "red": "var(--color-negative)",
+            "blue": "var(--color-blue)",
+            "muted": "var(--color-muted)",
+        }.get(name, "var(--color-muted)")
+
+    def _score_crypto(c):
+        btc_vs_200 = c.get("btc_vs_200")
+        btc_vs_20 = c.get("btc_vs_20")
+        fg_value = (c.get("fg") or {}).get("value")
+        ethbtc_change = c.get("ethbtc_change")
+        btc_dom = c.get("btc_dom")
+
+        above_200 = btc_vs_200 is not None and btc_vs_200 > 0
+        above_20 = btc_vs_20 is not None and btc_vs_20 > 0
+        high_dom = btc_dom is not None and btc_dom > 60
+        low_dom = btc_dom is not None and btc_dom < 54
+        extreme_fear = fg_value is not None and fg_value < 25
+        deep_fear = fg_value is not None and fg_value < 35
+        greed = fg_value is not None and fg_value >= 65
+        euphoria = fg_value is not None and fg_value >= 80
+
+        if above_200 and above_20:
+            q1 = ("Bull", "Above 200d and 20d MA", "green")
+        elif above_200 and not above_20:
+            q1 = ("Mixed", "Structure intact, momentum fading", "yellow")
+        elif not above_200 and above_20:
+            q1 = ("Reclaim attempt", "200d broken, 20d holding", "yellow")
+        else:
+            q1 = ("Bear", "Below 200d and 20d MA", "red")
+
+        if q1[0] == "Bull" and fg_value is not None and fg_value < 40:
+            q2 = ("Yes", "Pro-trend dip; add selectively", "green")
+        elif q1[0] == "Bull" and fg_value is not None and fg_value < 65:
+            q2 = ("Selective", "Trend is healthy but no sentiment discount", "yellow")
+        elif q1[0] == "Bull":
+            q2 = ("Wait", "Chasing into greed; let it cool", "yellow")
+        elif q1[0] == "Mixed" and deep_fear:
+            q2 = ("Yes, small", "Counter-trend only while structure repairs", "yellow")
+        elif q1[0] == "Bear" and extreme_fear:
+            q2 = ("Yes, small", "Capitulation setup, not confirmation", "yellow")
+        else:
+            q2 = ("No", "No edge yet", "red")
+
+        if ethbtc_change is not None and ethbtc_change > 5 and low_dom:
+            q3 = ("Alts", "ETH/BTC rising and BTC dominance low", "green")
+        elif ethbtc_change is not None and ethbtc_change > 5:
+            q3 = ("Lean alts", "ETH/BTC improving, dominance not yet confirming", "yellow")
+        elif ethbtc_change is not None and ethbtc_change < -5 and high_dom:
+            q3 = ("BTC only", "ETH/BTC weak and BTC dominance high", "red")
+        elif ethbtc_change is not None and ethbtc_change < -5:
+            q3 = ("Lean BTC", "ETH/BTC weakening", "yellow")
+        else:
+            q3 = ("Neutral", "No clean BTC/alt rotation edge", "muted")
+
+        if above_200 and (btc_vs_200 or 0) > 15 or (above_200 and (btc_vs_200 or 0) > 5 and ((btc_vs_20 or 0) > 5 or euphoria)):
+            four = ("Phase 3", "Parabolic bull", "Trend is mature; manage greed and trailing risk.", 3)
+        elif above_200:
+            four = ("Phase 2", "Recovery / expansion", "Constructive cycle with room if macro stays supportive.", 2)
+        elif not above_200 and (btc_vs_200 or 0) < -35 and not above_20 and extreme_fear:
+            four = ("Phase 1", "Accumulation", "Deep-cycle stress; buys are long-duration and sized small.", 1)
+        elif not above_200 and above_20:
+            four = ("Phase 4", "Bear-market recovery attempt", "Repair attempt, but 200d is still the key line.", 4)
+        else:
+            four = ("Phase 4", "Bear market", "Defense until BTC reclaims the long-term trend.", 4)
+
+        if above_20 and ((btc_vs_20 or 0) < 2 or greed):
+            medium = ("Late", "Short-term risk/reward is less attractive.", "yellow")
+        elif above_20:
+            medium = ("Expansion", "Short-term momentum supports risk.", "green")
+        elif extreme_fear:
+            medium = ("Recovery watch", "Watch for a 20d reclaim from washout conditions.", "yellow")
+        else:
+            medium = ("Rolling over", "Short-term trend is losing support.", "red")
+
+        alignment = "Aligned" if q1[0] == "Bull" and medium[0] == "Expansion" else ("Mixed" if q1[0] in {"Bull", "Mixed", "Reclaim attempt"} else "Defensive")
+        return {"q1": q1, "q2": q2, "q3": q3, "four": four, "medium": medium, "alignment": alignment}
+
+    def _crypto_narrative(c, scored, d, s):
+        fg = c.get("fg") or {}
+        fg_txt = f'{fg.get("value")} {fg.get("label")}' if fg.get("value") is not None else "unavailable"
+        btc_200 = _signed_regime(c.get("btc_vs_200"))
+        btc_20 = _signed_regime(c.get("btc_vs_20"))
+        ethbtc = _signed_regime(c.get("ethbtc_change"))
+        macro_gate = s.get("portfolio_stance", "Neutral")
+        return [
+            ("Trend", f'BTC is {btc_200} vs its 200d and {btc_20} vs its 20d, so the crypto tape is {scored["q1"][0].lower()}. The key regime line is still the 200d moving average.'),
+            ("Opportunity", f'Fear & Greed is {fg_txt}. Add timing is {scored["q2"][0].lower()}: {scored["q2"][1]}. This is a sizing signal, not permission to ignore the macro risk budget.'),
+            ("Positioning", f'ETH/BTC is {ethbtc} versus its recent baseline and BTC dominance is modeled near {c.get("btc_dom", 55):.1f}%. Rotation read: {scored["q3"][0]} — {scored["q3"][1]}.'),
+            ("Conviction", f'Cycle read is {scored["four"][0]} ({scored["four"][1]}) and medium-term phase is {scored["medium"][0]}. Portfolio stance from the broader regime engine is {macro_gate}, so crypto risk should stay inside that envelope.'),
+        ]
+
+    def _crypto_section_html(c, d, s):
+        if not c or c.get("price") is None:
+            return (
+                '<div class="regime-panel regime-pad">'
+                '<span class="regime-section-title">Crypto regime</span>'
+                '<div class="crypto-note">Crypto data is unavailable right now. Refresh the regime page to retry BTC, ETH/BTC, and sentiment inputs.</div>'
+                '</div></div>'
+            )
+        scored = _score_crypto(c)
+        btc_price = f'${c.get("price"):,.0f}' if c.get("price") is not None else "—"
+        eth_price = f'${c.get("eth_price"):,.0f}' if c.get("eth_price") is not None else "—"
+        fg = c.get("fg") or {}
+        fg_txt = f'{fg.get("value")} · {fg.get("label")}' if fg.get("value") is not None else "—"
+        price_cells = [
+            ("BTC", btc_price, _signed_regime(c.get("change"))),
+            ("ETH", eth_price, _signed_regime(c.get("eth_change"))),
+            ("BTC dominance", f'{c.get("btc_dom", 55):.1f}%', "approximation"),
+            ("Fear & Greed", fg_txt, f'{c.get("months_since_halving", 0)} mo post-halving'),
+        ]
+        price_html = "".join(
+            f'<div class="crypto-price-cell"><div class="k">{html.escape(k)}</div><div class="v">{html.escape(v)}</div><div class="crypto-note">{html.escape(sub)}</div></div>'
+            for k, v, sub in price_cells
+        )
+        decision_html = "".join(
+            f'<div class="crypto-card"><div class="q">{html.escape(title)}</div>'
+            f'<div class="answer" style="color:{_crypto_color(color)};"><span class="crypto-dot" style="background:{_crypto_color(color)};"></span>{html.escape(answer)}</div>'
+            f'<div class="crypto-note">{html.escape(note)}</div></div>'
+            for title, (answer, note, color) in [
+                ("1 · Bull or bear?", scored["q1"]),
+                ("2 · Good time to add?", scored["q2"]),
+                ("3 · BTC or alts?", scored["q3"]),
+            ]
+        )
+        phase_defs = [
+            (1, "Phase 1", "Accumulation", "Below trend, fear high, long-term buyers only."),
+            (2, "Phase 2", "Recovery", "Above 200d, trend rebuilding."),
+            (3, "Phase 3", "Parabolic bull", "Mature upside, greed risk rises."),
+            (4, "Phase 4", "Bear / repair", "Trend broken or attempting repair."),
+        ]
+        active_phase = scored["four"][3]
+        phases = "".join(
+            f'<div class="crypto-phase {"current" if num == active_phase else ""}"><div class="phase">{html.escape(label)}</div>'
+            f'<div class="name">{html.escape(name)}</div><div class="desc">{html.escape(desc)}</div></div>'
+            for num, label, name, desc in phase_defs
+        )
+        narrative = "".join(
+            f'<div class="crypto-narrative-row"><div class="h">{html.escape(h)}</div><div class="b">{html.escape(b)}</div></div>'
+            for h, b in _crypto_narrative(c, scored, d, s)
+        )
+        tags = [
+            f'Cycle: {scored["four"][0]} · {scored["four"][1]}',
+            f'Medium: {scored["medium"][0]}',
+            f'Alignment: {scored["alignment"]}',
+            f'ETH/BTC: {_signed_regime(c.get("ethbtc_change"))}',
+        ]
+        return (
+            '<div class="regime-panel regime-pad crypto-wrap">'
+            '<div class="crypto-header"><span class="crypto-accent"></span><span class="regime-section-title" style="margin:0;">Crypto regime</span>'
+            + "".join(f'<span class="crypto-badge">{html.escape(tag)}</span>' for tag in tags)
+            + '</div>'
+            f'<div class="crypto-price-strip">{price_html}</div>'
+            f'<div class="crypto-decisions">{decision_html}</div>'
+            '<span class="regime-section-title" style="margin-top:16px;">Behavioral cycle map</span>'
+            f'<div class="crypto-cycle-grid">{phases}</div>'
+            '<span class="regime-section-title" style="margin-top:16px;">Crypto commentary</span>'
+            f'<div class="crypto-narrative">{narrative}</div>'
+            '</div></div>'
+        )
 
     @st.cache_data(ttl=60 * 60, show_spinner=False)
     def _regime_snapshot():
@@ -12103,20 +12303,32 @@ if view == "regime":
             f'<span class="regime-section-title" style="color:var(--color-negative);">Alert</span>{html.escape(" · ".join(s["alerts"]))}</div>',
             unsafe_allow_html=True,
         )
+    highlights = [
+        ("SPX", f'{_fmt_regime(d["spx"], "", 0)} · {_signed_regime(d["spx_change"])}'),
+        ("QQQ", f'{_fmt_regime(d["qqq"], "", 2)} · {_signed_regime(d["qqq_change"])}'),
+        ("VIX", f'{_fmt_regime(d["vix"], "", 1)} · {_signed_regime(d["vix_change"])}'),
+        ("Fear & Greed", f'{_fmt_regime(d["fg"], "", 0)} · {d.get("fg_label") or "—"}'),
+    ]
+    highlight_html = "".join(
+        f'<div class="regime-highlight"><span>{html.escape(k)}</span><strong>{html.escape(v)}</strong></div>'
+        for k, v in highlights
+    )
     st.markdown(
-        '<div class="regime-top"><div>'
-        '<div class="regime-label">Market Regime & Risk Engine</div>'
-        f'<div class="regime-action" style="color:{action_color};">{html.escape(s["action_guidance"])}</div>'
-        f'<div class="regime-sub">{html.escape(s["action_detail"])}</div>'
-        f'<div class="regime-meta" style="color:{action_color};">{html.escape(s["portfolio_stance"])} · {html.escape(s["regime_layer"])} · score {s["score"]:+.2f} · updated {html.escape(updated_label)}</div>'
-        '</div><div class="regime-panel"><div class="regime-pad">'
-        '<span class="regime-section-title">4-layer decision read</span>'
-        f'<span class="regime-chip">Regime: {html.escape(s["regime_layer"])}</span>'
-        f'<span class="regime-chip">Stance: {html.escape(s["portfolio_stance"])}</span>'
-        f'<span class="regime-chip">Action: {html.escape(s["action_guidance"])}</span>'
-        f'<span class="regime-chip">Tape: {html.escape(s["short_term_cond"])}</span>'
-        '<div class="regime-divider"></div>'
-        '<div class="regime-watch"><strong>Operating rule</strong><br>Macro sets the risk budget. Single-stock rules still decide individual entries.</div>'
+        '<div class="regime-dashboard">'
+        '<div class="regime-dark">'
+        '<div class="regime-label" style="color:#98A2B3;margin-bottom:12px;">Market Regime & Risk Engine</div>'
+        '<div class="regime-dark-grid">'
+        f'<div class="regime-dark-cell"><div class="k">Regime</div><div class="v">{html.escape(s["regime_layer"])}</div></div>'
+        f'<div class="regime-dark-cell"><div class="k">Portfolio stance</div><div class="v" style="color:{action_color};">{html.escape(s["portfolio_stance"])}</div></div>'
+        f'<div class="regime-dark-cell"><div class="k">Action</div><div class="v" style="color:{action_color};">{html.escape(s["action_guidance"])}</div></div>'
+        f'<div class="regime-dark-cell"><div class="k">Short-term tape</div><div class="v">{html.escape(s["short_term_cond"])}</div></div>'
+        '</div>'
+        '<div class="regime-dark-bottom">'
+        '<div>'
+        f'<div class="k">Why today</div><div style="font-size:20px;line-height:1.35;font-weight:760;">{html.escape(s["action_detail"])}</div>'
+        f'<div style="font-family:var(--font-mono);font-size:12px;color:#98A2B3;margin-top:12px;">score {s["score"]:+.2f} · updated {html.escape(updated_label)}</div>'
+        '</div>'
+        f'<div><div class="k">Market highlights</div>{highlight_html}</div>'
         '</div></div></div>'
         '<div class="regime-divider"></div>',
         unsafe_allow_html=True,
@@ -12202,19 +12414,7 @@ if view == "regime":
         unsafe_allow_html=True,
     )
 
-    crypto_cards = [
-        ("BTC", f'${crypto.get("price"):,.0f}' if crypto.get("price") is not None else "—", _signed_regime(crypto.get("change"))),
-        ("BTC vs 200d", _signed_regime(crypto.get("btc_vs_200")), crypto.get("q1") or "—"),
-        ("BTC vs 20d", _signed_regime(crypto.get("btc_vs_20")), crypto.get("add") or "—"),
-        ("ETH/BTC", _signed_regime(crypto.get("ethbtc_change")), crypto.get("rotation") or "—"),
-    ]
-    st.markdown(
-        '<div class="regime-panel regime-pad"><span class="regime-section-title">Crypto regime</span>'
-        '<div class="regime-grid">'
-        + "".join(f'<div class="regime-metric"><span class="k">{html.escape(k)}</span><span class="v">{html.escape(v)}</span><span class="s">{html.escape(sub)}</span></div>' for k, v, sub in crypto_cards)
-        + '</div></div></div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(_crypto_section_html(crypto, d, s), unsafe_allow_html=True)
 
 
 if view == "ideas":
