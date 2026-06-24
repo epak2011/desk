@@ -11663,8 +11663,24 @@ if view == "regime":
         .regime-bullet{display:flex;gap:9px;padding:6px 0;border-top:1px dashed rgba(148,163,184,.26);line-height:1.35}
         .regime-bullet:first-child{border-top:0}
         .regime-bullet span:first-child{color:var(--color-muted)}
+        .regime-brief{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:14px;align-items:stretch}
+        .regime-implication{display:grid;grid-template-columns:140px minmax(0,1fr);gap:18px;padding:14px 0;border-top:1px solid var(--color-border)}
+        .regime-implication:first-of-type{border-top:0;padding-top:2px}
+        .regime-implication .h{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted)}
+        .regime-implication .b{font-size:var(--fs-md);line-height:1.42;color:var(--color-text)}
+        .regime-scenario{border-top:1px solid var(--color-border);padding:13px 0}
+        .regime-scenario:first-of-type{border-top:0;padding-top:2px}
+        .regime-scenario .h{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;margin-bottom:7px}
+        .regime-scenario .b{font-size:var(--fs-sm);line-height:1.42;color:var(--color-text)}
+        .regime-forward-row{display:grid;grid-template-columns:28px 160px minmax(0,1fr);gap:12px;align-items:start;padding:13px 0;border-top:1px solid var(--color-border)}
+        .regime-forward-row:first-of-type{border-top:0;padding-top:2px}
+        .regime-forward-row .num{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:900;color:var(--color-muted)}
+        .regime-forward-row .trig{font-weight:850;color:var(--color-text)}
+        .regime-forward-row .why{font-size:var(--fs-sm);line-height:1.4;color:var(--color-muted)}
+        .regime-forward-row .status{display:inline-block;margin-top:7px;border:1px solid var(--color-border);border-radius:5px;padding:4px 7px;font-family:var(--font-mono);font-size:11px;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
-        @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}}
+        @media(max-width:900px){.regime-brief{grid-template-columns:1fr}.regime-forward-row{grid-template-columns:24px minmax(0,1fr)}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -11822,6 +11838,112 @@ if view == "regime":
         elif s["t2"] not in {"FIRING", "RETREATING"}:
             s["change_if"].append("Unemployment re-accelerates above 4.4% rising → regime deteriorates")
         return s
+
+    def _market_implications(d, s):
+        stance = s.get("portfolio_stance", "Neutral")
+        action = s.get("action_guidance", "Wait for Confirmation")
+        short_term = s.get("short_term_cond", "Constructive")
+        if action in {"Raise Cash", "Reduce Weak Exposure"}:
+            exposure = "Pull gross exposure down before credit or earnings confirm the slowdown. Cash is a risk-control tool here, not a failed trade."
+            selection = "Keep only the names with clear trend, liquidity, and durable earnings. Cyclicals, weak balance sheets, and broken charts get cut first."
+            execution = "Do not average down into weak setups. New buys need unusually clean entries, defined stops, and smaller size."
+            trim = "Trim extended winners, laggards below the 200-day, and positions where the thesis now depends on a macro rebound."
+        elif action == "Deploy Gradually":
+            exposure = "Move risk back up in tranches. The signal is improving, but it is not a green light to chase every breakout."
+            selection = "Prioritize leadership that already held support during the stress window. Add to strength on pullbacks, not to lower-quality catch-up names."
+            execution = "Use staged entries over 1-2 weeks. Let the watchlist find exact setups while the regime permits measured deployment."
+            trim = "Fund adds by reducing stale positions that failed to rebound while the regime improved."
+        elif action == "Maintain Full Positioning":
+            exposure = "Stay invested at base exposure. The macro backdrop is not asking you to de-risk, but stock-level discipline still matters."
+            selection = "Let the rules favor liquid leaders, constructive relative strength, and quality growth. Avoid forcing trades in names without clean triggers."
+            execution = "Add only when the individual setup is actionable. Strong regime does not override bad entry price."
+            trim = "Use trims for crowded or stretched names, not because the macro regime has turned."
+        else:
+            exposure = "Hold current exposure. The signals are mixed enough that doing less is the decision until the next trigger resolves."
+            selection = "Keep the bar high: leadership, relative strength, and clear technical structure. Watchlist names can prepare, but not all deserve capital."
+            execution = "Wait for confirmation rather than predicting the next macro print. Preserve optionality for cleaner setups."
+            trim = "Clean up weak or duplicative exposure, especially if it does not fit the current regime."
+        if short_term in {"Extended", "Momentum Acceleration"}:
+            execution += " Short-term tape is extended, so avoid chasing gap-up moves."
+        elif short_term in {"Oversold", "Healthy Pullback"}:
+            execution += " Short-term weakness can be used, but only if the primary cycle signal stays intact."
+        return [
+            ("Exposure", exposure),
+            ("Stock selection", selection),
+            ("Execution", execution),
+            ("Trim / avoid", trim),
+            ("Decision rule", f"Macro stance is {stance}. Portfolio action is {action}. Individual stocks still need their own entry/exit signal."),
+        ]
+
+    def _scenario_map(d, s):
+        ism = d.get("ism")
+        unemp = d.get("unemp")
+        hy_bps = d.get("hy_bps")
+        base = s.get("action_detail", "Hold current exposure until the next primary trigger resolves.")
+        if s.get("t1") == "CLEAR":
+            bull = "ISM holds above 50, unemployment stabilizes or falls, and credit spreads stay contained. That keeps the risk budget open for high-quality entries."
+            bear = "ISM breaks below 50. That is the first reduce signal in this framework and should override short-term dip-buying instincts."
+        else:
+            bull = "ISM recovers above 50 and credit does not confirm stress. That would allow a staged rebuild, not an instant full-risk reset."
+            bear = "ISM remains below 50 while unemployment rises or credit spreads widen. That confirms the slowdown and keeps cash high."
+        if s.get("t2") == "FIRING":
+            bear += " Labor is already firing, so a weak ISM print would be more serious than a one-off data wobble."
+        elif s.get("t2") == "RETREATING":
+            bull += " The unemployment near-miss is already retreating, which is the cleanest path to a constructive regime."
+        numbers = []
+        if ism is not None:
+            numbers.append(f"ISM {ism:.1f}")
+        if unemp is not None:
+            numbers.append(f"unemployment {unemp:.1f}%")
+        if hy_bps is not None:
+            numbers.append(f"HY {hy_bps:.0f}bps")
+        return [
+            ("Base case", base, "var(--color-blue)"),
+            ("Bull case", bull, "var(--color-positive)"),
+            ("Bear case", bear, "var(--color-negative)"),
+            ("Current evidence", " · ".join(numbers) if numbers else "Macro inputs are partially unavailable; treat the read as lower confidence.", "var(--color-muted)"),
+        ]
+
+    def _forward_watch_items(d, s, crypto):
+        items = []
+        ism = d.get("ism")
+        unemp = d.get("unemp")
+        hy_bps = d.get("hy_bps")
+        yc_bps = d.get("yc_bps")
+        vix = d.get("vix")
+        fg = d.get("fg")
+        if s.get("t1") == "CLEAR":
+            gap = 50 - ism if ism is not None else None
+            items.append(("ISM Manufacturing", "First print below 50", f"That flips the primary cycle trigger from clear to reduce. Current buffer: {abs(gap):.1f} pts above 50." if gap is not None else "This is the most important macro exit trigger."))
+        else:
+            items.append(("ISM Manufacturing", "Reclaim above 50", "That would begin repairing the primary cycle signal. Until then, reduce/defensive posture stays in force."))
+        if s.get("t2") in {"FIRING", "APPROACHING"}:
+            items.append(("Labor market", "Unemployment stops rising", "A falling unemployment rate would turn labor stress from a threat into a near-miss."))
+        else:
+            distance = 4.2 - unemp if unemp is not None else None
+            items.append(("Labor market", "Unemployment rises through 4.2%", f"That activates T2 if the move is rising month over month. Current distance: {distance:.1f} pts." if distance is not None else "This is the labor-market warning line."))
+        if hy_bps is not None and hy_bps < 475:
+            items.append(("Credit", "HY spreads above 475bps", f"Tail-risk warning starts before the 600bps crisis trigger. Current level: {hy_bps:.0f}bps."))
+        elif hy_bps is not None:
+            items.append(("Credit", "HY spreads reverse lower", f"Credit is already elevated at {hy_bps:.0f}bps. Improvement would reduce tail-risk pressure."))
+        else:
+            items.append(("Credit", "HY spreads", "Watch for widening credit stress; this is the confirmation layer after macro weakens."))
+        if yc_bps is not None and yc_bps < 0:
+            items.append(("Curve", "10Y-2Y turns positive", "A less inverted curve would remove one late-cycle warning, though it does not by itself create a buy signal."))
+        elif yc_bps is not None and yc_bps < 50:
+            items.append(("Curve", "Curve steepens above +50bps", "A steeper curve supports financial conditions and reduces late-cycle pressure."))
+        else:
+            items.append(("Curve", "Curve flattens sharply", "A sudden flattening would be an early warning that growth expectations are fading."))
+        if vix is not None and fg is not None:
+            items.append(("Sentiment", "VIX >35 and Fear & Greed <25", "That creates an oversold cluster. It can be a buying window only if T1 stays clear."))
+        else:
+            items.append(("Sentiment", "Panic or euphoria extremes", "Use sentiment as timing, not as the primary macro regime signal."))
+        btc_vs_200 = crypto.get("btc_vs_200")
+        if btc_vs_200 is not None:
+            trigger = "BTC holds above 200d" if btc_vs_200 > 0 else "BTC reclaims 200d"
+            why = "Crypto risk appetite is supportive while BTC stays above the long-term trend." if btc_vs_200 > 0 else "A reclaim would improve speculative risk appetite; failure keeps crypto secondary."
+            items.append(("Crypto", trigger, why))
+        return items[:6]
 
     @st.cache_data(ttl=60 * 60, show_spinner=False)
     def _crypto_snapshot():
@@ -12046,17 +12168,37 @@ if view == "regime":
     def _bullets(items):
         return "".join(f'<div class="regime-bullet"><span>•</span><span>{html.escape(item)}</span></div>' for item in items)
 
-    forward_items = s["change_if"] + [
-        "If VIX spikes above 35 with Fear & Greed below 25 → short-term oversold cluster fires",
-        "If T1/T2/T3 remain clear → maintain full base positioning and let stock rules drive adds",
-    ]
+    implications = _market_implications(d, s)
+    scenarios = _scenario_map(d, s)
+    forward_items = _forward_watch_items(d, s, crypto)
+    implications_html = "".join(
+        f'<div class="regime-implication"><div class="h">{html.escape(title)}</div><div class="b">{html.escape(body)}</div></div>'
+        for title, body in implications
+    )
+    scenarios_html = "".join(
+        f'<div class="regime-scenario"><div class="h" style="color:{color};">{html.escape(title)}</div><div class="b">{html.escape(body)}</div></div>'
+        for title, body, color in scenarios
+    )
+    forward_html = "".join(
+        f'<div class="regime-forward-row"><div class="num">{idx}</div><div class="trig">{html.escape(trigger)}<br><span class="status">{html.escape(status)}</span></div><div class="why">{html.escape(why)}</div></div>'
+        for idx, (trigger, status, why) in enumerate(forward_items, 1)
+    )
     st.markdown(
-        '<div class="regime-two">'
-        '<div class="regime-panel regime-pad"><span class="regime-section-title">Why today</span>'
-        + _bullets(s["why_today"])
-        + '</div><div class="regime-panel regime-pad"><span class="regime-section-title">Forward watch</span>'
-        + _bullets(forward_items[:4])
-        + '</div></div><div class="regime-divider"></div>',
+        '<div class="regime-brief">'
+        '<div class="regime-panel regime-pad">'
+        '<span class="regime-section-title">Market implications</span>'
+        f'{implications_html}'
+        '</div>'
+        '<div class="regime-panel regime-pad">'
+        '<span class="regime-section-title">Scenario map</span>'
+        f'{scenarios_html}'
+        '</div>'
+        '</div><div class="regime-divider"></div>'
+        '<div class="regime-panel regime-pad">'
+        '<span class="regime-section-title">Forward watch</span>'
+        '<div style="font-size:var(--fs-sm);color:var(--color-muted);line-height:1.45;margin:-2px 0 12px;">The next things that would change positioning. These are not headlines; they are decision gates.</div>'
+        f'{forward_html}'
+        '</div><div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
 
