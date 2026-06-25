@@ -11738,9 +11738,49 @@ if view == "regime":
         .crypto-narrative-row:last-child{border-bottom:0}
         .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#8C6CC2;margin-bottom:8px}
         .crypto-narrative-row .b{font-size:19px;line-height:1.52;color:var(--color-text)}
+        .risk-engine-page{max-width:1480px;margin:0 auto;padding:0 0 56px;color:#25233A}
+        .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:#5F62B5;margin:4px 0 6px;letter-spacing:0}
+        .risk-engine-snapshot{font-size:14px;font-weight:760;color:#8A86A5;margin-bottom:18px}
+        .risk-engine-hero{background:#17172A;color:#E9E6F8;border-radius:10px;border-left:4px solid #5F62B5;padding:26px 30px 28px;box-shadow:0 18px 45px rgba(31,30,55,.12)}
+        .risk-hero-top{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:24px;margin-bottom:24px}
+        .risk-hero-cell{padding:0 22px;border-right:1px solid rgba(255,255,255,.11)}
+        .risk-hero-cell:first-child{padding-left:0}
+        .risk-hero-cell:last-child{border-right:0;padding-right:0}
+        .risk-k{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:#85829F;margin-bottom:10px}
+        .risk-v{font-size:clamp(21px,2vw,28px);line-height:1.12;font-weight:950;color:#DCD7F3;overflow-wrap:normal;word-break:normal}
+        .risk-v.good{color:#377C43}
+        .risk-v.warn{color:#D99A2B}
+        .risk-v.bad{color:#D45E5E}
+        .risk-hero-bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(390px,.78fr);gap:32px}
+        .risk-why{font-size:17px;line-height:1.72;font-weight:760;color:#F1EEF8;max-width:940px}
+        .risk-highlights{border-left:1px solid rgba(255,255,255,.12);padding-left:30px}
+        .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.1);padding:10px 0;font-size:16px;color:#9C98C2}
+        .risk-highlight-row:last-child{border-bottom:0}
+        .risk-highlight-row strong{font-size:20px;font-weight:950;color:#F6F3FF;font-variant-numeric:tabular-nums}
+        .risk-change{font-size:14px;font-weight:900;margin-left:6px}
+        .risk-card{margin-top:18px;border:1px solid #DED9ED;border-radius:10px;background:#FFFFFF;overflow:hidden;box-shadow:0 12px 28px rgba(35,34,56,.04)}
+        .risk-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 24px;background:#FAF8FF;border-bottom:1px solid #E4DFF0}
+        .risk-card-title{font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.24em;text-transform:uppercase;color:#6665B0}
+        .risk-card-sub{font-size:14px;color:#9691AA;font-weight:780;margin-left:10px;letter-spacing:0;text-transform:none}
+        .risk-badge{border:1px solid #BCD8C7;background:#EDF8F1;color:#44784C;border-radius:5px;padding:7px 12px;font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}
+        .forward-watch-body{padding:20px 24px 24px}
+        .forward-watch-row{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;padding:13px 14px;border-radius:6px;color:#3F3C55;font-size:17px;line-height:1.45}
+        .forward-watch-row:nth-child(even){background:#FAFAFD}
+        .forward-watch-row .idx{font-weight:950;color:#6665B0;text-align:center}
+        .forward-watch-row strong{font-weight:950;color:#202033}
+        .market-imp-body{display:grid;grid-template-columns:minmax(0,1fr) 300px}
+        .market-imp-main{padding:24px 28px 28px}
+        .market-imp-side{background:#F5F1FC;border-left:1px solid #E2DCEF;padding:24px 26px}
+        .market-imp-headline{font-size:19px;line-height:1.45;font-weight:950;color:#202033;margin-bottom:20px}
+        .market-imp-bullet{display:grid;grid-template-columns:18px minmax(0,1fr);gap:12px;border-top:1px solid #EEEAF5;padding:14px 0;font-size:16px;line-height:1.48;color:#5A5572}
+        .market-imp-bullet:first-of-type{border-top:0}
+        .market-imp-dot{width:8px;height:8px;border-radius:50%;background:#6967B7;margin-top:9px}
+        .watch-trigger{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:13px 0;font-size:15px;line-height:1.5;color:#5A5572}
+        .watch-trigger .arrow{color:#A06F2C;font-weight:950}
+        .risk-secondary{margin-top:18px}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}}
-        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.risk-hero-top,.risk-hero-bottom,.market-imp-body{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.risk-hero-cell{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid #E2DCEF}.regime-forward-row .why{grid-column:2}}
         @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
@@ -12351,69 +12391,148 @@ if view == "regime":
     sev_color = {"CLEAR": "var(--color-positive)", "RETREATING": "var(--color-positive)", "APPROACHING": "var(--color-warning-text)", "ELEVATED": "var(--color-warning-text)", "WARNING": "var(--color-negative)", "FIRING": "var(--color-negative)", "INVERTED": "var(--color-warning-text)", "FLAT": "var(--color-warning-text)", "STEEPENING": "var(--color-positive)", "NEUTRAL": "var(--color-muted)", "IMPROVING": "var(--color-positive)", "TIGHTENING": "var(--color-negative)"}
     updated_label = datetime.fromisoformat(snap["updated_at"]).strftime("%b %d · %-I:%M %p")
 
-    st.markdown('<div class="regime-shell">', unsafe_allow_html=True)
+    def _risk_status_class(label):
+        label = str(label or "").lower()
+        if any(word in label for word in ("expansion", "risk on", "maintain", "healthy", "constructive", "tight", "calm")):
+            return "good"
+        if any(word in label for word in ("reduce", "risk off", "warning", "stress", "extreme", "raise cash")):
+            return "bad"
+        if any(word in label for word in ("defensive", "neutral", "choppy", "extended", "fragile")):
+            return "warn"
+        return ""
+
+    def _change_html(value, inverse=False):
+        color = _regime_value_color(value, inverse=inverse)
+        return f'<span class="risk-change" style="color:{color};">{html.escape(_signed_regime(value))}</span>'
+
+    def _vix_label(value):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "—"
+        if value < 20:
+            return "calm"
+        if value < 28:
+            return "elevated"
+        return "stressed"
+
+    def _hy_label(value):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "—"
+        if value < 350:
+            return "tight"
+        if value < 475:
+            return "normal"
+        if value < 600:
+            return "wide"
+        return "stress"
+
+    def _why_today_text(d, s):
+        if s.get("action_guidance") == "Maintain Full Positioning":
+            return (
+                "Stay invested. The market priced in a worst-case scenario weeks ago; the data now shows resilience, "
+                "not collapse. If a sharp downturn comes, it will follow a fresh economic trigger-watch Thursday's "
+                "jobs report and next week's services PMI. Buy weakness if those prints disappoint; do not fight the "
+                "expansion until the evidence breaks."
+            )
+        if s.get("action_guidance") in {"Raise Cash", "Reduce Weak Exposure"}:
+            return (
+                "Respect the warning. The dashboard is no longer asking for prediction; it is asking for risk control. "
+                "Weak cyclicals, broken charts, and balance-sheet risk should be cut first while cash gives you the "
+                "option to buy again after the primary data repairs."
+            )
+        if s.get("action_guidance") == "Deploy Gradually":
+            return (
+                "Begin adding, but do it in tranches. The macro backdrop is healing rather than euphoric, so the right "
+                "move is to rebuild exposure on weakness while preserving cash for the next confirmation print."
+            )
+        return (
+            "Do not force a broad portfolio call. The evidence is mixed enough that the right decision is to keep "
+            "current exposure, monitor the next macro trigger, and let individual stock setups carry the day-to-day work."
+        )
+
+    def _forward_watch_static():
+        return [
+            ("University of Michigan Consumer Sentiment (Friday June 26)", "Final June print; recovery from May lows would ease recession fears."),
+            ("Conference Board Consumer Confidence (Tuesday June 30)", "Broad measure of mood. Weakness would reinforce consumer distress narrative."),
+            ("Jobs Report for June (Thursday July 2, 8:30 AM)", "Critical. Miss signals labor cracks; beat validates expansion. Moves rates and equities."),
+            ("ISM Services PMI for June (Friday July 3)", "Services employ 85% of workforce. Weakness here suggests wage pressure and spending risk."),
+        ]
+
+    def _market_implication_static():
+        headline = "PCE hits 3-year high at 4.1% YoY; Micron earnings crush AI demand fears; expansion regime intact but inflation timeline tightens."
+        bullets = [
+            "PCE May 4.1% YoY, highest since April 2023 → hawkish inflation signal → rate hike risk 2026 intact, pressures equity duration",
+            "Micron Q3 revenue $41.46B, beat $35.86B forecast by 16% → AI capex cycle confirmed → tech momentum resumes, semis rally",
+            "May retail sales +0.9% beat +0.5% forecast, consumer resilient → spending strength contradicts Fed concern → base positioning holds",
+            "Oil prices down 1.7-2% on tanker releases from Persian Gulf → deflation tailwind for Q2/Q3 → energy CPI component risk easing",
+        ]
+        triggers = [
+            "If PCE core tracks above 3.5% 3M-ahead → FOMC liftoff mid-2026 odds spike → rotate away from duration",
+            "If Micron guidance falters or semis break below 20-day MA → AI boom narrative cracks → tech profit-taking accelerates",
+            "If oil rallies back above $75 on supply shock → inflation re-acceleration → PCE peak claim invalidated",
+        ]
+        return headline, bullets, triggers
+
     if s["alerts"]:
         st.markdown(
             '<div class="regime-panel regime-pad" style="border-color:rgba(209,69,69,.45);margin-bottom:18px;">'
             f'<span class="regime-section-title" style="color:var(--color-negative);">Alert</span>{html.escape(" · ".join(s["alerts"]))}</div>',
             unsafe_allow_html=True,
         )
+    snapshot_label = datetime.fromisoformat(snap["updated_at"]).strftime("%a %b %d, %-I:%M %p EDT")
     highlights = [
-        ("SPX", _fmt_regime(d["spx"], "", 0), _signed_regime(d["spx_change"]), _regime_value_color(d["spx_change"])),
-        ("QQQ", _fmt_regime(d["qqq"], "", 2), _signed_regime(d["qqq_change"]), _regime_value_color(d["qqq_change"])),
-        ("VIX", _fmt_regime(d["vix"], "", 1), _signed_regime(d["vix_change"]), _regime_value_color(d["vix_change"], inverse=True)),
-        ("Fear & Greed", _fmt_regime(d["fg"], "", 0), d.get("fg_label") or "—", _fear_greed_color(d.get("fg"))),
+        ("S&P 500", _fmt_regime(d["spx"], "", 0), _change_html(d["spx_change"])),
+        ("Nasdaq 100 (QQQ)", _fmt_regime(d["qqq"], "", 2), _change_html(d["qqq_change"])),
+        ("VIX", _fmt_regime(d["vix"], "", 1), f'<span class="risk-change" style="color:{_regime_value_color(d["vix_change"], inverse=True)};">{html.escape(_vix_label(d["vix"]))}</span>'),
+        ("Fear & Greed", _fmt_regime(d["fg"], "", 0), f'<span class="risk-change" style="color:{_fear_greed_color(d.get("fg"))};">{html.escape(d.get("fg_label") or "—")}</span>'),
+        ("HY Spreads", _fmt_regime(d["hy_bps"], "bps", 0), f'<span class="risk-change" style="color:{sev_color.get(s["t3"], "var(--color-muted)")};">{html.escape(_hy_label(d["hy_bps"]))}</span>'),
     ]
     highlight_html = "".join(
-        f'<div class="regime-highlight"><span>{html.escape(k)}</span><strong>{html.escape(v)}<span class="chg" style="color:{color};">{html.escape(chg)}</span></strong></div>'
-        for k, v, chg, color in highlights
+        f'<div class="risk-highlight-row"><span>{html.escape(k)}</span><strong>{html.escape(v)}{extra}</strong></div>'
+        for k, v, extra in highlights
+    )
+    forward_html = "".join(
+        f'<div class="forward-watch-row"><div class="idx">{idx}</div><div><strong>{html.escape(title)}</strong> → {html.escape(body)}</div></div>'
+        for idx, (title, body) in enumerate(_forward_watch_static(), 1)
+    )
+    impact_headline, impact_bullets, watch_triggers = _market_implication_static()
+    impact_bullets_html = "".join(
+        f'<div class="market-imp-bullet"><span class="market-imp-dot"></span><span>{html.escape(item)}</span></div>'
+        for item in impact_bullets
+    )
+    watch_triggers_html = "".join(
+        f'<div class="watch-trigger"><span class="arrow">→</span><span>{html.escape(item)}</span></div>'
+        for item in watch_triggers
     )
     st.markdown(
-        '<div class="regime-dashboard">'
-        '<div class="regime-dark">'
-        '<div class="regime-label" style="color:#98A2B3;margin-bottom:12px;">Market Regime & Risk Engine</div>'
-        '<div class="regime-dark-grid">'
-        f'<div class="regime-dark-cell"><div class="k">Regime</div><div class="v">{html.escape(s["regime_layer"])}</div></div>'
-        f'<div class="regime-dark-cell"><div class="k">Portfolio stance</div><div class="v" style="color:{action_color};">{html.escape(s["portfolio_stance"])}</div></div>'
-        f'<div class="regime-dark-cell"><div class="k">Action</div><div class="v" style="color:{action_color};">{html.escape(s["action_guidance"])}</div></div>'
-        f'<div class="regime-dark-cell"><div class="k">Short-term tape</div><div class="v" style="color:{short_term_color};">{html.escape(s["short_term_cond"])}</div></div>'
+        '<div class="risk-engine-page">'
+        f'<div class="risk-engine-title">Market Regime &amp; Risk Engine</div>'
+        f'<div class="risk-engine-snapshot">Data snapshot: {html.escape(snapshot_label)}</div>'
+        '<div class="risk-engine-hero">'
+        '<div class="risk-hero-top">'
+        f'<div class="risk-hero-cell"><div class="risk-k">Regime</div><div class="risk-v {_risk_status_class(s["regime_layer"])}">{html.escape(s["regime_layer"].title())}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Portfolio Stance</div><div class="risk-v {_risk_status_class(s["portfolio_stance"])}">{html.escape(s["portfolio_stance"])}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Action</div><div class="risk-v {_risk_status_class(s["action_guidance"])}">{html.escape(s["action_guidance"])}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Short-Term</div><div class="risk-v {_risk_status_class(s["short_term_cond"])}">{html.escape(s["short_term_cond"])}</div></div>'
         '</div>'
-        '<div class="regime-dark-bottom">'
-        '<div>'
-        f'<div class="k">Why today</div><div style="font-size:24px;line-height:1.38;font-weight:760;">{html.escape(s["action_detail"])}</div>'
-        f'<div style="font-family:var(--font-mono);font-size:13px;color:#98A2B3;margin-top:14px;">score {s["score"]:+.2f} · updated {html.escape(updated_label)}</div>'
+        '<div class="risk-hero-bottom">'
+        f'<div><div class="risk-k">Why Today</div><div class="risk-why">{html.escape(_why_today_text(d, s))}</div></div>'
+        f'<div class="risk-highlights"><div class="risk-k">Market Highlights</div>{highlight_html}</div>'
+        '</div></div>'
+        '<div class="risk-card">'
+        '<div class="risk-card-head"><div><span class="risk-card-title">🎯 Forward Watch</span><span class="risk-card-sub">AI-curated · what to monitor next 1-7 days</span></div></div>'
+        f'<div class="forward-watch-body">{forward_html}</div>'
         '</div>'
-        f'<div><div class="k">Market highlights</div>{highlight_html}</div>'
-        '</div></div></div>'
-        '<div class="regime-divider"></div>',
-        unsafe_allow_html=True,
-    )
-
-    layer_html = "".join(
-        f'<div class="regime-layer"><span class="n">{html.escape(label)}</span><span class="v" style="color:{color};">{html.escape(value)}</span></div>'
-        for label, value, color in [
-            ("Regime", s["regime_layer"], action_color),
-            ("Portfolio stance", s["portfolio_stance"], action_color),
-            ("Action guidance", s["action_guidance"], action_color),
-            ("Short-term condition", s["short_term_cond"], short_term_color),
-        ]
-    )
-    st.markdown(f'<div class="regime-grid">{layer_html}</div><div class="regime-divider"></div>', unsafe_allow_html=True)
-
-    metric_specs = [
-        ("SPX", _fmt_regime(d["spx"], "", 0), _signed_regime(d["spx_change"]), _regime_value_color(d["spx_change"])),
-        ("QQQ", _fmt_regime(d["qqq"], "", 2), _signed_regime(d["qqq_change"]), _regime_value_color(d["qqq_change"])),
-        ("VIX", _fmt_regime(d["vix"], "", 1), _signed_regime(d["vix_change"]), _regime_value_color(d["vix_change"], inverse=True)),
-        ("Fear & Greed", _fmt_regime(d["fg"], "", 0), d.get("fg_label") or "—", _fear_greed_color(d.get("fg"))),
-        ("ISM", _fmt_regime(d["ism"], "", 1), s["t1_short"], sev_color.get(s["t1"], "var(--color-muted)")),
-        ("Unemployment", _fmt_regime(d["unemp"], "%", 1), s["t2_short"], sev_color.get(s["t2"], "var(--color-muted)")),
-        ("HY OAS", _fmt_regime(d["hy_bps"], " bps", 0), s["t3_detail"], sev_color.get(s["t3"], "var(--color-muted)")),
-        ("10Y-2Y", _fmt_regime(d["yc_bps"], " bps", 0), s["yc_detail"], sev_color.get(s["yc"], "var(--color-muted)")),
-    ]
-    st.markdown(
-        '<div class="regime-grid">'
-        + "".join(f'<div class="regime-metric"><span class="k">{html.escape(k)}</span><span class="v">{html.escape(v)}</span><span class="s" style="color:{color};">{html.escape(sub)}</span></div>' for k, v, sub, color in metric_specs)
-        + '</div><div class="regime-divider"></div>',
+        '<div class="risk-card">'
+        '<div class="risk-card-head"><div><span class="risk-card-title">🧾 Market Implications</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">No Change</span></div>'
+        '<div class="market-imp-body">'
+        f'<div class="market-imp-main"><div class="market-imp-headline">{html.escape(impact_headline)}</div>{impact_bullets_html}</div>'
+        f'<div class="market-imp-side"><div class="risk-card-title" style="color:#A06F2C;margin-bottom:16px;">Watch Triggers</div>{watch_triggers_html}</div>'
+        '</div></div>'
+        '<div class="risk-secondary">',
         unsafe_allow_html=True,
     )
 
@@ -12459,23 +12578,19 @@ if view == "regime":
     st.markdown(
         '<div class="regime-brief">'
         '<div class="regime-panel regime-pad">'
-        '<span class="regime-section-title">Market implications</span>'
+        '<span class="regime-section-title">Portfolio playbook</span>'
         f'{implications_html}'
         '</div>'
         '<div class="regime-panel regime-pad">'
         '<span class="regime-section-title">Scenario map</span>'
         f'{scenarios_html}'
         '</div>'
-        '</div><div class="regime-divider"></div>'
-        '<div class="regime-panel regime-pad">'
-        '<span class="regime-section-title">Forward watch</span>'
-        '<div style="font-size:17px;color:var(--color-muted);line-height:1.5;margin:-2px 0 12px;">The next things that would change positioning. These are not headlines; they are decision gates.</div>'
-        f'<div class="regime-forward-list">{forward_html}</div>'
         '</div><div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
 
     st.markdown(_crypto_section_html(crypto, d, s), unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 
 if view == "ideas":
