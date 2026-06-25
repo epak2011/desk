@@ -252,6 +252,12 @@ def _store_default():
         # }
         "decisions_log": [],
         "chat_history": {},  # {ticker: [{role, content}, ...]}
+        # Market Regime daily memo cache. Shape:
+        # {"2026-06-25": {"ts": iso, "source": "claude"|"fallback",
+        #                  "memo": {...}}}
+        # Mirrors the Google Apps Script pattern: generate once per day,
+        # render cached text fast on every page load.
+        "regime_daily_cache": {},
     }
 
 
@@ -377,6 +383,9 @@ if "store" not in st.session_state:
         _needs_save = True
     if "decisions_log" not in st.session_state.store:
         st.session_state.store["decisions_log"] = []
+        _needs_save = True
+    if "regime_daily_cache" not in st.session_state.store:
+        st.session_state.store["regime_daily_cache"] = {}
         _needs_save = True
     if "final_action_cache" not in st.session_state.store:
         st.session_state.store["final_action_cache"] = {}
@@ -12375,6 +12384,7 @@ if view == "regime":
         _fear_greed.clear()
         _crypto_snapshot.clear()
         _regime_snapshot.clear()
+        st.session_state["force_regime_daily_memo"] = True
         st.rerun()
 
     snap = _regime_snapshot()
@@ -12476,6 +12486,237 @@ if view == "regime":
         ]
         return headline, bullets, triggers
 
+    def _default_forward_watch(d, s, crypto):
+        items = _forward_watch_items(d, s, crypto)
+        return [
+            {
+                "title": title,
+                "body": body,
+            }
+            for title, trigger, body in items[:4]
+        ]
+
+    def _fallback_regime_daily_memo(d, s, crypto):
+        impact_headline, impact_bullets, watch_triggers = _market_implication_static()
+        return {
+            "why_today": _why_today_text(d, s),
+            "daily_context": {
+                "headline": impact_headline,
+                "bullets": impact_bullets,
+                "change_status": "NO CHANGE",
+                "watch_triggers": watch_triggers,
+            },
+            "forward_watch": _default_forward_watch(d, s, crypto),
+            "source_note": "Rule fallback — Claude daily memo unavailable.",
+        }
+
+    def _regime_ai_payload(d, s, crypto):
+        fg = d.get("fg")
+        return {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "regime": s.get("regime_layer"),
+            "portfolio_stance": s.get("portfolio_stance"),
+            "action": s.get("action_guidance"),
+            "short_term": s.get("short_term_cond"),
+            "signals": {
+                "T1_ISM": {"state": s.get("t1"), "detail": s.get("t1_detail"), "value": d.get("ism")},
+                "T2_unemployment": {"state": s.get("t2"), "detail": s.get("t2_detail"), "value": d.get("unemp"), "previous": d.get("unemp_prev")},
+                "T3_HY_OAS": {"state": s.get("t3"), "detail": s.get("t3_detail"), "bps": d.get("hy_bps")},
+                "yield_curve": {"state": s.get("yc"), "detail": s.get("yc_detail"), "bps": d.get("yc_bps")},
+                "liquidity": {"state": s.get("liq_status"), "detail": s.get("liq_detail"), "numbers": s.get("liq_numbers")},
+            },
+            "market_highlights": {
+                "spx": d.get("spx"),
+                "spx_change": d.get("spx_change"),
+                "qqq": d.get("qqq"),
+                "qqq_change": d.get("qqq_change"),
+                "vix": d.get("vix"),
+                "vix_change": d.get("vix_change"),
+                "fear_greed": fg,
+                "fear_greed_label": d.get("fg_label"),
+            },
+            "crypto": {
+                "btc_price": crypto.get("price"),
+                "btc_change": crypto.get("change"),
+                "btc_vs_200d": crypto.get("btc_vs_200"),
+                "btc_vs_20d": crypto.get("btc_vs_20"),
+                "eth_price": crypto.get("eth_price"),
+                "eth_change": crypto.get("eth_change"),
+                "ethbtc_change": crypto.get("ethbtc_change"),
+                "fear_greed": (crypto.get("fg") or {}).get("value"),
+                "fear_greed_label": (crypto.get("fg") or {}).get("label"),
+            },
+            "deterministic_watch_items": _forward_watch_items(d, s, crypto),
+        }
+
+    def _parse_regime_json(text):
+        text = str(text or "").strip()
+        if text.startswith("```"):
+            parts = text.split("```")
+            text = parts[1] if len(parts) > 1 else text
+            if text.lower().startswith("json"):
+                text = text[4:]
+            text = text.strip()
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            text = text[start:end + 1]
+        return json.loads(text)
+
+    def _validate_regime_memo(memo):
+        if not isinstance(memo, dict):
+            return False
+        daily = memo.get("daily_context")
+        forward = memo.get("forward_watch")
+        if not str(memo.get("why_today") or "").strip():
+            return False
+        if not isinstance(daily, dict) or not str(daily.get("headline") or "").strip():
+            return False
+        if not isinstance(daily.get("bullets"), list) or len(daily["bullets"]) < 3:
+            return False
+        if not isinstance(daily.get("watch_triggers"), list) or len(daily["watch_triggers"]) < 2:
+            return False
+        if not isinstance(forward, list) or len(forward) < 3:
+            return False
+        return True
+
+    def _call_claude_regime_daily_memo(d, s, crypto, api_key):
+        from anthropic import Anthropic
+        from pm_view import _call_with_timeout
+        client = Anthropic(api_key=api_key)
+        payload = _regime_ai_payload(d, s, crypto)
+        prompt = f"""
+You are generating the daily memo for an institutional-style Market Regime & Risk Engine.
+
+Use ONLY the provided dashboard data. Do not invent fresh news, dates, economic releases, earnings, geopolitical events, or price levels that are not in the data. If a specific event is not provided, write the implication from the signal itself.
+
+The app renders this in the exact dashboard sections:
+1. Why Today — one dense paragraph for the dark hero card.
+2. Today's Context — event -> market impact -> portfolio implication.
+3. Watch Triggers — concrete conditions that would change the call.
+4. Forward Watch — next 1-7 day monitoring checklist.
+
+Style:
+- Specific, direct, PM-memo tone.
+- Use arrows (→) inside the Today's Context bullets.
+- Keep bullets concise but information-rich.
+- Respect the rules engine's regime/action. Do not override it.
+- Mention crypto only when the provided crypto data matters to risk appetite or speculative appetite.
+
+Dashboard data:
+{json.dumps(payload, indent=2, default=str)}
+
+Return ONLY this JSON shape:
+{{
+  "why_today": "one paragraph, 60-95 words",
+  "daily_context": {{
+    "headline": "one sentence summarizing today's macro/market context",
+    "bullets": [
+      "signal/event → market impact → portfolio implication",
+      "signal/event → market impact → portfolio implication",
+      "signal/event → market impact → portfolio implication",
+      "optional fourth bullet"
+    ],
+    "change_status": "NO CHANGE or WATCH or RISK UP or RISK DOWN",
+    "watch_triggers": [
+      "If ... → ... → ...",
+      "If ... → ... → ...",
+      "If ... → ... → ..."
+    ]
+  }},
+  "forward_watch": [
+    {{"title": "specific thing to watch", "body": "why it matters"}},
+    {{"title": "specific thing to watch", "body": "why it matters"}},
+    {{"title": "specific thing to watch", "body": "why it matters"}},
+    {{"title": "specific thing to watch", "body": "why it matters"}}
+  ]
+}}
+"""
+        message = _call_with_timeout(
+            lambda: anthropic_messages_create(
+                client,
+                max_tokens=1800,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            18,
+            "Claude market regime daily memo",
+        )
+        text = message.content[0].text.strip()
+        memo = _parse_regime_json(text)
+        if not _validate_regime_memo(memo):
+            raise ValueError("Claude regime memo did not include required sections.")
+        memo["source_note"] = "Claude daily memo."
+        return memo
+
+    def _get_regime_daily_memo(d, s, crypto, api_key, force=False):
+        today_key = datetime.now().strftime("%Y-%m-%d")
+        cache = st.session_state.store.setdefault("regime_daily_cache", {})
+        entry = cache.get(today_key) if isinstance(cache, dict) else None
+        if entry and not force:
+            memo = entry.get("memo") or {}
+            source = str(entry.get("source") or "")
+            should_upgrade_fallback = bool(api_key) and source.startswith("rule fallback")
+            if _validate_regime_memo(memo) and not should_upgrade_fallback:
+                return {
+                    "memo": memo,
+                    "source": source or "cached",
+                    "ts": entry.get("ts"),
+                    "date": today_key,
+                }
+        if not api_key:
+            memo = _fallback_regime_daily_memo(d, s, crypto)
+            cache[today_key] = {
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "source": "rule fallback · no Claude key",
+                "memo": memo,
+            }
+            save_store(st.session_state.store)
+            return {"memo": memo, "source": "rule fallback · no Claude key", "ts": cache[today_key]["ts"], "date": today_key}
+        try:
+            memo = _call_claude_regime_daily_memo(d, s, crypto, api_key)
+            cache[today_key] = {
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "source": "claude daily",
+                "memo": memo,
+            }
+            save_store(st.session_state.store)
+            st.session_state["claude_calls_this_session"] = (
+                st.session_state.get("claude_calls_this_session", 0) + 1
+            )
+            return {"memo": memo, "source": "claude daily", "ts": cache[today_key]["ts"], "date": today_key}
+        except Exception as exc:
+            if entry and _validate_regime_memo(entry.get("memo") or {}):
+                return {
+                    "memo": entry.get("memo") or {},
+                    "source": f"{entry.get('source') or 'cached'} · Claude refresh failed",
+                    "ts": entry.get("ts"),
+                    "date": today_key,
+                    "error": str(exc)[:160],
+                }
+            memo = _fallback_regime_daily_memo(d, s, crypto)
+            cache[today_key] = {
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "source": f"rule fallback · Claude failed: {str(exc)[:80]}",
+                "memo": memo,
+            }
+            save_store(st.session_state.store)
+            return {"memo": memo, "source": cache[today_key]["source"], "ts": cache[today_key]["ts"], "date": today_key, "error": str(exc)[:160]}
+
+    regime_daily = _get_regime_daily_memo(
+        d,
+        s,
+        crypto,
+        get_effective_api_key(),
+        force=bool(st.session_state.pop("force_regime_daily_memo", False)),
+    )
+    daily_memo = regime_daily["memo"]
+    memo_ts = regime_daily.get("ts") or snap["updated_at"]
+    try:
+        memo_label = datetime.fromisoformat(memo_ts).strftime("%b %d · %-I:%M %p")
+    except Exception:
+        memo_label = "cached"
+
     if s["alerts"]:
         st.markdown(
             '<div class="regime-panel regime-pad" style="border-color:rgba(209,69,69,.45);margin-bottom:18px;">'
@@ -12494,11 +12735,17 @@ if view == "regime":
         f'<div class="risk-highlight-row"><span>{html.escape(k)}</span><strong>{html.escape(v)}{extra}</strong></div>'
         for k, v, extra in highlights
     )
+    memo_forward = daily_memo.get("forward_watch") or _default_forward_watch(d, s, crypto)
     forward_html = "".join(
-        f'<div class="forward-watch-row"><div class="idx">{idx}</div><div><strong>{html.escape(title)}</strong> → {html.escape(body)}</div></div>'
-        for idx, (title, body) in enumerate(_forward_watch_static(), 1)
+        f'<div class="forward-watch-row"><div class="idx">{idx}</div><div><strong>{html.escape(str((item or {}).get("title") or "Watch item"))}</strong> → {html.escape(str((item or {}).get("body") or ""))}</div></div>'
+        for idx, item in enumerate(memo_forward[:4], 1)
     )
-    impact_headline, impact_bullets, watch_triggers = _market_implication_static()
+    daily_context = daily_memo.get("daily_context") or {}
+    fallback_headline, fallback_bullets, fallback_triggers = _market_implication_static()
+    impact_headline = daily_context.get("headline") or fallback_headline
+    impact_bullets = daily_context.get("bullets") or fallback_bullets
+    watch_triggers = daily_context.get("watch_triggers") or fallback_triggers
+    change_status = daily_context.get("change_status") or "NO CHANGE"
     impact_bullets_html = "".join(
         f'<div class="market-imp-bullet"><span class="market-imp-dot"></span><span>{html.escape(item)}</span></div>'
         for item in impact_bullets
@@ -12510,7 +12757,7 @@ if view == "regime":
     st.markdown(
         '<div class="risk-engine-page">'
         f'<div class="risk-engine-title">Market Regime &amp; Risk Engine</div>'
-        f'<div class="risk-engine-snapshot">Data snapshot: {html.escape(snapshot_label)}</div>'
+        f'<div class="risk-engine-snapshot">Data snapshot: {html.escape(snapshot_label)} · Daily memo: {html.escape(regime_daily.get("source") or "cached")} · {html.escape(memo_label)}</div>'
         '<div class="risk-engine-hero">'
         '<div class="risk-hero-top">'
         f'<div class="risk-hero-cell"><div class="risk-k">Regime</div><div class="risk-v {_risk_status_class(s["regime_layer"])}">{html.escape(s["regime_layer"].title())}</div></div>'
@@ -12519,11 +12766,11 @@ if view == "regime":
         f'<div class="risk-hero-cell"><div class="risk-k">Short-Term</div><div class="risk-v {_risk_status_class(s["short_term_cond"])}">{html.escape(s["short_term_cond"])}</div></div>'
         '</div>'
         '<div class="risk-hero-bottom">'
-        f'<div><div class="risk-k">Why Today</div><div class="risk-why">{html.escape(_why_today_text(d, s))}</div></div>'
+        f'<div><div class="risk-k">Why Today</div><div class="risk-why">{html.escape(daily_memo.get("why_today") or _why_today_text(d, s))}</div></div>'
         f'<div class="risk-highlights"><div class="risk-k">Market Highlights</div>{highlight_html}</div>'
         '</div></div>'
         '<div class="risk-card">'
-        '<div class="risk-card-head"><div><span class="risk-card-title">🧾 Today\'s Context</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">No Change</span></div>'
+        f'<div class="risk-card-head"><div><span class="risk-card-title">🧾 Today\'s Context</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">{html.escape(str(change_status).upper())}</span></div>'
         '<div class="market-imp-body">'
         f'<div class="market-imp-main"><div class="market-imp-headline">{html.escape(impact_headline)}</div>{impact_bullets_html}</div>'
         f'<div class="market-imp-side"><div class="risk-card-title" style="color:#A06F2C;margin-bottom:16px;">Watch Triggers</div>{watch_triggers_html}</div>'
