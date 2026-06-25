@@ -11772,9 +11772,9 @@ if view == "regime":
         .market-imp-main{padding:24px 28px 28px}
         .market-imp-side{background:#F5F1FC;border-left:1px solid #E2DCEF;padding:24px 26px}
         .market-imp-headline{font-size:19px;line-height:1.45;font-weight:950;color:#202033;margin-bottom:20px}
-        .market-imp-bullet{display:grid;grid-template-columns:18px minmax(0,1fr);gap:12px;border-top:1px solid #EEEAF5;padding:14px 0;font-size:16px;line-height:1.48;color:#5A5572}
+        .market-imp-bullet{display:flex;align-items:flex-start;gap:10px;border-top:1px solid #EEEAF5;padding:14px 0;font-size:16px;line-height:1.48;color:#5A5572}
         .market-imp-bullet:first-of-type{border-top:0}
-        .market-imp-dot{width:8px;height:8px;border-radius:50%;background:#6967B7;margin-top:9px}
+        .market-imp-dot{width:7px;height:7px;border-radius:50%;background:#6967B7;margin-top:9px;flex:0 0 7px}
         .watch-trigger{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:13px 0;font-size:15px;line-height:1.5;color:#5A5572}
         .watch-trigger .arrow{color:#A06F2C;font-weight:950}
         .risk-secondary{margin-top:18px}
@@ -12523,15 +12523,15 @@ if view == "regime":
         f'<div class="risk-highlights"><div class="risk-k">Market Highlights</div>{highlight_html}</div>'
         '</div></div>'
         '<div class="risk-card">'
-        '<div class="risk-card-head"><div><span class="risk-card-title">🎯 Forward Watch</span><span class="risk-card-sub">AI-curated · what to monitor next 1-7 days</span></div></div>'
-        f'<div class="forward-watch-body">{forward_html}</div>'
-        '</div>'
-        '<div class="risk-card">'
-        '<div class="risk-card-head"><div><span class="risk-card-title">🧾 Market Implications</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">No Change</span></div>'
+        '<div class="risk-card-head"><div><span class="risk-card-title">🧾 Today\'s Context</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">No Change</span></div>'
         '<div class="market-imp-body">'
         f'<div class="market-imp-main"><div class="market-imp-headline">{html.escape(impact_headline)}</div>{impact_bullets_html}</div>'
         f'<div class="market-imp-side"><div class="risk-card-title" style="color:#A06F2C;margin-bottom:16px;">Watch Triggers</div>{watch_triggers_html}</div>'
         '</div></div>'
+        '<div class="risk-card">'
+        '<div class="risk-card-head"><div><span class="risk-card-title">🎯 Forward Watch</span><span class="risk-card-sub">AI-curated · what to monitor next 1-7 days</span></div></div>'
+        f'<div class="forward-watch-body">{forward_html}</div>'
+        '</div>'
         '<div class="risk-secondary">',
         unsafe_allow_html=True,
     )
