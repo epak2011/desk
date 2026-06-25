@@ -12557,38 +12557,6 @@ if view == "regime":
         unsafe_allow_html=True,
     )
 
-    def _bullets(items):
-        return "".join(f'<div class="regime-bullet"><span>•</span><span>{html.escape(item)}</span></div>' for item in items)
-
-    implications = _market_implications(d, s)
-    scenarios = _scenario_map(d, s)
-    forward_items = _forward_watch_items(d, s, crypto)
-    implications_html = "".join(
-        f'<div class="regime-implication"><div class="h">{html.escape(title)}</div><div class="b">{html.escape(body)}</div></div>'
-        for title, body in implications
-    )
-    scenarios_html = "".join(
-        f'<div class="regime-scenario"><div class="h" style="color:{color};">{html.escape(title)}</div><div class="b">{html.escape(body)}</div></div>'
-        for title, body, color in scenarios
-    )
-    forward_html = "".join(
-        f'<div class="regime-forward-row"><div class="num">{idx}</div><div><div class="trig">{html.escape(trigger)}</div><span class="status">{html.escape(status)}</span><div class="why">{html.escape(why)}</div></div></div>'
-        for idx, (trigger, status, why) in enumerate(forward_items, 1)
-    )
-    st.markdown(
-        '<div class="regime-brief">'
-        '<div class="regime-panel regime-pad">'
-        '<span class="regime-section-title">Portfolio playbook</span>'
-        f'{implications_html}'
-        '</div>'
-        '<div class="regime-panel regime-pad">'
-        '<span class="regime-section-title">Scenario map</span>'
-        f'{scenarios_html}'
-        '</div>'
-        '</div><div class="regime-divider"></div>',
-        unsafe_allow_html=True,
-    )
-
     st.markdown(_crypto_section_html(crypto, d, s), unsafe_allow_html=True)
     st.markdown('</div></div>', unsafe_allow_html=True)
 
