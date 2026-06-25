@@ -11688,6 +11688,8 @@ if view == "regime":
         .regime-dark .v{font-size:30px;font-weight:900;line-height:1.08}
         .regime-dark-bottom{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.9fr);gap:24px}
         .regime-highlight{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.10);font-size:15px}
+        .regime-highlight strong{font-family:var(--font-mono);font-size:16px;font-weight:900}
+        .regime-highlight .chg{margin-left:8px}
         .regime-highlight:last-child{border-bottom:0}
         .regime-signal-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
         .regime-signal-card{border:1px solid var(--color-border);border-radius:8px;background:rgba(255,255,255,.72);padding:16px;min-height:148px}
@@ -11720,16 +11722,21 @@ if view == "regime":
         .crypto-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
         .crypto-tag{display:inline-block;margin:0 5px 6px 0;border:1px solid var(--color-border);border-radius:5px;padding:3px 6px;font-family:var(--font-mono);font-size:11px;color:var(--color-muted);background:#F8FAFC}
         .crypto-note{font-size:15px;line-height:1.45;color:var(--color-muted)}
-        .crypto-cycle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
-        .crypto-phase{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:12px}
-        .crypto-phase.current{border:2px solid var(--color-blue);background:#EFF6FF}
-        .crypto-phase .phase{font-family:var(--font-mono);font-size:11px;font-weight:850;color:var(--color-muted);text-transform:uppercase}
-        .crypto-phase .name{font-size:17px;font-weight:900;margin:5px 0 6px;color:var(--color-text)}
-        .crypto-phase .desc{font-size:14px;line-height:1.45;color:var(--color-muted)}
-        .crypto-narrative{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:0 18px}
-        .crypto-narrative-row{padding:13px 0;border-bottom:1px solid var(--color-border)}
+        .crypto-cycle-note{font-size:15px;font-style:italic;color:var(--color-muted);margin:-4px 0 14px}
+        .crypto-cycle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 18px}
+        .crypto-phase{position:relative;border:1px solid var(--color-border);border-radius:8px;background:rgba(255,255,255,.76);padding:18px;min-height:196px}
+        .crypto-phase.current{border:3px solid #6D50A5;background:#F1EAFB;padding-top:42px}
+        .crypto-phase.current:before{content:"◂ YOU ARE HERE";position:absolute;top:0;left:0;right:0;background:#5F4497;color:#fff;border-radius:5px 5px 0 0;text-align:center;font-family:var(--font-mono);font-size:12px;font-weight:900;letter-spacing:.08em;padding:8px 10px}
+        .crypto-phase .phase{font-family:var(--font-mono);font-size:12px;font-weight:850;color:var(--color-muted);text-transform:uppercase}
+        .crypto-phase .name{font-size:18px;font-weight:900;margin:6px 0 10px;color:var(--color-text)}
+        .crypto-phase.current .name,.crypto-phase.current .phase{color:#5F4497}
+        .crypto-phase .desc{font-size:15px;line-height:1.45;color:var(--color-muted);margin-bottom:12px}
+        .crypto-phase .meta{font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;font-weight:850;color:var(--color-muted);margin-top:12px}
+        .crypto-phase .meta-text{font-size:14px;line-height:1.4;color:var(--color-muted);margin-top:4px}
+        .crypto-narrative{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:0 24px}
+        .crypto-narrative-row{padding:20px 0;border-bottom:1px solid var(--color-border)}
         .crypto-narrative-row:last-child{border-bottom:0}
-        .crypto-narrative-row .h{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:5px}
+        .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#8C6CC2;margin-bottom:8px}
         .crypto-narrative-row .b{font-size:19px;line-height:1.52;color:var(--color-text)}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}}
@@ -11755,6 +11762,44 @@ if view == "regime":
             return f"{float(value):+,.{digits}f}{suffix}"
         except (TypeError, ValueError):
             return "—"
+
+    def _regime_value_color(value, inverse=False):
+        try:
+            if value is None or (isinstance(value, float) and math.isnan(value)):
+                return "var(--color-muted)"
+            value = float(value)
+            if inverse:
+                value = -value
+            if value > 0:
+                return "var(--color-positive)"
+            if value < 0:
+                return "var(--color-negative)"
+        except (TypeError, ValueError):
+            pass
+        return "var(--color-muted)"
+
+    def _condition_color(label):
+        label = str(label or "").lower()
+        if any(word in label for word in ("constructive", "healthy", "momentum", "oversold")):
+            return "var(--color-positive)"
+        if any(word in label for word in ("extended", "choppy", "fragile")):
+            return "var(--color-warning-text)"
+        if any(word in label for word in ("risk", "broken", "stress")):
+            return "var(--color-negative)"
+        return "var(--color-muted)"
+
+    def _fear_greed_color(value):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "var(--color-muted)"
+        if value < 25:
+            return "var(--color-negative)"
+        if value < 45:
+            return "var(--color-warning-text)"
+        if value <= 70:
+            return "var(--color-positive)"
+        return "var(--color-warning-text)"
 
     @st.cache_data(ttl=60 * 60, show_spinner=False)
     def _fred_rows(series_id, limit=24):
@@ -12172,16 +12217,18 @@ if view == "regime":
             ]
         )
         phase_defs = [
-            (1, "Phase 1", "Accumulation", "Below trend, fear high, long-term buyers only."),
-            (2, "Phase 2", "Recovery", "Above 200d, trend rebuilding."),
-            (3, "Phase 3", "Parabolic bull", "Mature upside, greed risk rises."),
-            (4, "Phase 4", "Bear / repair", "Trend broken or attempting repair."),
+            (1, "Phase 1", "🤔 Accumulation", "Post-crash, boring, sentiment terrible. Smart money buys quietly.", "2015, 2018–19, 2022–23", "Deeply below 200d, extreme fear, flat price action"),
+            (2, "Phase 2", "📈 Recovery", "Price climbs back toward old highs. Halving occurs. Retail not yet paying attention.", "2016, 2020, 2023–24", "Reclaimed 200d MA, momentum building, sentiment improving"),
+            (3, "Phase 3", "🚀 Parabolic Bull", "Euphoria. New ATH. Media explodes. Altcoins go parabolic.", "Q4 2013, Q4 2017, Q4 2021, Q4 2025", "Well above 200d, extreme greed, parabolic price action"),
+            (4, "Phase 4", "🐻 Bear / Transition", "50–80% drawdown from peak. Bear rallies trap latecomers. Watch for accumulation signals before the next cycle begins.", "2014–15, 2018, 2022, 2025–26", "Below 200d, declining momentum, bear rallies mislead"),
         ]
         active_phase = scored["four"][3]
         phases = "".join(
             f'<div class="crypto-phase {"current" if num == active_phase else ""}"><div class="phase">{html.escape(label)}</div>'
-            f'<div class="name">{html.escape(name)}</div><div class="desc">{html.escape(desc)}</div></div>'
-            for num, label, name, desc in phase_defs
+            f'<div class="name">{html.escape(name)}</div><div class="desc">{html.escape(desc)}</div>'
+            f'<div class="meta">Historical</div><div class="meta-text">{html.escape(historical)}</div>'
+            f'<div class="meta">Signal</div><div class="meta-text"><em>{html.escape(signal)}</em></div></div>'
+            for num, label, name, desc, historical, signal in phase_defs
         )
         narrative = "".join(
             f'<div class="crypto-narrative-row"><div class="h">{html.escape(h)}</div><div class="b">{html.escape(b)}</div></div>'
@@ -12200,9 +12247,9 @@ if view == "regime":
             + '</div>'
             f'<div class="crypto-price-strip">{price_html}</div>'
             f'<div class="crypto-decisions">{decision_html}</div>'
-            '<span class="regime-section-title" style="margin-top:16px;">Behavioral cycle map</span>'
+            '<span class="regime-section-title" style="margin-top:16px;color:#8C6CC2;">Behavioral cycle map</span>'
+            '<div class="crypto-cycle-note">Contextual reference — not the primary driver of decisions</div>'
             f'<div class="crypto-cycle-grid">{phases}</div>'
-            '<span class="regime-section-title" style="margin-top:16px;">Crypto commentary</span>'
             f'<div class="crypto-narrative">{narrative}</div>'
             '</div></div>'
         )
@@ -12300,6 +12347,8 @@ if view == "regime":
         "Risk On": "var(--color-positive)",
     }
     action_color = color_map.get(s["portfolio_stance"], "var(--color-text)")
+    short_term_color = _condition_color(s.get("short_term_cond"))
+    sev_color = {"CLEAR": "var(--color-positive)", "RETREATING": "var(--color-positive)", "APPROACHING": "var(--color-warning-text)", "ELEVATED": "var(--color-warning-text)", "WARNING": "var(--color-negative)", "FIRING": "var(--color-negative)", "INVERTED": "var(--color-warning-text)", "FLAT": "var(--color-warning-text)", "STEEPENING": "var(--color-positive)", "NEUTRAL": "var(--color-muted)", "IMPROVING": "var(--color-positive)", "TIGHTENING": "var(--color-negative)"}
     updated_label = datetime.fromisoformat(snap["updated_at"]).strftime("%b %d · %-I:%M %p")
 
     st.markdown('<div class="regime-shell">', unsafe_allow_html=True)
@@ -12310,14 +12359,14 @@ if view == "regime":
             unsafe_allow_html=True,
         )
     highlights = [
-        ("SPX", f'{_fmt_regime(d["spx"], "", 0)} · {_signed_regime(d["spx_change"])}'),
-        ("QQQ", f'{_fmt_regime(d["qqq"], "", 2)} · {_signed_regime(d["qqq_change"])}'),
-        ("VIX", f'{_fmt_regime(d["vix"], "", 1)} · {_signed_regime(d["vix_change"])}'),
-        ("Fear & Greed", f'{_fmt_regime(d["fg"], "", 0)} · {d.get("fg_label") or "—"}'),
+        ("SPX", _fmt_regime(d["spx"], "", 0), _signed_regime(d["spx_change"]), _regime_value_color(d["spx_change"])),
+        ("QQQ", _fmt_regime(d["qqq"], "", 2), _signed_regime(d["qqq_change"]), _regime_value_color(d["qqq_change"])),
+        ("VIX", _fmt_regime(d["vix"], "", 1), _signed_regime(d["vix_change"]), _regime_value_color(d["vix_change"], inverse=True)),
+        ("Fear & Greed", _fmt_regime(d["fg"], "", 0), d.get("fg_label") or "—", _fear_greed_color(d.get("fg"))),
     ]
     highlight_html = "".join(
-        f'<div class="regime-highlight"><span>{html.escape(k)}</span><strong>{html.escape(v)}</strong></div>'
-        for k, v in highlights
+        f'<div class="regime-highlight"><span>{html.escape(k)}</span><strong>{html.escape(v)}<span class="chg" style="color:{color};">{html.escape(chg)}</span></strong></div>'
+        for k, v, chg, color in highlights
     )
     st.markdown(
         '<div class="regime-dashboard">'
@@ -12327,7 +12376,7 @@ if view == "regime":
         f'<div class="regime-dark-cell"><div class="k">Regime</div><div class="v">{html.escape(s["regime_layer"])}</div></div>'
         f'<div class="regime-dark-cell"><div class="k">Portfolio stance</div><div class="v" style="color:{action_color};">{html.escape(s["portfolio_stance"])}</div></div>'
         f'<div class="regime-dark-cell"><div class="k">Action</div><div class="v" style="color:{action_color};">{html.escape(s["action_guidance"])}</div></div>'
-        f'<div class="regime-dark-cell"><div class="k">Short-term tape</div><div class="v">{html.escape(s["short_term_cond"])}</div></div>'
+        f'<div class="regime-dark-cell"><div class="k">Short-term tape</div><div class="v" style="color:{short_term_color};">{html.escape(s["short_term_cond"])}</div></div>'
         '</div>'
         '<div class="regime-dark-bottom">'
         '<div>'
@@ -12346,29 +12395,28 @@ if view == "regime":
             ("Regime", s["regime_layer"], action_color),
             ("Portfolio stance", s["portfolio_stance"], action_color),
             ("Action guidance", s["action_guidance"], action_color),
-            ("Short-term condition", s["short_term_cond"], "var(--color-text)"),
+            ("Short-term condition", s["short_term_cond"], short_term_color),
         ]
     )
     st.markdown(f'<div class="regime-grid">{layer_html}</div><div class="regime-divider"></div>', unsafe_allow_html=True)
 
     metric_specs = [
-        ("SPX", _fmt_regime(d["spx"], "", 0), _signed_regime(d["spx_change"])),
-        ("QQQ", _fmt_regime(d["qqq"], "", 2), _signed_regime(d["qqq_change"])),
-        ("VIX", _fmt_regime(d["vix"], "", 1), _signed_regime(d["vix_change"])),
-        ("Fear & Greed", _fmt_regime(d["fg"], "", 0), d.get("fg_label") or "—"),
-        ("ISM", _fmt_regime(d["ism"], "", 1), s["t1_short"]),
-        ("Unemployment", _fmt_regime(d["unemp"], "%", 1), s["t2_short"]),
-        ("HY OAS", _fmt_regime(d["hy_bps"], " bps", 0), s["t3_detail"]),
-        ("10Y-2Y", _fmt_regime(d["yc_bps"], " bps", 0), s["yc_detail"]),
+        ("SPX", _fmt_regime(d["spx"], "", 0), _signed_regime(d["spx_change"]), _regime_value_color(d["spx_change"])),
+        ("QQQ", _fmt_regime(d["qqq"], "", 2), _signed_regime(d["qqq_change"]), _regime_value_color(d["qqq_change"])),
+        ("VIX", _fmt_regime(d["vix"], "", 1), _signed_regime(d["vix_change"]), _regime_value_color(d["vix_change"], inverse=True)),
+        ("Fear & Greed", _fmt_regime(d["fg"], "", 0), d.get("fg_label") or "—", _fear_greed_color(d.get("fg"))),
+        ("ISM", _fmt_regime(d["ism"], "", 1), s["t1_short"], sev_color.get(s["t1"], "var(--color-muted)")),
+        ("Unemployment", _fmt_regime(d["unemp"], "%", 1), s["t2_short"], sev_color.get(s["t2"], "var(--color-muted)")),
+        ("HY OAS", _fmt_regime(d["hy_bps"], " bps", 0), s["t3_detail"], sev_color.get(s["t3"], "var(--color-muted)")),
+        ("10Y-2Y", _fmt_regime(d["yc_bps"], " bps", 0), s["yc_detail"], sev_color.get(s["yc"], "var(--color-muted)")),
     ]
     st.markdown(
         '<div class="regime-grid">'
-        + "".join(f'<div class="regime-metric"><span class="k">{html.escape(k)}</span><span class="v">{html.escape(v)}</span><span class="s">{html.escape(sub)}</span></div>' for k, v, sub in metric_specs)
+        + "".join(f'<div class="regime-metric"><span class="k">{html.escape(k)}</span><span class="v">{html.escape(v)}</span><span class="s" style="color:{color};">{html.escape(sub)}</span></div>' for k, v, sub, color in metric_specs)
         + '</div><div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
 
-    sev_color = {"CLEAR": "var(--color-positive)", "RETREATING": "var(--color-positive)", "APPROACHING": "var(--color-warning-text)", "ELEVATED": "var(--color-warning-text)", "WARNING": "var(--color-negative)", "FIRING": "var(--color-negative)", "INVERTED": "var(--color-warning-text)", "FLAT": "var(--color-warning-text)", "STEEPENING": "var(--color-positive)"}
     rows = [
         ("T1 · ISM", s["t1"], s["t1_detail"]),
         ("T2 · Unemployment", s["t2"], s["t2_detail"]),
