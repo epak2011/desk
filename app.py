@@ -11716,14 +11716,14 @@ if view == "regime":
         .regime-action-box li:last-child{border-bottom:0}
         .crypto-wrap{margin-top:4px}
         .crypto-header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-        .crypto-accent{width:4px;height:22px;border-radius:2px;background:var(--color-blue)}
-        .crypto-badge{border:1px solid var(--color-border);border-radius:5px;padding:4px 7px;font-family:var(--font-mono);font-size:11px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;background:var(--color-panel)}
-        .crypto-price-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:#101828;border-radius:10px;padding:16px 18px;margin-bottom:12px;color:white}
-        .crypto-price-cell{border-right:1px solid rgba(255,255,255,.12);padding:0 16px}
-        .crypto-price-cell:first-child{padding-left:0}
-        .crypto-price-cell:last-child{border-right:0;padding-right:0}
-        .crypto-price-cell .k{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#98A2B3;margin-bottom:5px}
-        .crypto-price-cell .v{font-family:var(--font-mono);font-size:30px;font-weight:950}
+        .crypto-accent{width:3px;height:22px;border-radius:2px;background:var(--color-blue)}
+        .crypto-badge{border:1px solid var(--color-border);border-radius:5px;padding:4px 8px;font-family:var(--font-mono);font-size:11px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;background:var(--color-panel);color:var(--color-text)}
+        .crypto-price-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);margin-bottom:12px;color:var(--color-text);overflow:hidden}
+        .crypto-price-cell{min-height:118px;border-right:1px solid var(--color-border);padding:18px 20px;display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;gap:8px}
+        .crypto-price-cell:first-child{padding-left:20px}
+        .crypto-price-cell:last-child{border-right:0;padding-right:20px}
+        .crypto-price-cell .k{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin:0}
+        .crypto-price-cell .v{font-family:var(--font-mono);font-size:clamp(22px,2.3vw,32px);line-height:1.1;font-weight:900;color:var(--color-text);max-width:100%;overflow-wrap:anywhere}
         .crypto-decisions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
         .crypto-card{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:18px}
         .crypto-card .q{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
@@ -11734,62 +11734,62 @@ if view == "regime":
         .crypto-cycle-note{font-size:15px;font-style:italic;color:var(--color-muted);margin:-4px 0 14px}
         .crypto-cycle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 18px}
         .crypto-phase{position:relative;border:1px solid var(--color-border);border-radius:8px;background:rgba(255,255,255,.76);padding:18px;min-height:196px}
-        .crypto-phase.current{border:3px solid #6D50A5;background:#F1EAFB;padding-top:42px}
-        .crypto-phase.current:before{content:"◂ YOU ARE HERE";position:absolute;top:0;left:0;right:0;background:#5F4497;color:#fff;border-radius:5px 5px 0 0;text-align:center;font-family:var(--font-mono);font-size:12px;font-weight:900;letter-spacing:.08em;padding:8px 10px}
+        .crypto-phase.current{border:2px solid var(--color-blue);background:var(--color-bg-soft);padding-top:42px}
+        .crypto-phase.current:before{content:"◂ YOU ARE HERE";position:absolute;top:0;left:0;right:0;background:var(--color-text);color:#fff;border-radius:5px 5px 0 0;text-align:center;font-family:var(--font-mono);font-size:12px;font-weight:900;letter-spacing:.08em;padding:8px 10px}
         .crypto-phase .phase{font-family:var(--font-mono);font-size:12px;font-weight:850;color:var(--color-muted);text-transform:uppercase}
         .crypto-phase .name{font-size:18px;font-weight:900;margin:6px 0 10px;color:var(--color-text)}
-        .crypto-phase.current .name,.crypto-phase.current .phase{color:#5F4497}
+        .crypto-phase.current .name,.crypto-phase.current .phase{color:var(--color-text)}
         .crypto-phase .desc{font-size:15px;line-height:1.45;color:var(--color-muted);margin-bottom:12px}
         .crypto-phase .meta{font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;font-weight:850;color:var(--color-muted);margin-top:12px}
         .crypto-phase .meta-text{font-size:14px;line-height:1.4;color:var(--color-muted);margin-top:4px}
         .crypto-narrative{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:0 24px}
         .crypto-narrative-row{padding:20px 0;border-bottom:1px solid var(--color-border)}
         .crypto-narrative-row:last-child{border-bottom:0}
-        .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#8C6CC2;margin-bottom:8px}
+        .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
         .crypto-narrative-row .b{font-size:19px;line-height:1.52;color:var(--color-text)}
-        .risk-engine-page{max-width:1480px;margin:0 auto;padding:0 0 56px;color:#25233A}
-        .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:#5F62B5;margin:4px 0 6px;letter-spacing:0}
-        .risk-engine-snapshot{font-size:14px;font-weight:760;color:#8A86A5;margin-bottom:18px}
-        .risk-engine-hero{background:#17172A;color:#E9E6F8;border-radius:10px;border-left:4px solid #5F62B5;padding:26px 30px 28px;box-shadow:0 18px 45px rgba(31,30,55,.12)}
+        .risk-engine-page{max-width:1480px;margin:0 auto;padding:0 0 56px;color:var(--color-text)}
+        .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
+        .risk-engine-snapshot{font-size:14px;font-weight:760;color:var(--color-muted);margin-bottom:18px}
+        .risk-engine-hero{background:var(--color-text);color:#F8FAFC;border-radius:8px;border-left:4px solid var(--color-blue);padding:26px 30px 28px;box-shadow:var(--shadow-soft)}
         .risk-hero-top{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:24px;margin-bottom:24px}
         .risk-hero-cell{padding:0 22px;border-right:1px solid rgba(255,255,255,.11)}
         .risk-hero-cell:first-child{padding-left:0}
         .risk-hero-cell:last-child{border-right:0;padding-right:0}
-        .risk-k{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:#85829F;margin-bottom:10px}
-        .risk-v{font-size:clamp(21px,2vw,28px);line-height:1.12;font-weight:950;color:#DCD7F3;overflow-wrap:normal;word-break:normal}
-        .risk-v.good{color:#377C43}
-        .risk-v.warn{color:#D99A2B}
-        .risk-v.bad{color:#D45E5E}
+        .risk-k{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:rgba(248,250,252,.58);margin-bottom:10px}
+        .risk-v{font-size:clamp(21px,2vw,28px);line-height:1.12;font-weight:950;color:#F8FAFC;overflow-wrap:normal;word-break:normal}
+        .risk-v.good{color:var(--color-positive)}
+        .risk-v.warn{color:var(--color-warning-text)}
+        .risk-v.bad{color:var(--color-negative)}
         .risk-hero-bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(390px,.78fr);gap:32px}
-        .risk-why{font-size:17px;line-height:1.72;font-weight:760;color:#F1EEF8;max-width:940px}
+        .risk-why{font-size:17px;line-height:1.72;font-weight:760;color:#F8FAFC;max-width:940px}
         .risk-highlights{border-left:1px solid rgba(255,255,255,.12);padding-left:30px}
-        .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.1);padding:10px 0;font-size:16px;color:#9C98C2}
+        .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.1);padding:10px 0;font-size:16px;color:rgba(248,250,252,.62)}
         .risk-highlight-row:last-child{border-bottom:0}
         .risk-highlight-row strong{font-size:20px;font-weight:950;color:#F6F3FF;font-variant-numeric:tabular-nums}
         .risk-change{font-size:14px;font-weight:900;margin-left:6px}
-        .risk-card{margin-top:18px;border:1px solid #DED9ED;border-radius:10px;background:#FFFFFF;overflow:hidden;box-shadow:0 12px 28px rgba(35,34,56,.04)}
-        .risk-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 24px;background:#FAF8FF;border-bottom:1px solid #E4DFF0}
-        .risk-card-title{font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.24em;text-transform:uppercase;color:#6665B0}
-        .risk-card-sub{font-size:14px;color:#9691AA;font-weight:780;margin-left:10px;letter-spacing:0;text-transform:none}
-        .risk-badge{border:1px solid #BCD8C7;background:#EDF8F1;color:#44784C;border-radius:5px;padding:7px 12px;font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}
+        .risk-card{margin-top:18px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);overflow:hidden;box-shadow:var(--shadow-soft)}
+        .risk-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 24px;background:var(--color-panel);border-bottom:1px solid var(--color-border)}
+        .risk-card-title{font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.24em;text-transform:uppercase;color:var(--color-muted)}
+        .risk-card-sub{font-size:14px;color:var(--color-muted);font-weight:780;margin-left:10px;letter-spacing:0;text-transform:none}
+        .risk-badge{border:1px solid var(--color-positive);background:rgba(22,163,74,.08);color:var(--color-positive);border-radius:5px;padding:7px 12px;font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}
         .forward-watch-body{padding:20px 24px 24px}
-        .forward-watch-row{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;padding:13px 14px;border-radius:6px;color:#3F3C55;font-size:17px;line-height:1.45}
-        .forward-watch-row:nth-child(even){background:#FAFAFD}
-        .forward-watch-row .idx{font-weight:950;color:#6665B0;text-align:center}
-        .forward-watch-row strong{font-weight:950;color:#202033}
+        .forward-watch-row{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;padding:13px 14px;border-radius:6px;color:var(--color-body);font-size:17px;line-height:1.45}
+        .forward-watch-row:nth-child(even){background:var(--color-bg-soft)}
+        .forward-watch-row .idx{font-weight:950;color:var(--color-muted);text-align:center}
+        .forward-watch-row strong{font-weight:950;color:var(--color-text)}
         .market-imp-body{display:grid;grid-template-columns:minmax(0,1fr) 300px}
         .market-imp-main{padding:24px 28px 28px}
-        .market-imp-side{background:#F5F1FC;border-left:1px solid #E2DCEF;padding:24px 26px}
-        .market-imp-headline{font-size:19px;line-height:1.45;font-weight:950;color:#202033;margin-bottom:20px}
-        .market-imp-bullet{display:flex;align-items:flex-start;gap:10px;border-top:1px solid #EEEAF5;padding:14px 0;font-size:16px;line-height:1.48;color:#5A5572}
+        .market-imp-side{background:var(--color-bg-soft);border-left:1px solid var(--color-border);padding:24px 26px}
+        .market-imp-headline{font-size:19px;line-height:1.45;font-weight:950;color:var(--color-text);margin-bottom:20px}
+        .market-imp-bullet{display:flex;align-items:flex-start;gap:10px;border-top:1px solid var(--color-border);padding:14px 0;font-size:16px;line-height:1.48;color:var(--color-body)}
         .market-imp-bullet:first-of-type{border-top:0}
-        .market-imp-dot{width:7px;height:7px;border-radius:50%;background:#6967B7;margin-top:9px;flex:0 0 7px}
-        .watch-trigger{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:13px 0;font-size:15px;line-height:1.5;color:#5A5572}
-        .watch-trigger .arrow{color:#A06F2C;font-weight:950}
+        .market-imp-dot{width:7px;height:7px;border-radius:50%;background:var(--color-muted);margin-top:9px;flex:0 0 7px}
+        .watch-trigger{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:13px 0;font-size:15px;line-height:1.5;color:var(--color-body)}
+        .watch-trigger .arrow{color:var(--color-muted);font-weight:950}
         .risk-secondary{margin-top:18px}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}}
-        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.risk-hero-top,.risk-hero-bottom,.market-imp-body{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.risk-hero-cell{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid #E2DCEF}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.risk-hero-top,.risk-hero-bottom,.market-imp-body{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.risk-hero-cell{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
         @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
@@ -12296,7 +12296,7 @@ if view == "regime":
             + '</div>'
             f'<div class="crypto-price-strip">{price_html}</div>'
             f'<div class="crypto-decisions">{decision_html}</div>'
-            '<span class="regime-section-title" style="margin-top:16px;color:#8C6CC2;">Behavioral cycle map</span>'
+            '<span class="regime-section-title" style="margin-top:16px;">Behavioral cycle map</span>'
             '<div class="crypto-cycle-note">Contextual reference — not the primary driver of decisions</div>'
             f'<div class="crypto-cycle-grid">{phases}</div>'
             f'<div class="crypto-narrative">{narrative}</div>'
@@ -12773,7 +12773,7 @@ Return ONLY this JSON shape:
         f'<div class="risk-card-head"><div><span class="risk-card-title">🧾 Today\'s Context</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">{html.escape(str(change_status).upper())}</span></div>'
         '<div class="market-imp-body">'
         f'<div class="market-imp-main"><div class="market-imp-headline">{html.escape(impact_headline)}</div>{impact_bullets_html}</div>'
-        f'<div class="market-imp-side"><div class="risk-card-title" style="color:#A06F2C;margin-bottom:16px;">Watch Triggers</div>{watch_triggers_html}</div>'
+        f'<div class="market-imp-side"><div class="risk-card-title" style="margin-bottom:16px;">Watch Triggers</div>{watch_triggers_html}</div>'
         '</div></div>'
         '<div class="risk-card">'
         '<div class="risk-card-head"><div><span class="risk-card-title">🎯 Forward Watch</span><span class="risk-card-sub">AI-curated · what to monitor next 1-7 days</span></div></div>'
