@@ -17,7 +17,11 @@ import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None
 
 import streamlit as st
 import yfinance as yf
@@ -46,6 +50,41 @@ STORE_PATH = Path.home() / ".desk_store.json"
 LEGACY_STORE_PATH = Path(__file__).parent / "desk_store.json"
 BENCH_CACHE_PATH = Path.home() / ".desk_spy_benchmark_cache.json"
 HISTORY_CACHE_DIR = Path.home() / ".desk_history_cache"
+MARKET_TZ = ZoneInfo("America/New_York") if ZoneInfo else timezone(timedelta(hours=-4), "ET")
+REGIME_DAILY_REFRESH_HOUR = 9
+REGIME_DAILY_REFRESH_MINUTE = 10
+REGIME_DAILY_MEMO_SCHEMA_VERSION = 2
+
+
+def now_market_time():
+    return datetime.now(MARKET_TZ)
+
+
+def regime_daily_anchor(now=None):
+    now = now or now_market_time()
+    anchor = now.replace(
+        hour=REGIME_DAILY_REFRESH_HOUR,
+        minute=REGIME_DAILY_REFRESH_MINUTE,
+        second=0,
+        microsecond=0,
+    )
+    if now < anchor:
+        anchor -= timedelta(days=1)
+    return anchor
+
+
+def regime_daily_key(now=None):
+    return regime_daily_anchor(now).strftime("%Y-%m-%d")
+
+
+def format_market_time(value, fmt="%b %d · %-I:%M %p %Z"):
+    try:
+        dt = datetime.fromisoformat(str(value))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(MARKET_TZ).strftime(fmt)
+    except Exception:
+        return "cached"
 
 # One-time migration: if the legacy in-folder store exists and the new
 # home-folder store doesn't, move the legacy file forward.
@@ -11650,11 +11689,11 @@ if view == "regime":
         .regime-sub{font-size:clamp(19px,2vw,30px);line-height:1.25;color:var(--color-text);max-width:980px;margin:0 0 18px}
         .regime-meta{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
         .regime-divider{height:1px;background:var(--color-border);margin:30px 0}
-        .regime-panel{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);box-shadow:var(--shadow-soft);overflow:hidden}
+        .regime-panel{border:1px solid #CCD6E3;border-radius:8px;background:var(--color-panel);box-shadow:none;overflow:hidden}
         .regime-pad{padding:24px}
         .regime-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
         .regime-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-        .regime-metric{border:1px solid var(--color-border);border-radius:7px;background:rgba(255,255,255,.72);padding:17px 16px 16px}
+        .regime-metric{border:1px solid #CCD6E3;border-radius:7px;background:var(--color-panel);padding:17px 16px 16px}
         .regime-metric .k,.regime-section-title{display:block;font-family:var(--font-mono);font-size:13px;font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
         .regime-metric .v{display:block;font-family:var(--font-mono);font-size:28px;font-weight:900;color:var(--color-text)}
         .regime-metric .s{display:block;margin-top:8px;font-size:14px;color:var(--color-muted);line-height:1.45}
@@ -11666,7 +11705,7 @@ if view == "regime":
         .regime-chip{display:inline-block;border:1px solid var(--color-border);border-radius:5px;background:var(--color-panel);padding:7px 9px;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:.04em;color:var(--color-muted);margin:0 6px 6px 0}
         .regime-watch{border-left:3px solid var(--color-border);padding:10px 0 10px 14px;margin:0 0 12px;color:var(--color-text);line-height:1.35}
         .regime-watch strong{font-family:var(--font-mono);font-size:var(--fs-xs);letter-spacing:var(--ls-caps-lg);text-transform:uppercase}
-        .regime-layer{border:1px solid var(--color-border);border-radius:7px;background:rgba(255,255,255,.55);padding:14px}
+        .regime-layer{border:1px solid #CCD6E3;border-radius:7px;background:var(--color-panel);padding:14px}
         .regime-layer .n{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted)}
         .regime-layer .v{display:block;margin-top:8px;font-size:26px;font-weight:850}
         .regime-bullet{display:flex;gap:9px;padding:6px 0;border-top:1px dashed rgba(148,163,184,.26);line-height:1.35}
@@ -11682,26 +11721,26 @@ if view == "regime":
         .regime-scenario .h{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;margin-bottom:7px}
         .regime-scenario .b{font-size:17px;line-height:1.48;color:var(--color-text)}
         .regime-forward-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
-        .regime-forward-row{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;align-items:start;padding:16px;border:1px solid var(--color-border);border-radius:8px;background:rgba(255,255,255,.68)}
+        .regime-forward-row{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;align-items:start;padding:16px;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-panel)}
         .regime-forward-row .num{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:var(--color-bg-soft);font-family:var(--font-mono);font-size:13px;font-weight:900;color:var(--color-muted)}
         .regime-forward-row .trig{font-size:17px;font-weight:850;color:var(--color-text)}
         .regime-forward-row .why{font-size:15px;line-height:1.45;color:var(--color-muted);margin-top:7px}
         .regime-forward-row .status{display:inline-block;margin-top:8px;border:1px solid var(--color-border);border-radius:5px;padding:4px 7px;font-family:var(--font-mono);font-size:12px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:var(--color-muted)}
-        .regime-dashboard{border:1px solid var(--color-border);border-radius:10px;background:var(--color-panel);overflow:hidden;box-shadow:var(--shadow-soft)}
-        .regime-dark{background:#101828;color:white;border-left:4px solid var(--color-blue);padding:25px 28px}
-        .regime-dark-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:20px;margin-bottom:20px}
-        .regime-dark-cell{padding:0 20px;border-right:1px solid rgba(255,255,255,.12)}
+        .regime-dashboard{border:1px solid #CCD6E3;border-radius:10px;background:var(--color-panel);overflow:hidden;box-shadow:none}
+        .regime-dark{background:var(--color-panel);color:var(--color-text);border:1px solid #CCD6E3;border-left:4px solid var(--color-blue);border-radius:8px;padding:24px 28px}
+        .regime-dark-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid #D7DFEA;padding-bottom:20px;margin-bottom:20px}
+        .regime-dark-cell{padding:0 20px;border-right:1px solid #D7DFEA}
         .regime-dark-cell:first-child{padding-left:0}
         .regime-dark-cell:last-child{border-right:0;padding-right:0}
-        .regime-dark .k{font-family:var(--font-mono);font-size:13px;font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:#98A2B3;margin-bottom:8px}
+        .regime-dark .k{font-family:var(--font-mono);font-size:13px;font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
         .regime-dark .v{font-size:30px;font-weight:900;line-height:1.08}
         .regime-dark-bottom{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.9fr);gap:24px}
-        .regime-highlight{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.10);font-size:15px}
+        .regime-highlight{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #D7DFEA;font-size:15px;color:var(--color-muted)}
         .regime-highlight strong{font-family:var(--font-mono);font-size:16px;font-weight:900}
         .regime-highlight .chg{margin-left:8px}
         .regime-highlight:last-child{border-bottom:0}
         .regime-signal-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
-        .regime-signal-card{border:1px solid var(--color-border);border-radius:8px;background:rgba(255,255,255,.72);padding:16px;min-height:148px}
+        .regime-signal-card{border:1px solid #CCD6E3;border-radius:8px;background:var(--color-panel);padding:16px;min-height:148px}
         .regime-signal-card .name{font-family:var(--font-mono);font-size:12px;font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted)}
         .regime-signal-card .state{font-size:22px;font-weight:900;margin:8px 0 8px}
         .regime-signal-card .copy{font-size:15px;line-height:1.45;color:var(--color-muted)}
@@ -11711,21 +11750,21 @@ if view == "regime":
         .regime-signal-box .label{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;margin-bottom:5px}
         .regime-signal-box .value{font-family:var(--font-mono);font-size:24px;font-weight:950;margin:8px 0 4px;color:var(--color-text)}
         .regime-signal-box .detail{font-size:var(--fs-sm);line-height:1.4;color:var(--color-muted)}
-        .regime-action-box{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px;background:#101828;color:white;border-radius:10px;padding:18px 22px;border:1px solid rgba(255,255,255,.08)}
-        .regime-action-box li{list-style:none;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08);line-height:1.45}
+        .regime-action-box{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px;background:var(--color-panel);color:var(--color-text);border-radius:8px;padding:18px 22px;border:1px solid #CCD6E3}
+        .regime-action-box li{list-style:none;padding:7px 0;border-bottom:1px solid #D7DFEA;line-height:1.45}
         .regime-action-box li:last-child{border-bottom:0}
         .crypto-wrap{margin-top:4px}
         .crypto-header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
         .crypto-accent{width:3px;height:22px;border-radius:2px;background:var(--color-blue)}
         .crypto-badge{border:1px solid var(--color-border);border-radius:5px;padding:4px 8px;font-family:var(--font-mono);font-size:11px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;background:var(--color-panel);color:var(--color-text)}
-        .crypto-price-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);margin-bottom:12px;color:var(--color-text);overflow:hidden}
-        .crypto-price-cell{min-height:118px;border-right:1px solid var(--color-border);padding:18px 20px;display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;gap:8px}
+        .crypto-price-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid #CCD6E3;border-radius:8px;background:var(--color-panel);margin-bottom:12px;color:var(--color-text);overflow:hidden}
+        .crypto-price-cell{min-height:118px;border-right:1px solid #D7DFEA;padding:18px 20px;display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;gap:8px}
         .crypto-price-cell:first-child{padding-left:20px}
         .crypto-price-cell:last-child{border-right:0;padding-right:20px}
         .crypto-price-cell .k{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin:0}
         .crypto-price-cell .v{font-family:var(--font-mono);font-size:clamp(22px,2.3vw,32px);line-height:1.1;font-weight:900;color:var(--color-text);max-width:100%;overflow-wrap:anywhere}
         .crypto-decisions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
-        .crypto-card{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:18px}
+        .crypto-card{border:1px solid #CCD6E3;border-radius:8px;background:var(--color-panel);padding:18px}
         .crypto-card .q{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
         .crypto-card .answer{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--color-border);border-radius:6px;padding:7px 10px;font-size:18px;font-weight:850;margin-bottom:10px}
         .crypto-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
@@ -11733,7 +11772,7 @@ if view == "regime":
         .crypto-note{font-size:15px;line-height:1.45;color:var(--color-muted)}
         .crypto-cycle-note{font-size:15px;font-style:italic;color:var(--color-muted);margin:-4px 0 14px}
         .crypto-cycle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 18px}
-        .crypto-phase{position:relative;border:1px solid var(--color-border);border-radius:8px;background:rgba(255,255,255,.76);padding:18px;min-height:196px}
+        .crypto-phase{position:relative;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-panel);padding:18px;min-height:196px}
         .crypto-phase.current{border:2px solid var(--color-blue);background:var(--color-bg-soft);padding-top:42px}
         .crypto-phase.current:before{content:"◂ YOU ARE HERE";position:absolute;top:0;left:0;right:0;background:var(--color-text);color:#fff;border-radius:5px 5px 0 0;text-align:center;font-family:var(--font-mono);font-size:12px;font-weight:900;letter-spacing:.08em;padding:8px 10px}
         .crypto-phase .phase{font-family:var(--font-mono);font-size:12px;font-weight:850;color:var(--color-muted);text-transform:uppercase}
@@ -11742,7 +11781,7 @@ if view == "regime":
         .crypto-phase .desc{font-size:15px;line-height:1.45;color:var(--color-muted);margin-bottom:12px}
         .crypto-phase .meta{font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;font-weight:850;color:var(--color-muted);margin-top:12px}
         .crypto-phase .meta-text{font-size:14px;line-height:1.4;color:var(--color-muted);margin-top:4px}
-        .crypto-narrative{border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);padding:0 24px}
+        .crypto-narrative{border:1px solid #CCD6E3;border-radius:8px;background:var(--color-panel);padding:0 24px}
         .crypto-narrative-row{padding:20px 0;border-bottom:1px solid var(--color-border)}
         .crypto-narrative-row:last-child{border-bottom:0}
         .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
@@ -11750,38 +11789,39 @@ if view == "regime":
         .risk-engine-page{max-width:1480px;margin:0 auto;padding:0 0 56px;color:var(--color-text)}
         .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
         .risk-engine-snapshot{font-size:14px;font-weight:760;color:var(--color-muted);margin-bottom:18px}
-        .risk-engine-hero{background:var(--color-text);color:#F8FAFC;border-radius:8px;border-left:4px solid var(--color-blue);padding:26px 30px 28px;box-shadow:var(--shadow-soft)}
-        .risk-hero-top{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:24px;margin-bottom:24px}
-        .risk-hero-cell{padding:0 22px;border-right:1px solid rgba(255,255,255,.11)}
-        .risk-hero-cell:first-child{padding-left:0}
-        .risk-hero-cell:last-child{border-right:0;padding-right:0}
-        .risk-k{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:rgba(248,250,252,.58);margin-bottom:10px}
-        .risk-v{font-size:clamp(21px,2vw,28px);line-height:1.12;font-weight:950;color:#F8FAFC;overflow-wrap:normal;word-break:normal}
+        .risk-engine-hero{background:var(--color-panel);color:var(--color-text);border:1px solid #CCD6E3;border-left:4px solid var(--color-blue);border-radius:8px;padding:0;box-shadow:none;overflow:hidden}
+        .risk-hero-top{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;border-bottom:1px solid #D7DFEA;padding:0;margin:0}
+        .risk-hero-cell{padding:20px 24px;border-right:1px solid #D7DFEA}
+        .risk-hero-cell:first-child{padding-left:24px}
+        .risk-hero-cell:last-child{border-right:0;padding-right:24px}
+        .risk-k{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
+        .risk-v{font-size:clamp(21px,2vw,28px);line-height:1.12;font-weight:950;color:var(--color-text);overflow-wrap:normal;word-break:normal}
         .risk-v.good{color:var(--color-positive)}
         .risk-v.warn{color:var(--color-warning-text)}
         .risk-v.bad{color:var(--color-negative)}
-        .risk-hero-bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(390px,.78fr);gap:32px}
-        .risk-why{font-size:17px;line-height:1.72;font-weight:760;color:#F8FAFC;max-width:940px}
-        .risk-highlights{border-left:1px solid rgba(255,255,255,.12);padding-left:30px}
-        .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.1);padding:10px 0;font-size:16px;color:rgba(248,250,252,.62)}
+        .risk-hero-bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(390px,.78fr);gap:0}
+        .risk-hero-bottom > div:first-child{padding:22px 26px}
+        .risk-why{font-size:17px;line-height:1.72;font-weight:760;color:var(--color-body);max-width:940px}
+        .risk-highlights{border-left:1px solid #D7DFEA;padding:22px 26px}
+        .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid #D7DFEA;padding:10px 0;font-size:16px;color:var(--color-muted)}
         .risk-highlight-row:last-child{border-bottom:0}
-        .risk-highlight-row strong{font-size:20px;font-weight:950;color:#F6F3FF;font-variant-numeric:tabular-nums}
+        .risk-highlight-row strong{font-size:20px;font-weight:950;color:var(--color-text);font-variant-numeric:tabular-nums}
         .risk-change{font-size:14px;font-weight:900;margin-left:6px}
-        .risk-card{margin-top:18px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);overflow:hidden;box-shadow:var(--shadow-soft)}
-        .risk-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 24px;background:var(--color-panel);border-bottom:1px solid var(--color-border)}
+        .risk-card{margin-top:18px;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-panel);overflow:hidden;box-shadow:none}
+        .risk-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 24px;background:var(--color-panel);border-bottom:1px solid #D7DFEA}
         .risk-card-title{font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.24em;text-transform:uppercase;color:var(--color-muted)}
         .risk-card-sub{font-size:14px;color:var(--color-muted);font-weight:780;margin-left:10px;letter-spacing:0;text-transform:none}
         .risk-badge{border:1px solid var(--color-positive);background:rgba(22,163,74,.08);color:var(--color-positive);border-radius:5px;padding:7px 12px;font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}
         .forward-watch-body{padding:20px 24px 24px}
         .forward-watch-row{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;padding:13px 14px;border-radius:6px;color:var(--color-body);font-size:17px;line-height:1.45}
-        .forward-watch-row:nth-child(even){background:var(--color-bg-soft)}
+        .forward-watch-row:nth-child(even){background:var(--color-surface-soft)}
         .forward-watch-row .idx{font-weight:950;color:var(--color-muted);text-align:center}
         .forward-watch-row strong{font-weight:950;color:var(--color-text)}
         .market-imp-body{display:grid;grid-template-columns:minmax(0,1fr) 300px}
         .market-imp-main{padding:24px 28px 28px}
-        .market-imp-side{background:var(--color-bg-soft);border-left:1px solid var(--color-border);padding:24px 26px}
+        .market-imp-side{background:var(--color-surface-soft);border-left:1px solid #D7DFEA;padding:24px 26px}
         .market-imp-headline{font-size:19px;line-height:1.45;font-weight:950;color:var(--color-text);margin-bottom:20px}
-        .market-imp-bullet{display:flex;align-items:flex-start;gap:10px;border-top:1px solid var(--color-border);padding:14px 0;font-size:16px;line-height:1.48;color:var(--color-body)}
+        .market-imp-bullet{display:flex;align-items:flex-start;gap:10px;border-top:1px solid #D7DFEA;padding:14px 0;font-size:16px;line-height:1.48;color:var(--color-body)}
         .market-imp-bullet:first-of-type{border-top:0}
         .market-imp-dot{width:7px;height:7px;border-radius:50%;background:var(--color-muted);margin-top:9px;flex:0 0 7px}
         .watch-trigger{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:13px 0;font-size:15px;line-height:1.5;color:var(--color-body)}
@@ -12232,7 +12272,7 @@ if view == "regime":
             ("Conviction", f'Cycle read is {scored["four"][0]} ({scored["four"][1]}) and medium-term phase is {scored["medium"][0]}. Portfolio stance from the broader regime engine is {macro_gate}, so crypto risk should stay inside that envelope.'),
         ]
 
-    def _crypto_section_html(c, d, s):
+    def _crypto_section_html(c, d, s, memo_crypto=None):
         if not c or c.get("price") is None:
             return (
                 '<div class="regime-panel regime-pad">'
@@ -12279,9 +12319,21 @@ if view == "regime":
             f'<div class="meta">Signal</div><div class="meta-text"><em>{html.escape(signal)}</em></div></div>'
             for num, label, name, desc, historical, signal in phase_defs
         )
+        memo_rows = (memo_crypto or {}).get("narrative") if isinstance(memo_crypto, dict) else None
+        if isinstance(memo_rows, list) and len(memo_rows) >= 3:
+            narrative_rows = [
+                (
+                    str((row or {}).get("title") or "Read"),
+                    str((row or {}).get("body") or ""),
+                )
+                for row in memo_rows[:4]
+                if isinstance(row, dict)
+            ]
+        else:
+            narrative_rows = _crypto_narrative(c, scored, d, s)
         narrative = "".join(
             f'<div class="crypto-narrative-row"><div class="h">{html.escape(h)}</div><div class="b">{html.escape(b)}</div></div>'
-            for h, b in _crypto_narrative(c, scored, d, s)
+            for h, b in narrative_rows
         )
         tags = [
             f'Cycle: {scored["four"][0]} · {scored["four"][1]}',
@@ -12304,7 +12356,7 @@ if view == "regime":
         )
 
     @st.cache_data(ttl=60 * 60, show_spinner=False)
-    def _regime_snapshot():
+    def _regime_snapshot(refresh_key):
         ism = _fred_rows("NAPMPMI")
         unemp = _fred_rows("UNRATE")
         hy = _fred_rows("BAMLH0A0HYM2")
@@ -12376,7 +12428,7 @@ if view == "regime":
             s["alerts"].append("T2 APPROACHING")
         if s["t3"] == "ELEVATED":
             s["alerts"].append("HY ELEVATED")
-        return {"data": d, "signals": s, "crypto": _crypto_snapshot(), "updated_at": datetime.now().isoformat(timespec="seconds")}
+        return {"data": d, "signals": s, "crypto": _crypto_snapshot(), "updated_at": now_market_time().isoformat(timespec="seconds")}
 
     if st.button("↻ Refresh market regime", key="refresh_market_regime", help="Refresh macro, short-term, liquidity, and crypto inputs."):
         _fred_rows.clear()
@@ -12384,10 +12436,10 @@ if view == "regime":
         _fear_greed.clear()
         _crypto_snapshot.clear()
         _regime_snapshot.clear()
-        st.session_state["force_regime_daily_memo"] = True
         st.rerun()
 
-    snap = _regime_snapshot()
+    regime_refresh_key = regime_daily_key()
+    snap = _regime_snapshot(regime_refresh_key)
     d, s, crypto = snap["data"], snap["signals"], snap.get("crypto") or {}
     color_map = {
         "Risk Off": "var(--color-negative)",
@@ -12399,7 +12451,7 @@ if view == "regime":
     action_color = color_map.get(s["portfolio_stance"], "var(--color-text)")
     short_term_color = _condition_color(s.get("short_term_cond"))
     sev_color = {"CLEAR": "var(--color-positive)", "RETREATING": "var(--color-positive)", "APPROACHING": "var(--color-warning-text)", "ELEVATED": "var(--color-warning-text)", "WARNING": "var(--color-negative)", "FIRING": "var(--color-negative)", "INVERTED": "var(--color-warning-text)", "FLAT": "var(--color-warning-text)", "STEEPENING": "var(--color-positive)", "NEUTRAL": "var(--color-muted)", "IMPROVING": "var(--color-positive)", "TIGHTENING": "var(--color-negative)"}
-    updated_label = datetime.fromisoformat(snap["updated_at"]).strftime("%b %d · %-I:%M %p")
+    updated_label = format_market_time(snap["updated_at"], "%b %d · %-I:%M %p %Z")
 
     def _risk_status_class(label):
         label = str(label or "").lower()
@@ -12498,7 +12550,20 @@ if view == "regime":
 
     def _fallback_regime_daily_memo(d, s, crypto):
         impact_headline, impact_bullets, watch_triggers = _market_implication_static()
+        signal_explanations = {
+            "T1 · ISM": s["t1_detail"],
+            "T2 · Unemployment": s["t2_detail"],
+            "T3 · HY OAS": s["t3_detail"],
+            "Yield curve": s["yc_detail"],
+            "Liquidity": f'{s["liq_detail"]} Fed {s["liq_numbers"]["Fed"] if s["liq_numbers"]["Fed"] is not None else "—"}B · RRP {s["liq_numbers"]["RRP"] if s["liq_numbers"]["RRP"] is not None else "—"}B · TGA {s["liq_numbers"]["TGA"] if s["liq_numbers"]["TGA"] is not None else "—"}B',
+        }
+        crypto_scored = _score_crypto(crypto) if crypto and crypto.get("price") is not None else None
+        crypto_narrative = [
+            {"title": title, "body": body}
+            for title, body in (_crypto_narrative(crypto, crypto_scored, d, s) if crypto_scored else [])
+        ]
         return {
+            "schema_version": REGIME_DAILY_MEMO_SCHEMA_VERSION,
             "why_today": _why_today_text(d, s),
             "daily_context": {
                 "headline": impact_headline,
@@ -12507,13 +12572,19 @@ if view == "regime":
                 "watch_triggers": watch_triggers,
             },
             "forward_watch": _default_forward_watch(d, s, crypto),
+            "signal_explanations": signal_explanations,
+            "crypto": {
+                "narrative": crypto_narrative,
+            },
             "source_note": "Rule fallback — Claude daily memo unavailable.",
         }
 
     def _regime_ai_payload(d, s, crypto):
         fg = d.get("fg")
+        crypto_scored = _score_crypto(crypto) if crypto and crypto.get("price") is not None else {}
         return {
-            "date": datetime.now().strftime("%Y-%m-%d"),
+            "schema_version": REGIME_DAILY_MEMO_SCHEMA_VERSION,
+            "date": regime_daily_key(),
             "regime": s.get("regime_layer"),
             "portfolio_stance": s.get("portfolio_stance"),
             "action": s.get("action_guidance"),
@@ -12545,6 +12616,7 @@ if view == "regime":
                 "ethbtc_change": crypto.get("ethbtc_change"),
                 "fear_greed": (crypto.get("fg") or {}).get("value"),
                 "fear_greed_label": (crypto.get("fg") or {}).get("label"),
+                "score": crypto_scored,
             },
             "deterministic_watch_items": _forward_watch_items(d, s, crypto),
         }
@@ -12566,8 +12638,12 @@ if view == "regime":
     def _validate_regime_memo(memo):
         if not isinstance(memo, dict):
             return False
+        if memo.get("schema_version") != REGIME_DAILY_MEMO_SCHEMA_VERSION:
+            return False
         daily = memo.get("daily_context")
         forward = memo.get("forward_watch")
+        signal_explanations = memo.get("signal_explanations")
+        crypto_memo = memo.get("crypto")
         if not str(memo.get("why_today") or "").strip():
             return False
         if not isinstance(daily, dict) or not str(daily.get("headline") or "").strip():
@@ -12577,6 +12653,10 @@ if view == "regime":
         if not isinstance(daily.get("watch_triggers"), list) or len(daily["watch_triggers"]) < 2:
             return False
         if not isinstance(forward, list) or len(forward) < 3:
+            return False
+        if not isinstance(signal_explanations, dict) or len(signal_explanations) < 5:
+            return False
+        if crypto_memo is not None and not isinstance(crypto_memo, dict):
             return False
         return True
 
@@ -12591,10 +12671,12 @@ You are generating the daily memo for an institutional-style Market Regime & Ris
 Use ONLY the provided dashboard data. Do not invent fresh news, dates, economic releases, earnings, geopolitical events, or price levels that are not in the data. If a specific event is not provided, write the implication from the signal itself.
 
 The app renders this in the exact dashboard sections:
-1. Why Today — one dense paragraph for the dark hero card.
+1. Why Today — one dense paragraph for the hero card.
 2. Today's Context — event -> market impact -> portfolio implication.
 3. Watch Triggers — concrete conditions that would change the call.
 4. Forward Watch — next 1-7 day monitoring checklist.
+5. Signal Cards — short explanations for T1, T2, T3, Yield Curve, and Liquidity.
+6. Crypto Regime — daily interpretation of BTC/ETH/BTC rotation using the provided crypto data.
 
 Style:
 - Specific, direct, PM-memo tone.
@@ -12608,6 +12690,7 @@ Dashboard data:
 
 Return ONLY this JSON shape:
 {{
+  "schema_version": {REGIME_DAILY_MEMO_SCHEMA_VERSION},
   "why_today": "one paragraph, 60-95 words",
   "daily_context": {{
     "headline": "one sentence summarizing today's macro/market context",
@@ -12629,7 +12712,22 @@ Return ONLY this JSON shape:
     {{"title": "specific thing to watch", "body": "why it matters"}},
     {{"title": "specific thing to watch", "body": "why it matters"}},
     {{"title": "specific thing to watch", "body": "why it matters"}}
-  ]
+  ],
+  "signal_explanations": {{
+    "T1 · ISM": "one sentence explaining the current state and portfolio implication",
+    "T2 · Unemployment": "one sentence explaining the current state and portfolio implication",
+    "T3 · HY OAS": "one sentence explaining the current state and portfolio implication",
+    "Yield curve": "one sentence explaining the current state and portfolio implication",
+    "Liquidity": "one sentence explaining the current state and portfolio implication"
+  }},
+  "crypto": {{
+    "narrative": [
+      {{"title": "Trend", "body": "daily interpretation of BTC trend"}},
+      {{"title": "Opportunity", "body": "daily interpretation of add/risk timing"}},
+      {{"title": "Positioning", "body": "daily interpretation of BTC versus ETH/alts"}},
+      {{"title": "Conviction", "body": "daily interpretation of cycle and sizing"}}
+    ]
+  }}
 }}
 """
         message = _call_with_timeout(
@@ -12639,7 +12737,7 @@ Return ONLY this JSON shape:
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             ),
-            18,
+            10,
             "Claude market regime daily memo",
         )
         text = message.content[0].text.strip()
@@ -12650,14 +12748,13 @@ Return ONLY this JSON shape:
         return memo
 
     def _get_regime_daily_memo(d, s, crypto, api_key, force=False):
-        today_key = datetime.now().strftime("%Y-%m-%d")
+        today_key = regime_daily_key()
         cache = st.session_state.store.setdefault("regime_daily_cache", {})
         entry = cache.get(today_key) if isinstance(cache, dict) else None
         if entry and not force:
             memo = entry.get("memo") or {}
             source = str(entry.get("source") or "")
-            should_upgrade_fallback = bool(api_key) and source.startswith("rule fallback")
-            if _validate_regime_memo(memo) and not should_upgrade_fallback:
+            if _validate_regime_memo(memo):
                 return {
                     "memo": memo,
                     "source": source or "cached",
@@ -12667,7 +12764,7 @@ Return ONLY this JSON shape:
         if not api_key:
             memo = _fallback_regime_daily_memo(d, s, crypto)
             cache[today_key] = {
-                "ts": datetime.now().isoformat(timespec="seconds"),
+                "ts": now_market_time().isoformat(timespec="seconds"),
                 "source": "rule fallback · no Claude key",
                 "memo": memo,
             }
@@ -12676,7 +12773,7 @@ Return ONLY this JSON shape:
         try:
             memo = _call_claude_regime_daily_memo(d, s, crypto, api_key)
             cache[today_key] = {
-                "ts": datetime.now().isoformat(timespec="seconds"),
+                "ts": now_market_time().isoformat(timespec="seconds"),
                 "source": "claude daily",
                 "memo": memo,
             }
@@ -12696,12 +12793,224 @@ Return ONLY this JSON shape:
                 }
             memo = _fallback_regime_daily_memo(d, s, crypto)
             cache[today_key] = {
-                "ts": datetime.now().isoformat(timespec="seconds"),
+                "ts": now_market_time().isoformat(timespec="seconds"),
                 "source": f"rule fallback · Claude failed: {str(exc)[:80]}",
                 "memo": memo,
             }
             save_store(st.session_state.store)
             return {"memo": memo, "source": cache[today_key]["source"], "ts": cache[today_key]["ts"], "date": today_key, "error": str(exc)[:160]}
+
+    def _email_hex(status, default="#5B5BAD"):
+        label = str(status or "").lower()
+        if any(word in label for word in ("clear", "expansion", "risk on", "maintain", "constructive", "healthy", "tight", "calm", "improving")):
+            return "#2A6E46"
+        if any(word in label for word in ("warning", "firing", "risk off", "raise", "reduce", "stress", "extreme", "broken")):
+            return "#8B2A2A"
+        if any(word in label for word in ("approaching", "defensive", "neutral", "mixed", "flat", "elevated", "watch")):
+            return "#9B6214"
+        return default
+
+    def _email_badge(label, status=None):
+        color = _email_hex(status or label)
+        if color == "#2A6E46":
+            bg, border = "#EAF4EE", "#A8D4B8"
+        elif color == "#8B2A2A":
+            bg, border = "#FAF0EE", "#D49090"
+        else:
+            bg, border = "#FDF6E3", "#D4B86A"
+        return (
+            f'<span style="display:inline-block;padding:4px 10px;border-radius:5px;'
+            f'font-size:12px;font-weight:800;background:{bg};color:{color};border:1px solid {border};">{html.escape(str(label))}</span>'
+        )
+
+    def _email_context_status_style(status):
+        color = _email_hex(status)
+        if color == "#2A6E46":
+            return "#EAF4EE", "#2A6E46", "#A8D4B8"
+        if color == "#8B2A2A":
+            return "#FAF0EE", "#8B2A2A", "#D49090"
+        return "#FDF6E3", "#9B6214", "#D4B86A"
+
+    def _email_change_hex(value, inverse=False):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "#8888A4"
+        if inverse:
+            value = -value
+        if value > 0:
+            return "#2A6E46"
+        if value < 0:
+            return "#8B2A2A"
+        return "#8888A4"
+
+    def _email_fear_greed_hex(value):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "#8888A4"
+        if value < 25:
+            return "#8B2A2A"
+        if value < 45:
+            return "#9B6214"
+        if value <= 70:
+            return "#2A6E46"
+        return "#9B6214"
+
+    def _email_forward_rows(items):
+        rows = []
+        for item in (items or [])[:5]:
+            if isinstance(item, dict):
+                title = str(item.get("title") or "Watch item")
+                body = str(item.get("body") or "")
+            else:
+                raw = str(item or "")
+                if "→" in raw:
+                    title, body = [part.strip() for part in raw.split("→", 1)]
+                else:
+                    title, body = raw, ""
+            rows.append(
+                '<div style="padding:10px 0;border-bottom:1px solid #F0EEF8;font-size:15px;line-height:1.5;">'
+                f'<strong style="color:#1A1A2E;">{html.escape(title)}</strong>'
+                f' <span style="color:#9B7EC8;">→</span> <span style="color:#55556A;">{html.escape(body)}</span></div>'
+            )
+        return "".join(rows) or '<div style="font-size:13px;color:#AAA;padding:6px 0;">No forward watch available.</div>'
+
+    def _build_regime_email_html(d, s, crypto, daily_memo, snapshot_ts, snapshot_label, memo_label):
+        daily_context = daily_memo.get("daily_context") or {}
+        context_headline = str(daily_context.get("headline") or "")
+        context_bullets = daily_context.get("bullets") or []
+        context_triggers = daily_context.get("watch_triggers") or []
+        change_status = str(daily_context.get("change_status") or "NO CHANGE").upper()
+        status_bg, status_color, status_border = _email_context_status_style(change_status)
+        forward_rows = _email_forward_rows(daily_memo.get("forward_watch") or _default_forward_watch(d, s, crypto))
+        why_today = str(daily_memo.get("why_today") or _why_today_text(d, s))
+        date_str = format_market_time(snapshot_ts, "%a, %b %d %Y")
+        spx = _fmt_regime(d.get("spx"), "", 0)
+        spx_chg = _signed_regime(d.get("spx_change"))
+        qqq = _fmt_regime(d.get("qqq"), "", 2)
+        qqq_chg = _signed_regime(d.get("qqq_change"))
+        vix = _fmt_regime(d.get("vix"), "", 1)
+        fg = f'{_fmt_regime(d.get("fg"), "", 0)} {d.get("fg_label") or ""}'.strip()
+        alert_bar = (
+            '<div style="background:#8B2A2A;padding:12px 22px;text-align:center;font-size:14px;font-weight:800;color:#fff;">'
+            f'Alert: {html.escape(" · ".join(s.get("alerts") or []))}</div>'
+            if s.get("alerts") else ""
+        )
+
+        bullet_html = "".join(
+            '<div style="padding:8px 0;border-bottom:1px solid #F0EEF8;font-size:15px;color:#44445A;line-height:1.55;">'
+            f'<span style="color:#6B61B3;">·</span> {html.escape(str(item))}</div>'
+            for item in context_bullets[:5]
+        )
+        trigger_html = "".join(
+            '<div style="padding:3px 0;font-size:13px;color:#9B6214;line-height:1.5;">'
+            f'→ {html.escape(str(item))}</div>'
+            for item in context_triggers[:4]
+        )
+
+        crypto_block = ""
+        if crypto and crypto.get("price") is not None:
+            scored = _score_crypto(crypto)
+            memo_crypto = daily_memo.get("crypto") or {}
+            memo_rows = memo_crypto.get("narrative") if isinstance(memo_crypto, dict) else None
+            conviction = ""
+            if isinstance(memo_rows, list) and memo_rows:
+                conviction = str((memo_rows[-1] or {}).get("body") or "")
+            btc_vs_200 = crypto.get("btc_vs_200")
+            btc_color = "#2A6E46" if btc_vs_200 is not None and btc_vs_200 >= 0 else "#8B2A2A"
+            def verdict_cell(label, verdict):
+                answer, _note, color_key = verdict
+                color = {"green": "#2A6E46", "red": "#8B2A2A", "yellow": "#9B6214"}.get(color_key, "#5B5BAD")
+                bg = {"green": "#EAF4EE", "red": "#FAF0EE", "yellow": "#FDF6E3"}.get(color_key, "#F0ECF8")
+                border = {"green": "#A8D4B8", "red": "#D4A8A8", "yellow": "#D4B86A"}.get(color_key, "#D9D2EA")
+                return (
+                    f'<td style="background:{bg};border:1px solid {border};border-radius:5px;padding:7px 8px;text-align:center;">'
+                    f'<div style="font-size:10px;color:{color};font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.75;">{html.escape(label)}</div>'
+                    f'<div style="font-size:13px;color:{color};font-weight:900;">{html.escape(str(answer))}</div></td>'
+                )
+            crypto_block = (
+                '<div class="card"><div class="card-pad">'
+                '<div class="lbl">Crypto</div>'
+                '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-bottom:12px;width:100%;">'
+                '<tr>'
+                f'<td style="padding:0 14px 0 0;white-space:nowrap;"><span style="font-size:18px;font-weight:900;color:#1A1A2E;">BTC ${crypto.get("price"):,.0f}</span>'
+                f' <span style="font-size:12px;font-weight:800;color:{btc_color};">{_signed_regime(crypto.get("btc_vs_200"))} vs 200d</span></td>'
+                f'<td style="padding:0 14px;font-size:16px;color:#1A1A2E;"><strong>ETH {"$" + _fmt_regime(crypto.get("eth_price"), "", 0) if crypto.get("eth_price") else "—"}</strong></td>'
+                f'<td style="text-align:right;"><span style="font-size:11px;padding:4px 9px;border-radius:4px;background:#F0ECF8;color:#5B3F8A;font-weight:900;">{html.escape(str(scored["four"][1]).upper())}</span></td>'
+                '</tr></table>'
+                '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;border-spacing:6px 0;table-layout:fixed;margin-bottom:10px;"><tr>'
+                + verdict_cell("Trend", scored["q1"])
+                + verdict_cell("Add?", scored["q2"])
+                + verdict_cell("Lean", scored["q3"])
+                + '</tr></table>'
+                f'<div style="font-size:12px;color:#8888A4;margin-top:8px;">Alignment: <strong style="color:#5B3F8A;">{html.escape(str(scored["alignment"]))}</strong></div>'
+                + (f'<div style="font-size:15px;color:#333;line-height:1.65;font-style:italic;border-top:1px solid #F4F2FB;padding-top:10px;margin-top:10px;">{html.escape(conviction)}</div>' if conviction else "")
+                + '</div></div>'
+            )
+
+        return (
+            '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1.0">'
+            '<title>Market Decision Brief</title>'
+            '<style>'
+            'body{margin:0;padding:0;background:#F4F2FB;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}'
+            '.wrap{max-width:620px;margin:0 auto;background:#F4F2FB;}'
+            '.card{background:#fff;border-radius:12px;margin:12px 16px;overflow:hidden;}'
+            '.card-pad{padding:18px 22px;}'
+            '.lbl{font-size:10px;font-weight:900;letter-spacing:2.5px;text-transform:uppercase;color:#9B7EC8;margin-bottom:12px;}'
+            '@media(max-width:480px){.card{margin:9px 10px;}.card-pad{padding:15px 16px;}}'
+            '</style></head><body><div class="wrap">'
+            '<div style="background:#5B3F8A;padding:20px 22px 16px;text-align:center;">'
+            '<div style="font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#D8CEEF;margin-bottom:5px;">Market Decision Brief</div>'
+            f'<div style="font-size:14px;color:#D8CEEF;">{html.escape(date_str)}</div></div>'
+            + alert_bar
+            + '<div class="card"><div class="card-pad"><div class="lbl">Morning Briefing</div>'
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:14px;">'
+            '<tr>'
+            f'<td style="padding:0 14px 12px 0;width:50%;vertical-align:top;border-right:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Regime</div><div style="font-size:21px;font-weight:900;color:{_email_hex(s.get("regime_layer"))};line-height:1.1;">{html.escape(str(s.get("regime_layer")).title())}</div></td>'
+            f'<td style="padding:0 0 12px 14px;width:50%;vertical-align:top;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Portfolio Stance</div><div style="font-size:21px;font-weight:900;color:{_email_hex(s.get("portfolio_stance"))};line-height:1.1;">{html.escape(str(s.get("portfolio_stance")))}</div></td>'
+            '</tr><tr>'
+            f'<td style="padding:12px 14px 0 0;vertical-align:top;border-right:1px solid #F0EEF8;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Action</div><div style="font-size:21px;font-weight:900;color:{_email_hex(s.get("action_guidance"))};line-height:1.1;">{html.escape(str(s.get("action_guidance")))}</div></td>'
+            f'<td style="padding:12px 0 0 14px;vertical-align:top;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Short-Term</div><div style="font-size:21px;font-weight:900;color:{_email_hex(s.get("short_term_cond"))};line-height:1.1;">{html.escape(str(s.get("short_term_cond")))}</div></td>'
+            '</tr></table>'
+            f'<div style="font-size:16px;color:#1A1A2E;line-height:1.75;border-top:1px solid #F4F2FB;padding-top:12px;">{html.escape(why_today)}</div>'
+            '</div></div>'
+            '<div class="card"><div class="card-pad"><div class="lbl">Today\'s Market</div>'
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:14px;"><tr>'
+            f'<td style="padding:0 8px 8px 0;width:50%;font-size:15px;color:#666;"><span style="font-size:19px;font-weight:900;color:#1A1A2E;">SPX {html.escape(spx)}</span> <span style="font-size:13px;font-weight:800;color:{_email_change_hex(d.get("spx_change"))};">{html.escape(spx_chg)}</span></td>'
+            f'<td style="padding:0 0 8px 8px;width:50%;font-size:15px;color:#666;text-align:right;">VIX <strong style="color:#1A1A2E;">{html.escape(vix)}</strong> &nbsp; F&amp;G <strong style="color:{_email_fear_greed_hex(d.get("fg"))};">{html.escape(fg)}</strong></td>'
+            '</tr><tr>'
+            f'<td style="font-size:14px;color:#666;">QQQ <strong style="color:#1A1A2E;">{html.escape(qqq)}</strong> <span style="color:{_email_change_hex(d.get("qqq_change"))};">{html.escape(qqq_chg)}</span></td>'
+            f'<td style="font-size:12px;color:#888;text-align:right;">Data: {html.escape(snapshot_label)} · Memo: {html.escape(memo_label)}</td>'
+            '</tr></table>'
+            '<div style="border-top:1px solid #F0EEF8;margin-top:12px;padding-top:14px;">'
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:10px;"><tr>'
+            '<td><div class="lbl" style="margin-bottom:0;">Today\'s Context</div></td>'
+            f'<td style="text-align:right;"><span style="font-size:11px;font-weight:900;padding:4px 9px;border-radius:5px;background:{status_bg};color:{status_color};border:1px solid {status_border};white-space:nowrap;">{html.escape(change_status)}</span></td>'
+            '</tr></table>'
+            f'<div style="font-size:16px;font-weight:800;color:#1A1A2E;line-height:1.55;margin-bottom:10px;">{html.escape(context_headline)}</div>'
+            f'{bullet_html}'
+            + (f'<div style="margin-top:8px;">{trigger_html}</div>' if trigger_html else "")
+            + '</div>'
+            '<div style="border-top:1px solid #F0EEF8;margin-top:14px;padding-top:14px;">'
+            '<div class="lbl">Forward Watch · next 1-7 days</div>'
+            f'{forward_rows}</div></div></div>'
+            '<div class="card" style="background:#1A1035;"><div class="card-pad">'
+            '<div class="lbl" style="color:#A98DDB;">The Call</div>'
+            f'<div style="font-size:21px;font-weight:950;color:#fff;line-height:1.3;margin-bottom:5px;">{html.escape(str(s.get("portfolio_stance")))} — {html.escape(str(s.get("action_guidance")))}</div>'
+            f'<div style="font-size:14px;color:#BDB7D5;margin-bottom:14px;">{html.escape(str(s.get("regime_layer")).title())} regime</div>'
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-spacing:8px 0;border-top:1px solid #2A2550;padding-top:14px;margin-top:6px;width:100%;"><tr>'
+            f'<td style="width:33%;">{_email_badge("T1 " + str(s.get("t1")), s.get("t1"))}</td>'
+            f'<td style="width:33%;">{_email_badge("T2 " + str(s.get("t2")), s.get("t2"))}</td>'
+            f'<td style="width:33%;">{_email_badge("T3 " + str(s.get("t3")), s.get("t3"))}</td>'
+            '</tr></table></div></div>'
+            + crypto_block
+            + '<div style="text-align:center;padding:22px 16px 30px;">'
+            '<a href="https://tradingdesk.streamlit.app/?view=regime" style="display:inline-block;background:#5B3F8A;color:#fff;text-decoration:none;font-size:15px;font-weight:800;padding:14px 30px;border-radius:9px;">Full Dashboard →</a>'
+            '<div style="margin-top:14px;font-size:12px;color:#9B9BB4;">Trading Desk · Market Regime & Risk Engine · Not financial advice</div>'
+            '</div></div></body></html>'
+        )
 
     regime_daily = _get_regime_daily_memo(
         d,
@@ -12713,7 +13022,7 @@ Return ONLY this JSON shape:
     daily_memo = regime_daily["memo"]
     memo_ts = regime_daily.get("ts") or snap["updated_at"]
     try:
-        memo_label = datetime.fromisoformat(memo_ts).strftime("%b %d · %-I:%M %p")
+        memo_label = format_market_time(memo_ts, "%b %d · %-I:%M %p %Z")
     except Exception:
         memo_label = "cached"
 
@@ -12723,7 +13032,18 @@ Return ONLY this JSON shape:
             f'<span class="regime-section-title" style="color:var(--color-negative);">Alert</span>{html.escape(" · ".join(s["alerts"]))}</div>',
             unsafe_allow_html=True,
         )
-    snapshot_label = datetime.fromisoformat(snap["updated_at"]).strftime("%a %b %d, %-I:%M %p EDT")
+    snapshot_label = format_market_time(snap["updated_at"], "%a %b %d, %-I:%M %p %Z")
+    email_html = _build_regime_email_html(d, s, crypto, daily_memo, snap["updated_at"], snapshot_label, memo_label)
+    with st.expander("✉️ Email brief preview / export", expanded=False):
+        st.download_button(
+            "Download email HTML",
+            data=email_html,
+            file_name=f"market-decision-brief-{regime_daily_key()}.html",
+            mime="text/html",
+            key="download_regime_email_html",
+        )
+        st.components.v1.html(email_html, height=760, scrolling=True)
+
     highlights = [
         ("S&P 500", _fmt_regime(d["spx"], "", 0), _change_html(d["spx_change"])),
         ("Nasdaq 100 (QQQ)", _fmt_regime(d["qqq"], "", 2), _change_html(d["qqq_change"])),
@@ -12790,13 +13110,14 @@ Return ONLY this JSON shape:
         ("Yield curve", s["yc"], s["yc_detail"]),
         ("Liquidity", s["liq_status"], f'{s["liq_detail"]} Fed {s["liq_numbers"]["Fed"] if s["liq_numbers"]["Fed"] is not None else "—"}B · RRP {s["liq_numbers"]["RRP"] if s["liq_numbers"]["RRP"] is not None else "—"}B · TGA {s["liq_numbers"]["TGA"] if s["liq_numbers"]["TGA"] is not None else "—"}B'),
     ]
+    signal_explanations = daily_memo.get("signal_explanations") or {}
     st.markdown(
         '<div class="regime-signal-cards">'
         + "".join(
             f'<div class="regime-signal-card">'
             f'<div class="name">{html.escape(label)}</div>'
             f'<div class="state" style="color:{sev_color.get(status, "var(--color-muted)")};">{html.escape(status)}</div>'
-            f'<div class="copy">{html.escape(text)}</div>'
+            f'<div class="copy">{html.escape(str(signal_explanations.get(label) or text))}</div>'
             f'</div>'
             for label, status, text in rows
         )
@@ -12804,7 +13125,7 @@ Return ONLY this JSON shape:
         unsafe_allow_html=True,
     )
 
-    st.markdown(_crypto_section_html(crypto, d, s), unsafe_allow_html=True)
+    st.markdown(_crypto_section_html(crypto, d, s, daily_memo.get("crypto")), unsafe_allow_html=True)
     st.markdown('</div></div>', unsafe_allow_html=True)
 
 
