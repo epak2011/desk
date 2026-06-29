@@ -5247,6 +5247,8 @@ def decision_context(t):
     """One-line context. No numbers."""
     a = t["action"]
     if a == "enter_now":
+        if t.get("trigger_fired"):
+            return "Enter — prior trigger has fired and held."
         return "High-conviction setup — trend, structure, and volume aligned."
     if a == "watch":
         if t.get("event_risk_watch"):
@@ -5346,6 +5348,9 @@ def bold_numbers(s):
 def trigger_text(t):
     """Short, price-based, single-condition."""
     if t["action"] == "enter_now":
+        if t.get("trigger_fired") and t.get("trigger"):
+            reason = str(t.get("trigger_fired_reason") or "").strip()
+            return reason or "Prior trigger fired — enter at market."
         entry = t.get("entry") or t.get("price")
         return f"Enter long at market — ${entry:,.2f}." if entry is not None else "Enter long at market."
     if t["action"] == "watch" and t.get("trigger"):
@@ -9266,13 +9271,48 @@ if view == "analyze":
                 quality_tier in ("Avoid", "Speculative") and not is_user_marked
             )
             if not blocked_by_quality:
-                # Promote to watch and inject the trigger
+                # Promote to watch and inject the trigger. If the support
+                # trigger already fired and held, promote to Enter instead
+                # of keeping the user trapped in a stale "almost there"
+                # state for multiple sessions.
+                support_action = "watch"
+                support_trigger_fired = False
+                support_trigger_fired_reason = ""
+                support_meta = support_trigger_override.get("support_meta") or {}
+                support_level = support_trigger_override["levels"].get("buy_above")
+                support_confirmation_ok = (
+                    t.get("vol_ratio", 1.0) >= 0.75 or
+                    t.get("tech_delta", 0) > 0 or
+                    t.get("rs_delta", 0) >= 0
+                )
+                if (
+                    support_meta.get("status") == "held_above" and
+                    support_confirmation_ok and
+                    support_level is not None
+                ):
+                    support_action = "enter_now"
+                    support_trigger_fired = True
+                    support_trigger_fired_reason = (
+                        f"Support at ${float(support_level):,.2f} already held; "
+                        "continuation is sufficient for an entry signal."
+                    )
+                    support_trigger_override = {
+                        **support_trigger_override,
+                        "fired": True,
+                        "fired_reason": support_trigger_fired_reason,
+                    }
                 t = {
                     **t,
-                    "action": "watch",
+                    "action": support_action,
                     "trigger": support_trigger_override,
-                    # Recompute entry levels from the trigger
-                    "entry": support_trigger_override["levels"]["buy_above"],
+                    "trigger_fired": support_trigger_fired,
+                    "trigger_fired_reason": support_trigger_fired_reason,
+                    "entry": (
+                        t["price"] if support_trigger_fired
+                        else support_trigger_override["levels"]["buy_above"]
+                    ),
+                    "entry_is_projected": not support_trigger_fired,
+                    "stop": support_trigger_override["levels"].get("abort_below", t.get("stop")),
                 }
             else:
                 support_trigger_override = None  # don't render banner
