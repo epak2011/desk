@@ -9317,6 +9317,89 @@ if view == "analyze":
             else:
                 support_trigger_override = None  # don't render banner
 
+    # Trigger memory: if the app previously told the user "act above X",
+    # keep that level alive for a short window. Without this, recomputing
+    # the setup after price moves can shift the target upward and make a
+    # fired trigger look like it never happened.
+    trigger_memory = st.session_state.store.setdefault("trigger_memory", {})
+    trigger_memory_changed = False
+    prior_trigger = trigger_memory.get(ticker_key) if isinstance(trigger_memory, dict) else None
+    if isinstance(prior_trigger, dict) and t.get("action") in ("watch", "hold_off"):
+        try:
+            remembered_level = float(prior_trigger.get("buy_above"))
+        except (TypeError, ValueError):
+            remembered_level = None
+        try:
+            remembered_at = datetime.fromisoformat(str(prior_trigger.get("ts")))
+            remembered_age_days = (datetime.now() - remembered_at).days
+        except Exception:
+            remembered_age_days = 999
+        if (
+            remembered_level and
+            remembered_age_days <= 30 and
+            float(t.get("price") or 0) >= remembered_level * 1.003 and
+            (
+                t.get("vol_ratio", 1.0) >= 0.75 or
+                t.get("tech_delta", 0) > 0 or
+                t.get("rs_delta", 0) >= 0
+            )
+        ):
+            fired_reason = (
+                f"Prior trigger at ${remembered_level:,.2f} fired and held; "
+                "do not move the goalpost to the next resistance level."
+            )
+            fired_trigger = {
+                "kind": prior_trigger.get("kind") or "remembered_trigger",
+                "summary": prior_trigger.get("summary") or f"prior trigger above ${remembered_level:,.2f}",
+                "buy_rule": prior_trigger.get("buy_rule") or f"Buy once price clears ${remembered_level:,.2f}.",
+                "abort_rule": prior_trigger.get("abort_rule") or "",
+                "levels": {
+                    "buy_above": remembered_level,
+                    "abort_below": prior_trigger.get("abort_below") or t.get("stop"),
+                    "volume_min": prior_trigger.get("volume_min"),
+                },
+                "fired": True,
+                "fired_reason": fired_reason,
+            }
+            t = {
+                **t,
+                "action": "enter_now",
+                "trigger": fired_trigger,
+                "trigger_fired": True,
+                "trigger_fired_reason": fired_reason,
+                "entry": t.get("price"),
+                "entry_is_projected": False,
+                "stop": prior_trigger.get("abort_below") or t.get("stop"),
+            }
+            prior_trigger["fired_at"] = datetime.now().isoformat(timespec="seconds")
+            prior_trigger["fired_price"] = round(float(t.get("price") or remembered_level), 2)
+            trigger_memory_changed = True
+
+    active_trigger = t.get("trigger") if isinstance(t.get("trigger"), dict) else None
+    active_buy_level = (active_trigger or {}).get("levels", {}).get("buy_above")
+    try:
+        active_buy_level = float(active_buy_level) if active_buy_level is not None else None
+    except (TypeError, ValueError):
+        active_buy_level = None
+    if (
+        active_buy_level and
+        t.get("action") == "watch" and
+        float(t.get("price") or 0) < active_buy_level * 0.997
+    ):
+        trigger_memory[ticker_key] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "kind": active_trigger.get("kind"),
+            "summary": active_trigger.get("summary"),
+            "buy_rule": active_trigger.get("buy_rule"),
+            "abort_rule": active_trigger.get("abort_rule"),
+            "buy_above": round(active_buy_level, 2),
+            "abort_below": (active_trigger.get("levels") or {}).get("abort_below"),
+            "volume_min": (active_trigger.get("levels") or {}).get("volume_min"),
+        }
+        trigger_memory_changed = True
+    if trigger_memory_changed:
+        save_store(st.session_state.store)
+
     # The rule engine owns the actionable headline. Claude works as a PM
     # context / dissent layer, not as a replacement for the tactical gate.
     rule_t = dict(t)
