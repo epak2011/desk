@@ -1134,6 +1134,57 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
             }
             action = "enter_now"
 
+    # Retrospective trigger catch-up. The UI may have shown a "buy above X"
+    # level on a prior day, then recomputed a higher resistance level after
+    # price cleared X. That is moving the goalpost. If recent price action
+    # already crossed and held a prior 20-day resistance pivot, treat it as
+    # a fired trigger instead of asking for a fresh breakout.
+    if action in ("watch", "hold_off") and price > ma50 and rs >= 1.0 and setup >= 6:
+        fired_level = None
+        sessions_ago = None
+        max_scan = min(15, len(prices) - 22)
+        for offset in range(1, max_scan + 1):
+            close_idx = len(prices) - offset
+            prior_window = prices.iloc[max(0, close_idx - 21):close_idx - 1]
+            if len(prior_window) < 10:
+                continue
+            pivot = float(prior_window.max())
+            close_at_test = float(prices.iloc[close_idx - 1])
+            if close_at_test >= pivot * 1.003 and price >= pivot * 1.003:
+                fired_level = pivot
+                sessions_ago = offset - 1
+                break
+        if fired_level:
+            trigger_fired = True
+            if sessions_ago and sessions_ago > 0:
+                timing = f"{sessions_ago} sessions ago"
+            else:
+                timing = "today"
+            trigger_fired_reason = (
+                f"Prior breakout trigger at ${fired_level:.2f} fired {timing} "
+                "and price is still holding above it."
+            )
+            trigger = {
+                "kind": "retrospective_breakout",
+                "summary": f"prior breakout above ${fired_level:.2f} already fired",
+                "buy_rule": (
+                    f"Buy while price holds above the fired trigger at ${fired_level:.2f}; "
+                    "do not reset the trigger to the next resistance level."
+                ),
+                "abort_rule": (
+                    f"Abandon the setup if price closes back below ${ma50:.2f} "
+                    "or loses relative strength."
+                ),
+                "levels": {
+                    "buy_above": round(fired_level, 2),
+                    "abort_below": round(ma50, 2),
+                    "volume_min": None,
+                },
+                "fired": True,
+                "fired_reason": trigger_fired_reason,
+            }
+            action = "enter_now"
+
     display_bias = None if (action == "avoid" and bias == "bearish") else bias
 
     # Entry/Stop/Targets anchor differently based on action:
