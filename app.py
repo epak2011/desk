@@ -11786,40 +11786,40 @@ if view == "regime":
         .crypto-narrative-row:last-child{border-bottom:0}
         .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
         .crypto-narrative-row .b{font-size:19px;line-height:1.52;color:var(--color-text)}
-        .risk-engine-page{max-width:1480px;margin:0 auto;padding:0 0 56px;color:var(--color-text)}
+        .risk-engine-page{width:100%;max-width:none;margin:0;padding:0 0 56px;color:var(--color-text)}
         .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
         .risk-engine-snapshot{font-size:14px;font-weight:760;color:var(--color-muted);margin-bottom:18px}
         .risk-engine-hero{background:var(--color-surface);color:var(--color-text);border:1px solid #CCD6E3;border-left:4px solid var(--color-blue);border-radius:8px;padding:0;box-shadow:none;overflow:hidden}
         .risk-hero-top{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;border-bottom:1px solid #D7DFEA;padding:0;margin:0}
-        .risk-hero-cell{padding:20px 24px;border-right:1px solid #D7DFEA}
-        .risk-hero-cell:first-child{padding-left:24px}
-        .risk-hero-cell:last-child{border-right:0;padding-right:24px}
+        .risk-hero-cell{padding:18px 20px;border-right:1px solid #D7DFEA}
+        .risk-hero-cell:first-child{padding-left:20px}
+        .risk-hero-cell:last-child{border-right:0;padding-right:20px}
         .risk-k{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
         .risk-v{font-size:clamp(21px,2vw,28px);line-height:1.12;font-weight:950;color:var(--color-text);overflow-wrap:normal;word-break:normal}
         .risk-v.good{color:var(--color-positive)}
         .risk-v.warn{color:var(--color-warning-text)}
         .risk-v.bad{color:var(--color-negative)}
         .risk-hero-bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(390px,.78fr);gap:0}
-        .risk-hero-bottom > div:first-child{padding:22px 26px}
+        .risk-hero-bottom > div:first-child{padding:20px 22px}
         .risk-why{font-size:17px;line-height:1.72;font-weight:760;color:var(--color-body);max-width:940px}
-        .risk-highlights{border-left:1px solid #D7DFEA;padding:22px 26px}
+        .risk-highlights{border-left:1px solid #D7DFEA;padding:20px 22px}
         .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid #D7DFEA;padding:10px 0;font-size:16px;color:var(--color-muted)}
         .risk-highlight-row:last-child{border-bottom:0}
         .risk-highlight-row strong{font-size:20px;font-weight:950;color:var(--color-text);font-variant-numeric:tabular-nums}
         .risk-change{font-size:14px;font-weight:900;margin-left:6px}
         .risk-card{margin-top:18px;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);overflow:hidden;box-shadow:none}
-        .risk-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 24px;background:var(--color-surface);border-bottom:1px solid #D7DFEA}
+        .risk-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 20px;background:var(--color-surface);border-bottom:1px solid #D7DFEA}
         .risk-card-title{font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.24em;text-transform:uppercase;color:var(--color-muted)}
         .risk-card-sub{font-size:14px;color:var(--color-muted);font-weight:780;margin-left:10px;letter-spacing:0;text-transform:none}
         .risk-badge{border:1px solid var(--color-positive);background:rgba(22,163,74,.08);color:var(--color-positive);border-radius:5px;padding:7px 12px;font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}
-        .forward-watch-body{padding:20px 24px 24px}
+        .forward-watch-body{padding:18px 20px 22px}
         .forward-watch-row{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;padding:13px 14px;border-radius:6px;color:var(--color-body);font-size:17px;line-height:1.45}
         .forward-watch-row:nth-child(even){background:var(--color-surface-soft)}
         .forward-watch-row .idx{font-weight:950;color:var(--color-muted);text-align:center}
         .forward-watch-row strong{font-weight:950;color:var(--color-text)}
         .market-imp-body{display:grid;grid-template-columns:minmax(0,1fr) 300px}
-        .market-imp-main{padding:24px 28px 28px}
-        .market-imp-side{background:var(--color-surface-soft);border-left:1px solid #D7DFEA;padding:24px 26px}
+        .market-imp-main{padding:22px 24px 26px}
+        .market-imp-side{background:var(--color-surface-soft);border-left:1px solid #D7DFEA;padding:22px 24px}
         .market-imp-headline{font-size:19px;line-height:1.45;font-weight:950;color:var(--color-text);margin-bottom:20px}
         .market-imp-bullet{display:flex;align-items:flex-start;gap:10px;border-top:1px solid #D7DFEA;padding:14px 0;font-size:16px;line-height:1.48;color:var(--color-body)}
         .market-imp-bullet:first-of-type{border-top:0}
@@ -12579,6 +12579,59 @@ if view == "regime":
             "source_note": "Rule fallback — Claude daily memo unavailable.",
         }
 
+    def _daily_brief_seed_memo(d, s, crypto, today_key):
+        if today_key != "2026-06-29":
+            return None
+        memo = _fallback_regime_daily_memo(d, s, crypto)
+        memo.update(
+            {
+                "why_today": (
+                    "Hold your full equity allocation. There is no signal to reduce here. "
+                    "The combination of stable growth, a tight labor market, and financial system calm "
+                    "argues for staying at your target allocation. Any pullback from fear-driven sentiment "
+                    "will be noise, not a trading opportunity."
+                ),
+                "daily_context": {
+                    "headline": (
+                        "Michigan sentiment improved to 49.5; PCE inflation sticky at 4.1%; "
+                        "jobs resilient last month. Expansion regime confirmed."
+                    ),
+                    "bullets": [
+                        "Michigan Sentiment 49.5 vs 46 prelim → Boost to demand outlook → Consumers adapting to gas prices, rebalance favors consumer staples",
+                        "PCE inflation 4.1% YoY (May) vs 3.8% → Inflation stickier, 2yr above Fed target → Watch for July FOMC hold stance",
+                        "May NFP +172K beat 85K forecast → Labor resilience intact → Q2 earnings runway extends; wage pressures moderate",
+                        "S&P futures +0.8% on Iran ceasefire; tech rotation accelerates → Oil risk premium fell → Asset allocation shift away from mega-cap concentrated positioning",
+                    ],
+                    "change_status": "NO CHANGE",
+                    "watch_triggers": [
+                        "If June jobs report (July 2) < 100K → labor softening signal; monitor consumer spending weakness in H2",
+                        "If PCE stays above 4% in July → inflation persistence extends Fed pause; avoid duration-heavy risk",
+                        "If S&P breaks below 7,300 on tech selloff → check VIX and credit spreads for risk-off confirmation",
+                    ],
+                },
+                "forward_watch": [
+                    {
+                        "title": "June employment situation, Thursday July 2",
+                        "body": "determines Fed pause duration; weak print triggers rate-cut repricing and volatility spike.",
+                    },
+                    {
+                        "title": "ISM Services PMI (June data), July 1",
+                        "body": "gauges whether services strength offsets manufacturing caution.",
+                    },
+                    {
+                        "title": "Personal Income and Outlays (June), July 30",
+                        "body": "tracks consumer spending resilience and whether energy costs are flowing through.",
+                    },
+                    {
+                        "title": "Fed July 28-29 meeting and rate decision July 29",
+                        "body": "market pricing for hold versus hike risk determines whether the expansion call remains clean.",
+                    },
+                ],
+                "source_note": "Imported 9:10 AM daily brief.",
+            }
+        )
+        return memo
+
     def _regime_ai_payload(d, s, crypto):
         fg = d.get("fg")
         crypto_scored = _score_crypto(crypto) if crypto and crypto.get("price") is not None else {}
@@ -12750,6 +12803,16 @@ Return ONLY this JSON shape:
     def _get_regime_daily_memo(d, s, crypto, api_key, force=False):
         today_key = regime_daily_key()
         cache = st.session_state.store.setdefault("regime_daily_cache", {})
+        seeded_memo = _daily_brief_seed_memo(d, s, crypto, today_key)
+        if seeded_memo and _validate_regime_memo(seeded_memo):
+            seed_ts = regime_daily_anchor().isoformat(timespec="seconds")
+            cache[today_key] = {
+                "ts": seed_ts,
+                "source": "9:10 daily brief",
+                "memo": seeded_memo,
+            }
+            save_store(st.session_state.store)
+            return {"memo": seeded_memo, "source": "9:10 daily brief", "ts": seed_ts, "date": today_key}
         entry = cache.get(today_key) if isinstance(cache, dict) else None
         if entry and not force:
             memo = entry.get("memo") or {}
