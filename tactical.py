@@ -569,7 +569,8 @@ def historical_support_trigger(price, ma50, atr_pct, support_levels,
 def next_trigger(bias, action, price, ma50, high_52w, vol_ratio,
                  range_10d_pct, support, resistance,
                  tech_delta, rs_delta, rs, avg_vol_20d,
-                 ma20=None, recent_pullback_anchor=None):
+                 ma20=None, recent_pullback_anchor=None,
+                 prior_high_52w=None):
     """Return a rich trigger dict with explicit levels and conditions.
 
     Shape:
@@ -609,16 +610,17 @@ def next_trigger(bias, action, price, ma50, high_52w, vol_ratio,
             },
         }
 
-    near_resistance = (high_52w - price) / high_52w <= 0.03
+    breakout_pivot = prior_high_52w if prior_high_52w and prior_high_52w > 0 else high_52w
+    near_resistance = breakout_pivot and (breakout_pivot - price) / breakout_pivot <= 0.03
 
     # 2. Fast momentum — accelerating into resistance
     if tech_delta >= 1.5 and rs_delta >= 0.03 and near_resistance:
         vol_target = round(avg_vol_20d * 1.2)
         return {
             "kind": "fast_momentum",
-            "summary": f"early momentum confirmation above ${high_52w:.2f}",
+            "summary": f"early momentum confirmation above ${breakout_pivot:.2f}",
             "buy_rule": (
-                f"Buy if price closes above ${high_52w:.2f} on volume "
+                f"Buy if price closes above ${breakout_pivot:.2f} on volume "
                 f"≥ {vol_target:,} (1.2× 20-day average)."
             ),
             "abort_rule": (
@@ -626,7 +628,7 @@ def next_trigger(bias, action, price, ma50, high_52w, vol_ratio,
                 f"(the 50-day moving average)."
             ),
             "levels": {
-                "buy_above": round(high_52w, 2),
+                "buy_above": round(breakout_pivot, 2),
                 "abort_below": round(ma50, 2),
                 "volume_min": vol_target,
             },
@@ -637,17 +639,17 @@ def next_trigger(bias, action, price, ma50, high_52w, vol_ratio,
         vol_target = round(avg_vol_20d * 1.2)
         return {
             "kind": "breakout",
-            "summary": f"breakout above ${high_52w:.2f} on rising volume",
+            "summary": f"breakout above ${breakout_pivot:.2f} on rising volume",
             "buy_rule": (
-                f"Buy if price closes above ${high_52w:.2f} on volume "
+                f"Buy if price closes above ${breakout_pivot:.2f} on volume "
                 f"≥ {vol_target:,} (1.2× 20-day average). A move above "
-                f"${high_52w:.2f} on light volume is a fakeout — do not chase."
+                f"${breakout_pivot:.2f} on light volume is a fakeout — do not chase."
             ),
             "abort_rule": (
                 f"Abandon the setup if price closes back below ${ma50:.2f}."
             ),
             "levels": {
-                "buy_above": round(high_52w, 2),
+                "buy_above": round(breakout_pivot, 2),
                 "abort_below": round(ma50, 2),
                 "volume_min": vol_target,
             },
@@ -992,6 +994,8 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     last_252 = prices.iloc[-min(252, len(prices)):]
     high_52w = float(last_252.max())
     low_52w = float(last_252.min())
+    prior_252 = prices.iloc[-min(253, len(prices)):-1] if len(prices) > 1 else last_252
+    prior_high_52w = float(prior_252.max()) if len(prior_252) else high_52w
     rng_52w = high_52w - low_52w
     pct_of_52w_range = float((price - low_52w) / rng_52w * 100) if rng_52w > 0 else 50.0
 
@@ -1033,9 +1037,12 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
 
     rsi14 = _rsi(prices)
     last_10 = prices.iloc[-10:]
+    prior_10 = prices.iloc[-11:-1] if len(prices) >= 11 else prices.iloc[:-1]
+    if len(prior_10) == 0:
+        prior_10 = last_10
     range_10d_pct = float((last_10.max() - last_10.min()) / price)
-    support = float(last_10.min())
-    resistance = float(last_10.max())
+    support = float(prior_10.min())
+    resistance = float(prior_10.max())
 
     # Recent swing high — highest close in the last 60 sessions (3 months).
     # Used by reconsider_when as a "Primary" candidate level when it sits
@@ -1082,7 +1089,50 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         avg_vol_20d,
         ma20=ma20,
         recent_pullback_anchor=recent_pullback_anchor,
+        prior_high_52w=prior_high_52w,
     )
+
+    trigger_fired = False
+    trigger_fired_reason = ""
+    if action == "watch" and trigger:
+        buy_level = (trigger.get("levels") or {}).get("buy_above")
+        kind = trigger.get("kind")
+        try:
+            buy_level = float(buy_level) if buy_level is not None else None
+        except (TypeError, ValueError):
+            buy_level = None
+        if buy_level and price >= buy_level * 1.003:
+            if kind in ("fast_momentum", "breakout", "coil_break"):
+                confirmation_ok = (
+                    vol_ratio >= 0.80 or
+                    tech_delta >= 0.75 or
+                    rs_delta >= 0.01
+                )
+                if confirmation_ok:
+                    trigger_fired = True
+                    trigger_fired_reason = (
+                        f"Price cleared the prior trigger at ${buy_level:.2f}; "
+                        "volume/momentum confirmation is acceptable."
+                    )
+            elif kind == "historical_support_test":
+                meta = trigger.get("support_meta") or {}
+                confirmation_ok = (
+                    meta.get("status") == "held_above" and
+                    (vol_ratio >= 0.80 or tech_delta > 0 or rs_delta >= 0)
+                )
+                if confirmation_ok:
+                    trigger_fired = True
+                    trigger_fired_reason = (
+                        f"Support at ${buy_level:.2f} already held; "
+                        "continuation is sufficient for an entry signal."
+                    )
+        if trigger_fired:
+            trigger = {
+                **trigger,
+                "fired": True,
+                "fired_reason": trigger_fired_reason,
+            }
+            action = "enter_now"
 
     display_bias = None if (action == "avoid" and bias == "bearish") else bias
 
@@ -1146,6 +1196,8 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "state": state,          # TRENDING / TRANSITION / BROKEN
         "is_accumulation_eligible": is_accumulation_eligible,
         "trigger": trigger,      # now a dict or None
+        "trigger_fired": trigger_fired,
+        "trigger_fired_reason": trigger_fired_reason,
         "bias_score": bias_score,
         "setup_score": setup,
         "atr_pct": atr_pct,
