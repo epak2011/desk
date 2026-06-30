@@ -11866,6 +11866,7 @@ if view == "regime":
         .regime-signal-card{border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);padding:16px;min-height:148px}
         .regime-signal-card .name{font-family:var(--font-mono);font-size:12px;font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted)}
         .regime-signal-card .state{font-size:22px;font-weight:900;margin:8px 0 8px}
+        .regime-signal-card .metric-sub{font-size:13px;line-height:1.35;color:var(--color-muted);font-weight:850;margin-bottom:10px}
         .regime-signal-card .copy{font-size:15px;line-height:1.45;color:var(--color-muted)}
         .regime-signal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--color-border);border-radius:8px;overflow:hidden;background:var(--color-surface)}
         .regime-signal-box{padding:16px 18px;border-right:1px solid var(--color-border)}
@@ -11968,7 +11969,7 @@ if view == "regime":
         .watch-trigger{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:13px 0;font-size:15px;line-height:1.5;color:var(--color-body)}
         .watch-trigger .arrow{color:var(--color-muted);font-weight:950}
         .risk-secondary{margin-top:18px}
-        .framework-details{margin-top:18px;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);overflow:hidden}
+        .framework-details{margin-top:12px;margin-bottom:26px;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);overflow:hidden}
         .framework-details summary{list-style:none;cursor:pointer;padding:17px 20px;border-bottom:1px solid #D7DFEA;font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.24em;text-transform:uppercase;color:var(--color-muted);display:flex;align-items:center;justify-content:space-between;gap:14px}
         .framework-details summary::-webkit-details-marker{display:none}
         .framework-details summary:after{content:"+";font-family:var(--font-mono);font-size:20px;font-weight:900;color:var(--color-muted)}
@@ -13460,11 +13461,11 @@ Return ONLY this JSON shape:
     )
 
     rows = [
-        ("T1 · ISM", s["t1"], s["t1_detail"]),
-        ("T2 · Unemployment", s["t2"], s["t2_detail"]),
-        ("T3 · HY OAS", s["t3"], s["t3_detail"]),
-        ("Yield curve", s["yc"], s["yc_detail"]),
-        ("Liquidity", s["liq_status"], f'{s["liq_detail"]} Fed {s["liq_numbers"]["Fed"] if s["liq_numbers"]["Fed"] is not None else "—"}B · RRP {s["liq_numbers"]["RRP"] if s["liq_numbers"]["RRP"] is not None else "—"}B · TGA {s["liq_numbers"]["TGA"] if s["liq_numbers"]["TGA"] is not None else "—"}B'),
+        ("T1 · ISM", "Manufacturing expansion vs contraction", s["t1"], s["t1_detail"]),
+        ("T2 · Unemployment", "Labor-market stress confirmation", s["t2"], s["t2_detail"]),
+        ("T3 · HY OAS", "Credit-spread tail-risk gauge", s["t3"], s["t3_detail"]),
+        ("Yield curve", "Growth / recession pricing backdrop", s["yc"], s["yc_detail"]),
+        ("Liquidity", "Fed, RRP, and Treasury cash impulse", s["liq_status"], f'{s["liq_detail"]} Fed {s["liq_numbers"]["Fed"] if s["liq_numbers"]["Fed"] is not None else "—"}B · RRP {s["liq_numbers"]["RRP"] if s["liq_numbers"]["RRP"] is not None else "—"}B · TGA {s["liq_numbers"]["TGA"] if s["liq_numbers"]["TGA"] is not None else "—"}B'),
     ]
     signal_explanations = daily_memo.get("signal_explanations") or {}
     st.markdown(
@@ -13472,12 +13473,13 @@ Return ONLY this JSON shape:
         + "".join(
             f'<div class="regime-signal-card">'
             f'<div class="name">{html.escape(label)}</div>'
+            f'<div class="metric-sub">{html.escape(subtitle)}</div>'
             f'<div class="state" style="color:{sev_color.get(status, "var(--color-muted)")};">{html.escape(status)}</div>'
             f'<div class="copy">{html.escape(str(signal_explanations.get(label) or text))}</div>'
             f'</div>'
-            for label, status, text in rows
+            for label, subtitle, status, text in rows
         )
-        + '</div><div class="regime-divider"></div>',
+        + '</div>',
         unsafe_allow_html=True,
     )
 
