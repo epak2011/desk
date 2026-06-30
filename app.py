@@ -11969,7 +11969,7 @@ if view == "regime":
         .watch-trigger{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:13px 0;font-size:15px;line-height:1.5;color:var(--color-body)}
         .watch-trigger .arrow{color:var(--color-muted);font-weight:950}
         .risk-secondary{margin-top:18px}
-        .framework-details{margin-top:12px;margin-bottom:26px;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);overflow:hidden}
+        .framework-details{margin-top:12px;margin-bottom:0;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);overflow:hidden}
         .framework-details summary{list-style:none;cursor:pointer;padding:17px 20px;border-bottom:1px solid #D7DFEA;font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.24em;text-transform:uppercase;color:var(--color-muted);display:flex;align-items:center;justify-content:space-between;gap:14px}
         .framework-details summary::-webkit-details-marker{display:none}
         .framework-details summary:after{content:"+";font-family:var(--font-mono);font-size:20px;font-weight:900;color:var(--color-muted)}
@@ -11998,6 +11998,7 @@ if view == "regime":
         .framework-state .state-copy{font-size:14px;line-height:1.45;color:var(--color-body)}
         .framework-state .action{font-size:14px;line-height:1.45;color:var(--color-muted);font-weight:850;margin-top:7px}
         .framework-note{margin-top:12px;border:1px solid #D7DFEA;border-radius:7px;background:var(--color-surface-soft);padding:12px 14px;font-size:14px;line-height:1.45;color:var(--color-muted)}
+        .regime-framework-break{border-top:1px solid #CBD5E1;margin:28px 0 42px}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}.framework-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.risk-hero-top,.risk-hero-bottom,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.risk-hero-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
@@ -13547,6 +13548,7 @@ Return ONLY this JSON shape:
         '</div></div></details>'
     )
     st.markdown(framework_html, unsafe_allow_html=True)
+    st.markdown('<div class="regime-framework-break"></div>', unsafe_allow_html=True)
 
     st.markdown(_crypto_section_html(crypto, d, s, daily_memo.get("crypto")), unsafe_allow_html=True)
     st.markdown('</div></div>', unsafe_allow_html=True)
