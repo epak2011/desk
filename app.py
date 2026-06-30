@@ -11886,8 +11886,20 @@ if view == "regime":
         .crypto-price-cell:last-child{border-right:0;padding-right:20px}
         .crypto-price-cell .k{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin:0}
         .crypto-price-cell .v{font-family:var(--font-mono);font-size:clamp(22px,2.3vw,32px);line-height:1.1;font-weight:900;color:var(--color-text);max-width:100%;overflow-wrap:anywhere}
+        .crypto-price-cell.good{background:rgba(22,163,74,.06)}
+        .crypto-price-cell.warn{background:rgba(139,98,20,.07)}
+        .crypto-price-cell.bad{background:rgba(209,69,69,.06)}
+        .crypto-price-cell.neutral{background:var(--color-surface)}
+        .crypto-price-cell .sub.good,.crypto-badge.good{color:var(--color-positive);border-color:rgba(22,163,74,.28);background:rgba(22,163,74,.06)}
+        .crypto-price-cell .sub.warn,.crypto-badge.warn{color:var(--color-warning-text);border-color:rgba(139,98,20,.28);background:rgba(139,98,20,.07)}
+        .crypto-price-cell .sub.bad,.crypto-badge.bad{color:var(--color-negative);border-color:rgba(209,69,69,.28);background:rgba(209,69,69,.06)}
+        .crypto-price-cell .sub.neutral,.crypto-badge.neutral{color:var(--color-muted)}
         .crypto-decisions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
         .crypto-card{border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);padding:18px}
+        .crypto-card.good{background:rgba(22,163,74,.06);border-color:rgba(22,163,74,.30)}
+        .crypto-card.warn{background:rgba(139,98,20,.07);border-color:rgba(139,98,20,.30)}
+        .crypto-card.bad{background:rgba(209,69,69,.06);border-color:rgba(209,69,69,.30)}
+        .crypto-card.neutral{background:var(--color-surface)}
         .crypto-card .q{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:850;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
         .crypto-card .answer{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--color-border);border-radius:6px;padding:7px 10px;font-size:18px;font-weight:850;margin-bottom:10px}
         .crypto-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
@@ -11896,8 +11908,14 @@ if view == "regime":
         .crypto-cycle-note{font-size:15px;font-style:italic;color:var(--color-muted);margin:-4px 0 14px}
         .crypto-cycle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 18px}
         .crypto-phase{position:relative;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);padding:18px;min-height:196px}
-        .crypto-phase.current{border:2px solid var(--color-blue);background:var(--color-surface-soft);padding-top:42px}
+        .crypto-phase.good{background:rgba(22,163,74,.06);border-color:rgba(22,163,74,.26)}
+        .crypto-phase.warn{background:rgba(139,98,20,.07);border-color:rgba(139,98,20,.28)}
+        .crypto-phase.bad{background:rgba(209,69,69,.06);border-color:rgba(209,69,69,.30)}
+        .crypto-phase.current{border-width:2px;padding-top:42px}
         .crypto-phase.current:before{content:"◂ YOU ARE HERE";position:absolute;top:0;left:0;right:0;background:var(--color-text);color:#fff;border-radius:5px 5px 0 0;text-align:center;font-family:var(--font-mono);font-size:12px;font-weight:900;letter-spacing:.08em;padding:8px 10px}
+        .crypto-phase.current.good:before{background:var(--color-positive)}
+        .crypto-phase.current.warn:before{background:var(--color-warning-text)}
+        .crypto-phase.current.bad:before{background:var(--color-negative)}
         .crypto-phase .phase{font-family:var(--font-mono);font-size:12px;font-weight:850;color:var(--color-muted);text-transform:uppercase}
         .crypto-phase .name{font-size:18px;font-weight:900;margin:6px 0 10px;color:var(--color-text)}
         .crypto-phase.current .name,.crypto-phase.current .phase{color:var(--color-text)}
@@ -12338,6 +12356,49 @@ if view == "regime":
             "muted": "var(--color-muted)",
         }.get(name, "var(--color-muted)")
 
+    def _crypto_class(name):
+        return {
+            "green": "good",
+            "yellow": "warn",
+            "red": "bad",
+            "blue": "neutral",
+            "muted": "neutral",
+        }.get(name, "neutral")
+
+    def _crypto_change_class(value, inverse=False):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "neutral"
+        if inverse:
+            value = -value
+        if value > 0:
+            return "good"
+        if value < 0:
+            return "bad"
+        return "neutral"
+
+    def _crypto_fear_class(value):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "neutral"
+        if value < 25:
+            return "bad"
+        if value < 45:
+            return "warn"
+        if value <= 70:
+            return "good"
+        return "warn"
+
+    def _crypto_phase_class(phase_num):
+        return {
+            1: "warn",
+            2: "good",
+            3: "warn",
+            4: "bad",
+        }.get(phase_num, "neutral")
+
     def _score_crypto(c):
         btc_vs_200 = c.get("btc_vs_200")
         btc_vs_20 = c.get("btc_vs_20")
@@ -12438,17 +12499,17 @@ if view == "regime":
         fg = c.get("fg") or {}
         fg_txt = f'{fg.get("value")} · {fg.get("label")}' if fg.get("value") is not None else "—"
         price_cells = [
-            ("BTC", btc_price, _signed_regime(c.get("change"))),
-            ("ETH", eth_price, _signed_regime(c.get("eth_change"))),
-            ("BTC dominance", f'{c.get("btc_dom", 55):.1f}%', "approximation"),
-            ("Fear & Greed", fg_txt, f'{c.get("months_since_halving", 0)} mo post-halving'),
+            ("BTC", btc_price, _signed_regime(c.get("change")), _crypto_change_class(c.get("change"))),
+            ("ETH", eth_price, _signed_regime(c.get("eth_change")), _crypto_change_class(c.get("eth_change"))),
+            ("BTC dominance", f'{c.get("btc_dom", 55):.1f}%', "approximation", _crypto_class(scored["q3"][2])),
+            ("Fear & Greed", fg_txt, f'{c.get("months_since_halving", 0)} mo post-halving', _crypto_fear_class(fg.get("value"))),
         ]
         price_html = "".join(
-            f'<div class="crypto-price-cell"><div class="k">{html.escape(k)}</div><div class="v">{html.escape(v)}</div><div class="crypto-note">{html.escape(sub)}</div></div>'
-            for k, v, sub in price_cells
+            f'<div class="crypto-price-cell {cls}"><div class="k">{html.escape(k)}</div><div class="v">{html.escape(v)}</div><div class="crypto-note sub {cls}">{html.escape(sub)}</div></div>'
+            for k, v, sub, cls in price_cells
         )
         decision_html = "".join(
-            f'<div class="crypto-card"><div class="q">{html.escape(title)}</div>'
+            f'<div class="crypto-card {_crypto_class(color)}"><div class="q">{html.escape(title)}</div>'
             f'<div class="answer" style="color:{_crypto_color(color)};"><span class="crypto-dot" style="background:{_crypto_color(color)};"></span>{html.escape(answer)}</div>'
             f'<div class="crypto-note">{html.escape(note)}</div></div>'
             for title, (answer, note, color) in [
@@ -12465,7 +12526,7 @@ if view == "regime":
         ]
         active_phase = scored["four"][3]
         phases = "".join(
-            f'<div class="crypto-phase {"current" if num == active_phase else ""}"><div class="phase">{html.escape(label)}</div>'
+            f'<div class="crypto-phase {_crypto_phase_class(num)} {"current" if num == active_phase else ""}"><div class="phase">{html.escape(label)}</div>'
             f'<div class="name">{html.escape(name)}</div><div class="desc">{html.escape(desc)}</div>'
             f'<div class="meta">Historical</div><div class="meta-text">{html.escape(historical)}</div>'
             f'<div class="meta">Signal</div><div class="meta-text"><em>{html.escape(signal)}</em></div></div>'
@@ -12488,15 +12549,15 @@ if view == "regime":
             for h, b in narrative_rows
         )
         tags = [
-            f'Cycle: {scored["four"][0]} · {scored["four"][1]}',
-            f'Medium: {scored["medium"][0]}',
-            f'Alignment: {scored["alignment"]}',
-            f'ETH/BTC: {_signed_regime(c.get("ethbtc_change"))}',
+            (f'Cycle: {scored["four"][0]} · {scored["four"][1]}', _crypto_phase_class(scored["four"][3])),
+            (f'Medium: {scored["medium"][0]}', _crypto_class(scored["medium"][2])),
+            (f'Alignment: {scored["alignment"]}', "good" if scored["alignment"] == "Aligned" else ("warn" if scored["alignment"] == "Mixed" else "bad")),
+            (f'ETH/BTC: {_signed_regime(c.get("ethbtc_change"))}', _crypto_change_class(c.get("ethbtc_change"))),
         ]
         return (
             '<div class="regime-panel regime-pad crypto-wrap">'
             '<div class="crypto-header"><span class="crypto-accent"></span><span class="regime-section-title" style="margin:0;">Crypto regime</span>'
-            + "".join(f'<span class="crypto-badge">{html.escape(tag)}</span>' for tag in tags)
+            + "".join(f'<span class="crypto-badge {cls}">{html.escape(tag)}</span>' for tag, cls in tags)
             + '</div>'
             f'<div class="crypto-price-strip">{price_html}</div>'
             f'<div class="crypto-decisions">{decision_html}</div>'
