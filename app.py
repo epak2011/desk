@@ -12578,7 +12578,7 @@ if view == "regime":
 
     def _risk_status_class(label):
         label = str(label or "").lower()
-        if any(word in label for word in ("expansion", "risk on", "maintain", "healthy", "constructive", "tight", "calm")):
+        if any(word in label for word in ("expansion", "risk on", "maintain", "healthy", "constructive", "momentum", "acceleration", "tight", "calm")):
             return "good"
         if any(word in label for word in ("reduce", "risk off", "warning", "stress", "extreme", "raise cash")):
             return "bad"
@@ -12703,11 +12703,73 @@ if view == "regime":
         }
 
     def _daily_brief_seed_memo(d, s, crypto, today_key):
+        memo = _fallback_regime_daily_memo(d, s, crypto)
+        if today_key == "2026-06-30":
+            memo.update(
+                {
+                    "topline": {
+                        "regime": "Expansion",
+                        "portfolio_stance": "Risk On",
+                        "action": "Maintain Full Positioning",
+                        "short_term": "Momentum Acceleration",
+                    },
+                    "why_today": (
+                        "Stay the course. You are fully invested and positioned for earnings season, "
+                        "which carries both upside from beats and noise from guidance. Do not panic-sell "
+                        "into any individual earnings miss or guidance cut; the trend and structure remain "
+                        "constructive. If spreads spike above 600 basis points or unemployment jumps above "
+                        "4.5% in a single report, reassess."
+                    ),
+                    "daily_context": {
+                        "headline": (
+                            "Expansion regime intact; momentum is accelerating while fear remains elevated, "
+                            "so the portfolio call stays risk-on."
+                        ),
+                        "bullets": [
+                            "SPX and QQQ are advancing while VIX remains below 20 → trend confirmation with contained volatility → maintain full positioning",
+                            "Fear & Greed remains in Extreme Fear → sentiment is anxious rather than euphoric → do not reduce solely because headlines feel uncomfortable",
+                            "HY spreads remain tight near normal levels → credit stress is not confirming a macro break → keep equity risk budget open",
+                            "Earnings season is approaching → single-stock misses may create noise → use stock-level rules rather than changing the macro stance",
+                        ],
+                        "change_status": "NO CHANGE",
+                        "watch_triggers": [
+                            "If HY spreads widen above 600bps → credit stress confirms → reduce weak/cyclical exposure",
+                            "If unemployment jumps above 4.5% in one report → labor break risk rises → reassess full positioning",
+                            "If VIX spikes above 28 with SPX losing trend support → risk-off signal strengthens → tighten stops and cut marginal names",
+                        ],
+                    },
+                    "forward_watch": [
+                        {
+                            "title": "June employment situation, Thursday July 2",
+                            "body": "determines whether labor resilience still supports the expansion call.",
+                        },
+                        {
+                            "title": "ISM Services PMI",
+                            "body": "checks whether services strength offsets manufacturing caution and keeps earnings risk contained.",
+                        },
+                        {
+                            "title": "Credit spreads and VIX",
+                            "body": "the cleanest confirmation pair for whether fear is noise or the start of real de-risking.",
+                        },
+                        {
+                            "title": "Earnings guidance tone",
+                            "body": "watch whether misses stay idiosyncratic or start pointing to broad demand deterioration.",
+                        },
+                    ],
+                    "source_note": "Imported 9:10 AM daily brief.",
+                }
+            )
+            return memo
         if today_key != "2026-06-29":
             return None
-        memo = _fallback_regime_daily_memo(d, s, crypto)
         memo.update(
             {
+                "topline": {
+                    "regime": "Expansion",
+                    "portfolio_stance": "Risk On",
+                    "action": "Maintain Full Positioning",
+                    "short_term": "Constructive",
+                },
                 "why_today": (
                     "Hold your full equity allocation. There is no signal to reduce here. "
                     "The combination of stable growth, a tight labor market, and financial system calm "
@@ -12836,6 +12898,16 @@ if view == "regime":
             return False
         return True
 
+    def _regime_daily_topline(s, daily_memo):
+        memo_topline = (daily_memo or {}).get("topline") if isinstance(daily_memo, dict) else None
+        memo_topline = memo_topline if isinstance(memo_topline, dict) else {}
+        return {
+            "regime": str(memo_topline.get("regime") or s.get("regime_layer") or ""),
+            "portfolio_stance": str(memo_topline.get("portfolio_stance") or s.get("portfolio_stance") or ""),
+            "action": str(memo_topline.get("action") or s.get("action_guidance") or ""),
+            "short_term": str(memo_topline.get("short_term") or s.get("short_term_cond") or ""),
+        }
+
     def _call_claude_regime_daily_memo(d, s, crypto, api_key):
         from anthropic import Anthropic
         from pm_view import _call_with_timeout
@@ -12867,6 +12939,12 @@ Dashboard data:
 Return ONLY this JSON shape:
 {{
   "schema_version": {REGIME_DAILY_MEMO_SCHEMA_VERSION},
+  "topline": {{
+    "regime": "{s.get("regime_layer")}",
+    "portfolio_stance": "{s.get("portfolio_stance")}",
+    "action": "{s.get("action_guidance")}",
+    "short_term": "short-term condition label for both email and dashboard"
+  }},
   "why_today": "one paragraph, 60-95 words",
   "daily_context": {{
     "headline": "one sentence summarizing today's macro/market context",
@@ -13063,6 +13141,7 @@ Return ONLY this JSON shape:
         return "".join(rows) or '<div style="font-size:13px;color:#AAA;padding:6px 0;">No forward watch available.</div>'
 
     def _build_regime_email_html(d, s, crypto, daily_memo, snapshot_ts, snapshot_label, memo_label):
+        topline = _regime_daily_topline(s, daily_memo)
         daily_context = daily_memo.get("daily_context") or {}
         context_headline = str(daily_context.get("headline") or "")
         context_bullets = daily_context.get("bullets") or []
@@ -13154,11 +13233,11 @@ Return ONLY this JSON shape:
             + '<div class="card"><div class="card-pad"><div class="lbl">Morning Briefing</div>'
             '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:14px;">'
             '<tr>'
-            f'<td style="padding:0 14px 12px 0;width:50%;vertical-align:top;border-right:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Regime</div><div style="font-size:21px;font-weight:900;color:{_email_hex(s.get("regime_layer"))};line-height:1.1;">{html.escape(str(s.get("regime_layer")).title())}</div></td>'
-            f'<td style="padding:0 0 12px 14px;width:50%;vertical-align:top;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Portfolio Stance</div><div style="font-size:21px;font-weight:900;color:{_email_hex(s.get("portfolio_stance"))};line-height:1.1;">{html.escape(str(s.get("portfolio_stance")))}</div></td>'
+            f'<td style="padding:0 14px 12px 0;width:50%;vertical-align:top;border-right:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Regime</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("regime"))};line-height:1.1;">{html.escape(str(topline.get("regime")).title())}</div></td>'
+            f'<td style="padding:0 0 12px 14px;width:50%;vertical-align:top;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Portfolio Stance</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("portfolio_stance"))};line-height:1.1;">{html.escape(str(topline.get("portfolio_stance")))}</div></td>'
             '</tr><tr>'
-            f'<td style="padding:12px 14px 0 0;vertical-align:top;border-right:1px solid #F0EEF8;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Action</div><div style="font-size:21px;font-weight:900;color:{_email_hex(s.get("action_guidance"))};line-height:1.1;">{html.escape(str(s.get("action_guidance")))}</div></td>'
-            f'<td style="padding:12px 0 0 14px;vertical-align:top;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Short-Term</div><div style="font-size:21px;font-weight:900;color:{_email_hex(s.get("short_term_cond"))};line-height:1.1;">{html.escape(str(s.get("short_term_cond")))}</div></td>'
+            f'<td style="padding:12px 14px 0 0;vertical-align:top;border-right:1px solid #F0EEF8;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Action</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("action"))};line-height:1.1;">{html.escape(str(topline.get("action")))}</div></td>'
+            f'<td style="padding:12px 0 0 14px;vertical-align:top;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Short-Term</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("short_term"))};line-height:1.1;">{html.escape(str(topline.get("short_term")))}</div></td>'
             '</tr></table>'
             f'<div style="font-size:16px;color:#1A1A2E;line-height:1.75;border-top:1px solid #F4F2FB;padding-top:12px;">{html.escape(why_today)}</div>'
             '</div></div>'
@@ -13206,6 +13285,7 @@ Return ONLY this JSON shape:
         force=bool(st.session_state.pop("force_regime_daily_memo", False)),
     )
     daily_memo = regime_daily["memo"]
+    daily_topline = _regime_daily_topline(s, daily_memo)
     memo_ts = regime_daily.get("ts") or snap["updated_at"]
     try:
         memo_label = format_market_time(memo_ts, "%b %d · %-I:%M %p %Z")
@@ -13266,10 +13346,10 @@ Return ONLY this JSON shape:
         f'<div class="risk-engine-snapshot">Data snapshot: {html.escape(snapshot_label)} · Daily memo: {html.escape(regime_daily.get("source") or "cached")} · {html.escape(memo_label)}</div>'
         '<div class="risk-engine-hero">'
         '<div class="risk-hero-top">'
-        f'<div class="risk-hero-cell"><div class="risk-k">Regime</div><div class="risk-v {_risk_status_class(s["regime_layer"])}">{html.escape(s["regime_layer"].title())}</div></div>'
-        f'<div class="risk-hero-cell"><div class="risk-k">Portfolio Stance</div><div class="risk-v {_risk_status_class(s["portfolio_stance"])}">{html.escape(s["portfolio_stance"])}</div></div>'
-        f'<div class="risk-hero-cell"><div class="risk-k">Action</div><div class="risk-v {_risk_status_class(s["action_guidance"])}">{html.escape(s["action_guidance"])}</div></div>'
-        f'<div class="risk-hero-cell"><div class="risk-k">Short-Term</div><div class="risk-v {_risk_status_class(s["short_term_cond"])}">{html.escape(s["short_term_cond"])}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Regime</div><div class="risk-v {_risk_status_class(daily_topline["regime"])}">{html.escape(daily_topline["regime"].title())}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Portfolio Stance</div><div class="risk-v {_risk_status_class(daily_topline["portfolio_stance"])}">{html.escape(daily_topline["portfolio_stance"])}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Action</div><div class="risk-v {_risk_status_class(daily_topline["action"])}">{html.escape(daily_topline["action"])}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Short-Term</div><div class="risk-v {_risk_status_class(daily_topline["short_term"])}">{html.escape(daily_topline["short_term"])}</div></div>'
         '</div>'
         '<div class="risk-hero-bottom">'
         f'<div><div class="risk-k">Why Today</div><div class="risk-why">{html.escape(daily_memo.get("why_today") or _why_today_text(d, s))}</div></div>'
