@@ -11950,10 +11950,39 @@ if view == "regime":
         .watch-trigger{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:13px 0;font-size:15px;line-height:1.5;color:var(--color-body)}
         .watch-trigger .arrow{color:var(--color-muted);font-weight:950}
         .risk-secondary{margin-top:18px}
+        .framework-details{margin-top:18px;border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);overflow:hidden}
+        .framework-details summary{list-style:none;cursor:pointer;padding:17px 20px;border-bottom:1px solid #D7DFEA;font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.24em;text-transform:uppercase;color:var(--color-muted);display:flex;align-items:center;justify-content:space-between;gap:14px}
+        .framework-details summary::-webkit-details-marker{display:none}
+        .framework-details summary:after{content:"+";font-family:var(--font-mono);font-size:20px;font-weight:900;color:var(--color-muted)}
+        .framework-details[open] summary:after{content:"–"}
+        .framework-body{padding:20px}
+        .metric-guide-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #CCD6E3;border-radius:8px;overflow:hidden;background:var(--color-surface);margin-bottom:18px}
+        .metric-guide-card{padding:20px;border-right:1px solid #D7DFEA;min-height:150px}
+        .metric-guide-card:last-child{border-right:0}
+        .metric-guide-card.good{background:rgba(22,163,74,.06)}
+        .metric-guide-card.warn{background:rgba(139,98,20,.07)}
+        .metric-guide-card.info{background:rgba(37,99,235,.05)}
+        .metric-guide-card .label{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
+        .metric-guide-card .metric-name{font-size:15px;font-weight:850;color:var(--color-body);margin-bottom:12px}
+        .metric-guide-card .value{font-family:var(--font-mono);font-size:30px;font-weight:950;color:var(--color-text);margin-bottom:8px}
+        .metric-guide-card .note{font-size:14px;line-height:1.45;color:var(--color-muted)}
+        .framework-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+        .framework-col{border:1px solid #CCD6E3;border-radius:8px;background:var(--color-surface);padding:16px}
+        .framework-col .title{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.2em;text-transform:uppercase;color:var(--color-muted);margin-bottom:5px}
+        .framework-col .question{font-size:14px;font-style:italic;color:var(--color-muted);margin-bottom:12px}
+        .framework-state{border:1px solid #D7DFEA;border-radius:7px;background:var(--color-surface-soft);padding:13px;margin-top:10px}
+        .framework-state.good{background:rgba(22,163,74,.06);border-color:rgba(22,163,74,.28)}
+        .framework-state.warn{background:rgba(139,98,20,.07);border-color:rgba(139,98,20,.28)}
+        .framework-state.bad{background:rgba(209,69,69,.06);border-color:rgba(209,69,69,.28)}
+        .framework-state.current{box-shadow:inset 3px 0 0 var(--color-blue)}
+        .framework-state .state-title{font-size:16px;font-weight:950;color:var(--color-text);margin-bottom:6px}
+        .framework-state .state-copy{font-size:14px;line-height:1.45;color:var(--color-body)}
+        .framework-state .action{font-size:14px;line-height:1.45;color:var(--color-muted);font-weight:850;margin-top:7px}
+        .framework-note{margin-top:12px;border:1px solid #D7DFEA;border-radius:7px;background:var(--color-surface-soft);padding:12px 14px;font-size:14px;line-height:1.45;color:var(--color-muted)}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
-        @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}}
-        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.risk-hero-top,.risk-hero-bottom,.market-imp-body{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.risk-hero-cell{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
-        @media(max-width:560px){.regime-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
+        @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}.framework-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.risk-hero-top,.risk-hero-bottom,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.risk-hero-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:560px){.regime-grid,.framework-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -13390,6 +13419,71 @@ Return ONLY this JSON shape:
         + '</div><div class="regime-divider"></div>',
         unsafe_allow_html=True,
     )
+
+    def _framework_state_class(name, current=False):
+        label = str(name or "").lower()
+        classes = []
+        if any(x in label for x in ("risk on", "expansion", "recovery", "rebuild", "early", "clear")):
+            classes.append("good")
+        elif any(x in label for x in ("risk off", "rolling", "contraction", "secular bear", "reduce")):
+            classes.append("bad")
+        else:
+            classes.append("warn")
+        if current:
+            classes.append("current")
+        return " ".join(classes)
+
+    def _state_box(title, copy, action, current=False):
+        return (
+            f'<div class="framework-state {_framework_state_class(title, current)}">'
+            f'<div class="state-title">{html.escape(title)}{" ◂ current" if current else ""}</div>'
+            f'<div class="state-copy">{html.escape(copy)}</div>'
+            f'<div class="action">→ {html.escape(action)}</div>'
+            '</div>'
+        )
+
+    t1_value = f'{_fmt_regime(d.get("ism"), "%", 1)}' if d.get("ism") is not None else "—"
+    t2_value = f'{_fmt_regime(d.get("unemp"), "%", 1)}' if d.get("unemp") is not None else "—"
+    t3_value = _fmt_regime(d.get("hy_bps"), "bps", 0)
+    t1_buffer = f'{_fmt_regime(s.get("t1_dist"), " pts", 1)}' if s.get("t1_dist") is not None else "—"
+    t2_buffer = f'{_fmt_regime(abs(s.get("t2_dist") or 0), " pts", 1)} from 4.2% trigger' if s.get("t2_dist") is not None else "—"
+    t3_buffer = f'{_fmt_regime(max(0, 600 - float(d.get("hy_bps") or 0)), "bps", 0)} of buffer' if d.get("hy_bps") is not None else "—"
+    framework_html = (
+        '<details class="framework-details">'
+        '<summary><span>Framework / metric guide</span><span style="font-family:var(--font-sans);font-size:14px;font-weight:780;letter-spacing:0;text-transform:none;">What T1, T2, T3, yield curve, liquidity, and the timeframe map mean</span></summary>'
+        '<div class="framework-body">'
+        '<div class="metric-guide-grid">'
+        f'<div class="metric-guide-card good"><div class="label">T1 · Primary Trigger</div><div class="metric-name">ISM Manufacturing PMI — expansion vs contraction</div><div class="value">{html.escape(t1_value)} <span style="font-size:15px;">{html.escape(str(s.get("t1") or ""))}</span></div><div class="note">First miss below 50 is the main reduce-now signal. Current buffer: {html.escape(t1_buffer)}.</div></div>'
+        f'<div class="metric-guide-card good"><div class="label">T2 · Confirmation</div><div class="metric-name">Unemployment rate — labor market stress</div><div class="value">{html.escape(t2_value)} <span style="font-size:15px;">{html.escape(str(s.get("t2") or ""))}</span></div><div class="note">T2 alone is a near-miss, not a sell signal. It matters most when rising and paired with T1 weakness. Distance: {html.escape(t2_buffer)}.</div></div>'
+        f'<div class="metric-guide-card info"><div class="label">T3 · Tail Risk</div><div class="metric-name">High-yield credit spreads — credit market stress</div><div class="value">{html.escape(t3_value)} <span style="font-size:15px;">{html.escape(str(s.get("t3") or ""))}</span></div><div class="note">Stress trigger is roughly above 600bps. Credit confirms whether macro fear is becoming funding stress. Current cushion: {html.escape(t3_buffer)}.</div></div>'
+        '</div>'
+        '<div class="framework-grid">'
+        '<div class="framework-col"><div class="title">⚡ Short · Tactical</div><div class="question">“Act now or wait?” · days to weeks</div>'
+        + _state_box("Risk On", "VIX compressed, breadth broad, and no active cluster signals.", "Add on dips. Favor cyclicals and high beta.", False)
+        + _state_box("Cautious", f'{s.get("short_term_cond") or "Current tape"} with VIX {_fmt_regime(d.get("vix"), "", 1)} and Fear & Greed {_fmt_regime(d.get("fg"), "", 0)}.', "Hold tactical exposure. Wait for the cluster to clear before forcing adds.", s.get("short_term_cond") in {"Constructive", "Momentum Acceleration", "Healthy Pullback"})
+        + _state_box("Risk Off", "Two or more short-term stress signals fire together.", "Hedge or exit tactical risk. Watch for stabilization before adding.", False)
+        + '<div class="framework-note">Action trigger: two of three stress inputs — VIX above 35, deeply negative breadth, or put/call panic.</div></div>'
+        '<div class="framework-col"><div class="title">📈 Medium · Trend</div><div class="question">“Trend intact or rolling over?” · 2 to 12 months</div>'
+        + _state_box("Expansion", f'EPS/market trend intact. ISM {t1_value}. No rollover signal.', "Hold full equity. No defensive rotation needed.", s.get("regime_layer") == "Expansion")
+        + _state_box("Late Cycle", "EPS positive but slowing, ISM plateauing, curve flattening.", "Neutral-defensive. Do not add leverage.", False)
+        + _state_box("Rolling Over", "T1 warning fired and trend is breaking down.", "Shift defensive and reduce equity exposure.", False)
+        + _state_box("Recovery", "ISM recovered above 50 after firing.", "Rebuild to full exposure; contrarian accumulation phase.", False)
+        + '<div class="framework-note">Flip trigger: T1 warning, or yield curve inversion while T1 is still clear.</div></div>'
+        '<div class="framework-col"><div class="title">🌐 Cyclical · Primary</div><div class="question">“What regime? Take or reduce risk?” · 1 to 4 years</div>'
+        + _state_box("Expansion", "T1 clear, T2 clear, credit spreads contained, and unemployment not breaking.", "Overweight equities. Lean cyclicals and quality growth.", s.get("regime_layer") == "Expansion")
+        + _state_box("Late Expansion", "ISM expanding but 3-month trend declining; unemployment rising from lows.", "Stay long but do not add cyclical exposure. Quality bias.", False)
+        + _state_box("Reduce / T1 Warning", "ISM first miss below 50. Historically the optimal reduce window.", "Begin reducing cyclicals. Do not wait for a second miss.", s.get("t1") == "WARNING")
+        + _state_box("Contraction / Near Bottom", "T1 firing for multiple months; markets may be near the bottom.", "Stop reducing once recovery evidence appears. Hold for ISM recovery.", False)
+        + '<div class="framework-note">T1 fires → downgrade. T1 + T2 → full cycle turn. T2 alone is a near-miss, not a sell signal.</div></div>'
+        '<div class="framework-col"><div class="title">🌐 Secular · Background</div><div class="question">“How aggressively to size?” · 15 to 20 years</div>'
+        + _state_box("Early / Mid Bull", "CAPE cheap or fair, real rates low, breadth broad.", "Max equity. React aggressively to cyclical signals.", False)
+        + _state_box("Late / Narrow", "CAPE elevated or leadership narrow. Sizing modifier only.", "Same T1/T2 triggers, but cut harder when they fire and reload less when clear.", True)
+        + _state_box("Topping / Distribution", "Multiple warning triggers, SPX below 200-month average, top-10 concentration elevated.", "Significantly reduce when cyclical signals fire. Build defensive allocation.", False)
+        + _state_box("Secular Bear", "Long-term trend breaks and drawdown deepens.", "Drastically reduce equities. Favor real assets and gold.", False)
+        + '<div class="framework-note">Secular layer does not create a standalone action signal; it calibrates how aggressively you respond to cyclical signals.</div></div>'
+        '</div></div></details>'
+    )
+    st.markdown(framework_html, unsafe_allow_html=True)
 
     st.markdown(_crypto_section_html(crypto, d, s, daily_memo.get("crypto")), unsafe_allow_html=True)
     st.markdown('</div></div>', unsafe_allow_html=True)
