@@ -518,7 +518,10 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
             st.session_state.get("claude_calls_this_session", 0) + 1
         )
     thesis_text = str(pm.get("thesis") or "")
-    is_placeholder_pm = thesis_text.startswith(f"No thesis on file for {ticker}")
+    is_placeholder_pm = (
+        thesis_text.startswith(f"No thesis on file for {ticker}")
+        or thesis_text.startswith(f"No generated PM thesis yet for {ticker}")
+    )
     if (is_placeholder_pm or pm.get("_source") != "claude") and entry:
         try:
             age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
@@ -570,7 +573,7 @@ def clear_pm_cache(ticker):
         save_store(st.session_state.store)
 
 
-def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name, allow_generate=True, force_generate=False):
+def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name, allow_generate=True, force_generate=False, fast_generate=False):
     """Cache decision dossiers with staleness rules + live-value substitution.
 
     Cost-saving design:
@@ -728,7 +731,7 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
     # Cache miss or staleness failed — regenerate via Claude.
     result = get_decision_dossier(
         ticker, t_state, modifiers, meta, pm_data,
-        api_key=api_key, company_name=company_name,
+        api_key=api_key, company_name=company_name, fast=fast_generate,
     )
     if result.get("dossier"):
         st.session_state["claude_calls_this_session"] = (
@@ -4763,7 +4766,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
         pending[refresh_ticker] = datetime.now().isoformat(timespec="seconds")
     st.session_state["_refresh_result"] = {
         "ticker": refresh_ticker,
-        "time": datetime.now().strftime("%-I:%M %p"),
+        "time": now_market_time().strftime("%-I:%M %p"),
         "research": bool(refresh_research),
     }
     save_store(st.session_state.store)
@@ -9120,10 +9123,12 @@ if view == "analyze":
         st.session_state.pop("_force_pm_refresh_ticker", "") == ticker_key
         or ticker_key in pending_pm_refreshes
     )
-    # Ordinary ticker navigation stays fast/static. The explicit refresh button
-    # is intentionally heavier: it refreshes both the PM memo and the dossier
-    # because quality/thesis/drivers live in the dossier layer.
-    allow_pm_generate = force_pm_refresh
+    # Ordinary ticker navigation stays fast/static. Manual refresh uses the
+    # dossier call as the single source of truth for thesis, quality, bullets,
+    # and Claude dissent. Do not make a separate PM-note call first: it can
+    # succeed while the dossier times out, which makes the UI claim "PM
+    # refreshed" even though the visible thesis/quality layer stayed stale.
+    allow_pm_generate = False
     needs_context_refresh = (
         ticker.upper() in SPECIAL_CONTEXT_REFRESH_TICKERS
         and dossier_cache_needs_upgrade(ticker)
@@ -9147,7 +9152,7 @@ if view == "analyze":
             api_key=api_key if api_key else None,
             company_name=name,
             allow_generate=allow_pm_generate,
-            force_generate=force_pm_refresh,
+            force_generate=False,
         )
         allow_dossier_generate = bool(force_pm_refresh and api_key)
         dossier_result = get_cached_dossier(
@@ -9156,6 +9161,7 @@ if view == "analyze":
             company_name=name,
             allow_generate=allow_dossier_generate,
             force_generate=force_pm_refresh,
+            fast_generate=force_pm_refresh,
         )
     if force_pm_refresh:
         pending_pm_refreshes.pop(ticker_key, None)
