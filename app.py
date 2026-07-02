@@ -6870,10 +6870,29 @@ try:
         ):
             route_to(view=view_to_open, reason="url view", rerun=True)
     if "wldel" in qp_global:
-        tkr_to_del = qp_global.get("wldel")
+        tkr_to_del = str(qp_global.get("wldel") or "").upper().strip()
         del qp_global["wldel"]
         if tkr_to_del:
-            st.session_state["_pending_wldel"] = tkr_to_del.upper()
+            watchlist_store = st.session_state.store.setdefault("watchlist", [])
+            remaining_watchlist = [
+                str(t).upper().strip()
+                for t in watchlist_store
+                if str(t).upper().strip() and str(t).upper().strip() != tkr_to_del
+            ]
+            st.session_state.store["watchlist"] = remaining_watchlist
+            st.session_state.pop("_pending_wldel", None)
+            if tkr_to_del == str(st.session_state.get("current_ticker") or "").upper().strip():
+                next_ticker = remaining_watchlist[0] if remaining_watchlist else ""
+                if next_ticker:
+                    st.session_state.current_ticker = next_ticker
+                    st.session_state.store["last_ticker"] = next_ticker
+                    try:
+                        st.query_params["ticker"] = next_ticker
+                    except Exception:
+                        pass
+                else:
+                    st.session_state.store.pop("last_ticker", None)
+            save_store(st.session_state.store)
             st.rerun()
     if "idea_watch" in qp_global:
         tkr_to_watch = str(qp_global.get("idea_watch") or "").upper().strip()
