@@ -19,6 +19,8 @@ CLAUDE_MODEL_FALLBACKS = [
     "claude-sonnet-4-5-20250929",
     "claude-haiku-4-5-20251015",
 ]
+CLAUDE_PM_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "55"))
+CLAUDE_DOSSIER_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "55"))
 
 
 def _call_with_timeout(fn, timeout_seconds, label):
@@ -501,7 +503,7 @@ Return ONLY the JSON, nothing else."""
                         temperature=0,
                         messages=[{"role": "user", "content": prompt}],
                     ),
-                    55,
+                    CLAUDE_PM_TIMEOUT_SECONDS,
                     "Claude PM note",
                 )
                 break
@@ -840,7 +842,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             ),
-            14,
+            CLAUDE_DOSSIER_TIMEOUT_SECONDS,
             "Claude decision dossier",
         )
         text = message.content[0].text.strip()
