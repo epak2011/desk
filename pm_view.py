@@ -19,8 +19,8 @@ CLAUDE_MODEL_FALLBACKS = [
     "claude-sonnet-4-5-20250929",
     "claude-haiku-4-5-20251015",
 ]
-CLAUDE_PM_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "55"))
-CLAUDE_DOSSIER_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "55"))
+CLAUDE_PM_TIMEOUT_SECONDS = max(45, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "55")))
+CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(45, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "55")))
 
 
 def _call_with_timeout(fn, timeout_seconds, label):
@@ -550,7 +550,7 @@ Return ONLY the JSON, nothing else."""
 
 
 def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
-                         api_key=None, company_name=None):
+                         api_key=None, company_name=None, fast=False):
     """Generate three pieces in one Claude call:
       - dossier: 4-6 sentence top-of-page brief
       - technical_narrative: 2-4 paragraph technical read
@@ -576,9 +576,8 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         import json as _json
         client = Anthropic(api_key=api_key)
 
-        recent_news_block = _fetch_recent_news(client, ticker, company_name)
         special_context = _special_context_for(ticker)
-        time.sleep(1)  # brief pause to avoid rate-limiting the main call
+        recent_news_block = ""
 
         bias = t_state.get("bias") or t_state.get("raw_bias") or "unclear"
         action = t_state.get("action", "unknown")
@@ -609,6 +608,87 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         drivers = (pm_data or {}).get("drivers", [])
         risks = (pm_data or {}).get("risks", [])
         valuation = (pm_data or {}).get("valuation", "")
+
+        if fast:
+            fast_prompt = f"""You are a senior portfolio manager and trader. Refresh the on-page PM research for {ticker}{f' ({company_name})' if company_name else ''}.
+
+Return ONLY valid JSON. No markdown.
+
+Context:
+- Rule action: {action.replace('_', ' ')}
+- State: {t_state.get('state', 'unknown')}
+- Bias: {bias}
+- Price: ${t_state.get('price', 0):.2f}
+- 50d MA: ${t_state.get('ma50', 0):.2f}; 200d MA: ${t_state.get('ma200', 0):.2f}
+- RSI: {t_state.get('rsi14', 50):.0f}; RS vs SPY: {t_state.get('rs', 1):.2f}; RS delta: {t_state.get('rs_delta', 0):+.3f}
+- Volume vs 20d avg: {t_state.get('vol_ratio', 1):.2f}x
+- Reward/risk: {f"{t_state.get('reward_risk'):.2f}:1" if t_state.get('reward_risk') is not None else 'n/a'}
+- Trigger: {trig_summary}; buy above {f'${buy_above:.2f}' if buy_above else 'n/a'}; invalidation {f'${abort_below:.2f}' if abort_below else 'n/a'}
+- Sector: {(meta or {}).get('sector') or 'unknown'}; industry: {(meta or {}).get('industry') or 'unknown'}
+- Market cap: {(meta or {}).get('market_cap') or 'unknown'}
+- Earnings: {f'in {meta.get("earnings_days")} days' if meta and meta.get('earnings_days') is not None else 'no near-term'}
+- Forward P/E: {(meta or {}).get('forward_pe') or 'n/a'}; PEG: {(meta or {}).get('peg') or 'n/a'}; EV/EBITDA: {(meta or {}).get('ev_ebitda') or 'n/a'}
+- Earnings growth: {(meta or {}).get('earnings_growth') or 'n/a'}%; Revenue growth: {(meta or {}).get('revenue_growth') or 'n/a'}%
+- Existing thesis: {thesis or 'none'}
+- Existing drivers: {', '.join(drivers) if drivers else 'none'}
+- Existing risks: {', '.join(risks) if risks else 'none'}
+{special_context}
+
+Use live-value tokens in prose where current values appear: {{price}}, {{pct_ma50}}, {{pct_ma200}}, {{rs}}, {{rsi}}.
+
+JSON shape:
+{{
+  "dossier": "3-4 sentence decision memo. Mention the rule action and what changes it.",
+  "technical_narrative": "1-2 concise paragraphs on trend, momentum, RS, volume, and trigger.",
+  "pm_narrative": "2 concise paragraphs on business thesis, variant view, valuation, and what would change your mind.",
+  "bullets": {{
+    "thesis": "1-2 sentences",
+    "drivers": ["exactly 3 short specific drivers"],
+    "risks": ["exactly 3 short specific risks"],
+    "valuation": "1 sentence"
+  }},
+  "quality": {{
+    "tier": "A | B | Speculative | Avoid",
+    "rationale": "1-2 sentences"
+  }},
+  "tactical_call": {{
+    "action": "ENTER | WATCH | HOLD_OFF | AVOID | ACCUMULATE",
+    "confidence": "integer 1-10",
+    "reasoning": "2 sentences",
+    "trigger": "specific condition or null",
+    "invalidation": "specific condition or null",
+    "notes": "one sentence or empty"
+  }}
+}}
+
+Be specific. Do not return placeholders. If the business has a special-situation angle, hidden asset, major strategic relationship, financing risk, customer concentration, or regulatory catalyst, include it."""
+
+            message = _call_with_timeout(
+                lambda: _messages_create(client,
+                    max_tokens=1400,
+                    temperature=0,
+                    messages=[{"role": "user", "content": fast_prompt}],
+                ),
+                min(CLAUDE_DOSSIER_TIMEOUT_SECONDS, 45),
+                "Claude fast PM refresh",
+            )
+            text = message.content[0].text.strip()
+            if text.startswith("```"):
+                parts = text.split("```")
+                text = parts[1] if len(parts) > 1 else text
+                if text.lower().startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            parsed = _parse_json_response(text)
+            return {
+                "dossier": parsed.get("dossier"),
+                "technical_narrative": parsed.get("technical_narrative"),
+                "pm_narrative": parsed.get("pm_narrative"),
+                "bullets": parsed.get("bullets") or {},
+                "quality": parsed.get("quality") or {},
+                "tactical_call": parsed.get("tactical_call") or {},
+                "_source": "claude · fast refresh",
+            }
 
         prompt = f"""You are a senior portfolio manager and trader. Generate THREE pieces of analysis on {ticker}{f' ({company_name})' if company_name else ''}.
 
@@ -856,7 +936,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
 
         message = _call_with_timeout(
             lambda: _messages_create(client,
-                max_tokens=3000,
+                    max_tokens=2400,
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             ),
