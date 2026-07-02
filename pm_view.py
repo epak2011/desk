@@ -133,6 +133,24 @@ def substitute_live_values(text, tactical_output):
     pct_52w_high = _pct_unsigned(price, high_52w)
     pct_52w_low_v = _pct_signed(price, low_52w)  # signed for "x% above low"
 
+    # Some fast watchlist/sidebar snapshots store already-computed percent
+    # fields instead of the raw moving averages. Use those as a fallback so
+    # cached Claude dissent notes do not leak {pct_ma200}/{rs} placeholders.
+    def _fallback_pct(name, current):
+        if current is not None:
+            return current
+        raw = t.get(name)
+        try:
+            return float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    pct_ma50 = _fallback_pct("pct_ma50", pct_ma50)
+    pct_ma100 = _fallback_pct("pct_ma100", pct_ma100)
+    pct_ma200 = _fallback_pct("pct_ma200", pct_ma200)
+    pct_52w_high = _fallback_pct("pct_52w_high", pct_52w_high)
+    pct_52w_low_v = _fallback_pct("pct_52w_low", pct_52w_low_v)
+
     # Build substitution map. Every value formatted to its display form.
     substitutions = {
         "price":         f"${price:,.2f}" if price is not None else "—",
