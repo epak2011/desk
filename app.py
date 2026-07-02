@@ -4739,26 +4739,35 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False):
     except Exception:
         fetch_history.clear()
     _delete_history_cache(refresh_ticker)
-    try:
-        fetch_quote_meta.clear(refresh_ticker)
-    except Exception:
-        fetch_quote_meta.clear()
-    refreshed_hist = None
-    refreshed_meta = None
-    try:
-        refreshed_meta = fetch_quote_meta(refresh_ticker, include_slow_fallbacks=True)
-        remember_quote_meta(refresh_ticker, refreshed_meta)
-    except Exception:
-        pass
-    try:
-        refreshed_hist, _name, _err = fetch_history(refresh_ticker)
-        refreshed_bench = fetch_bench()
-        if refreshed_hist is not None and refreshed_bench is not None:
-            refreshed_t = tactical.compute(refreshed_hist, refreshed_bench)
-            if refreshed_t is not None:
-                remember_sidebar_ticker_snapshot(refresh_ticker, refreshed_t, refreshed_hist)
-    except Exception:
-        pass
+    if refresh_research:
+        # Do not do slow Yahoo metadata fetches inside the button callback.
+        # The callback reruns the app immediately; doing network work here
+        # makes the click feel frozen and then the render repeats work again.
+        # Clear caches, mark the PM refresh pending, and let the normal Analyze
+        # render fetch price once and generate research once.
+        try:
+            fetch_quote_meta.clear(refresh_ticker)
+        except Exception:
+            pass
+    else:
+        try:
+            fetch_quote_meta.clear(refresh_ticker)
+        except Exception:
+            fetch_quote_meta.clear()
+        try:
+            refreshed_meta = fetch_quote_meta(refresh_ticker, include_slow_fallbacks=False)
+            remember_quote_meta(refresh_ticker, refreshed_meta)
+        except Exception:
+            pass
+        try:
+            refreshed_hist, _name, _err = fetch_history(refresh_ticker)
+            refreshed_bench = fetch_bench()
+            if refreshed_hist is not None and refreshed_bench is not None:
+                refreshed_t = tactical.compute(refreshed_hist, refreshed_bench)
+                if refreshed_t is not None:
+                    remember_sidebar_ticker_snapshot(refresh_ticker, refreshed_t, refreshed_hist)
+        except Exception:
+            pass
     sidebar_watchlist_snapshot.clear()
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
