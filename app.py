@@ -9414,6 +9414,15 @@ if view == "analyze":
         claude_confidence = int(claude_call.get("confidence", 0) or 0)
     except (TypeError, ValueError):
         claude_confidence = 0
+    claude_dissent_note_source = claude_call.get("reasoning") or claude_call.get("trigger") or ""
+    try:
+        from pm_view import substitute_live_values as _sub_live_values
+        claude_dissent_note_source = _sub_live_values(
+            claude_dissent_note_source,
+            {**t, "price": t.get("price", 0)},
+        )
+    except Exception:
+        pass
     claude_source_text = str((dossier_result or {}).get("_source") or "").lower()
     claude_is_current_enough = not any(
         marker in claude_source_text
@@ -9429,7 +9438,7 @@ if view == "analyze":
             rule_t.get("action"),
             claude_action_raw,
             claude_confidence,
-            claude_call.get("reasoning") or claude_call.get("trigger") or "",
+            claude_dissent_note_source,
         )
         if dissent_signal.get("flag"):
             source_note = f"★ {dissent_signal['reason']}"
@@ -14418,11 +14427,20 @@ if view == "watchlist":
             quality_tier = (
                 ((cached.get("result") or {}).get("quality") or {}).get("tier", "")
             )
+            cached_dissent_note = cached_call.get("reasoning") or cached_call.get("trigger") or ""
+            try:
+                from pm_view import substitute_live_values as _sub_live_values
+                cached_dissent_note = _sub_live_values(
+                    cached_dissent_note,
+                    {**snapshot, "price": snapshot.get("price")},
+                )
+            except Exception:
+                pass
             dissent_signal = claude_dissent_signal(
                 action,
                 cached_action,
                 cached_confidence,
-                cached_call.get("reasoning") or cached_call.get("trigger") or "",
+                cached_dissent_note,
             )
             t_stub = {
                 "action": action,
@@ -14532,11 +14550,20 @@ if view == "watchlist":
                         cached_confidence = int(cached_call.get("confidence", 0) or 0)
                     except (TypeError, ValueError):
                         cached_confidence = 0
+                    cached_dissent_note = cached_call.get("reasoning") or cached_call.get("trigger") or ""
+                    try:
+                        from pm_view import substitute_live_values as _sub_live_values
+                        cached_dissent_note = _sub_live_values(
+                            cached_dissent_note,
+                            {**t, "price": t.get("price")},
+                        )
+                    except Exception:
+                        pass
                     dissent_signal = claude_dissent_signal(
                         t.get("action"),
                         cached_action,
                         cached_confidence,
-                        cached_call.get("reasoning") or cached_call.get("trigger") or "",
+                        cached_dissent_note,
                     )
 
                     # Trigger distance % — how close to a logged trigger?
