@@ -54,7 +54,7 @@ HISTORY_CACHE_DIR = Path.home() / ".desk_history_cache"
 MARKET_TZ = ZoneInfo("America/New_York") if ZoneInfo else timezone(timedelta(hours=-4), "ET")
 REGIME_DAILY_REFRESH_HOUR = 9
 REGIME_DAILY_REFRESH_MINUTE = 10
-REGIME_DAILY_MEMO_SCHEMA_VERSION = 2
+REGIME_DAILY_MEMO_SCHEMA_VERSION = 3
 REGIME_CLAUDE_TIMEOUT_SECONDS = max(30, int(os.environ.get("REGIME_CLAUDE_TIMEOUT_SECONDS", "55")))
 
 
@@ -12087,11 +12087,11 @@ if view == "regime":
 
     def _condition_color(label):
         label = str(label or "").lower()
-        if any(word in label for word in ("constructive", "healthy", "momentum", "oversold")):
+        if any(word in label for word in ("constructive", "healthy", "momentum", "oversold", "acceptable", "add weakness", "favorable", "enter")):
             return "var(--color-positive)"
-        if any(word in label for word in ("extended", "choppy", "fragile")):
+        if any(word in label for word in ("extended", "choppy", "fragile", "wait", "mixed", "hold off", "pullback", "neutral")):
             return "var(--color-warning-text)"
-        if any(word in label for word in ("risk", "broken", "stress")):
+        if any(word in label for word in ("risk", "broken", "stress", "unfavorable", "avoid")):
             return "var(--color-negative)"
         return "var(--color-muted)"
 
@@ -12121,14 +12121,31 @@ if view == "regime":
             return []
 
     @st.cache_data(ttl=15 * 60, show_spinner=False)
-    def _quote(symbol, period="5d"):
+    def _quote(symbol, period="70d"):
         try:
             hist = yf.Ticker(symbol).history(period=period, interval="1d", auto_adjust=True)
             closes = hist["Close"].dropna() if hist is not None and "Close" in hist else []
             if len(closes) < 2:
                 return {"last": None, "change": None}
             last, prev = float(closes.iloc[-1]), float(closes.iloc[-2])
-            return {"last": last, "change": (last / prev - 1) * 100 if prev else None}
+            ma20 = float(closes.tail(20).mean()) if len(closes) >= 20 else None
+            ma50 = float(closes.tail(50).mean()) if len(closes) >= 50 else None
+            ret5 = (last / float(closes.iloc[-6]) - 1) * 100 if len(closes) >= 6 and float(closes.iloc[-6]) else None
+            ret20 = (last / float(closes.iloc[-21]) - 1) * 100 if len(closes) >= 21 and float(closes.iloc[-21]) else None
+            peak5 = float(closes.tail(5).max()) if len(closes) >= 5 else None
+            drop5 = (peak5 / last - 1) * 100 if peak5 and last else None
+            return {
+                "last": last,
+                "change": (last / prev - 1) * 100 if prev else None,
+                "ma20": ma20,
+                "ma50": ma50,
+                "vs20": (last / ma20 - 1) * 100 if ma20 else None,
+                "vs50": (last / ma50 - 1) * 100 if ma50 else None,
+                "ret5": ret5,
+                "ret20": ret20,
+                "peak5": peak5,
+                "drop5": drop5,
+            }
         except Exception:
             return {"last": None, "change": None}
 
@@ -12191,34 +12208,156 @@ if view == "regime":
             s.update(regime="EXPANSION", action_label="HOLD", action_detail="All primary signals clear. Hold full base positioning; stock-specific rules decide adds.", action_short="HOLD: All clear. Maintain base exposure.")
         else:
             s.update(regime="FRAGILE", action_label="HOLD", action_detail="Mixed signals. Hold current positioning and monitor T1 closely.", action_short="HOLD: Mixed signals.")
-        if s["t1"] == "WARNING":
-            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Contraction Risk", "Risk Off", "Raise Cash"
-        elif s["yc"] == "INVERTED" and s["t1"] == "CLEAR":
-            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Late Cycle", "Defensive", "Reduce Weak Exposure"
-        elif s["t2"] == "FIRING" and s["t1"] == "CLEAR":
-            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Late Cycle", "Neutral", "Wait for Confirmation"
-        elif s["t2"] == "RETREATING" and s["t1"] == "CLEAR":
-            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Recovery", "Moderately Risk On", "Deploy Gradually"
-        elif s["t1"] == "CLEAR" and s["t2"] == "CLEAR" and s["t3"] == "CLEAR":
-            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Expansion", "Risk On", "Maintain Full Positioning"
-        else:
-            s["regime_layer"], s["portfolio_stance"], s["action_guidance"] = "Transition", "Neutral", "Wait for Confirmation"
         vix = d.get("vix")
         fg = d.get("fg")
         pcr = d.get("pcr")
         cluster_n = int(vix is not None and vix > 35) + int(fg is not None and fg < 25) + int(pcr is not None and pcr > 0.9)
-        if cluster_n >= 2:
-            s["short_term_cond"] = "Oversold"
-        elif fg is not None and fg >= 75:
-            s["short_term_cond"] = "Extended"
-        elif vix is not None and vix > 25:
-            s["short_term_cond"] = "Choppy"
-        elif fg is not None and fg < 35 and (d.get("spx_change") or 0) < 0:
-            s["short_term_cond"] = "Healthy Pullback"
-        elif (d.get("spx_change") or 0) > 1:
-            s["short_term_cond"] = "Momentum Acceleration"
+
+        # v11 hierarchy: macro regime is context; the 2-12 week opportunity window
+        # drives the actionable top call.
+        if s["t1"] == "WARNING":
+            macro_regime = "Contraction Risk"
+        elif s["yc"] == "INVERTED" and s["t1"] == "CLEAR":
+            macro_regime = "Late Cycle"
+        elif s["t2"] == "RETREATING" and s["t1"] == "CLEAR":
+            macro_regime = "Fragile / Improving"
+        elif s["t2"] == "FIRING" and s["t1"] == "CLEAR":
+            macro_regime = "Fragile / Watch"
+        elif s["t1"] == "CLEAR" and s["t2"] == "CLEAR":
+            macro_regime = "Expansion"
         else:
-            s["short_term_cond"] = "Constructive"
+            macro_regime = "Transition"
+
+        opp_score = 0
+        opp_drivers = []
+        opp_risks = []
+        spx_vs20 = d.get("spx_vs20")
+        spx_vs50 = d.get("spx_vs50")
+        spx_ret5 = d.get("spx_ret5")
+        spx_ret20 = d.get("spx_ret20")
+        vix_peak5 = d.get("vix_peak5")
+        vix_drop5 = d.get("vix_drop5")
+
+        if spx_vs20 is not None and spx_vs50 is not None:
+            if spx_vs20 > 0 and spx_vs50 > 0:
+                opp_score += 2
+                opp_drivers.append("SPX above 20d/50d")
+            elif spx_vs50 > 0:
+                opp_score += 1
+                opp_drivers.append("SPX above 50d")
+            elif spx_vs20 < 0 and spx_vs50 < 0:
+                opp_score -= 2
+                opp_risks.append("SPX below 20d/50d")
+            else:
+                opp_score -= 1
+                opp_risks.append("SPX trend mixed")
+
+        if hy_bps is not None:
+            if hy_bps < 350:
+                opp_score += 1
+                opp_drivers.append("credit calm")
+            elif hy_bps >= 475:
+                opp_score -= 2
+                opp_risks.append("credit stress rising")
+            elif hy_bps >= 400:
+                opp_score -= 1
+                opp_risks.append("credit spreads elevated")
+
+        if vix_peak5 is not None and vix_drop5 is not None and vix_peak5 >= 25 and vix_drop5 >= 20:
+            opp_score += 1
+            opp_drivers.append("volatility compressed after stress")
+        elif vix is not None and vix > 35:
+            opp_score -= 2
+            opp_risks.append("VIX panic active")
+        elif vix is not None and vix > 25:
+            opp_score -= 1
+            opp_risks.append("VIX elevated")
+
+        if fg is not None and fg <= 25 and spx_ret5 is not None and spx_ret5 > 0:
+            opp_score += 1
+            opp_drivers.append("fear despite price recovery")
+        elif fg is not None and fg >= 75 and spx_ret20 is not None and spx_ret20 > 5:
+            opp_score -= 1
+            opp_risks.append("sentiment stretched")
+
+        if s["t1"] == "WARNING":
+            opp_score -= 3
+            opp_risks.append("T1 macro trigger fired")
+        elif s["yc"] == "INVERTED" and s["t1"] == "CLEAR":
+            opp_score -= 1
+            opp_risks.append("curve inverted")
+
+        if opp_score >= 3:
+            opportunity_window = "Favorable"
+            opportunity_detail = "Conditions support initiating new longs over the next 2-12 weeks."
+        elif opp_score >= 0:
+            opportunity_window = "Mixed"
+            opportunity_detail = "The 2-12 week entry window is unclear; wait for stronger confirmation."
+        else:
+            opportunity_window = "Unfavorable"
+            opportunity_detail = "Risk/reward is poor for initiating broad new longs."
+
+        if cluster_n >= 2:
+            execution_window = "Add weakness"
+            execution_detail = "Capitulation cluster active — stagger entries instead of waiting for perfect confirmation."
+        elif fg is not None and fg >= 75:
+            execution_window = "Wait"
+            execution_detail = "Sentiment stretched — do not chase strength."
+        elif spx_vs20 is not None and spx_vs20 > 3:
+            execution_window = "Wait"
+            execution_detail = "Price extended above the 20-day average — prefer pullbacks for new entries."
+        elif spx_vs20 is not None and spx_vs20 < 0 and spx_vs50 is not None and spx_vs50 > 0:
+            execution_window = "Pullback watch"
+            execution_detail = "Short-term pullback within a broader trend — wait for stabilization."
+        elif (vix_peak5 is not None and vix_drop5 is not None and vix_peak5 >= 25 and vix_drop5 >= 20) or (fg is not None and fg <= 35 and spx_ret5 is not None and spx_ret5 > 0):
+            execution_window = "Acceptable"
+            execution_detail = "Entry conditions are acceptable; use tranches, not a full-size chase."
+        else:
+            execution_window = "Neutral"
+            execution_detail = "No tactical edge — let the opportunity window drive positioning."
+
+        if opportunity_window == "Unfavorable":
+            final_action = "Avoid"
+        elif opportunity_window == "Mixed":
+            final_action = "Hold Off"
+        elif execution_window in {"Wait", "Pullback watch"}:
+            final_action = "Wait"
+        elif opportunity_window == "Favorable":
+            final_action = "Enter"
+        else:
+            final_action = "Hold Off"
+
+        driver_sentence = f"Support comes from {', '.join(opp_drivers[:3])}." if opp_drivers else "There is not enough positive market confirmation yet."
+        risk_sentence = f"The main drag is {', '.join(opp_risks[:2])}." if opp_risks else "The main risk is that volatility, breadth, or credit reverses before a cleaner entry appears."
+        if opportunity_window == "Favorable":
+            opportunity_takeaway = "The 2-12 week opportunity window is favorable for new longs."
+            opportunity_explanation = driver_sentence + (" Execution is the constraint today because price is extended, so staged entries are cleaner than chasing." if spx_vs20 is not None and spx_vs20 > 3 else " Execution is acceptable if entries are staged rather than rushed.")
+        elif opportunity_window == "Mixed":
+            opportunity_takeaway = "The 2-12 week opportunity window is mixed, so broad new longs should hold off."
+            opportunity_explanation = f"{driver_sentence} {risk_sentence} Wait for trend, volatility, credit, liquidity, and leadership to line up."
+        else:
+            opportunity_takeaway = "The 2-12 week opportunity window is unfavorable for broad new longs."
+            opportunity_explanation = f"{risk_sentence} New entries should wait until price trend, volatility, and credit conditions repair."
+
+        s.update(
+            macro_regime=macro_regime,
+            opportunity_score=opp_score,
+            opportunity_window=opportunity_window,
+            opportunity_detail=opportunity_detail,
+            opportunity_drivers=opp_drivers[:3],
+            opportunity_risks=opp_risks[:2],
+            opportunity_takeaway=opportunity_takeaway,
+            opportunity_explanation=opportunity_explanation,
+            opportunity_reason=f"{opportunity_takeaway} {opportunity_explanation}",
+            execution_window=execution_window,
+            execution_detail=execution_detail,
+            final_action=final_action,
+            key_risk=(opp_risks[0] if opp_risks else ("Chasing after a sharp recovery; prefer pullbacks for new longs." if final_action == "Wait" else "A reversal in volatility, breadth, or credit could weaken the window.")),
+            regime_layer=macro_regime,
+            portfolio_stance=opportunity_window,
+            action_guidance=final_action,
+            short_term_cond=execution_window,
+        )
         s["why_today"] = []
         if s["t1"] == "WARNING":
             s["why_today"].append(f"ISM {ism:.1f}% below 50 → primary recession trigger fired")
@@ -12249,21 +12388,26 @@ if view == "regime":
         stance = s.get("portfolio_stance", "Neutral")
         action = s.get("action_guidance", "Wait for Confirmation")
         short_term = s.get("short_term_cond", "Constructive")
-        if action in {"Raise Cash", "Reduce Weak Exposure"}:
+        if action in {"Avoid", "Raise Cash", "Reduce Weak Exposure"}:
             exposure = "Pull gross exposure down before credit or earnings confirm the slowdown. Cash is a risk-control tool here, not a failed trade."
             selection = "Keep only the names with clear trend, liquidity, and durable earnings. Cyclicals, weak balance sheets, and broken charts get cut first."
             execution = "Do not average down into weak setups. New buys need unusually clean entries, defined stops, and smaller size."
             trim = "Trim extended winners, laggards below the 200-day, and positions where the thesis now depends on a macro rebound."
-        elif action == "Deploy Gradually":
-            exposure = "Move risk back up in tranches. The signal is improving, but it is not a green light to chase every breakout."
+        elif action == "Enter":
+            exposure = "Move risk up in tranches. The opportunity window supports new longs, but individual stock triggers still decide exact entries."
             selection = "Prioritize leadership that already held support during the stress window. Add to strength on pullbacks, not to lower-quality catch-up names."
-            execution = "Use staged entries over 1-2 weeks. Let the watchlist find exact setups while the regime permits measured deployment."
+            execution = "Use staged entries over 1-2 weeks. Let the watchlist find exact setups while the regime permits measured buying."
             trim = "Fund adds by reducing stale positions that failed to rebound while the regime improved."
-        elif action == "Maintain Full Positioning":
-            exposure = "Stay invested at base exposure. The macro backdrop is not asking you to de-risk, but stock-level discipline still matters."
+        elif action == "Wait":
+            exposure = "Keep current exposure but do not chase. The opportunity window is present, while execution timing still needs a cleaner entry."
+            selection = "Prepare the highest-quality leaders and names near support. Avoid broad adds in extended names."
+            execution = "Wait for pullbacks, stabilization, or volatility compression before adding risk."
+            trim = "Trim only positions where the stock-level setup has broken, not just because the broad tape is pausing."
+        elif action in {"Hold Off", "Maintain Full Positioning"}:
+            exposure = "Hold current exposure. The opportunity window is not clean enough for broad new longs, but it is not a forced de-risk signal."
             selection = "Let the rules favor liquid leaders, constructive relative strength, and quality growth. Avoid forcing trades in names without clean triggers."
-            execution = "Add only when the individual setup is actionable. Strong regime does not override bad entry price."
-            trim = "Use trims for crowded or stretched names, not because the macro regime has turned."
+            execution = "Add only when the individual setup is actionable. A mixed opportunity window does not override bad entry price."
+            trim = "Use trims for crowded or stretched names, not because the macro backdrop alone has turned."
         else:
             exposure = "Hold current exposure. The signals are mixed enough that doing less is the decision until the next trigger resolves."
             selection = "Keep the bar high: leadership, relative strength, and clear technical structure. Watchlist names can prepare, but not all deserve capital."
@@ -12643,10 +12787,16 @@ if view == "regime":
             "tga_prev": tga[-5]["value"] if len(tga) >= 5 else None,
             "spx": spx.get("last"),
             "spx_change": spx.get("change"),
+            "spx_vs20": spx.get("vs20"),
+            "spx_vs50": spx.get("vs50"),
+            "spx_ret5": spx.get("ret5"),
+            "spx_ret20": spx.get("ret20"),
             "qqq": qqq.get("last"),
             "qqq_change": qqq.get("change"),
             "vix": vix.get("last"),
             "vix_change": vix.get("change"),
+            "vix_peak5": vix.get("peak5"),
+            "vix_drop5": vix.get("drop5"),
             "fg": fg.get("value"),
             "fg_label": fg.get("label"),
             "pcr": None,
@@ -12717,11 +12867,11 @@ if view == "regime":
 
     def _risk_status_class(label):
         label = str(label or "").lower()
-        if any(word in label for word in ("expansion", "risk on", "maintain", "healthy", "constructive", "momentum", "acceleration", "tight", "calm")):
+        if any(word in label for word in ("expansion", "risk on", "maintain", "healthy", "constructive", "momentum", "acceleration", "tight", "calm", "favorable", "enter", "acceptable", "add weakness")):
             return "good"
-        if any(word in label for word in ("reduce", "risk off", "warning", "stress", "extreme", "raise cash")):
+        if any(word in label for word in ("reduce", "risk off", "warning", "stress", "extreme", "raise cash", "unfavorable", "avoid")):
             return "bad"
-        if any(word in label for word in ("defensive", "neutral", "choppy", "extended", "fragile")):
+        if any(word in label for word in ("defensive", "neutral", "choppy", "extended", "fragile", "mixed", "wait", "hold off", "pullback")):
             return "warn"
         return ""
 
@@ -12754,28 +12904,16 @@ if view == "regime":
         return "stress"
 
     def _why_today_text(d, s):
-        if s.get("action_guidance") == "Maintain Full Positioning":
-            return (
-                "Stay invested. The market priced in a worst-case scenario weeks ago; the data now shows resilience, "
-                "not collapse. If a sharp downturn comes, it will follow a fresh economic trigger-watch Thursday's "
-                "jobs report and next week's services PMI. Buy weakness if those prints disappoint; do not fight the "
-                "expansion until the evidence breaks."
-            )
-        if s.get("action_guidance") in {"Raise Cash", "Reduce Weak Exposure"}:
-            return (
-                "Respect the warning. The dashboard is no longer asking for prediction; it is asking for risk control. "
-                "Weak cyclicals, broken charts, and balance-sheet risk should be cut first while cash gives you the "
-                "option to buy again after the primary data repairs."
-            )
-        if s.get("action_guidance") == "Deploy Gradually":
-            return (
-                "Begin adding, but do it in tranches. The macro backdrop is healing rather than euphoric, so the right "
-                "move is to rebuild exposure on weakness while preserving cash for the next confirmation print."
-            )
-        return (
-            "Do not force a broad portfolio call. The evidence is mixed enough that the right decision is to keep "
-            "current exposure, monitor the next macro trigger, and let individual stock setups carry the day-to-day work."
-        )
+        if s.get("opportunity_reason"):
+            return s["opportunity_reason"]
+        action = s.get("action_guidance")
+        if action == "Enter":
+            return "The 2-12 week opportunity window is favorable. Start or continue building exposure in tranches, while letting individual stock triggers decide exact entries."
+        if action == "Wait":
+            return "The opportunity window is open, but execution timing is not clean. Wait for pullbacks or stabilization rather than chasing the move."
+        if action == "Avoid":
+            return "The opportunity window is unfavorable. Do not initiate broad new longs until trend, volatility, and credit conditions repair."
+        return "The opportunity window is mixed. Keep the watchlist ready, but do not force broad new longs until market-led inputs line up."
 
     def _forward_watch_static():
         return [
@@ -12811,7 +12949,23 @@ if view == "regime":
         ]
 
     def _fallback_regime_daily_memo(d, s, crypto):
-        impact_headline, impact_bullets, watch_triggers = _market_implication_static()
+        drivers = s.get("opportunity_drivers") or []
+        risks = s.get("opportunity_risks") or []
+        impact_headline = s.get("opportunity_takeaway") or _why_today_text(d, s)
+        impact_bullets = [
+            f"Opportunity window is {s.get('opportunity_window', 'mixed')} with score {s.get('opportunity_score', '—')} → {s.get('action_guidance', 'Hold Off')} is the broad action",
+            f"SPX versus trend: 20d {_signed_regime(d.get('spx_vs20'))}, 50d {_signed_regime(d.get('spx_vs50'))} → price trend drives entry timing",
+            f"Credit and volatility: HY {_fmt_regime(d.get('hy_bps'), 'bps', 0)}, VIX {_fmt_regime(d.get('vix'), '', 1)} → risk appetite remains the key confirmation layer",
+        ]
+        if drivers:
+            impact_bullets.append(f"Positive drivers: {', '.join(drivers)} → supports staged risk when stock-level triggers agree")
+        if risks:
+            impact_bullets.append(f"Primary risks: {', '.join(risks)} → wait for repair before forcing broad new longs")
+        watch_triggers = [
+            "If SPX loses both the 20d and 50d trend → opportunity window deteriorates → stop adding broad exposure",
+            "If HY spreads move toward 475bps → credit stress rises → reduce marginal cyclicals",
+            "If volatility compresses while price holds trend → execution improves → staged entries become cleaner",
+        ]
         signal_explanations = {
             "T1 · ISM": s["t1_detail"],
             "T2 · Unemployment": s["t2_detail"],
@@ -12966,6 +13120,18 @@ if view == "regime":
             "portfolio_stance": s.get("portfolio_stance"),
             "action": s.get("action_guidance"),
             "short_term": s.get("short_term_cond"),
+            "opportunity": {
+                "window": s.get("opportunity_window"),
+                "score": s.get("opportunity_score"),
+                "drivers": s.get("opportunity_drivers"),
+                "risks": s.get("opportunity_risks"),
+                "reason": s.get("opportunity_reason"),
+                "key_risk": s.get("key_risk"),
+            },
+            "execution": {
+                "window": s.get("execution_window"),
+                "detail": s.get("execution_detail"),
+            },
             "signals": {
                 "T1_ISM": {"state": s.get("t1"), "detail": s.get("t1_detail"), "value": d.get("ism")},
                 "T2_unemployment": {"state": s.get("t2"), "detail": s.get("t2_detail"), "value": d.get("unemp"), "previous": d.get("unemp_prev")},
@@ -12976,10 +13142,16 @@ if view == "regime":
             "market_highlights": {
                 "spx": d.get("spx"),
                 "spx_change": d.get("spx_change"),
+                "spx_vs20": d.get("spx_vs20"),
+                "spx_vs50": d.get("spx_vs50"),
+                "spx_ret5": d.get("spx_ret5"),
+                "spx_ret20": d.get("spx_ret20"),
                 "qqq": d.get("qqq"),
                 "qqq_change": d.get("qqq_change"),
                 "vix": d.get("vix"),
                 "vix_change": d.get("vix_change"),
+                "vix_peak5": d.get("vix_peak5"),
+                "vix_drop5": d.get("vix_drop5"),
                 "fear_greed": fg,
                 "fear_greed_label": d.get("fg_label"),
             },
@@ -13057,6 +13229,12 @@ You are generating the daily memo for an institutional-style Market Regime & Ris
 
 Use ONLY the provided dashboard data. Do not invent fresh news, dates, economic releases, earnings, geopolitical events, or price levels that are not in the data. If a specific event is not provided, write the implication from the signal itself.
 
+Decision hierarchy:
+- The 2-12 week Opportunity Window is the primary actionable layer for new broad long exposure.
+- The 1-4 year macro regime is context only; do not let it override the opportunity window.
+- The final action must be one of Enter, Wait, Hold Off, or Avoid.
+- Execution timing can refine entries, but should not change the opportunity-window conclusion.
+
 The app renders this in the exact dashboard sections:
 1. Why Today — one dense paragraph for the hero card.
 2. Today's Context — event -> market impact -> portfolio implication.
@@ -13082,9 +13260,9 @@ Return ONLY this JSON shape:
     "regime": "{s.get("regime_layer")}",
     "portfolio_stance": "{s.get("portfolio_stance")}",
     "action": "{s.get("action_guidance")}",
-    "short_term": "short-term condition label for both email and dashboard"
+    "short_term": "{s.get("short_term_cond")}"
   }},
-  "why_today": "one paragraph, 60-95 words",
+  "why_today": "one paragraph, 60-95 words. Explain the opportunity window first, then the key risk.",
   "daily_context": {{
     "headline": "one sentence summarizing today's macro/market context",
     "bullets": [
@@ -13206,11 +13384,11 @@ Return ONLY this JSON shape:
 
     def _email_hex(status, default="#5B5BAD"):
         label = str(status or "").lower()
-        if any(word in label for word in ("clear", "expansion", "risk on", "maintain", "constructive", "healthy", "tight", "calm", "improving")):
+        if any(word in label for word in ("clear", "expansion", "risk on", "maintain", "constructive", "healthy", "tight", "calm", "improving", "favorable", "enter", "acceptable", "add weakness")):
             return "#2A6E46"
-        if any(word in label for word in ("warning", "firing", "risk off", "raise", "reduce", "stress", "extreme", "broken")):
+        if any(word in label for word in ("warning", "firing", "risk off", "raise", "reduce", "stress", "extreme", "broken", "unfavorable", "avoid")):
             return "#8B2A2A"
-        if any(word in label for word in ("approaching", "defensive", "neutral", "mixed", "flat", "elevated", "watch")):
+        if any(word in label for word in ("approaching", "defensive", "neutral", "mixed", "flat", "elevated", "watch", "wait", "hold off", "pullback")):
             return "#9B6214"
         return default
 
@@ -13374,10 +13552,10 @@ Return ONLY this JSON shape:
             '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:14px;">'
             '<tr>'
             f'<td style="padding:0 14px 12px 0;width:50%;vertical-align:top;border-right:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Regime</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("regime"))};line-height:1.1;">{html.escape(str(topline.get("regime")).title())}</div></td>'
-            f'<td style="padding:0 0 12px 14px;width:50%;vertical-align:top;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Portfolio Stance</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("portfolio_stance"))};line-height:1.1;">{html.escape(str(topline.get("portfolio_stance")))}</div></td>'
+            f'<td style="padding:0 0 12px 14px;width:50%;vertical-align:top;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Opportunity Window</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("portfolio_stance"))};line-height:1.1;">{html.escape(str(topline.get("portfolio_stance")))}</div></td>'
             '</tr><tr>'
             f'<td style="padding:12px 14px 0 0;vertical-align:top;border-right:1px solid #F0EEF8;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Action</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("action"))};line-height:1.1;">{html.escape(str(topline.get("action")))}</div></td>'
-            f'<td style="padding:12px 0 0 14px;vertical-align:top;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Short-Term</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("short_term"))};line-height:1.1;">{html.escape(str(topline.get("short_term")))}</div></td>'
+            f'<td style="padding:12px 0 0 14px;vertical-align:top;border-top:1px solid #F0EEF8;"><div style="font-size:10px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;color:#9B7EC8;margin-bottom:4px;">Execution</div><div style="font-size:21px;font-weight:900;color:{_email_hex(topline.get("short_term"))};line-height:1.1;">{html.escape(str(topline.get("short_term")))}</div></td>'
             '</tr></table>'
             f'<div style="font-size:16px;color:#1A1A2E;line-height:1.75;border-top:1px solid #F4F2FB;padding-top:12px;">{html.escape(why_today)}</div>'
             '</div></div>'
@@ -13487,9 +13665,9 @@ Return ONLY this JSON shape:
         '<div class="risk-engine-hero">'
         '<div class="risk-hero-top">'
         f'<div class="risk-hero-cell"><div class="risk-k">Regime</div><div class="risk-v {_risk_status_class(daily_topline["regime"])}">{html.escape(daily_topline["regime"].title())}</div></div>'
-        f'<div class="risk-hero-cell"><div class="risk-k">Portfolio Stance</div><div class="risk-v {_risk_status_class(daily_topline["portfolio_stance"])}">{html.escape(daily_topline["portfolio_stance"])}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Opportunity Window</div><div class="risk-v {_risk_status_class(daily_topline["portfolio_stance"])}">{html.escape(daily_topline["portfolio_stance"])}</div></div>'
         f'<div class="risk-hero-cell"><div class="risk-k">Action</div><div class="risk-v {_risk_status_class(daily_topline["action"])}">{html.escape(daily_topline["action"])}</div></div>'
-        f'<div class="risk-hero-cell"><div class="risk-k">Short-Term</div><div class="risk-v {_risk_status_class(daily_topline["short_term"])}">{html.escape(daily_topline["short_term"])}</div></div>'
+        f'<div class="risk-hero-cell"><div class="risk-k">Execution</div><div class="risk-v {_risk_status_class(daily_topline["short_term"])}">{html.escape(daily_topline["short_term"])}</div></div>'
         '</div>'
         '<div class="risk-hero-bottom">'
         f'<div><div class="risk-k">Why Today</div><div class="risk-why">{html.escape(daily_memo.get("why_today") or _why_today_text(d, s))}</div></div>'
