@@ -11976,19 +11976,24 @@ if view == "regime":
         .risk-engine-page{width:100%;max-width:none;margin:0;padding:0 0 56px;color:var(--color-text);overflow-x:hidden}
         .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
         .risk-engine-snapshot{font-size:14px;font-weight:760;color:var(--color-muted);margin-bottom:18px}
-        .risk-engine-hero{background:var(--color-surface);color:var(--color-text);border:1px solid #CCD6E3;border-left:4px solid var(--color-blue);border-radius:8px;padding:0;box-shadow:none;overflow:hidden}
-        .risk-hero-top{display:grid;grid-template-columns:1fr 1fr 1.35fr 1fr;border-bottom:1px solid #D7DFEA;padding:0;margin:0}
-        .risk-hero-cell{padding:18px 20px;border-right:1px solid #D7DFEA}
-        .risk-hero-cell:first-child{padding-left:20px}
-        .risk-hero-cell:last-child{border-right:0;padding-right:20px}
+        .risk-brief-card{background:var(--color-surface);border:1px solid #CCD6E3;border-radius:10px;padding:0;overflow:hidden;margin-top:18px;box-shadow:none}
+        .risk-brief-pad{padding:24px 28px}
+        .risk-brief-label{font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:var(--color-purple);margin-bottom:18px}
+        .risk-brief-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #D7DFEA;margin-bottom:18px}
+        .risk-brief-cell{padding:0 24px 18px 0;border-right:1px solid #D7DFEA}
+        .risk-brief-cell:nth-child(2n){border-right:0;padding-left:24px;padding-right:0}
+        .risk-brief-cell:nth-child(n+3){border-top:1px solid #D7DFEA;padding-top:18px}
+        .risk-market-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;border-bottom:1px solid #D7DFEA;padding-bottom:16px;margin-bottom:16px}
+        .risk-market-item{display:flex;align-items:baseline;justify-content:space-between;gap:16px;min-height:34px}
+        .risk-market-item .name{font-size:18px;color:var(--color-muted);font-weight:760}
+        .risk-market-item strong{font-family:var(--font-mono);font-size:24px;font-weight:950;color:var(--color-text);font-variant-numeric:tabular-nums}
+        .risk-market-context{border-top:1px solid #D7DFEA;margin-top:16px;padding-top:18px}
         .risk-k{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
         .risk-v{font-size:clamp(21px,2vw,28px);line-height:1.12;font-weight:950;color:var(--color-text);overflow-wrap:normal;word-break:normal}
         .risk-v.good{color:var(--color-positive)}
         .risk-v.warn{color:var(--color-warning-text)}
         .risk-v.bad{color:var(--color-negative)}
-        .risk-hero-bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(280px,.78fr);gap:0}
-        .risk-hero-bottom > div:first-child{padding:20px 22px}
-        .risk-why{font-size:17px;line-height:1.72;font-weight:760;color:var(--color-body);max-width:940px}
+        .risk-why{font-size:19px;line-height:1.72;font-weight:520;color:var(--color-body);max-width:1040px}
         .risk-highlights{border-left:1px solid #D7DFEA;padding:20px 22px}
         .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid #D7DFEA;padding:10px 0;font-size:16px;color:var(--color-muted)}
         .risk-highlight-row:last-child{border-bottom:0}
@@ -12044,10 +12049,10 @@ if view == "regime":
         .framework-state .action{font-size:14px;line-height:1.45;color:var(--color-muted);font-weight:850;margin-top:7px}
         .framework-note{margin-top:12px;border:1px solid #D7DFEA;border-radius:7px;background:var(--color-surface-soft);padding:12px 14px;font-size:14px;line-height:1.45;color:var(--color-muted)}
         .regime-framework-break{border-top:1px solid #CBD5E1;margin:28px 0 42px}
-        @media(max-width:1280px){.risk-engine-title{font-size:30px}.risk-hero-top{grid-template-columns:repeat(2,minmax(0,1fr))}.risk-hero-cell:nth-child(2){border-right:0}.risk-hero-cell:nth-child(3),.risk-hero-cell:nth-child(4){border-top:1px solid #D7DFEA}.risk-v{font-size:clamp(20px,2.7vw,26px)}.risk-hero-bottom{grid-template-columns:1fr}.risk-highlights{border-left:0;border-top:1px solid #D7DFEA}.risk-why{max-width:none;font-size:16px;line-height:1.62}.market-imp-body{grid-template-columns:1fr}.market-imp-side{border-left:0;border-top:1px solid #D7DFEA}}
+        @media(max-width:1280px){.risk-engine-title{font-size:30px}.risk-v{font-size:clamp(20px,2.7vw,26px)}.risk-why{max-width:none;font-size:17px;line-height:1.62}.market-imp-body{grid-template-columns:1fr}.market-imp-side{border-left:0;border-top:1px solid #D7DFEA}}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}.framework-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.risk-hero-top,.risk-hero-bottom,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.risk-hero-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box,.risk-brief-grid,.risk-market-grid{grid-template-columns:1fr}.risk-brief-pad{padding:18px}.risk-brief-cell,.risk-brief-cell:nth-child(2n){border-right:0;border-top:1px solid #D7DFEA;padding:16px 0}.risk-brief-cell:first-child{border-top:0;padding-top:0}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
         @media(max-width:560px){.regime-grid,.framework-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
@@ -13636,7 +13641,7 @@ Return ONLY this JSON shape:
         ("HY Spreads", _fmt_regime(d["hy_bps"], "bps", 0), f'<span class="risk-change" style="color:{sev_color.get(s["t3"], "var(--color-muted)")};">{html.escape(_hy_label(d["hy_bps"]))}</span>'),
     ]
     highlight_html = "".join(
-        f'<div class="risk-highlight-row"><span>{html.escape(k)}</span><strong>{html.escape(v)}{extra}</strong></div>'
+        f'<div class="risk-market-item"><span class="name">{html.escape(k)}</span><strong>{html.escape(v)}{extra}</strong></div>'
         for k, v, extra in highlights
     )
     memo_forward = daily_memo.get("forward_watch") or _default_forward_watch(d, s, crypto)
@@ -13662,27 +13667,33 @@ Return ONLY this JSON shape:
         '<div class="risk-engine-page">'
         f'<div class="risk-engine-title">Market Regime &amp; Risk Engine</div>'
         f'<div class="risk-engine-snapshot">Data snapshot: {html.escape(snapshot_label)} · Daily memo: {html.escape(regime_daily.get("source") or "cached")} · {html.escape(memo_label)}</div>'
-        '<div class="risk-engine-hero">'
-        '<div class="risk-hero-top">'
-        f'<div class="risk-hero-cell"><div class="risk-k">Regime</div><div class="risk-v {_risk_status_class(daily_topline["regime"])}">{html.escape(daily_topline["regime"].title())}</div></div>'
-        f'<div class="risk-hero-cell"><div class="risk-k">Opportunity Window</div><div class="risk-v {_risk_status_class(daily_topline["portfolio_stance"])}">{html.escape(daily_topline["portfolio_stance"])}</div></div>'
-        f'<div class="risk-hero-cell"><div class="risk-k">Action</div><div class="risk-v {_risk_status_class(daily_topline["action"])}">{html.escape(daily_topline["action"])}</div></div>'
-        f'<div class="risk-hero-cell"><div class="risk-k">Execution</div><div class="risk-v {_risk_status_class(daily_topline["short_term"])}">{html.escape(daily_topline["short_term"])}</div></div>'
+        '<div class="risk-brief-card">'
+        '<div class="risk-brief-pad">'
+        '<div class="risk-brief-label">Morning Briefing</div>'
+        '<div class="risk-brief-grid">'
+        f'<div class="risk-brief-cell"><div class="risk-k">Regime</div><div class="risk-v {_risk_status_class(daily_topline["regime"])}">{html.escape(daily_topline["regime"].title())}</div></div>'
+        f'<div class="risk-brief-cell"><div class="risk-k">Opportunity Window</div><div class="risk-v {_risk_status_class(daily_topline["portfolio_stance"])}">{html.escape(daily_topline["portfolio_stance"])}</div></div>'
+        f'<div class="risk-brief-cell"><div class="risk-k">Action</div><div class="risk-v {_risk_status_class(daily_topline["action"])}">{html.escape(daily_topline["action"])}</div></div>'
+        f'<div class="risk-brief-cell"><div class="risk-k">Execution</div><div class="risk-v {_risk_status_class(daily_topline["short_term"])}">{html.escape(daily_topline["short_term"])}</div></div>'
         '</div>'
-        '<div class="risk-hero-bottom">'
-        f'<div><div class="risk-k">Why Today</div><div class="risk-why">{html.escape(daily_memo.get("why_today") or _why_today_text(d, s))}</div></div>'
-        f'<div class="risk-highlights"><div class="risk-k">Market Highlights</div>{highlight_html}</div>'
+        f'<div class="risk-why">{html.escape(daily_memo.get("why_today") or _why_today_text(d, s))}</div>'
         '</div></div>'
-        '<div class="risk-card">'
-        f'<div class="risk-card-head"><div><span class="risk-card-title">🧾 Today\'s Context</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">{html.escape(str(change_status).upper())}</span></div>'
-        '<div class="market-imp-body">'
-        f'<div class="market-imp-main"><div class="market-imp-headline">{html.escape(impact_headline)}</div>{impact_bullets_html}</div>'
+        '<div class="risk-brief-card">'
+        '<div class="risk-brief-pad">'
+        '<div class="risk-brief-label">Today\'s Market</div>'
+        f'<div class="risk-market-grid">{highlight_html}</div>'
+        '<div class="risk-market-context">'
+        '<div class="risk-card-head" style="padding:0 0 14px;background:transparent;border-bottom:1px solid #D7DFEA;">'
+        f'<div><span class="risk-card-title">Today\'s Context</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">{html.escape(str(change_status).upper())}</span></div>'
+        '<div class="market-imp-body" style="border-bottom:1px solid #D7DFEA;">'
+        f'<div class="market-imp-main" style="padding-left:0;"><div class="market-imp-headline">{html.escape(impact_headline)}</div>{impact_bullets_html}</div>'
         f'<div class="market-imp-side"><div class="risk-card-title" style="margin-bottom:16px;">Watch Triggers</div>{watch_triggers_html}</div>'
-        '</div></div>'
-        '<div class="risk-card">'
-        '<div class="risk-card-head"><div><span class="risk-card-title">🎯 Forward Watch</span><span class="risk-card-sub">AI-curated · what to monitor next 1-7 days</span></div></div>'
-        f'<div class="forward-watch-body">{forward_html}</div>'
         '</div>'
+        '<div style="padding-top:18px;">'
+        '<div class="risk-card-title">Forward Watch · next 1-7 days</div>'
+        f'<div class="forward-watch-body" style="padding:10px 0 0;">{forward_html}</div>'
+        '</div>'
+        '</div></div></div>'
         '<div class="risk-secondary">',
         unsafe_allow_html=True,
     )
