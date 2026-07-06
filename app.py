@@ -11977,12 +11977,28 @@ if view == "regime":
         .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
         .risk-engine-snapshot{font-size:14px;font-weight:760;color:var(--color-muted);margin-bottom:18px}
         .risk-brief-card{background:var(--color-surface);border:1px solid #CCD6E3;border-radius:10px;padding:0;overflow:hidden;margin-top:18px;box-shadow:none}
-        .risk-brief-pad{padding:24px 28px}
-        .risk-brief-label{font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:var(--color-purple);margin-bottom:18px}
-        .risk-brief-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #D7DFEA;margin-bottom:18px}
-        .risk-brief-cell{padding:0 24px 18px 0;border-right:1px solid #D7DFEA}
-        .risk-brief-cell:nth-child(2n){border-right:0;padding-left:24px;padding-right:0}
-        .risk-brief-cell:nth-child(n+3){border-top:1px solid #D7DFEA;padding-top:18px}
+        .risk-brief-pad{padding:32px 38px 34px}
+        .risk-brief-label{font-family:var(--font-mono);font-size:15px;font-weight:950;letter-spacing:.34em;text-transform:uppercase;color:var(--color-purple);margin-bottom:28px}
+        .risk-brief-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #D7DFEA;margin-bottom:26px}
+        .risk-brief-cell{min-height:108px;padding:0 42px 24px 0;border-right:1px solid #D7DFEA}
+        .risk-brief-cell:nth-child(2n){border-right:0;padding-left:42px;padding-right:0}
+        .risk-brief-cell:nth-child(n+3){border-top:1px solid #D7DFEA;padding-top:24px}
+        .risk-opportunity-card{background:#171827;color:#F8FAFC;border-radius:12px;border-left:4px solid var(--color-blue);padding:24px 28px;margin-top:18px;box-shadow:none}
+        .risk-op-top{display:grid;grid-template-columns:1.35fr .9fr .9fr .95fr;gap:0;margin-bottom:20px}
+        .risk-op-cell{padding:0 28px;border-right:1px solid rgba(148,163,184,.24)}
+        .risk-op-cell:first-child{padding-left:0}
+        .risk-op-cell:last-child{padding-right:0;border-right:0}
+        .risk-op-label{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:#9AA3B8;margin-bottom:10px}
+        .risk-op-main{font-size:28px;font-weight:950;line-height:1.05;color:#F8FAFC}
+        .risk-op-sub{font-size:14px;line-height:1.4;color:#9AA3B8;font-weight:760;margin-top:8px}
+        .risk-op-context{display:flex;flex-direction:column;gap:8px;font-size:15px;font-weight:900;line-height:1.3}
+        .risk-op-bottom{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);gap:28px;border-top:1px solid rgba(148,163,184,.24);padding-top:20px}
+        .risk-op-why{font-size:17px;line-height:1.62;color:#E5E7EB;font-weight:720}
+        .risk-op-why strong{color:#FFFFFF;font-weight:950}
+        .risk-op-highlights{border-left:1px solid rgba(148,163,184,.24);padding-left:28px}
+        .risk-op-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(148,163,184,.22);padding:11px 0;font-size:18px;color:#AAB2C5}
+        .risk-op-highlight-row:last-child{border-bottom:0}
+        .risk-op-highlight-row strong{font-family:var(--font-mono);font-size:22px;font-weight:950;color:#FFFFFF;font-variant-numeric:tabular-nums}
         .risk-market-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;border-bottom:1px solid #D7DFEA;padding-bottom:16px;margin-bottom:16px}
         .risk-market-item{display:flex;align-items:baseline;justify-content:space-between;gap:16px;min-height:34px}
         .risk-market-item .name{font-size:18px;color:var(--color-muted);font-weight:760}
@@ -11993,7 +12009,7 @@ if view == "regime":
         .risk-v.good{color:var(--color-positive)}
         .risk-v.warn{color:var(--color-warning-text)}
         .risk-v.bad{color:var(--color-negative)}
-        .risk-why{font-size:19px;line-height:1.72;font-weight:520;color:var(--color-body);max-width:1040px}
+        .risk-why{font-size:21px;line-height:1.75;font-weight:520;color:var(--color-body);max-width:1340px}
         .risk-highlights{border-left:1px solid #D7DFEA;padding:20px 22px}
         .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid #D7DFEA;padding:10px 0;font-size:16px;color:var(--color-muted)}
         .risk-highlight-row:last-child{border-bottom:0}
@@ -12049,10 +12065,10 @@ if view == "regime":
         .framework-state .action{font-size:14px;line-height:1.45;color:var(--color-muted);font-weight:850;margin-top:7px}
         .framework-note{margin-top:12px;border:1px solid #D7DFEA;border-radius:7px;background:var(--color-surface-soft);padding:12px 14px;font-size:14px;line-height:1.45;color:var(--color-muted)}
         .regime-framework-break{border-top:1px solid #CBD5E1;margin:28px 0 42px}
-        @media(max-width:1280px){.risk-engine-title{font-size:30px}.risk-v{font-size:clamp(20px,2.7vw,26px)}.risk-why{max-width:none;font-size:17px;line-height:1.62}.market-imp-body{grid-template-columns:1fr}.market-imp-side{border-left:0;border-top:1px solid #D7DFEA}}
+        @media(max-width:1280px){.risk-engine-title{font-size:30px}.risk-v{font-size:clamp(20px,2.7vw,26px)}.risk-why{max-width:none;font-size:19px;line-height:1.65}.risk-op-top{grid-template-columns:repeat(2,minmax(0,1fr))}.risk-op-cell:nth-child(2){border-right:0;padding-right:0}.risk-op-cell:nth-child(3),.risk-op-cell:nth-child(4){border-top:1px solid rgba(148,163,184,.24);padding-top:18px;margin-top:18px}.risk-op-bottom{grid-template-columns:1fr}.risk-op-highlights{border-left:0;padding-left:0}.market-imp-body{grid-template-columns:1fr}.market-imp-side{border-left:0;border-top:1px solid #D7DFEA}}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}.framework-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box,.risk-brief-grid,.risk-market-grid{grid-template-columns:1fr}.risk-brief-pad{padding:18px}.risk-brief-cell,.risk-brief-cell:nth-child(2n){border-right:0;border-top:1px solid #D7DFEA;padding:16px 0}.risk-brief-cell:first-child{border-top:0;padding-top:0}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box,.risk-brief-grid,.risk-market-grid,.risk-op-top{grid-template-columns:1fr}.risk-brief-pad{padding:20px}.risk-brief-cell,.risk-brief-cell:nth-child(2n){min-height:auto;border-right:0;border-top:1px solid #D7DFEA;padding:18px 0}.risk-brief-cell:first-child{border-top:0;padding-top:0}.risk-opportunity-card{padding:20px}.risk-op-cell,.risk-op-cell:nth-child(2),.risk-op-cell:nth-child(3),.risk-op-cell:nth-child(4){border-right:0;border-top:1px solid rgba(148,163,184,.24);padding:18px 0 0;margin-top:18px}.risk-op-cell:first-child{border-top:0;padding-top:0;margin-top:0}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
         @media(max-width:560px){.regime-grid,.framework-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
@@ -13663,6 +13679,23 @@ Return ONLY this JSON shape:
         f'<div class="watch-trigger"><span class="arrow">→</span><span>{html.escape(item)}</span></div>'
         for item in watch_triggers
     )
+    change_display = {
+        "NO CHANGE": "Unchanged",
+        "WATCH": "Watch",
+        "RISK UP": "Risk Up",
+        "RISK DOWN": "Risk Down",
+        "MINOR IMPROVEMENT": "Minor Improvement",
+        "RISK INCREASING": "Risk Increasing",
+        "REGIME SHIFT WARNING": "Regime Shift Warning",
+    }.get(str(change_status).upper(), str(change_status).title())
+    change_note = daily_context.get("change_note") or daily_context.get("summary") or impact_headline
+    opportunity_takeaway = s.get("opportunity_takeaway") or daily_memo.get("why_today") or _why_today_text(d, s)
+    opportunity_explanation = s.get("opportunity_explanation") or ""
+    key_risk = s.get("key_risk") or "A reversal in volatility, breadth, or credit could weaken the window."
+    dark_highlight_html = "".join(
+        f'<div class="risk-op-highlight-row"><span>{html.escape(k)}</span><strong>{html.escape(v)}{extra}</strong></div>'
+        for k, v, extra in highlights
+    )
     st.markdown(
         '<div class="risk-engine-page">'
         f'<div class="risk-engine-title">Market Regime &amp; Risk Engine</div>'
@@ -13678,6 +13711,43 @@ Return ONLY this JSON shape:
         '</div>'
         f'<div class="risk-why">{html.escape(daily_memo.get("why_today") or _why_today_text(d, s))}</div>'
         '</div></div>'
+        '<div class="risk-opportunity-card">'
+        '<div class="risk-op-top">'
+        '<div class="risk-op-cell">'
+        '<div class="risk-op-label">Opportunity Decision · 2-12 weeks</div>'
+        '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">'
+        f'<span class="risk-op-main" style="color:{_email_hex(daily_topline["action"])};">{html.escape(str(daily_topline["action"]).upper())}</span>'
+        f'<span style="font-size:18px;font-weight:950;color:{_email_hex(daily_topline["portfolio_stance"])};letter-spacing:.08em;text-transform:uppercase;">{html.escape(str(daily_topline["portfolio_stance"]).upper())}</span>'
+        '</div>'
+        '<div class="risk-op-sub">formerly Medium · primary new-long signal</div>'
+        '</div>'
+        '<div class="risk-op-cell">'
+        '<div class="risk-op-label">Entry Timing · days-2 weeks</div>'
+        f'<div class="risk-op-main" style="color:{_email_hex(daily_topline["short_term"])};">{html.escape(str(daily_topline["short_term"]).upper())}</div>'
+        '<div class="risk-op-sub">timing refinement only</div>'
+        '</div>'
+        '<div class="risk-op-cell">'
+        '<div class="risk-op-label">Change Since Yesterday</div>'
+        f'<div class="risk-op-main" style="color:{_email_hex(change_display)};text-transform:capitalize;">{html.escape(change_display)}</div>'
+        f'<div class="risk-op-sub">{html.escape(str(change_note)[:120])}</div>'
+        '</div>'
+        '<div class="risk-op-cell">'
+        '<div class="risk-op-label">Background Context</div>'
+        '<div class="risk-op-context">'
+        f'<span style="color:{_email_hex(s.get("regime_layer"))};">Cyclical · 1-4y: {html.escape(str(s.get("regime_layer") or daily_topline["regime"]))}</span>'
+        '<span style="color:var(--color-warning);">Secular · 10-20y: Late / Narrow</span>'
+        '</div>'
+        '<div class="risk-op-sub">context only · not daily action</div>'
+        '</div>'
+        '</div>'
+        '<div class="risk-op-bottom">'
+        '<div>'
+        '<div class="risk-op-label">Why Today</div>'
+        f'<div class="risk-op-why"><strong>{html.escape(str(opportunity_takeaway))}</strong> {html.escape(str(opportunity_explanation))} <span style="color:#AAB2C5;">Key risk: {html.escape(str(key_risk))}</span></div>'
+        '</div>'
+        f'<div class="risk-op-highlights"><div class="risk-op-label">Market Highlights</div>{dark_highlight_html}</div>'
+        '</div>'
+        '</div>'
         '<div class="risk-brief-card">'
         '<div class="risk-brief-pad">'
         '<div class="risk-brief-label">Today\'s Market</div>'
