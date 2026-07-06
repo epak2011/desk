@@ -11973,7 +11973,7 @@ if view == "regime":
         .crypto-narrative-row:last-child{border-bottom:0}
         .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
         .crypto-narrative-row .b{font-size:19px;line-height:1.52;color:var(--color-text)}
-        .risk-engine-page{width:100%;max-width:none;margin:0;padding:0 0 56px;color:var(--color-text)}
+        .risk-engine-page{width:100%;max-width:none;margin:0;padding:0 0 56px;color:var(--color-text);overflow-x:hidden}
         .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
         .risk-engine-snapshot{font-size:14px;font-weight:760;color:var(--color-muted);margin-bottom:18px}
         .risk-engine-hero{background:var(--color-surface);color:var(--color-text);border:1px solid #CCD6E3;border-left:4px solid var(--color-blue);border-radius:8px;padding:0;box-shadow:none;overflow:hidden}
@@ -11986,7 +11986,7 @@ if view == "regime":
         .risk-v.good{color:var(--color-positive)}
         .risk-v.warn{color:var(--color-warning-text)}
         .risk-v.bad{color:var(--color-negative)}
-        .risk-hero-bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(390px,.78fr);gap:0}
+        .risk-hero-bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(280px,.78fr);gap:0}
         .risk-hero-bottom > div:first-child{padding:20px 22px}
         .risk-why{font-size:17px;line-height:1.72;font-weight:760;color:var(--color-body);max-width:940px}
         .risk-highlights{border-left:1px solid #D7DFEA;padding:20px 22px}
@@ -12044,6 +12044,7 @@ if view == "regime":
         .framework-state .action{font-size:14px;line-height:1.45;color:var(--color-muted);font-weight:850;margin-top:7px}
         .framework-note{margin-top:12px;border:1px solid #D7DFEA;border-radius:7px;background:var(--color-surface-soft);padding:12px 14px;font-size:14px;line-height:1.45;color:var(--color-muted)}
         .regime-framework-break{border-top:1px solid #CBD5E1;margin:28px 0 42px}
+        @media(max-width:1280px){.risk-engine-title{font-size:30px}.risk-hero-top{grid-template-columns:repeat(2,minmax(0,1fr))}.risk-hero-cell:nth-child(2){border-right:0}.risk-hero-cell:nth-child(3),.risk-hero-cell:nth-child(4){border-top:1px solid #D7DFEA}.risk-v{font-size:clamp(20px,2.7vw,26px)}.risk-hero-bottom{grid-template-columns:1fr}.risk-highlights{border-left:0;border-top:1px solid #D7DFEA}.risk-why{max-width:none;font-size:16px;line-height:1.62}.market-imp-body{grid-template-columns:1fr}.market-imp-side{border-left:0;border-top:1px solid #D7DFEA}}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}.framework-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media(max-width:900px){.regime-brief,.regime-dark-bottom,.regime-action-box{grid-template-columns:1fr}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.risk-hero-top,.risk-hero-bottom,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.risk-hero-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
