@@ -13,6 +13,7 @@ Hierarchy (strict, top-down):
 import json
 import html
 import math
+import os
 import time
 import urllib.parse
 import urllib.request
@@ -54,6 +55,7 @@ MARKET_TZ = ZoneInfo("America/New_York") if ZoneInfo else timezone(timedelta(hou
 REGIME_DAILY_REFRESH_HOUR = 9
 REGIME_DAILY_REFRESH_MINUTE = 10
 REGIME_DAILY_MEMO_SCHEMA_VERSION = 2
+REGIME_CLAUDE_TIMEOUT_SECONDS = max(30, int(os.environ.get("REGIME_CLAUDE_TIMEOUT_SECONDS", "55")))
 
 
 def now_market_time():
@@ -12688,12 +12690,13 @@ if view == "regime":
             s["alerts"].append("HY ELEVATED")
         return {"data": d, "signals": s, "crypto": _crypto_snapshot(), "updated_at": now_market_time().isoformat(timespec="seconds")}
 
-    if st.button("↻ Refresh market regime", key="refresh_market_regime", help="Refresh macro, short-term, liquidity, and crypto inputs."):
+    if st.button("↻ Refresh market regime", key="refresh_market_regime", help="Refresh macro, crypto, and regenerate the daily Claude memo."):
         _fred_rows.clear()
         _quote.clear()
         _fear_greed.clear()
         _crypto_snapshot.clear()
         _regime_snapshot.clear()
+        st.session_state["force_regime_daily_memo"] = True
         st.rerun()
 
     regime_refresh_key = regime_daily_key()
@@ -13126,7 +13129,7 @@ Return ONLY this JSON shape:
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             ),
-            10,
+            REGIME_CLAUDE_TIMEOUT_SECONDS,
             "Claude market regime daily memo",
         )
         text = message.content[0].text.strip()
@@ -13153,7 +13156,8 @@ Return ONLY this JSON shape:
         if entry and not force:
             memo = entry.get("memo") or {}
             source = str(entry.get("source") or "")
-            if _validate_regime_memo(memo):
+            is_failed_rule_fallback = source.startswith("rule fallback") and "Claude failed" in source
+            if _validate_regime_memo(memo) and not (api_key and is_failed_rule_fallback):
                 return {
                     "memo": memo,
                     "source": source or "cached",
