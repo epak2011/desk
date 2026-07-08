@@ -11974,16 +11974,16 @@ if view == "regime":
         .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
         .crypto-narrative-row .b{font-size:19px;line-height:1.52;color:var(--color-text)}
         .risk-engine-page{width:100%;max-width:none;margin:0;padding:0 0 56px;color:var(--color-text);overflow-x:hidden}
-        .risk-engine-title{font-size:34px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
-        .risk-engine-snapshot{font-size:14px;font-weight:760;color:var(--color-muted);margin-bottom:18px}
-        .risk-brief-card{background:var(--color-surface);border:1px solid #CCD6E3;border-radius:10px;padding:0;overflow:hidden;margin-top:18px;box-shadow:none}
-        .risk-brief-pad{padding:32px 38px 34px}
-        .risk-brief-label{font-family:var(--font-mono);font-size:15px;font-weight:950;letter-spacing:.34em;text-transform:uppercase;color:var(--color-purple);margin-bottom:28px}
-        .risk-brief-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #D7DFEA;margin-bottom:26px}
-        .risk-brief-cell{min-height:108px;padding:0 42px 24px 0;border-right:1px solid #D7DFEA}
-        .risk-brief-cell:nth-child(2n){border-right:0;padding-left:42px;padding-right:0}
-        .risk-brief-cell:nth-child(n+3){border-top:1px solid #D7DFEA;padding-top:24px}
-        .risk-opportunity-card{background:#171827;color:#F8FAFC;border-radius:12px;border-left:4px solid var(--color-blue);padding:24px 28px;margin-top:18px;box-shadow:none}
+        .risk-engine-title{font-size:32px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
+        .risk-engine-snapshot{font-size:13px;font-weight:760;color:var(--color-muted);margin-bottom:16px}
+        .risk-brief-card{background:var(--color-surface);border:1px solid #CCD6E3;border-radius:10px;padding:0;overflow:hidden;margin-top:16px;box-shadow:none}
+        .risk-brief-pad{padding:24px 30px 28px}
+        .risk-brief-label{font-family:var(--font-mono);font-size:13px;font-weight:950;letter-spacing:.3em;text-transform:uppercase;color:var(--color-purple);margin-bottom:22px}
+        .risk-brief-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #D7DFEA;margin-bottom:22px}
+        .risk-brief-cell{min-height:76px;padding:0 34px 20px 0;border-right:1px solid #D7DFEA}
+        .risk-brief-cell:nth-child(2n){border-right:0;padding-left:34px;padding-right:0}
+        .risk-brief-cell:nth-child(n+3){border-top:1px solid #D7DFEA;padding-top:20px}
+        .risk-opportunity-card{background:#171827;color:#F8FAFC;border-radius:12px;border-left:4px solid var(--color-blue);padding:22px 26px;margin-top:16px;box-shadow:none}
         .risk-op-top{display:grid;grid-template-columns:1.35fr .9fr .9fr .95fr;gap:0;margin-bottom:20px}
         .risk-op-cell{padding:0 28px;border-right:1px solid rgba(148,163,184,.24)}
         .risk-op-cell:first-child{padding-left:0}
@@ -12005,11 +12005,11 @@ if view == "regime":
         .risk-market-item strong{font-family:var(--font-mono);font-size:24px;font-weight:950;color:var(--color-text);font-variant-numeric:tabular-nums}
         .risk-market-context{border-top:1px solid #D7DFEA;margin-top:16px;padding-top:18px}
         .risk-k{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
-        .risk-v{font-size:clamp(21px,2vw,28px);line-height:1.12;font-weight:950;color:var(--color-text);overflow-wrap:normal;word-break:normal}
+        .risk-v{font-size:clamp(20px,1.75vw,26px);line-height:1.12;font-weight:950;color:var(--color-text);overflow-wrap:normal;word-break:normal}
         .risk-v.good{color:var(--color-positive)}
         .risk-v.warn{color:var(--color-warning-text)}
         .risk-v.bad{color:var(--color-negative)}
-        .risk-why{font-size:21px;line-height:1.75;font-weight:520;color:var(--color-body);max-width:1340px}
+        .risk-why{font-size:18px;line-height:1.65;font-weight:560;color:var(--color-body);max-width:1340px}
         .risk-highlights{border-left:1px solid #D7DFEA;padding:20px 22px}
         .risk-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid #D7DFEA;padding:10px 0;font-size:16px;color:var(--color-muted)}
         .risk-highlight-row:last-child{border-bottom:0}
@@ -13639,15 +13639,6 @@ Return ONLY this JSON shape:
         )
     snapshot_label = format_market_time(snap["updated_at"], "%a %b %d, %-I:%M %p %Z")
     email_html = _build_regime_email_html(d, s, crypto, daily_memo, snap["updated_at"], snapshot_label, memo_label)
-    with st.expander("✉️ Email brief preview / export", expanded=False):
-        st.download_button(
-            "Download email HTML",
-            data=email_html,
-            file_name=f"market-decision-brief-{regime_daily_key()}.html",
-            mime="text/html",
-            key="download_regime_email_html",
-        )
-        st.components.v1.html(email_html, height=760, scrolling=True)
 
     highlights = [
         ("S&P 500", _fmt_regime(d["spx"], "", 0), _change_html(d["spx_change"])),
@@ -13859,6 +13850,15 @@ Return ONLY this JSON shape:
 
     st.markdown(_crypto_section_html(crypto, d, s, daily_memo.get("crypto")), unsafe_allow_html=True)
     st.markdown('</div></div>', unsafe_allow_html=True)
+    with st.expander("✉️ Email brief preview / export", expanded=False):
+        st.download_button(
+            "Download email HTML",
+            data=email_html,
+            file_name=f"market-decision-brief-{regime_daily_key()}.html",
+            mime="text/html",
+            key="download_regime_email_html",
+        )
+        st.components.v1.html(email_html, height=760, scrolling=True)
 
 
 if view == "ideas":
