@@ -6971,6 +6971,26 @@ with st.sidebar:
             flex-direction: column !important;
             gap: 4px !important;
         }
+        section[data-testid="stSidebar"] [role="radiogroup"] label::before,
+        section[data-testid="stSidebar"] [role="radiogroup"] label::after {
+            content: none !important;
+            display: none !important;
+        }
+        section[data-testid="stSidebar"] [role="radiogroup"] label input[type="radio"],
+        section[data-testid="stSidebar"] [role="radiogroup"] label [role="radio"],
+        section[data-testid="stSidebar"] [role="radiogroup"] label svg,
+        section[data-testid="stSidebar"] [role="radiogroup"] label > div:first-child {
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
         section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] > label,
         section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] [data-testid="stWidgetLabel"] {
             display: none !important;
