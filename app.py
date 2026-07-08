@@ -6963,10 +6963,72 @@ with st.sidebar:
     if st.session_state.view not in view_labels:
         st.session_state.view = "regime"
     current_view_label = view_labels[st.session_state.view]
+    st.markdown(
+        """
+        <style>
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] [role="radiogroup"] {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 4px !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] > label,
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] [data-testid="stWidgetLabel"] {
+            display: none !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0 !important;
+            min-height: 36px !important;
+            padding: 9px 13px !important;
+            margin: 0 !important;
+            border-radius: 5px !important;
+            cursor: pointer !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label input[type="radio"],
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label svg,
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label > div:first-child {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label > div {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label p {
+            margin: 0 !important;
+            font-size: var(--fs-base) !important;
+            font-weight: 650 !important;
+            line-height: 1.15 !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label:hover {
+            background: #EEF2F7 !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label:has(input:checked) {
+            background: var(--color-text) !important;
+            color: var(--color-bg) !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label:has(input:checked) p {
+            color: var(--color-bg) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     picked = st.radio(
         "View",
         options=list(view_labels.values()),
         index=list(view_labels.values()).index(current_view_label),
+        key="sidebar_view_picker",
         label_visibility="collapsed",
     )
     picked_key = next(k for k, v in view_labels.items() if v == picked)
@@ -13691,17 +13753,6 @@ Return ONLY this JSON shape:
         '<div class="risk-engine-page">'
         f'<div class="risk-engine-title">Market Regime &amp; Risk Engine</div>'
         f'<div class="risk-engine-snapshot">Data snapshot: {html.escape(snapshot_label)} · Daily memo: {html.escape(regime_daily.get("source") or "cached")} · {html.escape(memo_label)}</div>'
-        '<div class="risk-brief-card">'
-        '<div class="risk-brief-pad">'
-        '<div class="risk-brief-label">Morning Briefing</div>'
-        '<div class="risk-brief-grid">'
-        f'<div class="risk-brief-cell"><div class="risk-k">Regime</div><div class="risk-v {_risk_status_class(daily_topline["regime"])}">{html.escape(daily_topline["regime"].title())}</div></div>'
-        f'<div class="risk-brief-cell"><div class="risk-k">Opportunity Window</div><div class="risk-v {_risk_status_class(daily_topline["portfolio_stance"])}">{html.escape(daily_topline["portfolio_stance"])}</div></div>'
-        f'<div class="risk-brief-cell"><div class="risk-k">Action</div><div class="risk-v {_risk_status_class(daily_topline["action"])}">{html.escape(daily_topline["action"])}</div></div>'
-        f'<div class="risk-brief-cell"><div class="risk-k">Execution</div><div class="risk-v {_risk_status_class(daily_topline["short_term"])}">{html.escape(daily_topline["short_term"])}</div></div>'
-        '</div>'
-        f'<div class="risk-why">{html.escape(daily_memo.get("why_today") or _why_today_text(d, s))}</div>'
-        '</div></div>'
         '<div class="risk-opportunity-card">'
         '<div class="risk-op-top">'
         '<div class="risk-op-cell">'
