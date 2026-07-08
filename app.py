@@ -6962,98 +6962,48 @@ with st.sidebar:
         view_labels["tracker"] = "Tracker"
     if st.session_state.view not in view_labels:
         st.session_state.view = "regime"
-    current_view_label = view_labels[st.session_state.view]
     st.markdown(
         """
         <style>
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] [role="radiogroup"] {
+        .desk-sidebar-nav {
             display: flex !important;
             flex-direction: column !important;
             gap: 4px !important;
+            margin-bottom: 22px !important;
         }
-        section[data-testid="stSidebar"] [role="radiogroup"] label::before,
-        section[data-testid="stSidebar"] [role="radiogroup"] label::after {
-            content: none !important;
-            display: none !important;
-        }
-        section[data-testid="stSidebar"] [role="radiogroup"] label input[type="radio"],
-        section[data-testid="stSidebar"] [role="radiogroup"] label [role="radio"],
-        section[data-testid="stSidebar"] [role="radiogroup"] label svg,
-        section[data-testid="stSidebar"] [role="radiogroup"] label > div:first-child {
-            appearance: none !important;
-            -webkit-appearance: none !important;
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-            min-width: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] > label,
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] [data-testid="stWidgetLabel"] {
-            display: none !important;
-            height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label {
+        .desk-sidebar-nav a {
             display: flex !important;
             align-items: center !important;
-            gap: 0 !important;
             min-height: 36px !important;
             padding: 9px 13px !important;
-            margin: 0 !important;
             border-radius: 5px !important;
-            cursor: pointer !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label input[type="radio"],
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label svg,
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label > div:first-child {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-            min-width: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label > div {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label p {
-            margin: 0 !important;
+            color: var(--color-text) !important;
             font-size: var(--fs-base) !important;
             font-weight: 650 !important;
             line-height: 1.15 !important;
+            text-decoration: none !important;
         }
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label:hover {
+        .desk-sidebar-nav a:hover {
             background: #EEF2F7 !important;
         }
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label:has(input:checked) {
+        .desk-sidebar-nav a.active {
             background: var(--color-text) !important;
-            color: var(--color-bg) !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-sidebar_view_picker"] label:has(input:checked) p {
             color: var(--color-bg) !important;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    picked = st.radio(
-        "View",
-        options=list(view_labels.values()),
-        index=list(view_labels.values()).index(current_view_label),
-        key="sidebar_view_picker",
-        label_visibility="collapsed",
-    )
-    picked_key = next(k for k, v in view_labels.items() if v == picked)
-    if picked_key != st.session_state.view:
-        route_to(view=picked_key, reason="sidebar view", rerun=True)
+    nav_html = '<nav class="desk-sidebar-nav">'
+    for view_key, view_label in view_labels.items():
+        active_class = " active" if view_key == st.session_state.view else ""
+        nav_html += (
+            f'<a class="{active_class.strip()}" '
+            f'href="?view={urllib.parse.quote(view_key)}">'
+            f'{html.escape(view_label)}</a>'
+        )
+    nav_html += "</nav>"
+    st.markdown(nav_html, unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown(
