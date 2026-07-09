@@ -232,21 +232,58 @@ def _get_database_url():
 USE_POSTGRES = bool(_get_database_url())
 
 
+@st.cache_resource(show_spinner=False)
+def _pg_pool():
+    """Reuse Supabase connections instead of opening TCP/TLS on every click."""
+    from psycopg_pool import ConnectionPool
+
+    return ConnectionPool(
+        _get_database_url(),
+        min_size=1,
+        max_size=5,
+        kwargs={"autocommit": True},
+    )
+
+
 def _pg_connect():
-    """Lazy-import psycopg only if we're using Postgres."""
-    import psycopg
-    return psycopg.connect(_get_database_url(), autocommit=True)
+    """Return a pooled Postgres connection when hosted."""
+    return _pg_pool().connection()
 
 
 def _pg_init():
-    """Ensure the kv_store table exists. Single-row store for now —
-    one row, key='default', value=jsonb. Simple is fine for this scale."""
+    """Ensure persistence tables exist.
+
+    The app still uses one in-memory `store`, but high-growth sections live in
+    their own rows so normal clicks do not rewrite one ever-growing JSON blob.
+    """
     with _pg_connect() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS kv_store (
                     key TEXT PRIMARY KEY,
                     value JSONB NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS chat_history (
+                    ticker TEXT PRIMARY KEY,
+                    messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS decisions_log (
+                    id TEXT PRIMARY KEY,
+                    entry JSONB NOT NULL,
+                    entry_ts TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS regime_daily_cache (
+                    day TEXT PRIMARY KEY,
+                    entry JSONB NOT NULL,
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
             """)
@@ -302,6 +339,143 @@ def _store_default():
     }
 
 
+_SPLIT_STORE_KEYS = {"chat_history", "decisions_log", "regime_daily_cache"}
+
+
+def _split_store_sections(store):
+    """Separate large append-heavy sections from the small core settings blob."""
+    core = {
+        k: v
+        for k, v in (store or {}).items()
+        if k not in _SPLIT_STORE_KEYS
+    }
+    chat = (store or {}).get("chat_history") or {}
+    decisions = (store or {}).get("decisions_log") or []
+    regime_cache = (store or {}).get("regime_daily_cache") or {}
+    return core, chat, decisions, regime_cache
+
+
+def _persist_cache():
+    """Per-session fingerprints so unchanged rows are not rewritten."""
+    try:
+        return st.session_state.setdefault(
+            "_persist_fingerprints",
+            {"core": None, "chat": {}, "decisions": {}, "regime": {}},
+        )
+    except Exception:
+        return {"core": None, "chat": {}, "decisions": {}, "regime": {}}
+
+
+def _stable_json(value):
+    return json.dumps(_json_safe(value), allow_nan=False, sort_keys=True, separators=(",", ":"))
+
+
+def _load_split_sections(cur, store):
+    """Merge normalized Postgres rows back into the legacy in-memory store."""
+    cur.execute("SELECT ticker, messages FROM chat_history")
+    chat_rows = cur.fetchall()
+    if chat_rows:
+        store["chat_history"] = {str(t).upper(): (m or []) for t, m in chat_rows}
+
+    cur.execute("""
+        SELECT entry
+        FROM decisions_log
+        ORDER BY COALESCE(entry_ts, updated_at) DESC
+    """)
+    decision_rows = cur.fetchall()
+    if decision_rows:
+        store["decisions_log"] = [row[0] for row in decision_rows if row and row[0]]
+
+    cur.execute("SELECT day, entry FROM regime_daily_cache")
+    regime_rows = cur.fetchall()
+    if regime_rows:
+        store["regime_daily_cache"] = {str(day): (entry or {}) for day, entry in regime_rows}
+    return store
+
+
+def _save_split_sections(cur, chat, decisions, regime_cache):
+    """Persist high-growth store sections with targeted row upserts."""
+    fingerprints = _persist_cache()
+    chat = chat if isinstance(chat, dict) else {}
+    chat_keys = []
+    for ticker, messages in chat.items():
+        key = str(ticker).upper().strip()
+        if not key:
+            continue
+        chat_keys.append(key)
+        messages_json = _stable_json(messages or [])
+        if fingerprints["chat"].get(key) == messages_json:
+            continue
+        cur.execute("""
+            INSERT INTO chat_history (ticker, messages, updated_at)
+            VALUES (%s, %s::jsonb, NOW())
+            ON CONFLICT (ticker) DO UPDATE
+                SET messages = EXCLUDED.messages, updated_at = NOW()
+        """, (key, messages_json))
+        fingerprints["chat"][key] = messages_json
+    if not chat_keys:
+        cur.execute("DELETE FROM chat_history")
+        fingerprints["chat"] = {}
+    elif set(fingerprints["chat"].keys()) != set(chat_keys):
+        cur.execute("DELETE FROM chat_history WHERE NOT (ticker = ANY(%s))", (chat_keys,))
+        fingerprints["chat"] = {k: v for k, v in fingerprints["chat"].items() if k in set(chat_keys)}
+
+    decisions = decisions if isinstance(decisions, list) else []
+    decision_ids = []
+    for idx, entry in enumerate(decisions):
+        if not isinstance(entry, dict):
+            continue
+        entry_id = str(entry.get("id") or "").strip() or f"legacy-{idx}"
+        decision_ids.append(entry_id)
+        entry_ts = entry.get("ts") or entry.get("created_at")
+        entry_json = _stable_json(entry)
+        if fingerprints["decisions"].get(entry_id) == entry_json:
+            continue
+        cur.execute("""
+            INSERT INTO decisions_log (id, entry, entry_ts, updated_at)
+            VALUES (%s, %s::jsonb, NULLIF(%s, '')::timestamptz, NOW())
+            ON CONFLICT (id) DO UPDATE
+                SET entry = EXCLUDED.entry,
+                    entry_ts = EXCLUDED.entry_ts,
+                    updated_at = NOW()
+        """, (
+            entry_id,
+            entry_json,
+            str(entry_ts or ""),
+        ))
+        fingerprints["decisions"][entry_id] = entry_json
+    if not decision_ids:
+        cur.execute("DELETE FROM decisions_log")
+        fingerprints["decisions"] = {}
+    elif set(fingerprints["decisions"].keys()) != set(decision_ids):
+        cur.execute("DELETE FROM decisions_log WHERE NOT (id = ANY(%s))", (decision_ids,))
+        fingerprints["decisions"] = {k: v for k, v in fingerprints["decisions"].items() if k in set(decision_ids)}
+
+    regime_cache = regime_cache if isinstance(regime_cache, dict) else {}
+    regime_days = []
+    for day, entry in regime_cache.items():
+        key = str(day).strip()
+        if not key:
+            continue
+        regime_days.append(key)
+        entry_json = _stable_json(entry or {})
+        if fingerprints["regime"].get(key) == entry_json:
+            continue
+        cur.execute("""
+            INSERT INTO regime_daily_cache (day, entry, updated_at)
+            VALUES (%s, %s::jsonb, NOW())
+            ON CONFLICT (day) DO UPDATE
+                SET entry = EXCLUDED.entry, updated_at = NOW()
+        """, (key, entry_json))
+        fingerprints["regime"][key] = entry_json
+    if not regime_days:
+        cur.execute("DELETE FROM regime_daily_cache")
+        fingerprints["regime"] = {}
+    elif set(fingerprints["regime"].keys()) != set(regime_days):
+        cur.execute("DELETE FROM regime_daily_cache WHERE NOT (day = ANY(%s))", (regime_days,))
+        fingerprints["regime"] = {k: v for k, v in fingerprints["regime"].items() if k in set(regime_days)}
+
+
 def load_store():
     if USE_POSTGRES:
         try:
@@ -311,7 +485,11 @@ def load_store():
                     cur.execute("SELECT value FROM kv_store WHERE key = 'default'")
                     row = cur.fetchone()
                     if row:
-                        return row[0]
+                        store = row[0] or _store_default()
+                        defaults = _store_default()
+                        for key, value in defaults.items():
+                            store.setdefault(key, value)
+                        return _load_split_sections(cur, store)
                     # No row yet — return defaults; first save creates the row.
                     return _store_default()
         except Exception as e:
@@ -367,12 +545,18 @@ def save_store(store):
         try:
             with _pg_connect() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO kv_store (key, value, updated_at)
-                        VALUES ('default', %s::jsonb, NOW())
-                        ON CONFLICT (key) DO UPDATE
-                            SET value = EXCLUDED.value, updated_at = NOW()
-                    """, (json.dumps(safe_store, allow_nan=False),))
+                    core_store, chat, decisions, regime_cache = _split_store_sections(safe_store)
+                    fingerprints = _persist_cache()
+                    core_json = _stable_json(core_store)
+                    if fingerprints.get("core") != core_json:
+                        cur.execute("""
+                            INSERT INTO kv_store (key, value, updated_at)
+                            VALUES ('default', %s::jsonb, NOW())
+                            ON CONFLICT (key) DO UPDATE
+                                SET value = EXCLUDED.value, updated_at = NOW()
+                        """, (core_json,))
+                        fingerprints["core"] = core_json
+                    _save_split_sections(cur, chat, decisions, regime_cache)
             return
         except Exception as e:
             # CRITICAL: Do NOT fall through to local file when USE_POSTGRES
