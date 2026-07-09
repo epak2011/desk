@@ -12016,7 +12016,7 @@ if view == "regime":
         .risk-brief-cell:nth-child(2n){border-right:0;padding-left:34px;padding-right:0}
         .risk-brief-cell:nth-child(n+3){border-top:1px solid #D7DFEA;padding-top:20px}
         .risk-opportunity-card{background:var(--color-surface);color:var(--color-text);border:1px solid #CCD6E3;border-left:4px solid var(--color-blue);border-radius:8px;padding:0;margin-top:16px;box-shadow:none;overflow:hidden}
-        .risk-op-top{display:grid;grid-template-columns:1.35fr .9fr .9fr .95fr;gap:0;margin-bottom:20px}
+        .risk-op-top{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-bottom:20px}
         .risk-op-cell{padding:18px 22px;border-right:1px solid #D7DFEA}
         .risk-op-cell:first-child{padding-left:22px}
         .risk-op-cell:last-child{padding-right:22px;border-right:0}
@@ -13732,12 +13732,10 @@ Return ONLY this JSON shape:
         f'<span class="risk-op-main" style="color:{_email_hex(daily_topline["action"])};">{html.escape(str(daily_topline["action"]).upper())}</span>'
         f'<span style="font-size:15px;font-weight:900;color:{_email_hex(daily_topline["portfolio_stance"])};letter-spacing:.08em;text-transform:uppercase;">{html.escape(str(daily_topline["portfolio_stance"]).upper())}</span>'
         '</div>'
-        '<div class="risk-op-sub">formerly Medium · primary new-long signal</div>'
         '</div>'
         '<div class="risk-op-cell">'
         '<div class="risk-op-label">Entry Timing · days-2 weeks</div>'
         f'<div class="risk-op-main" style="color:{_email_hex(daily_topline["short_term"])};">{html.escape(str(daily_topline["short_term"]).upper())}</div>'
-        '<div class="risk-op-sub">timing refinement only</div>'
         '</div>'
         '<div class="risk-op-cell">'
         '<div class="risk-op-label">Change Since Yesterday</div>'
@@ -13750,7 +13748,6 @@ Return ONLY this JSON shape:
         f'<span style="color:{_email_hex(s.get("regime_layer"))};">Cyclical · 1-4y: {html.escape(str(s.get("regime_layer") or daily_topline["regime"]))}</span>'
         '<span style="color:var(--color-warning);">Secular · 10-20y: Late / Narrow</span>'
         '</div>'
-        '<div class="risk-op-sub">context only · not daily action</div>'
         '</div>'
         '</div>'
         '<div class="risk-op-bottom">'
