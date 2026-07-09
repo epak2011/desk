@@ -12015,22 +12015,23 @@ if view == "regime":
         .risk-brief-cell{min-height:76px;padding:0 34px 20px 0;border-right:1px solid #D7DFEA}
         .risk-brief-cell:nth-child(2n){border-right:0;padding-left:34px;padding-right:0}
         .risk-brief-cell:nth-child(n+3){border-top:1px solid #D7DFEA;padding-top:20px}
-        .risk-opportunity-card{background:#171827;color:#F8FAFC;border-radius:12px;border-left:4px solid var(--color-blue);padding:22px 26px;margin-top:16px;box-shadow:none}
+        .risk-opportunity-card{background:var(--color-surface);color:var(--color-text);border:1px solid #CCD6E3;border-left:4px solid var(--color-blue);border-radius:8px;padding:0;margin-top:16px;box-shadow:none;overflow:hidden}
         .risk-op-top{display:grid;grid-template-columns:1.35fr .9fr .9fr .95fr;gap:0;margin-bottom:20px}
-        .risk-op-cell{padding:0 28px;border-right:1px solid rgba(148,163,184,.24)}
-        .risk-op-cell:first-child{padding-left:0}
-        .risk-op-cell:last-child{padding-right:0;border-right:0}
-        .risk-op-label{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:.26em;text-transform:uppercase;color:#9AA3B8;margin-bottom:10px}
-        .risk-op-main{font-size:28px;font-weight:950;line-height:1.05;color:#F8FAFC}
-        .risk-op-sub{font-size:14px;line-height:1.4;color:#9AA3B8;font-weight:760;margin-top:8px}
-        .risk-op-context{display:flex;flex-direction:column;gap:8px;font-size:15px;font-weight:900;line-height:1.3}
-        .risk-op-bottom{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);gap:28px;border-top:1px solid rgba(148,163,184,.24);padding-top:20px}
-        .risk-op-why{font-size:17px;line-height:1.62;color:#E5E7EB;font-weight:720}
-        .risk-op-why strong{color:#FFFFFF;font-weight:950}
-        .risk-op-highlights{border-left:1px solid rgba(148,163,184,.24);padding-left:28px}
-        .risk-op-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(148,163,184,.22);padding:11px 0;font-size:18px;color:#AAB2C5}
+        .risk-op-cell{padding:18px 22px;border-right:1px solid #D7DFEA}
+        .risk-op-cell:first-child{padding-left:22px}
+        .risk-op-cell:last-child{padding-right:22px;border-right:0}
+        .risk-op-label{font-family:var(--font-mono);font-size:12px;font-weight:950;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:10px}
+        .risk-op-main{font-size:24px;font-weight:950;line-height:1.08;color:var(--color-text)}
+        .risk-op-sub{font-size:13px;line-height:1.4;color:var(--color-muted);font-weight:700;margin-top:7px}
+        .risk-op-context{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:850;line-height:1.3}
+        .risk-op-bottom{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:0;border-top:1px solid #D7DFEA;padding-top:0}
+        .risk-op-bottom>div:first-child{padding:20px 22px}
+        .risk-op-why{font-size:16px;line-height:1.55;color:var(--color-body);font-weight:560}
+        .risk-op-why strong{color:var(--color-text);font-weight:850}
+        .risk-op-highlights{border-left:1px solid #D7DFEA;padding:20px 22px}
+        .risk-op-highlight-row{display:flex;align-items:baseline;justify-content:space-between;gap:18px;border-bottom:1px solid #D7DFEA;padding:10px 0;font-size:16px;color:var(--color-muted)}
         .risk-op-highlight-row:last-child{border-bottom:0}
-        .risk-op-highlight-row strong{font-family:var(--font-mono);font-size:22px;font-weight:950;color:#FFFFFF;font-variant-numeric:tabular-nums}
+        .risk-op-highlight-row strong{font-family:var(--font-mono);font-size:20px;font-weight:950;color:var(--color-text);font-variant-numeric:tabular-nums}
         .risk-market-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;border-bottom:1px solid #D7DFEA;padding-bottom:16px;margin-bottom:16px}
         .risk-market-item{display:flex;align-items:baseline;justify-content:space-between;gap:16px;min-height:34px}
         .risk-market-item .name{font-size:18px;color:var(--color-muted);font-weight:760}
@@ -13729,7 +13730,7 @@ Return ONLY this JSON shape:
         '<div class="risk-op-label">Opportunity Decision · 2-12 weeks</div>'
         '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">'
         f'<span class="risk-op-main" style="color:{_email_hex(daily_topline["action"])};">{html.escape(str(daily_topline["action"]).upper())}</span>'
-        f'<span style="font-size:18px;font-weight:950;color:{_email_hex(daily_topline["portfolio_stance"])};letter-spacing:.08em;text-transform:uppercase;">{html.escape(str(daily_topline["portfolio_stance"]).upper())}</span>'
+        f'<span style="font-size:15px;font-weight:900;color:{_email_hex(daily_topline["portfolio_stance"])};letter-spacing:.08em;text-transform:uppercase;">{html.escape(str(daily_topline["portfolio_stance"]).upper())}</span>'
         '</div>'
         '<div class="risk-op-sub">formerly Medium · primary new-long signal</div>'
         '</div>'
@@ -13755,7 +13756,7 @@ Return ONLY this JSON shape:
         '<div class="risk-op-bottom">'
         '<div>'
         '<div class="risk-op-label">Why Today</div>'
-        f'<div class="risk-op-why"><strong>{html.escape(str(opportunity_takeaway))}</strong> {html.escape(str(opportunity_explanation))} <span style="color:#AAB2C5;">Key risk: {html.escape(str(key_risk))}</span></div>'
+        f'<div class="risk-op-why"><strong>{html.escape(str(opportunity_takeaway))}</strong> {html.escape(str(opportunity_explanation))} <span style="color:var(--color-muted);">Key risk: {html.escape(str(key_risk))}</span></div>'
         '</div>'
         f'<div class="risk-op-highlights"><div class="risk-op-label">Market Highlights</div>{dark_highlight_html}</div>'
         '</div>'
