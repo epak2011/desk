@@ -19,8 +19,8 @@ CLAUDE_MODEL_FALLBACKS = [
     "claude-sonnet-4-5-20250929",
     "claude-haiku-4-5-20251015",
 ]
-CLAUDE_PM_TIMEOUT_SECONDS = max(45, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "55")))
-CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(45, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "55")))
+CLAUDE_PM_TIMEOUT_SECONDS = max(8, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "18")))
+CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(8, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "18")))
 
 
 def _call_with_timeout(fn, timeout_seconds, label):
