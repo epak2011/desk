@@ -11472,14 +11472,25 @@ if view == "analyze":
             unsafe_allow_html=True,
         )
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
-        if st.button(
-            f"↻ Refresh {ticker.upper()}",
-            key=f"refresh_current_everything_{ticker.upper()}",
-            help="Refresh price, fundamentals, sidebar row, PM thesis, quality box, drivers, risks, valuation, and decision dossier.",
-            use_container_width=True,
-        ):
-            refresh_current_ticker_state(ticker, refresh_research=True)
-            st.rerun()
+        refresh_market_col, refresh_pm_col = st.columns([1, 1])
+        with refresh_market_col:
+            if st.button(
+                f"↻ Refresh data",
+                key=f"refresh_current_market_{ticker.upper()}",
+                help="Fast refresh: price, fundamentals, rule action, and sidebar row. Does not wait on Claude.",
+                use_container_width=True,
+            ):
+                refresh_current_ticker_state(ticker, refresh_research=False)
+                st.rerun()
+        with refresh_pm_col:
+            if st.button(
+                f"🧠 Refresh PM memo",
+                key=f"refresh_current_pm_{ticker.upper()}",
+                help="Slower refresh: regenerate PM thesis, quality box, drivers, risks, valuation, and decision dossier.",
+                use_container_width=True,
+            ):
+                refresh_current_ticker_state(ticker, refresh_research=True)
+                st.rerun()
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
             f'target="_blank" rel="noopener">✨ Full research report ↗</a>',
