@@ -4803,7 +4803,7 @@ def remember_quote_meta(ticker, meta):
 def watchlist_pm_status(dossier_cache, tickers):
     tickers = [str(t).upper() for t in tickers]
     missing = 0
-    stale = 0
+    old = 0
     for ticker in tickers:
         cached = dossier_cache.get(ticker, {})
         if not ((cached.get("result") or {}).get("tactical_call") or {}):
@@ -4812,15 +4812,15 @@ def watchlist_pm_status(dossier_cache, tickers):
         try:
             ts = cached.get("ts")
             if ts and (datetime.now() - datetime.fromisoformat(ts)).days >= 3:
-                stale += 1
+                old += 1
         except Exception:
             pass
-    if missing or stale:
+    if missing or old:
         parts = []
         if missing:
-            parts.append(f"{missing} missing")
-        if stale:
-            parts.append(f"{stale} stale")
+            parts.append(f"{missing} no memo")
+        if old:
+            parts.append(f"{old} old memos")
         return "PM " + " · ".join(parts), "warn"
     if tickers:
         return "PM cached/generated for all rows", "fresh"
@@ -14821,9 +14821,9 @@ if view == "watchlist":
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
             if st.button(
-                "↻ Update watchlist now",
+                "↻ Refresh prices/actions",
                 key="refresh_watchlist_scan",
-                help="Refresh prices, fundamentals, sidebar rows, and scan metrics for the full watchlist. PM memos stay per ticker so the watchlist can load fast.",
+                help="Refresh prices, fundamentals, sidebar rows, and rule/scan metrics for the full watchlist. PM memos refresh per ticker from the PM memo column or Analyze page.",
                 use_container_width=True,
             ):
                 _run_watchlist_market_scan()
@@ -14831,7 +14831,7 @@ if view == "watchlist":
         with scan_c2:
             st.markdown(
                 '<div class="watchlist-control-note">'
-                'Default view opens from saved setup data for speed. Click Update watchlist now to refresh prices/actions; use Full metrics for the heavier scan.</div>',
+                'Default view opens from saved setup data for speed. Refresh prices/actions updates market data. PM memo age is separate; use the PM memo links to refresh research for one ticker.</div>',
                 unsafe_allow_html=True,
             )
         watchlist_layout_pref = st.session_state.get("watchlist_layout", "Decision queue")
@@ -14873,16 +14873,16 @@ if view == "watchlist":
         def _watchlist_pm_cell(cached):
             """Return PM memo state for the row without implying scan refresh regenerates it."""
             if not ((cached.get("result") or {}).get("tactical_call") or {}):
-                return "Missing", "var(--color-faint)"
+                return "No memo ↻", "var(--color-faint)", True
             try:
                 cache_ts = cached.get("ts")
                 if cache_ts:
                     age = datetime.now() - datetime.fromisoformat(cache_ts)
                     if age.days >= 3:
-                        return f"Stale {age.days}d", "var(--color-warning-text)"
+                        return f"Memo {age.days}d ↻", "var(--color-warning-text)", True
             except Exception:
                 pass
-            return "Ready", "var(--color-positive)"
+            return "Memo ready", "var(--color-positive)", False
 
         def _safe_float(value, default=0.0):
             try:
@@ -14954,7 +14954,7 @@ if view == "watchlist":
             attention_label, attention_rank, attention_color = _watchlist_attention(
                 key, t_stub, None, None, cached
             )
-            pm_row_label, pm_row_color = _watchlist_pm_cell(cached)
+            pm_row_label, pm_row_color, pm_needs_refresh = _watchlist_pm_cell(cached)
             personality = {
                 "label": "Saved setup",
                 "emoji": STATE_STYLES.get(action, STATE_STYLES["watch"]).get("emoji", "👀"),
@@ -14986,6 +14986,7 @@ if view == "watchlist":
                 "attention_color": attention_color,
                 "pm_status": pm_row_label,
                 "pm_status_color": pm_row_color,
+                "pm_needs_refresh": pm_needs_refresh,
                 "claude_dissent": dissent_signal,
                 "personality": personality["label"],
                 "personality_emoji": personality["emoji"],
@@ -15090,7 +15091,7 @@ if view == "watchlist":
                     attention_label, attention_rank, attention_color = _watchlist_attention(
                         tkr, t, trig_dist, earnings_days, cached
                     )
-                    pm_row_label, pm_row_color = _watchlist_pm_cell(cached)
+                    pm_row_label, pm_row_color, pm_needs_refresh = _watchlist_pm_cell(cached)
                     personality = classify_setup_personality(t, quality_tier)
 
                     rows.append({
@@ -15117,6 +15118,7 @@ if view == "watchlist":
                         "attention_color": attention_color,
                         "pm_status": pm_row_label,
                         "pm_status_color": pm_row_color,
+                        "pm_needs_refresh": pm_needs_refresh,
                         "claude_dissent": dissent_signal,
                         "personality": personality["label"],
                         "personality_emoji": personality["emoji"],
@@ -15137,6 +15139,8 @@ if view == "watchlist":
                 return "Earnings risk"
             if action == "avoid":
                 return "Broken / avoid"
+            if row.get("pm_needs_refresh"):
+                return "PM refresh"
             if attention.startswith("🧠"):
                 return "PM refresh"
             return "Monitor"
@@ -15197,7 +15201,7 @@ if view == "watchlist":
                 if st.button(
                     "↻ Refresh saved queue",
                     key="refresh_watchlist_scan_inline",
-                    help="Updates the saved watchlist queue without opening every ticker's PM memo.",
+                    help="Updates saved prices/actions without regenerating every ticker's PM memo.",
                     use_container_width=True,
                 ):
                     _run_watchlist_market_scan()
@@ -15205,7 +15209,7 @@ if view == "watchlist":
             with refresh_note_c2:
                 st.markdown(
                     '<div class="watchlist-control-note">'
-                    'Showing saved setup rows so the page opens quickly. Refresh saved queue when you want the latest prices and rule actions.</div>',
+                    'Showing saved setup rows so the page opens quickly. Refresh saved queue updates prices and rule actions; PM memo links refresh one ticker at a time.</div>',
                     unsafe_allow_html=True,
                 )
 
@@ -15408,7 +15412,7 @@ if view == "watchlist":
     <b>52w high/low</b> saved during the last watchlist refresh ·
     <b>52w pos</b> position in the 52-week range ·
     <b>Trigger</b> percent to the trigger, if defined ·
-    <b>PM / dissent</b> PM memo state; <b>Review ★</b> opens Analyze when Claude materially disagrees with rules.
+    <b>PM memo</b> memo/dossier age; old/no-memo links refresh research for that ticker. <b>Review ★</b> opens Analyze when Claude materially disagrees with rules.
   </div>
 </details>
 """
@@ -15418,10 +15422,10 @@ if view == "watchlist":
   <summary>Column key</summary>
   <div>
     <b>Setup</b> descriptive setup type, separate from the action call ·
-	    <b>Attention</b> highest-signal reason to look now ·
-	    <b>New action</b> what the app would do for a fresh position, whether or not you already own it ·
-	    <b>PM</b> whether a generated PM memo/dossier is ready; ★ means Claude strongly dissents from rules ·
-	    <b>Quality</b> long-term PM tier ·
+    <b>Attention</b> highest-signal reason to look now ·
+    <b>New action</b> what the app would do for a fresh position, whether or not you already own it ·
+    <b>PM memo</b> memo/dossier age; ★ means Claude strongly dissents from rules ·
+    <b>Quality</b> long-term PM tier ·
     <b>RS</b> relative strength vs SPY, above 1.0 leads ·
     <b>vs MA50</b> percent above/below the 50-day ·
     <b>52w pos</b> position in the 52-week range ·
@@ -15446,7 +15450,7 @@ if view == "watchlist":
                 '<span style="text-align:right;">52w pos</span>'
                 '<span style="text-align:right;">Vol ×</span>'
                 '<span style="text-align:right;">Trigger</span>'
-                '<span>PM</span>'
+                '<span>PM memo</span>'
             )
         else:
             header_cells = (
@@ -15456,7 +15460,7 @@ if view == "watchlist":
                 '<span style="text-align:right;">Last</span>'
                 '<span style="text-align:right;">Chg (1D)</span>'
                 '<span>New action</span>'
-                '<span>PM</span>'
+                '<span>PM memo</span>'
                 '<span>State</span>'
                 '<span>Quality</span>'
                 '<span style="text-align:right;">RS</span>'
@@ -15573,13 +15577,20 @@ if view == "watchlist":
                     f'style="margin-left:6px;color:var(--color-blue);font-weight:900;">★</span>'
                     if dissent.get("flag") else ""
                 )
-                pm_cell_html = (
-                    f'<a class="watchlist-review-link" href="?open={html.escape(row["ticker"])}" '
-                    f'target="_self" title="{html.escape(dissent.get("reason", ""), quote=True)}">'
-                    f'Review ★</a>'
-                    if dissent.get("flag")
-                    else html.escape(str(row["pm_status"]))
-                )
+                if dissent.get("flag"):
+                    pm_cell_html = (
+                        f'<a class="watchlist-review-link" href="?open={html.escape(row["ticker"])}" '
+                        f'target="_self" title="{html.escape(dissent.get("reason", ""), quote=True)}">'
+                        f'Review ★</a>'
+                    )
+                elif row.get("pm_needs_refresh"):
+                    pm_cell_html = (
+                        f'<a class="watchlist-review-link" href="?pm_refresh={html.escape(row["ticker"])}" '
+                        f'target="_self" title="Refresh PM memo/dossier for {html.escape(row["ticker"])}">'
+                        f'{html.escape(str(row["pm_status"]))}</a>'
+                    )
+                else:
+                    pm_cell_html = html.escape(str(row["pm_status"]))
                 if compact_watchlist:
                     row_cells = (
                         f'{ticker_link}'
@@ -15610,7 +15621,7 @@ if view == "watchlist":
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
-                        f'{row["pm_status"]}{dissent_star}</span>'
+                        f'{pm_cell_html}{dissent_star}</span>'
                         f'<span class="state-pill" style="display:inline-flex;width:max-content;align-items:center;'
                         f'border:1px solid {state_color};border-radius:4px;background:{state_bg};'
                         f'padding:2px 6px;font-family:var(--font-sans);font-size:var(--fs-xs);'
