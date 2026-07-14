@@ -843,32 +843,40 @@ JSON shape:
 
 Be specific. Do not return placeholders. If the business has a special-situation angle, hidden asset, major strategic relationship, financing risk, customer concentration, or regulatory catalyst, include it."""
 
-            message = _call_with_timeout(
-                lambda: _messages_create(client,
-                    max_tokens=1400,
-                    temperature=0,
-                    messages=[{"role": "user", "content": fast_prompt}],
-                ),
-                min(CLAUDE_DOSSIER_TIMEOUT_SECONDS, 45),
-                "Claude fast PM refresh",
-            )
-            text = message.content[0].text.strip()
-            if text.startswith("```"):
-                parts = text.split("```")
-                text = parts[1] if len(parts) > 1 else text
-                if text.lower().startswith("json"):
-                    text = text[4:]
-                text = text.strip()
-            parsed = _parse_json_response(text)
-            return {
-                "dossier": parsed.get("dossier"),
-                "technical_narrative": parsed.get("technical_narrative"),
-                "pm_narrative": parsed.get("pm_narrative"),
-                "bullets": parsed.get("bullets") or {},
-                "quality": parsed.get("quality") or {},
-                "tactical_call": parsed.get("tactical_call") or {},
-                "_source": "claude · fast refresh",
-            }
+            try:
+                message = _call_with_timeout(
+                    lambda: _messages_create(client,
+                        max_tokens=1400,
+                        temperature=0,
+                        messages=[{"role": "user", "content": fast_prompt}],
+                    ),
+                    min(CLAUDE_DOSSIER_TIMEOUT_SECONDS, 45),
+                    "Claude fast PM refresh",
+                )
+                text = message.content[0].text.strip()
+                if text.startswith("```"):
+                    parts = text.split("```")
+                    text = parts[1] if len(parts) > 1 else text
+                    if text.lower().startswith("json"):
+                        text = text[4:]
+                    text = text.strip()
+                parsed = _parse_json_response(text)
+                return {
+                    "dossier": parsed.get("dossier"),
+                    "technical_narrative": parsed.get("technical_narrative"),
+                    "pm_narrative": parsed.get("pm_narrative"),
+                    "bullets": parsed.get("bullets") or {},
+                    "quality": parsed.get("quality") or {},
+                    "tactical_call": parsed.get("tactical_call") or {},
+                    "_source": "claude · fast refresh",
+                }
+            except Exception as exc:
+                return _rule_backed_pm_snapshot(
+                    ticker,
+                    tactical_output=t_state,
+                    company_name=company_name,
+                    reason=str(exc),
+                )
 
         prompt = f"""You are a senior portfolio manager and trader. Generate THREE pieces of analysis on {ticker}{f' ({company_name})' if company_name else ''}.
 
