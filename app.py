@@ -4711,6 +4711,58 @@ def research_health_items(pm, dossier_result, api_key):
     return [pm_row, dossier_row]
 
 
+def pm_snapshot_from_dossier(pm, dossier_result):
+    """Use dossier prose as the visible PM snapshot when bullet JSON is sparse.
+
+    The fast Claude refresh asks for both structured bullets and longer
+    narratives. In practice, model output can occasionally include a good
+    pm_narrative/dossier while leaving bullets.thesis empty. Without this
+    fallback the right-side PM panel keeps showing the generic placeholder
+    even though research was generated.
+    """
+    pm = dict(pm or {})
+    dossier_result = dossier_result or {}
+    source = str(dossier_result.get("_source") or pm.get("_source") or "")
+    source_lower = source.lower()
+    if any(marker in source_lower for marker in (
+        "cached only",
+        "fast mode",
+        "unavailable",
+        "error:",
+    )):
+        return pm
+
+    current_thesis = str(pm.get("thesis") or "").strip()
+    is_placeholder = (
+        not current_thesis
+        or current_thesis.startswith("No generated PM thesis yet")
+        or current_thesis.startswith("No thesis on file")
+        or current_thesis == "Not yet analyzed"
+    )
+    if not is_placeholder:
+        return pm
+
+    bullets = dossier_result.get("bullets") or {}
+    thesis = str(bullets.get("thesis") or "").strip()
+    if not thesis:
+        narrative = str(dossier_result.get("pm_narrative") or "").strip()
+        dossier_text = str(dossier_result.get("dossier") or "").strip()
+        candidate = narrative or dossier_text
+        paragraphs = [p.strip() for p in candidate.split("\n\n") if p.strip()]
+        thesis = paragraphs[0] if paragraphs else candidate
+    if not thesis:
+        return pm
+
+    return {
+        **pm,
+        "thesis": thesis,
+        "drivers": bullets.get("drivers") or pm.get("drivers", []),
+        "risks": bullets.get("risks") or pm.get("risks", []),
+        "valuation": bullets.get("valuation") or pm.get("valuation", ""),
+        "_source": dossier_result.get("_source", pm.get("_source", "")),
+    }
+
+
 def inferred_quality_from_pm(pm, t_state=None):
     """Conservative quality tier when an older PM memo lacks a quality object."""
     if not isinstance(pm, dict):
@@ -9429,6 +9481,7 @@ if view == "analyze":
             "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
             "_source": "cached dossier fallback · refresh to update",
         }
+    pm = pm_snapshot_from_dossier(pm, dossier_result)
     research_items = research_health_items(pm, dossier_result, api_key)
     pm_status_item = research_items[0] if research_items else ("PM memo", "not generated", "warn")
     dossier_status_item = (
