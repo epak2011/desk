@@ -728,6 +728,7 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
             "view": {k: v for k, v in pm.items() if not k.startswith("_")},
             "source": pm.get("_source", "static"),
         }
+        merge_ticker_snapshot(ticker, pm_entry=cache[ticker])
         save_store(st.session_state.store)
     return pm
 
@@ -3507,15 +3508,24 @@ def merge_ticker_snapshot(ticker, *, market=None, meta=None, pm_entry=None, fina
         updated["meta_updated_at"] = now
     if isinstance(pm_entry, dict):
         result = pm_entry.get("result") if isinstance(pm_entry.get("result"), dict) else {}
+        view = pm_entry.get("view") if isinstance(pm_entry.get("view"), dict) else {}
         tactical_call = result.get("tactical_call") if isinstance(result, dict) else {}
         quality = result.get("quality") if isinstance(result, dict) else {}
+        if not quality and isinstance(view, dict):
+            quality = view.get("quality") if isinstance(view.get("quality"), dict) else {}
+        thesis = str((view or {}).get("thesis") or "")
+        has_view_memo = bool(view) and not (
+            thesis.startswith("No generated PM thesis yet")
+            or thesis.startswith("No thesis on file")
+            or thesis == "Not yet analyzed"
+        )
         updated["pm"] = {
-            "source": result.get("_source") or pm_entry.get("_source"),
+            "source": result.get("_source") or pm_entry.get("_source") or pm_entry.get("source"),
             "ts": pm_entry.get("ts"),
             "action": normalize_action_key((tactical_call or {}).get("action")),
             "confidence": (tactical_call or {}).get("confidence"),
             "quality": (quality or {}).get("tier"),
-            "has_memo": bool(tactical_call),
+            "has_memo": bool(tactical_call) or has_view_memo,
         }
         updated["pm_updated_at"] = now
     if isinstance(final_action, dict) and final_action:
@@ -4676,7 +4686,11 @@ def research_health_items(pm, dossier_result, api_key):
             ("Full dossier", "AI key unavailable", "warn"),
         ]
 
-    pm_is_placeholder = thesis.startswith("No generated PM thesis yet")
+    pm_is_placeholder = (
+        thesis.startswith("No generated PM thesis yet")
+        or thesis.startswith("No thesis on file")
+        or thesis == "Not yet analyzed"
+    )
     pm_label, pm_kind = pm_status_label(pm_source)
     if "timed out" in pm_source.lower():
         pm_row = (
@@ -4852,13 +4866,15 @@ def remember_quote_meta(ticker, meta):
     merge_ticker_snapshot(tkr, meta=slim)
 
 
-def watchlist_pm_status(dossier_cache, tickers):
+def watchlist_pm_status(pm_cache, tickers):
     tickers = [str(t).upper() for t in tickers]
     missing = 0
     old = 0
     for ticker in tickers:
-        cached = dossier_cache.get(ticker, {})
-        if not ((cached.get("result") or {}).get("tactical_call") or {}):
+        cached = pm_cache.get(ticker, {}) if isinstance(pm_cache, dict) else {}
+        pm_view = cached.get("view") if isinstance(cached, dict) else {}
+        thesis = str((pm_view or {}).get("thesis") or "")
+        if not pm_view or thesis.startswith("No generated PM thesis yet") or thesis.startswith("No thesis on file"):
             missing += 1
             continue
         try:
@@ -4872,10 +4888,10 @@ def watchlist_pm_status(dossier_cache, tickers):
         if missing:
             parts.append(f"{missing} no memo")
         if old:
-            parts.append(f"{old} old memos")
-        return "PM " + " · ".join(parts), "warn"
+            parts.append(f"{old} old")
+        return "PM memos: " + " · ".join(parts), "warn"
     if tickers:
-        return "PM cached/generated for all rows", "fresh"
+        return "PM memos ready for all rows", "fresh"
     return "PM no rows", "neutral"
 
 
@@ -4906,14 +4922,17 @@ def canonical_freshness_html(items, refresh_event=None):
                 for marker in ("timeout", "failed", "not generated", "unavailable", "cached/static")
             )
             if pm_ok:
-                status = f"PM refreshed ({pm_label})."
+                status = f"PM memo updated ({pm_label})."
             else:
                 status = (
-                    f"Market data updated; PM did not refresh cleanly"
+                    f"PM memo did not update"
                     f"{': ' + pm_label if pm_label else ''}."
                 )
             if dossier_label and "not generated" not in dossier_label.lower():
-                status += f" Dossier: {dossier_label}."
+                if "timed out" in dossier_label.lower() and pm_ok:
+                    status += " Full dossier timed out; PM memo still updated."
+                else:
+                    status += f" Full dossier: {dossier_label}."
             receipt = (
                 f'<div class="desk-refresh-receipt {"" if pm_ok else "warn"}">'
                 f'{html.escape(status)} Updated at {html.escape(refreshed_at)}.</div>'
@@ -9402,12 +9421,10 @@ if view == "analyze":
         st.session_state.pop("_force_pm_refresh_ticker", "") == ticker_key
         or ticker_key in pending_pm_refreshes
     )
-    # Ordinary ticker navigation stays fast/static. Manual refresh uses the
-    # dossier call as the single source of truth for thesis, quality, bullets,
-    # and Claude dissent. Do not make a separate PM-note call first: it can
-    # succeed while the dossier times out, which makes the UI claim "PM
-    # refreshed" even though the visible thesis/quality layer stayed stale.
-    allow_pm_generate = False
+    # Ordinary ticker navigation stays fast/static. Manual PM refresh should
+    # still generate the lightweight PM memo first; the fuller dossier can time
+    # out independently, but that should not leave the visible PM thesis blank.
+    allow_pm_generate = bool(force_pm_refresh and api_key)
     needs_context_refresh = (
         ticker.upper() in SPECIAL_CONTEXT_REFRESH_TICKERS
         and dossier_cache_needs_upgrade(ticker)
@@ -9431,16 +9448,20 @@ if view == "analyze":
             api_key=api_key if api_key else None,
             company_name=name,
             allow_generate=allow_pm_generate,
-            force_generate=False,
+            force_generate=force_pm_refresh,
         )
-        allow_dossier_generate = bool(force_pm_refresh and api_key)
+        # Keep PM memo refresh fast and reliable. The visible PM panel is
+        # generated by get_cached_pm above; the full dossier is much heavier
+        # and has repeatedly timed out, making the memo button look broken.
+        # Do not regenerate the dossier on a PM-memo click.
+        allow_dossier_generate = False
         dossier_result = get_cached_dossier(
             ticker, t, modifiers, meta, pm,
             api_key=api_key if api_key else None,
             company_name=name,
             allow_generate=allow_dossier_generate,
-            force_generate=force_pm_refresh,
-            fast_generate=force_pm_refresh,
+            force_generate=False,
+            fast_generate=False,
         )
     if force_pm_refresh:
         pending_pm_refreshes.pop(ticker_key, None)
@@ -11539,7 +11560,7 @@ if view == "analyze":
             if st.button(
                 f"🧠 Refresh PM memo",
                 key=f"refresh_current_pm_{ticker.upper()}",
-                help="Slower refresh: regenerate PM thesis, quality box, drivers, risks, valuation, and decision dossier.",
+                help="Refresh the visible PM thesis, quality box, drivers, risks, and valuation. The full dossier stays cached so this does not hang on a long Claude call.",
                 use_container_width=True,
             ):
                 refresh_current_ticker_state(ticker, refresh_research=True)
@@ -14934,19 +14955,23 @@ if view == "watchlist":
                 return "👀 Watch", 6, "var(--color-warning-text)"
             return "—", 99, "var(--color-faint)"
 
-        def _watchlist_pm_cell(cached):
+        def _watchlist_pm_cell(tkr):
             """Return PM memo state for the row without implying scan refresh regenerates it."""
-            if not ((cached.get("result") or {}).get("tactical_call") or {}):
-                return "No memo ↻", "var(--color-faint)", True
+            pm_cache = st.session_state.store.get("pm_cache", {})
+            cached = pm_cache.get(str(tkr).upper(), {}) if isinstance(pm_cache, dict) else {}
+            pm_view = cached.get("view") if isinstance(cached, dict) else {}
+            thesis = str((pm_view or {}).get("thesis") or "")
+            if not pm_view or thesis.startswith("No generated PM thesis yet") or thesis.startswith("No thesis on file"):
+                return "No PM memo ↻", "var(--color-faint)", True
             try:
                 cache_ts = cached.get("ts")
                 if cache_ts:
                     age = datetime.now() - datetime.fromisoformat(cache_ts)
                     if age.days >= 3:
-                        return f"Memo {age.days}d ↻", "var(--color-warning-text)", True
+                        return f"PM memo {age.days}d old ↻", "var(--color-warning-text)", True
             except Exception:
                 pass
-            return "Memo ready", "var(--color-positive)", False
+            return "PM memo ready", "var(--color-positive)", False
 
         def _safe_float(value, default=0.0):
             try:
@@ -15018,7 +15043,7 @@ if view == "watchlist":
             attention_label, attention_rank, attention_color = _watchlist_attention(
                 key, t_stub, None, None, cached
             )
-            pm_row_label, pm_row_color, pm_needs_refresh = _watchlist_pm_cell(cached)
+            pm_row_label, pm_row_color, pm_needs_refresh = _watchlist_pm_cell(key)
             personality = {
                 "label": "Saved setup",
                 "emoji": STATE_STYLES.get(action, STATE_STYLES["watch"]).get("emoji", "👀"),
@@ -15155,7 +15180,7 @@ if view == "watchlist":
                     attention_label, attention_rank, attention_color = _watchlist_attention(
                         tkr, t, trig_dist, earnings_days, cached
                     )
-                    pm_row_label, pm_row_color, pm_needs_refresh = _watchlist_pm_cell(cached)
+                    pm_row_label, pm_row_color, pm_needs_refresh = _watchlist_pm_cell(tkr)
                     personality = classify_setup_personality(t, quality_tier)
 
                     rows.append({
@@ -15251,7 +15276,10 @@ if view == "watchlist":
             '<div class="watch-queue-grid">' + "".join(queue_html) + '</div>',
             unsafe_allow_html=True,
         )
-        pm_label, pm_kind = watchlist_pm_status(dossier_cache, [r["ticker"] for r in rows])
+        pm_label, pm_kind = watchlist_pm_status(
+            st.session_state.store.get("pm_cache", {}),
+            [r["ticker"] for r in rows],
+        )
         watch_price_kind = "fresh" if price_age_kinds and all(k == "fresh" for k in price_age_kinds) else ("warn" if price_age_kinds else "stale")
         st.markdown(canonical_freshness_html([
             ("Price", "last close data", watch_price_kind),
