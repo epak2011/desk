@@ -348,6 +348,113 @@ def _generic_snapshot(ticker):
     }
 
 
+def _rule_backed_pm_snapshot(ticker, tactical_output=None, company_name=None, reason="Claude PM memo timed out"):
+    """Always return a usable PM panel when Claude misses the UI timeout.
+
+    This is deliberately compact and sourced from the rule engine / known
+    ticker context. It prevents the PM column from falling back to a blank
+    "no generated thesis" state after a failed API call.
+    """
+    t = tactical_output or {}
+    action = str(t.get("action") or "watch").replace("_", " ").title()
+    bias = str(t.get("bias") or t.get("raw_bias") or "unclear").replace("_", " ")
+    state = str(t.get("state") or "unknown").replace("_", " ")
+    price = t.get("price")
+    rr = t.get("reward_risk")
+    ma50 = t.get("ma50")
+    ma200 = t.get("ma200")
+    rs = t.get("rs")
+    rsi = t.get("rsi14")
+    vol = t.get("vol_ratio")
+    setup_score = t.get("setup_score")
+    trigger = t.get("trigger") or {}
+    trigger_summary = trigger.get("summary") if isinstance(trigger, dict) else None
+    levels = trigger.get("levels", {}) if isinstance(trigger, dict) else {}
+    buy_above = levels.get("buy_above")
+    abort_below = levels.get("abort_below")
+
+    name = company_name or ticker
+    price_txt = f"${price:,.2f}" if isinstance(price, (int, float)) else "the current price"
+    rr_txt = f"{rr:.2f}:1" if isinstance(rr, (int, float)) else "not available"
+    score_txt = f"{setup_score:.1f}/10" if isinstance(setup_score, (int, float)) else "not scored"
+    rs_txt = f"{rs:.2f}" if isinstance(rs, (int, float)) else "n/a"
+    rsi_txt = f"{rsi:.0f}" if isinstance(rsi, (int, float)) else "n/a"
+    vol_txt = f"{vol:.2f}x" if isinstance(vol, (int, float)) else "n/a"
+
+    pct_50 = None
+    pct_200 = None
+    if isinstance(price, (int, float)) and isinstance(ma50, (int, float)) and ma50:
+        pct_50 = (price - ma50) / ma50 * 100
+    if isinstance(price, (int, float)) and isinstance(ma200, (int, float)) and ma200:
+        pct_200 = (price - ma200) / ma200 * 100
+    trend_bits = []
+    if pct_50 is not None:
+        trend_bits.append(f"{pct_50:+.1f}% vs 50-day")
+    if pct_200 is not None:
+        trend_bits.append(f"{pct_200:+.1f}% vs 200-day")
+    trend_line = ", ".join(trend_bits) if trend_bits else f"{state} structure"
+
+    context_lines = TICKER_RESEARCH_CONTEXT.get((ticker or "").upper()) or []
+    context_hint = context_lines[0] if context_lines else (
+        "The PM question is whether the business quality and catalyst path justify waiting for a cleaner rule signal."
+    )
+
+    if str(t.get("action") or "").lower() == "enter":
+        thesis = (
+            f"{name} screens as actionable on the rules at {price_txt}: {bias} setup, "
+            f"{trend_line}, RS {rs_txt}, and volume {vol_txt}. PM underwriting still needs the business thesis, valuation, and event risk checked before sizing."
+        )
+    elif str(t.get("action") or "").lower() == "avoid":
+        thesis = (
+            f"{name} is not actionable for a fresh position: the rule engine flags {bias} with {trend_line}. "
+            f"The PM read should stay defensive until price action or fundamentals repair enough to restore edge."
+        )
+    else:
+        thesis = (
+            f"{name} is a monitor/watch candidate rather than a forced trade: {bias} setup, {trend_line}, "
+            f"RS {rs_txt}, RSI {rsi_txt}, and reward/risk {rr_txt}. The next decision depends on the trigger firing cleanly."
+        )
+
+    drivers = [
+        f"Rule action: {action} with setup score {score_txt}",
+        f"Technical context: {trend_line}; RS {rs_txt}; volume {vol_txt}",
+        context_hint[:180],
+    ]
+    risks = [
+        f"Reward/risk is {rr_txt}, so sizing depends on the next clean trigger",
+        f"Invalidation: {f'below ${abort_below:,.2f}' if isinstance(abort_below, (int, float)) else 'not clearly defined'}",
+        "Claude PM research did not complete, so this is a rules-backed snapshot rather than a full underwriting memo",
+    ]
+    valuation = (
+        "Valuation requires a successful PM memo refresh; use this snapshot for trading context, not final long-term underwriting."
+    )
+
+    if trigger_summary:
+        drivers[0] = f"Trigger path: {trigger_summary}"
+    elif isinstance(buy_above, (int, float)):
+        drivers[0] = f"Trigger path: buy above ${buy_above:,.2f}"
+
+    if str(t.get("action") or "").lower() == "avoid":
+        tier = "Avoid"
+        rationale = "The tactical structure is not investable enough for fresh capital."
+    elif str(t.get("action") or "").lower() == "enter" and isinstance(setup_score, (int, float)) and setup_score >= 8:
+        tier = "B"
+        rationale = "Rules are constructive, but business-quality confirmation still needs a completed PM memo."
+    else:
+        tier = "B"
+        rationale = "Potentially investable, but timing and underwriting are not fully confirmed."
+
+    return {
+        "quality": {"tier": tier, "rationale": rationale},
+        "thesis": thesis,
+        "drivers": drivers,
+        "risks": risks,
+        "valuation": valuation,
+        "deep_dive": _empty_deep_dive(ticker),
+        "_source": f"rules fallback ({str(reason)[:80]})",
+    }
+
+
 def _fetch_recent_news(client, ticker, company_name):
     """Web-search call to get recent PM-relevant research context.
     Handles the multi-turn tool-use loop that web_search requires.
@@ -461,8 +568,81 @@ def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
 
         client = Anthropic(api_key=api_key)
         t = tactical_output or {}
-        recent_news = _fetch_recent_news(client, ticker, company_name)
         special_context = _special_context_for(ticker)
+        compact_prompt = f"""You are the PM sidebar in a trading workstation. Generate a FAST, specific portfolio-manager snapshot for {ticker}{' (' + company_name + ')' if company_name else ''}.
+
+Return ONLY valid JSON. No markdown. Keep it concise enough to finish quickly.
+
+Ticker context:
+{special_context}
+
+Live rule-engine context:
+- Rule action: {t.get('action', 'unknown')}
+- Bias: {t.get('bias') or t.get('raw_bias') or 'unclear'}
+- State: {t.get('state', 'unknown')}
+- Price: {f"${t.get('price'):,.2f}" if isinstance(t.get('price'), (int, float)) else 'n/a'}
+- Setup score: {f"{t.get('setup_score'):.1f}/10" if isinstance(t.get('setup_score'), (int, float)) else 'n/a'}
+- Reward/risk: {f"{t.get('reward_risk'):.2f}:1" if isinstance(t.get('reward_risk'), (int, float)) else 'n/a'}
+- 50d MA: {f"${t.get('ma50'):,.2f}" if isinstance(t.get('ma50'), (int, float)) else 'n/a'}
+- 200d MA: {f"${t.get('ma200'):,.2f}" if isinstance(t.get('ma200'), (int, float)) else 'n/a'}
+- RSI: {f"{t.get('rsi14'):.0f}" if isinstance(t.get('rsi14'), (int, float)) else 'n/a'}
+- Relative strength vs SPY: {f"{t.get('rs'):.2f}" if isinstance(t.get('rs'), (int, float)) else 'n/a'}
+- Volume vs 20d avg: {f"{t.get('vol_ratio'):.2f}x" if isinstance(t.get('vol_ratio'), (int, float)) else 'n/a'}
+
+JSON shape:
+{{
+  "quality": {{
+    "tier": "A | B | Speculative | Avoid",
+    "rationale": "One sentence on long-term ownership quality, separate from entry timing."
+  }},
+  "thesis": "Two specific sentences. State the actual business/variant debate and the tactical implication.",
+  "drivers": ["three short concrete drivers"],
+  "risks": ["three short concrete risks"],
+  "valuation": "One sentence on valuation / what is priced in.",
+  "deep_dive": {{
+    "expanded_thesis": null,
+    "business": null,
+    "variant_bull": null,
+    "variant_bear": null,
+    "variant_needs": null,
+    "catalysts": [],
+    "risk_scenarios": [],
+    "valuation_context": null,
+    "must_be_true": [],
+    "would_change_mind": []
+  }}
+}}
+
+Rules:
+- Do not write generic company description.
+- If the ticker-specific context names a hidden asset, proxy thesis, strategic partner, regulatory risk, ETF exposure, or product cycle, include it.
+- Separate business quality from whether the rule action is Enter/Watch/Avoid.
+- Use plain PM language. No placeholders."""
+
+        try:
+            message = _call_with_timeout(
+                lambda: _messages_create(client,
+                    max_tokens=900,
+                    temperature=0,
+                    messages=[{"role": "user", "content": compact_prompt}],
+                ),
+                min(CLAUDE_PM_TIMEOUT_SECONDS, 14),
+                "Claude fast PM memo",
+            )
+            text = message.content[0].text.strip()
+            parsed = _parse_json_response(text)
+            parsed.setdefault("deep_dive", _empty_deep_dive(ticker))
+            parsed["_source"] = "claude fast"
+            return parsed
+        except Exception as compact_exc:
+            return _rule_backed_pm_snapshot(
+                ticker,
+                tactical_output=tactical_output,
+                company_name=company_name,
+                reason=compact_exc,
+            )
+
+        recent_news = _fetch_recent_news(client, ticker, company_name)
         prompt = f"""You are a senior portfolio manager at a long-biased hedge fund. Write a full investment note on {ticker}{' (' + company_name + ')' if company_name else ''}.
 
 CRITICAL: The ticker {ticker} refers to the US-listed security "{company_name if company_name else ticker}" trading on US stock exchanges (NYSE/NASDAQ). Do NOT confuse it with any foreign company that may share the same ticker symbol on another exchange (e.g. a Singapore, London, or Hong Kong-listed company). If the yfinance name seems wrong, trust the US stock market context — {ticker} is a US-listed security. All analysis must be about the US-listed {ticker} only.{recent_news}
