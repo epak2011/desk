@@ -341,7 +341,7 @@ def _empty_deep_dive(ticker):
 
 def _generic_snapshot(ticker):
     return {
-        "thesis": f"No generated PM thesis yet for {ticker}. Use Refresh to generate current PM research, drivers, risks, and valuation.",
+        "thesis": f"No generated PM thesis yet for {ticker}. Use Refresh PM memo to generate current PM research, drivers, risks, and valuation.",
         "drivers": ["Not yet analyzed"],
         "risks": ["Not yet analyzed"],
         "valuation": "Not yet analyzed",
