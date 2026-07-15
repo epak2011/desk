@@ -2661,7 +2661,7 @@ div.streamlit-expanderHeader {
 }
 .watchlist-dissent-list {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 6px 14px;
 }
 .watchlist-dissent-item {
@@ -2670,26 +2670,78 @@ div.streamlit-expanderHeader {
     color: var(--color-body);
     line-height: 1.45;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .watchlist-dissent-item a {
     color: var(--color-text) !important;
     font-weight: 850;
     text-decoration: none !important;
 }
-.watchlist-dissent-note {
-    margin-top: 2px;
-    font-family: var(--font-sans);
-    font-size: var(--fs-sm);
-    color: var(--color-muted);
-    line-height: 1.4;
-}
 .watchlist-review-link {
     color: var(--color-blue) !important;
     font-weight: 850;
     text-decoration: none !important;
+    white-space: nowrap;
 }
 .watchlist-review-link:hover {
     text-decoration: underline !important;
+}
+.watchlist-dissent-hover {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    z-index: 5;
+}
+.watchlist-dissent-bubble {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    width: min(420px, 72vw);
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-blue);
+    border-radius: 6px;
+    background: #FFFFFF;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+    color: var(--color-body);
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    line-height: 1.45;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+    z-index: 10000;
+}
+.watchlist-dissent-bubble strong {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: var(--ls-caps);
+    text-transform: uppercase;
+}
+.watchlist-dissent-bubble-note {
+    display: block;
+    margin-top: 8px;
+    color: var(--color-muted);
+}
+.watchlist-grid-row > .watchlist-pm-cell {
+    overflow: visible;
+}
+.watchlist-grid-row .watchlist-dissent-bubble,
+.watchlist-grid-row .watchlist-dissent-bubble span {
+    white-space: normal;
+}
+.watchlist-dissent-hover:hover .watchlist-dissent-bubble,
+.watchlist-dissent-hover:focus-within .watchlist-dissent-bubble {
+    display: block;
 }
 .watchlist-grid-row {
     min-width: 0;
@@ -4917,12 +4969,20 @@ def canonical_freshness_html(items, refresh_event=None):
             pm_label = str(refresh_event.get("pm_label") or "").strip()
             pm_kind = str(refresh_event.get("pm_kind") or "").strip()
             dossier_label = str(refresh_event.get("dossier_label") or "").strip()
+            pm_lower = pm_label.lower()
             pm_ok = pm_kind in ("fresh", "info") and not any(
                 marker in pm_label.lower()
                 for marker in ("timeout", "failed", "not generated", "unavailable", "cached/static")
             )
+            pm_fallback_ok = (
+                "rules fallback" in pm_lower
+                and "not generated" not in pm_lower
+                and "unavailable" not in pm_lower
+            )
             if pm_ok:
                 status = f"PM memo updated ({pm_label})."
+            elif pm_fallback_ok:
+                status = f"PM snapshot updated from rules fallback ({pm_label}). Claude did not finish cleanly."
             else:
                 status = (
                     f"PM memo did not update"
@@ -15464,16 +15524,11 @@ if view == "watchlist":
             for row in dissent_rows[:8]:
                 dissent = row.get("claude_dissent") or {}
                 reason = dissent.get("reason") or "Claude disagrees with rules."
-                note = dissent.get("note") or ""
-                note_html = (
-                    f'<div class="watchlist-dissent-note">{html.escape(note)}</div>'
-                    if note else ""
-                )
                 dissent_items.append(
                     f'<div class="watchlist-dissent-item">'
                     f'<a href="?open={html.escape(row["ticker"])}" target="_self">'
                     f'{html.escape(row["ticker"])}</a> · {html.escape(reason)}'
-                    f'{note_html}</div>'
+                    f'</div>'
                 )
             if len(dissent_rows) > 8:
                 dissent_items.append(
@@ -15485,7 +15540,8 @@ if view == "watchlist":
                 '<div class="watchlist-dissent-title">★ Claude dissent review</div>'
                 '<div class="watchlist-dissent-copy">'
                 'Rules still drive the action. These are the names where Claude '
-                'materially disagrees, so they deserve a manual second look.'
+                'materially disagrees. Hover the Claude dissent label in the table '
+                'for the stock-specific note.'
                 '</div>'
                 '<div class="watchlist-dissent-list">'
                 + "".join(dissent_items) +
@@ -15664,16 +15720,22 @@ if view == "watchlist":
                     f'color:var(--color-faint);">{row["personality_emoji"]} {row["personality"]}</span>'
                 )
                 dissent = row.get("claude_dissent") or {}
-                dissent_star = (
-                    f'<span title="{html.escape(dissent.get("reason", ""), quote=True)}" '
-                    f'style="margin-left:6px;color:var(--color-blue);font-weight:900;">★</span>'
-                    if dissent.get("flag") else ""
-                )
                 if dissent.get("flag"):
+                    dissent_reason = dissent.get("reason") or "Claude disagrees with rules."
+                    dissent_note = dissent.get("note") or "Open the ticker for the full PM context."
+                    dissent_bubble = (
+                        f'<span class="watchlist-dissent-bubble">'
+                        f'<strong>{html.escape(row["ticker"])} · Claude dissent</strong>'
+                        f'<span>{html.escape(dissent_reason)}</span>'
+                        f'<span class="watchlist-dissent-bubble-note">'
+                        f'{html.escape(dissent_note)}</span>'
+                        f'</span>'
+                    )
                     pm_cell_html = (
+                        f'<span class="watchlist-dissent-hover">'
                         f'<a class="watchlist-review-link" href="?open={html.escape(row["ticker"])}" '
-                        f'target="_self" title="{html.escape(dissent.get("reason", ""), quote=True)}">'
-                        f'Review ★</a>'
+                        f'target="_self">Claude dissent ★</a>'
+                        f'{dissent_bubble}</span>'
                     )
                 elif row.get("pm_needs_refresh"):
                     pm_cell_html = (
@@ -15697,7 +15759,7 @@ if view == "watchlist":
                         f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
                         f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
                         f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:800;'
+                        f'<span class="watchlist-pm-cell" style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:800;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
                         f'{pm_cell_html}</span>'
                     )
@@ -15711,9 +15773,9 @@ if view == "watchlist":
                         f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
                         f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+                        f'<span class="watchlist-pm-cell" style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
-                        f'{pm_cell_html}{dissent_star}</span>'
+                        f'{pm_cell_html}</span>'
                         f'<span class="state-pill" style="display:inline-flex;width:max-content;align-items:center;'
                         f'border:1px solid {state_color};border-radius:4px;background:{state_bg};'
                         f'padding:2px 6px;font-family:var(--font-sans);font-size:var(--fs-xs);'
