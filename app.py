@@ -2635,50 +2635,6 @@ div.streamlit-expanderHeader {
     color: var(--color-text);
     font-size: 12px;
 }
-.watchlist-dissent-panel {
-    border: 1px solid var(--color-border);
-    border-left: 3px solid var(--color-blue);
-    border-radius: 6px;
-    background: #FFFFFF;
-    padding: 10px 12px;
-    margin: 12px 0 10px;
-}
-.watchlist-dissent-title {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 850;
-    letter-spacing: var(--ls-caps-lg);
-    text-transform: uppercase;
-    color: var(--color-blue);
-    margin-bottom: 5px;
-}
-.watchlist-dissent-copy {
-    font-family: var(--font-sans);
-    font-size: var(--fs-sm);
-    color: var(--color-muted);
-    line-height: 1.45;
-    margin-bottom: 7px;
-}
-.watchlist-dissent-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 6px 14px;
-}
-.watchlist-dissent-item {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--color-body);
-    line-height: 1.45;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.watchlist-dissent-item a {
-    color: var(--color-text) !important;
-    font-weight: 850;
-    text-decoration: none !important;
-}
 .watchlist-review-link {
     color: var(--color-blue) !important;
     font-weight: 850;
@@ -2791,7 +2747,6 @@ div[data-baseweb="input"] input {
     }
     .research-layout { grid-template-columns: 1fr; }
     .research-page h1 { font-size: 42px; }
-    .watchlist-dissent-list { grid-template-columns: 1fr; }
     .watchlist-grid-row {
         font-size: 11px !important;
         column-gap: 7px !important;
@@ -15541,40 +15496,6 @@ if view == "watchlist":
                 'minmax(0,0.58fr) '
                 'minmax(0,0.58fr) '
                 'minmax(0,0.48fr);'
-            )
-
-        dissent_rows = [
-            r for r in rows
-            if (r.get("claude_dissent") or {}).get("flag")
-        ]
-        if dissent_rows:
-            dissent_items = []
-            for row in dissent_rows[:8]:
-                dissent = row.get("claude_dissent") or {}
-                reason = dissent.get("reason") or "Claude disagrees with rules."
-                dissent_items.append(
-                    f'<div class="watchlist-dissent-item">'
-                    f'<a href="?open={html.escape(row["ticker"])}" target="_self">'
-                    f'{html.escape(row["ticker"])}</a> · {html.escape(reason)}'
-                    f'</div>'
-                )
-            if len(dissent_rows) > 8:
-                dissent_items.append(
-                    f'<div class="watchlist-dissent-item">'
-                    f'+{len(dissent_rows) - 8} more in the table</div>'
-                )
-            st.markdown(
-                '<div class="watchlist-dissent-panel">'
-                '<div class="watchlist-dissent-title">★ Claude dissent review</div>'
-                '<div class="watchlist-dissent-copy">'
-                'Rules still drive the action. These are the names where Claude '
-                'materially disagrees. Hover the Claude dissent label in the table '
-                'for the stock-specific note.'
-                '</div>'
-                '<div class="watchlist-dissent-list">'
-                + "".join(dissent_items) +
-                '</div></div>',
-                unsafe_allow_html=True,
             )
 
         if compact_watchlist:
