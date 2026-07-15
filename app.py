@@ -3633,6 +3633,33 @@ def ticker_snapshot(ticker):
     }
 
 
+def current_final_action(snapshot):
+    """Return saved final action only when it is not older than market data."""
+    if not isinstance(snapshot, dict):
+        return {}
+    final_action = snapshot.get("final_action") or {}
+    if not isinstance(final_action, dict) or not final_action.get("action"):
+        return {}
+    market = snapshot.get("market") or {}
+    if not isinstance(market, dict) or not market:
+        return final_action
+
+    final_ts = snapshot.get("final_action_updated_at")
+    market_ts = snapshot.get("market_updated_at")
+    if not market_ts:
+        return final_action
+    if not final_ts:
+        return {}
+    try:
+        return (
+            final_action
+            if datetime.fromisoformat(str(final_ts)) >= datetime.fromisoformat(str(market_ts))
+            else {}
+        )
+    except Exception:
+        return {}
+
+
 def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None, *, persist=False):
     """Keep the sidebar price/action aligned with the main Analyze read."""
     tkr = str(ticker or "").upper().strip()
@@ -3694,7 +3721,8 @@ def sidebar_action_hint(ticker, snapshot=None):
         ):
             return current_t.get("action")
 
-    final_cached = (ticker_snapshot(tkr).get("final_action") or {})
+    canonical = ticker_snapshot(tkr)
+    final_cached = current_final_action(canonical)
     final_action = (
         normalize_action_key(final_cached.get("action"))
         if final_cached.get("source") != "claude" else ""
@@ -15054,7 +15082,7 @@ if view == "watchlist":
                 cached_confidence = int(cached_call.get("confidence", 0) or 0)
             except (TypeError, ValueError):
                 cached_confidence = 0
-            final_cached = canonical.get("final_action") or {}
+            final_cached = current_final_action(canonical)
             action = (
                 normalize_action_key(final_cached.get("action"))
                 or normalize_action_key(snapshot.get("action"))
