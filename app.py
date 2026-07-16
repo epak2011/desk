@@ -2649,7 +2649,7 @@ div.streamlit-expanderHeader {
     display: inline-flex;
     align-items: center;
     max-width: 100%;
-    z-index: 5;
+    z-index: 20;
 }
 .watchlist-dissent-bubble {
     display: none;
@@ -2661,8 +2661,9 @@ div.streamlit-expanderHeader {
     border: 1px solid var(--color-border);
     border-left: 3px solid var(--color-blue);
     border-radius: 6px;
-    background: #FFFFFF;
-    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+    background: #FFFFFF !important;
+    opacity: 1 !important;
+    box-shadow: 0 22px 54px rgba(15, 23, 42, 0.24);
     color: var(--color-body);
     font-family: var(--font-sans);
     font-size: var(--fs-sm);
@@ -2672,7 +2673,8 @@ div.streamlit-expanderHeader {
     white-space: normal;
     overflow-wrap: anywhere;
     text-align: left;
-    z-index: 10000;
+    z-index: 100000;
+    pointer-events: auto;
 }
 .watchlist-dissent-bubble strong {
     display: block;
@@ -2690,6 +2692,7 @@ div.streamlit-expanderHeader {
 }
 .watchlist-grid-row > .watchlist-pm-cell,
 .watchlist-grid-row > .watchlist-attention-cell {
+    position: relative;
     overflow: visible;
 }
 .watchlist-grid-row .watchlist-dissent-bubble,
@@ -2700,7 +2703,17 @@ div.streamlit-expanderHeader {
 .watchlist-dissent-hover:focus-within .watchlist-dissent-bubble {
     display: block;
 }
+.watchlist-dissent-hover:hover,
+.watchlist-dissent-hover:focus-within,
+.watchlist-grid-row > .watchlist-attention-cell:has(.watchlist-dissent-hover:hover),
+.watchlist-grid-row > .watchlist-attention-cell:has(.watchlist-dissent-hover:focus-within),
+.watchlist-grid-row:has(.watchlist-dissent-hover:hover),
+.watchlist-grid-row:has(.watchlist-dissent-hover:focus-within) {
+    z-index: 100000 !important;
+    overflow: visible !important;
+}
 .watchlist-grid-row {
+    position: relative;
     min-width: 0;
 }
 .watchlist-grid-row > * {
