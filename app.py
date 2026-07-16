@@ -7263,45 +7263,41 @@ with st.sidebar:
     st.markdown(
         """
         <style>
-        .desk-sidebar-nav {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 4px !important;
-            margin-bottom: 22px !important;
+        section[data-testid="stSidebar"] div.stButton {
+            margin-bottom: 4px !important;
         }
-        .desk-sidebar-nav a {
-            display: flex !important;
-            align-items: center !important;
+        section[data-testid="stSidebar"] div.stButton > button {
+            justify-content: flex-start !important;
             min-height: 36px !important;
             padding: 9px 13px !important;
             border-radius: 5px !important;
-            color: var(--color-text) !important;
             font-size: var(--fs-base) !important;
             font-weight: 650 !important;
             line-height: 1.15 !important;
-            text-decoration: none !important;
-        }
-        .desk-sidebar-nav a:hover {
-            background: #EEF2F7 !important;
-        }
-        .desk-sidebar-nav a.active {
-            background: var(--color-text) !important;
-            color: var(--color-bg) !important;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    nav_html = '<nav class="desk-sidebar-nav">'
     for view_key, view_label in view_labels.items():
-        active_class = " active" if view_key == st.session_state.view else ""
-        nav_html += (
-            f'<a class="{active_class.strip()}" '
-            f'href="?view={urllib.parse.quote(view_key)}">'
-            f'{html.escape(view_label)}</a>'
-        )
-    nav_html += "</nav>"
-    st.markdown(nav_html, unsafe_allow_html=True)
+        is_active = view_key == st.session_state.view
+        if st.button(
+            view_label,
+            key=f"sidebar_nav_{view_key}",
+            type="primary" if is_active else "secondary",
+            use_container_width=True,
+        ):
+            route_to(
+                view=view_key,
+                reason="sidebar nav",
+                sync_url=True,
+                sync_widget=False,
+                rerun=True,
+            )
+    st.markdown(
+        '<div style="height:18px;"></div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
     st.markdown(
