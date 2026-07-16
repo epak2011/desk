@@ -2688,7 +2688,8 @@ div.streamlit-expanderHeader {
     margin-top: 8px;
     color: var(--color-muted);
 }
-.watchlist-grid-row > .watchlist-pm-cell {
+.watchlist-grid-row > .watchlist-pm-cell,
+.watchlist-grid-row > .watchlist-attention-cell {
     overflow: visible;
 }
 .watchlist-grid-row .watchlist-dissent-bubble,
@@ -15702,6 +15703,12 @@ if view == "watchlist":
                     f'color:var(--color-faint);">{row["personality_emoji"]} {row["personality"]}</span>'
                 )
                 dissent = row.get("claude_dissent") or {}
+                attention_cell_html = (
+                    f'<span class="watchlist-attention-cell" '
+                    f'style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+                    f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
+                    f'{html.escape(str(row["attention"]))}</span>'
+                )
                 if dissent.get("flag"):
                     dissent_reason = dissent.get("reason") or "Claude disagrees with rules."
                     dissent_note = dissent.get("note") or "Open the ticker for the full PM context."
@@ -15713,13 +15720,13 @@ if view == "watchlist":
                         f'{html.escape(dissent_note)}</span>'
                         f'</span>'
                     )
-                    pm_cell_html = (
-                        f'<span class="watchlist-dissent-hover">'
+                    attention_cell_html = (
+                        f'<span class="watchlist-attention-cell watchlist-dissent-hover">'
                         f'<a class="watchlist-review-link" href="?open={html.escape(row["ticker"])}" '
                         f'target="_self">Claude dissent ★</a>'
                         f'{dissent_bubble}</span>'
                     )
-                elif row.get("pm_needs_refresh"):
+                if row.get("pm_needs_refresh"):
                     pm_cell_html = (
                         f'<a class="watchlist-review-link" href="?pm_refresh={html.escape(row["ticker"])}" '
                         f'target="_self" title="Refresh PM memo/dossier for {html.escape(row["ticker"])}">'
@@ -15733,9 +15740,7 @@ if view == "watchlist":
                         f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
                         f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
-                        f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
-                        f'{row["attention"]}</span>'
+                        f'{attention_cell_html}'
                         f'<span style="text-align:right;color:var(--color-faint);">{high_52w_str}</span>'
                         f'<span style="text-align:right;color:var(--color-faint);">{low_52w_str}</span>'
                         f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
@@ -15749,9 +15754,7 @@ if view == "watchlist":
                     row_cells = (
                         f'{ticker_link}'
                         f'{personality_html}'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
-                        f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["attention_color"]};">'
-                        f'{row["attention"]}</span>'
+                        f'{attention_cell_html}'
                         f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
                         f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
                         f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
