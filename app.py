@@ -7263,17 +7263,54 @@ with st.sidebar:
     st.markdown(
         """
         <style>
-        section[data-testid="stSidebar"] div.stButton {
-            margin-bottom: 4px !important;
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] {
+            margin: 0 0 4px 0 !important;
+            padding: 0 !important;
         }
-        section[data-testid="stSidebar"] div.stButton > button {
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] div.stButton {
+            margin: 0 !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button {
+            display: flex !important;
+            align-items: center !important;
             justify-content: flex-start !important;
+            width: 100% !important;
+            height: 36px !important;
             min-height: 36px !important;
-            padding: 9px 13px !important;
+            padding: 0 13px !important;
             border-radius: 5px !important;
-            font-size: var(--fs-base) !important;
+            text-align: left !important;
+            box-shadow: none !important;
+            transition: none !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button p {
+            width: 100% !important;
+            margin: 0 !important;
+            color: inherit !important;
+            font-size: var(--fs-sm) !important;
             font-weight: 650 !important;
-            line-height: 1.15 !important;
+            line-height: 1.1 !important;
+            text-align: left !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button[kind="secondary"] {
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            color: var(--color-text) !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button[kind="secondary"]:hover {
+            background: #FFFFFF !important;
+            border-color: #E0E4EA !important;
+            color: var(--color-text) !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button[kind="primary"] {
+            background: #111111 !important;
+            border-color: #111111 !important;
+            color: #FFFFFF !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button[kind="primary"]:hover {
+            background: #111111 !important;
+            border-color: #111111 !important;
+            color: #FFFFFF !important;
         }
         </style>
         """,
