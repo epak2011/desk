@@ -696,10 +696,11 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
             pass
 
     pm = get_pm_view(ticker, tactical_output, api_key=api_key, company_name=company_name)
-    # Count this fresh Claude call if it actually hit the API. Source is
-    # "claude" on success, "static" or "static (claude call failed: ...)"
-    # on fallback — only the first counts toward session cost.
-    if pm.get("_source") == "claude":
+    # Count this fresh Claude call if it actually hit the API. The fast path
+    # reports "claude fast"; if that times out, pm_view returns a current
+    # rules-backed PM snapshot instead of a stale placeholder.
+    pm_source = str(pm.get("_source") or "")
+    if pm_source.startswith("claude"):
         st.session_state["claude_calls_this_session"] = (
             st.session_state.get("claude_calls_this_session", 0) + 1
         )
@@ -708,11 +709,12 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
         thesis_text.startswith(f"No thesis on file for {ticker}")
         or thesis_text.startswith(f"No generated PM thesis yet for {ticker}")
     )
-    if (is_placeholder_pm or pm.get("_source") != "claude") and entry:
+    source_is_current_pm = pm_source.startswith("claude") or pm_source.startswith("rules fallback")
+    if (is_placeholder_pm or not source_is_current_pm) and entry:
         try:
             age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
             fallback = dict(entry["view"])
-            reason = str(pm.get("_source") or "refresh failed")
+            reason = pm_source or "refresh failed"
             fallback["_source"] = (
                 (entry.get("source") or "cached")
                 + f" · {age.days}d old · refresh failed ({reason})"
@@ -726,7 +728,7 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
         cache[ticker] = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "view": {k: v for k, v in pm.items() if not k.startswith("_")},
-            "source": pm.get("_source", "static"),
+            "source": pm_source or "static",
         }
         merge_ticker_snapshot(ticker, pm_entry=cache[ticker])
         save_store(st.session_state.store)
@@ -4702,6 +4704,8 @@ def pm_status_label(source):
     lower = str(source).lower()
     if not source:
         return "not generated", "warn"
+    if "rules fallback" in lower:
+        return source, "info"
     if "cached only" in lower or "fast mode" in lower:
         return "cached/static · fast mode", "info"
     if "unavailable" in lower:
@@ -4741,13 +4745,16 @@ def research_health_items(pm, dossier_result, api_key):
         or thesis == "Not yet analyzed"
     )
     pm_label, pm_kind = pm_status_label(pm_source)
-    if "timed out" in pm_source.lower():
+    pm_source_lower = pm_source.lower()
+    if "rules fallback" in pm_source_lower and not pm_is_placeholder:
+        pm_row = ("PM memo", pm_label, "info")
+    elif "timed out" in pm_source_lower:
         pm_row = (
             ("PM memo", "cached after timeout", "info")
             if not pm_is_placeholder
             else ("PM memo", "timed out", "warn")
         )
-    elif "failed" in pm_source.lower() or "fallback" in pm_source.lower():
+    elif "failed" in pm_source_lower or "fallback" in pm_source_lower:
         pm_row = ("PM memo", pm_label, "warn")
     elif pm_is_placeholder:
         pm_row = ("PM memo", "not generated", "warn")
