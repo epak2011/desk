@@ -7297,6 +7297,14 @@ with st.sidebar:
             box-shadow: none !important;
             transition: none !important;
         }
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button > div,
+        section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button [data-testid="stMarkdownContainer"] {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            width: 100% !important;
+            text-align: left !important;
+        }
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button p {
             width: 100% !important;
             margin: 0 !important;
