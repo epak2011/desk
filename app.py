@@ -8724,6 +8724,15 @@ div[data-testid="element-container"]:has(.desk-bar) {
     font-size: 14px;
 }
 
+.desk-refresh-note {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--desk-muted);
+    padding: 10px 0 0;
+}
+
 .desk-pm-utility {
     border: 1px solid var(--desk-border);
     border-radius: 6px;
@@ -10105,6 +10114,22 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
+
+        refresh_data_col, refresh_data_note_col = st.columns([1, 2])
+        with refresh_data_col:
+            if st.button(
+                f"↻ Refresh market data",
+                key=f"refresh_current_market_{ticker.upper()}",
+                help="Fast refresh: price, fundamentals, rule action, and sidebar row. Does not wait on Claude.",
+                use_container_width=True,
+            ):
+                refresh_current_ticker_state(ticker, refresh_research=False)
+                st.rerun()
+        with refresh_data_note_col:
+            st.markdown(
+                '<div class="desk-refresh-note">Updates price, metadata, rule action, and sidebar row.</div>',
+                unsafe_allow_html=True,
+            )
 
         if position_read:
             stat_html = "".join(
@@ -11656,20 +11681,11 @@ if view == "analyze":
 """, unsafe_allow_html=True)
         st.markdown(
             '<div class="desk-pm-utility">'
-            '<div class="desk-pm-utility-label">Data / actions</div>',
+            '<div class="desk-pm-utility-label">PM / research actions</div>',
             unsafe_allow_html=True,
         )
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
-        refresh_market_col, refresh_pm_col, refresh_report_col = st.columns([1, 1, 1])
-        with refresh_market_col:
-            if st.button(
-                f"↻ Refresh data",
-                key=f"refresh_current_market_{ticker.upper()}",
-                help="Fast refresh: price, fundamentals, rule action, and sidebar row. Does not wait on Claude.",
-                use_container_width=True,
-            ):
-                refresh_current_ticker_state(ticker, refresh_research=False)
-                st.rerun()
+        refresh_pm_col, refresh_report_col = st.columns([1, 1])
         with refresh_pm_col:
             if st.button(
                 f"🧠 Refresh PM memo",
