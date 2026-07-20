@@ -5107,6 +5107,32 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
     save_store(st.session_state.store)
 
 
+def queue_full_report_refresh(ticker):
+    """Queue a full-report refresh without routing away from the report page."""
+    refresh_ticker = str(ticker or "").upper().strip()
+    if not refresh_ticker:
+        return
+    try:
+        fetch_quote_meta.clear(refresh_ticker)
+    except Exception:
+        pass
+    try:
+        fetch_history.clear(refresh_ticker)
+    except Exception:
+        fetch_history.clear()
+    _delete_history_cache(refresh_ticker)
+    st.session_state["_force_dossier_refresh_ticker"] = refresh_ticker
+    pending_dossier = st.session_state.setdefault("_pending_dossier_refreshes", {})
+    pending_dossier[refresh_ticker] = datetime.now().isoformat(timespec="seconds")
+    st.session_state["_refresh_result"] = {
+        "ticker": refresh_ticker,
+        "time": now_market_time().strftime("%-I:%M %p"),
+        "research": True,
+        "full_report": True,
+    }
+    save_store(st.session_state.store)
+
+
 def get_effective_api_key():
     try:
         secret_key = st.secrets.get("ANTHROPIC_API_KEY", "").strip()
@@ -5173,15 +5199,30 @@ def render_research_report(ticker):
 
     t = tactical.compute(hist, bench)
     api_key = get_effective_api_key()
+    pending_dossier_refreshes = st.session_state.setdefault("_pending_dossier_refreshes", {})
+    force_dossier_refresh = (
+        st.session_state.pop("_force_dossier_refresh_ticker", "") == ticker
+        or ticker in pending_dossier_refreshes
+    )
     pm = get_cached_pm(ticker, t, api_key=api_key if api_key else None, company_name=company)
     price_age_label, price_age_kind = format_market_data_age(hist)
     bench_label, bench_kind = benchmark_source_label(bench)
     modifiers = tactical.decision_modifiers(t, meta, t.get("market_regime", "unknown"))
-    dossier = get_cached_dossier(
-        ticker, t, modifiers, meta, pm,
-        api_key=api_key if api_key else None, company_name=company,
-        allow_generate=True,
-    )
+    if force_dossier_refresh:
+        with st.spinner(f"Refreshing full {ticker} research report..."):
+            dossier = get_cached_dossier(
+                ticker, t, modifiers, meta, pm,
+                api_key=api_key if api_key else None, company_name=company,
+                allow_generate=True,
+                force_generate=True,
+            )
+        pending_dossier_refreshes.pop(ticker, None)
+    else:
+        dossier = get_cached_dossier(
+            ticker, t, modifiers, meta, pm,
+            api_key=api_key if api_key else None, company_name=company,
+            allow_generate=True,
+        )
     quality = (dossier or {}).get("quality") or {}
     q_label = quality.get("tier") or "Unrated"
     q_text = quality.get("rationale") or pm.get("thesis") or "No long-form quality note is available yet."
@@ -5431,6 +5472,23 @@ def render_research_report(ticker):
     )
     must_be_true = deep.get("must_be_true") or watch_items[:3]
     would_change_mind = deep.get("would_change_mind") or pm.get("risks") or watch_items[1:]
+
+    refresh_col, back_col = st.columns([1, 3])
+    with refresh_col:
+        if st.button(
+            f"📋 Refresh full report",
+            key=f"refresh_full_report_page_{ticker}",
+            help="Regenerate this full research report and its long-form dossier.",
+            use_container_width=True,
+        ):
+            queue_full_report_refresh(ticker)
+            st.rerun()
+    with back_col:
+        st.markdown(
+            f'<a class="research-link" href="?ticker={html.escape(ticker)}&view=analyze" '
+            f'target="_self" rel="noopener">← Back to analyze</a>',
+            unsafe_allow_html=True,
+        )
 
     st.markdown(f"""
 <div class="research-page">
@@ -11685,29 +11743,14 @@ if view == "analyze":
             unsafe_allow_html=True,
         )
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
-        refresh_pm_col, refresh_report_col = st.columns([1, 1])
-        with refresh_pm_col:
-            if st.button(
-                f"🧠 Refresh PM memo",
-                key=f"refresh_current_pm_{ticker.upper()}",
-                help="Fast refresh: visible PM thesis, quality box, drivers, risks, and valuation. Does not wait on the long full report.",
-                use_container_width=True,
-            ):
-                refresh_current_ticker_state(ticker, refresh_research=True)
-                st.rerun()
-        with refresh_report_col:
-            if st.button(
-                f"📋 Refresh full report",
-                key=f"refresh_current_dossier_{ticker.upper()}",
-                help="Slow refresh: regenerate the longer decision dossier / full research report. Use this when the report itself is stale.",
-                use_container_width=True,
-            ):
-                refresh_current_ticker_state(
-                    ticker,
-                    refresh_research=True,
-                    refresh_full_report=True,
-                )
-                st.rerun()
+        if st.button(
+            f"🧠 Refresh PM memo",
+            key=f"refresh_current_pm_{ticker.upper()}",
+            help="Fast refresh: visible PM thesis, quality box, drivers, risks, and valuation. The long full report refresh lives on the full report page.",
+            use_container_width=True,
+        ):
+            refresh_current_ticker_state(ticker, refresh_research=True)
+            st.rerun()
         st.markdown(
             f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
             f'target="_blank" rel="noopener">✨ Full research report ↗</a>',
