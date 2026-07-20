@@ -7348,20 +7348,23 @@ with st.sidebar:
         """
         <style>
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] {
-            margin: 0 0 4px 0 !important;
+            margin: 0 0 6px 0 !important;
             padding: 0 !important;
+            width: auto !important;
         }
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] div.stButton {
             margin: 0 !important;
+            width: auto !important;
         }
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button {
-            display: flex !important;
+            display: inline-flex !important;
             align-items: center !important;
             justify-content: flex-start !important;
-            width: 100% !important;
-            height: 36px !important;
-            min-height: 36px !important;
-            padding: 0 13px !important;
+            width: auto !important;
+            max-width: max-content !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 5px 10px !important;
             border-radius: 5px !important;
             text-align: left !important;
             box-shadow: none !important;
@@ -7372,11 +7375,11 @@ with st.sidebar:
             display: flex !important;
             align-items: center !important;
             justify-content: flex-start !important;
-            width: 100% !important;
+            width: auto !important;
             text-align: left !important;
         }
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button p {
-            width: 100% !important;
+            width: auto !important;
             margin: 0 !important;
             color: inherit !important;
             font-size: var(--fs-sm) !important;
@@ -7398,6 +7401,8 @@ with st.sidebar:
             background: #111111 !important;
             border-color: #111111 !important;
             color: #FFFFFF !important;
+            padding-left: 12px !important;
+            padding-right: 12px !important;
         }
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button[kind="primary"]:hover {
             background: #111111 !important;
@@ -7708,6 +7713,45 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
     transform: translateX(2px);
     background: rgba(37, 99, 235, 0.08) !important;
     border-color: rgba(37, 99, 235, 0.14) !important;
+}
+/* Sidebar primary navigation: compact left rail, not giant full-width pills. */
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] {
+    margin: 0 0 6px 0 !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] div.stButton {
+    width: auto !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button {
+    display: inline-flex !important;
+    width: auto !important;
+    max-width: max-content !important;
+    min-height: 30px !important;
+    height: 30px !important;
+    padding: 5px 10px !important;
+    border-radius: 5px !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    transform: none !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button p,
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button [data-testid="stMarkdownContainer"] {
+    width: auto !important;
+    margin: 0 !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button[kind="primary"] {
+    background: #111111 !important;
+    border-color: #111111 !important;
+    color: #FFFFFF !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button[kind="primary"]:hover {
+    background: #111111 !important;
+    border-color: #111111 !important;
+    color: #FFFFFF !important;
+    transform: none !important;
 }
 section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
     background: linear-gradient(135deg, #111827 0%, #2563EB 72%, #06B6D4 100%) !important;
