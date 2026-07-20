@@ -7348,7 +7348,7 @@ with st.sidebar:
         """
         <style>
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] {
-            margin: 0 0 6px 0 !important;
+            margin: 0 0 2px 0 !important;
             padding: 0 !important;
             width: auto !important;
         }
@@ -7362,9 +7362,9 @@ with st.sidebar:
             justify-content: flex-start !important;
             width: auto !important;
             max-width: max-content !important;
-            height: 30px !important;
-            min-height: 30px !important;
-            padding: 5px 10px !important;
+            height: 26px !important;
+            min-height: 26px !important;
+            padding: 3px 10px !important;
             border-radius: 5px !important;
             text-align: left !important;
             box-shadow: none !important;
@@ -7384,7 +7384,7 @@ with st.sidebar:
             color: inherit !important;
             font-size: var(--fs-sm) !important;
             font-weight: 650 !important;
-            line-height: 1.1 !important;
+            line-height: 1 !important;
             text-align: left !important;
         }
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] button[kind="secondary"] {
@@ -7716,7 +7716,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
 }
 /* Sidebar primary navigation: compact left rail, not giant full-width pills. */
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] {
-    margin: 0 0 6px 0 !important;
+    margin: 0 0 2px 0 !important;
 }
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] div.stButton {
     width: auto !important;
@@ -7725,9 +7725,9 @@ section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button {
     display: inline-flex !important;
     width: auto !important;
     max-width: max-content !important;
-    min-height: 30px !important;
-    height: 30px !important;
-    padding: 5px 10px !important;
+    min-height: 26px !important;
+    height: 26px !important;
+    padding: 3px 10px !important;
     border-radius: 5px !important;
     justify-content: flex-start !important;
     text-align: left !important;
@@ -7738,6 +7738,7 @@ section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button [data-tes
     width: auto !important;
     margin: 0 !important;
     text-align: left !important;
+    line-height: 1 !important;
     white-space: nowrap !important;
 }
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button[kind="primary"] {
