@@ -10230,7 +10230,8 @@ if view == "analyze":
                 st.rerun()
         with refresh_data_note_col:
             st.markdown(
-                '<div class="desk-refresh-note">Updates price, metadata, rule action, and sidebar row.</div>',
+                '<div class="desk-refresh-note">Updates price, metadata, rule action, and sidebar row. '
+                'Narrative refreshes live on the PM memo / dossier controls.</div>',
                 unsafe_allow_html=True,
             )
 
@@ -10478,6 +10479,7 @@ if view == "analyze":
             # substitution layer.
             freshness = (dossier_result or {}).get("_freshness") or {}
             freshness_caption = ""
+            dossier_is_stale = bool(freshness.get("age_days", 0) > 0 or freshness.get("stale"))
             if freshness.get("age_days", 0) > 0:
                 age_days = freshness["age_days"]
                 cached_p = freshness.get("price_at_generation")
@@ -10493,7 +10495,7 @@ if view == "analyze":
                         f'font-size: var(--fs-sm); color: var(--color-faint);'
                         f'margin-top: 8px; padding-top: 8px;'
                         f'border-top: 1px dashed var(--color-border-soft);">'
-                        f'Analysis from {age_days}d ago. Current numbers shown. '
+                        f'Market data is current; this written dossier is {age_days}d old. '
                         f'Price has moved <span style="color:{pct_color};">'
                         f'{pct_moved:+.1f}%</span> since (${cached_p:,.2f} → ${live_p:,.2f}).'
                         f'</div>'
@@ -10504,7 +10506,7 @@ if view == "analyze":
                         f'font-size: var(--fs-sm); color: var(--color-faint);'
                         f'margin-top: 8px; padding-top: 8px;'
                         f'border-top: 1px dashed var(--color-border-soft);">'
-                        f'Analysis from {age_days}d ago. Current numbers shown.'
+                        f'Market data is current; this written dossier is {age_days}d old.'
                         f'</div>'
                     )
 
@@ -10518,6 +10520,18 @@ if view == "analyze":
   {freshness_caption}
 </div>
 """, unsafe_allow_html=True)
+            if dossier_is_stale:
+                if st.button(
+                    "Refresh decision dossier",
+                    key=f"refresh_stale_dossier_{ticker.upper()}",
+                    help="Regenerates the written decision dossier with current market data. This can take longer than the fast market-data refresh.",
+                ):
+                    refresh_current_ticker_state(
+                        ticker,
+                        refresh_research=True,
+                        refresh_full_report=True,
+                    )
+                    st.rerun()
 
         # 1a-extra. DECISION COMPARISON — rule engine vs Claude vs you.
         # Diagnostic panel for the 2-4 week trial period to evaluate which
