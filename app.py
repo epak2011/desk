@@ -3428,20 +3428,12 @@ def sidebar_watchlist_snapshot(tickers):
             except Exception:
                 t_state = None
                 action = None
+        market_payload = _market_snapshot_from_t_state(t_state or {}, hist)
         snapshot[tkr] = {
+            **market_payload,
             "last": last,
             "change_pct": (last / prev - 1) * 100 if prev else 0,
-            "action": action,
-            "state": (t_state or {}).get("state"),
-            "rs": (t_state or {}).get("rs"),
-            "pct_ma50": (
-                ((t_state or {}).get("price") - (t_state or {}).get("ma50")) / (t_state or {}).get("ma50") * 100
-                if (t_state or {}).get("price") and (t_state or {}).get("ma50") else None
-            ),
-            "high_52w": (t_state or {}).get("high_52w"),
-            "low_52w": (t_state or {}).get("low_52w"),
-            "pct_52w_range": (t_state or {}).get("pct_of_52w_range"),
-            "vol_ratio": (t_state or {}).get("vol_ratio"),
+            "action": action or market_payload.get("action"),
             "price_age": price_age_label,
             "price_age_kind": price_age_kind,
             "updated_at": datetime.now().isoformat(timespec="seconds"),
@@ -3481,6 +3473,96 @@ def _slim_dict(data):
     return {k: v for k, v in data.items() if not str(k).startswith("_")}
 
 
+def _num_or_none(value):
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def build_trigger_monitor(t_state):
+    """Small trigger read model shared by Analyze, Watchlist, and sidebar."""
+    if not isinstance(t_state, dict):
+        return {}
+
+    price = _num_or_none(t_state.get("price") or t_state.get("last"))
+    action = normalize_action_key(t_state.get("action")) or t_state.get("action")
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    levels = trigger.get("levels") if isinstance(trigger.get("levels"), dict) else {}
+    buy_above = _num_or_none(levels.get("buy_above"))
+    entry = _num_or_none(t_state.get("entry"))
+    level = buy_above
+    if level is None and t_state.get("entry_is_projected"):
+        level = entry
+
+    fired = bool(t_state.get("trigger_fired") or trigger.get("fired"))
+    fired_reason = str(
+        t_state.get("trigger_fired_reason")
+        or trigger.get("fired_reason")
+        or ""
+    ).strip()
+
+    base = {
+        "level": level,
+        "fired": fired,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    if fired:
+        return {
+            **base,
+            "status": "fired",
+            "label": "Fired",
+            "distance_pct": 0.0,
+            "detail": fired_reason or "The prior trigger has fired and is still valid.",
+        }
+
+    if action == "enter_now":
+        return {
+            **base,
+            "status": "now",
+            "label": "Now",
+            "distance_pct": 0.0,
+            "detail": "Rules say this setup is actionable at the current price.",
+        }
+
+    if level is None or price is None or price <= 0:
+        return {
+            **base,
+            "status": "none",
+            "label": "—",
+            "distance_pct": None,
+            "detail": trigger.get("buy_rule") or trigger.get("summary") or "",
+        }
+
+    distance_pct = (level - price) / price * 100
+    if distance_pct <= 0:
+        status = "hit"
+        label = "Hit"
+        detail = (
+            fired_reason
+            or trigger.get("buy_rule")
+            or f"Price is above the trigger level at ${level:.2f}."
+        )
+    elif distance_pct <= 3:
+        status = "near"
+        label = f"{distance_pct:+.1f}%"
+        detail = trigger.get("buy_rule") or f"Trigger level is ${level:.2f}."
+    else:
+        status = "waiting"
+        label = f"{distance_pct:+.1f}%"
+        detail = trigger.get("buy_rule") or f"Trigger level is ${level:.2f}."
+
+    return {
+        **base,
+        "status": status,
+        "label": label,
+        "distance_pct": distance_pct,
+        "detail": detail,
+    }
+
+
 def _market_snapshot_from_t_state(t_state, hist=None):
     """Canonical market/rule payload used by sidebar, watchlist, and Analyze."""
     if not isinstance(t_state, dict):
@@ -3490,6 +3572,7 @@ def _market_snapshot_from_t_state(t_state, hist=None):
     if price is None:
         return {}
     price_age_label, price_age_kind = format_market_data_age(hist)
+    trigger_monitor = build_trigger_monitor(t_state)
     return {
         "last": float(price),
         "change_pct": float(change) if change is not None else None,
@@ -3505,9 +3588,17 @@ def _market_snapshot_from_t_state(t_state, hist=None):
         "pct_52w_range": t_state.get("pct_of_52w_range"),
         "vol_ratio": t_state.get("vol_ratio"),
         "trigger": t_state.get("trigger"),
+        "trigger_monitor": trigger_monitor,
+        "trigger_fired": bool(t_state.get("trigger_fired") or (t_state.get("trigger") or {}).get("fired")),
+        "trigger_fired_reason": t_state.get("trigger_fired_reason") or (t_state.get("trigger") or {}).get("fired_reason"),
         "entry": t_state.get("entry"),
+        "entry_is_projected": t_state.get("entry_is_projected"),
         "stop": t_state.get("stop"),
         "t1": t_state.get("t1"),
+        "decision": {
+            "action": t_state.get("action"),
+            "trigger": trigger_monitor,
+        },
         "price_age": price_age_label,
         "price_age_kind": price_age_kind,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
@@ -15170,10 +15261,11 @@ if view == "watchlist":
         dossier_cache = st.session_state.store.get("dossier_cache", {})
         owned_ticker_set = active_position_tickers()
 
-        def _watchlist_attention(tkr, t_state, trig_dist, earnings_days, cached):
+        def _watchlist_attention(tkr, t_state, trig_dist, earnings_days, cached, trigger_monitor=None):
             """Compact attention label + priority for the watchlist table."""
             ticker_key = str(tkr).upper()
             action = t_state.get("action")
+            trigger_monitor = trigger_monitor if isinstance(trigger_monitor, dict) else {}
             cached_call = ((cached.get("result") or {}).get("tactical_call") or {})
             cached_action = normalize_action_key(cached_call.get("action"))
             try:
@@ -15188,14 +15280,16 @@ if view == "watchlist":
             )
             if dissent.get("flag"):
                 return "★ Claude dissent", 0, "var(--color-blue)"
+            if trigger_monitor.get("status") in {"fired", "hit"}:
+                return "🎯 Trigger hit", 1, "var(--color-positive)"
             if action == "enter_now":
-                return "🚀 Enter", 1, "var(--color-positive)"
+                return "🚀 Enter", 2, "var(--color-positive)"
             if ticker_key in owned_ticker_set:
-                return "🟢 Position", 2, "var(--color-blue)"
+                return "🟢 Position", 3, "var(--color-blue)"
             if trig_dist is not None and abs(trig_dist) <= 3:
-                return "🎯 Near trigger", 3, "var(--color-warning-text)"
+                return "🎯 Near trigger", 4, "var(--color-warning-text)"
             if earnings_days is not None and -1 <= earnings_days <= 7:
-                return "📅 Earnings", 4, "var(--color-warning-text)"
+                return "📅 Earnings", 5, "var(--color-warning-text)"
             if action == "watch":
                 return "👀 Watch", 6, "var(--color-warning-text)"
             return "—", 99, "var(--color-faint)"
@@ -15246,6 +15340,14 @@ if view == "watchlist":
                 or cached_action
                 or "watch"
             )
+            trigger_monitor = snapshot.get("trigger_monitor")
+            if not isinstance(trigger_monitor, dict):
+                trigger_monitor = build_trigger_monitor({
+                    **snapshot,
+                    "price": snapshot.get("last"),
+                    "action": action,
+                })
+            trig_dist = trigger_monitor.get("distance_pct")
             fallback_profile = infer_security_profile(key, meta, key)
             if (
                 fallback_profile.get("sector") in {"ETF", "Fund"}
@@ -15286,7 +15388,7 @@ if view == "watchlist":
                 "tech_delta": 0,
             }
             attention_label, attention_rank, attention_color = _watchlist_attention(
-                key, t_stub, None, None, cached
+                key, t_stub, trig_dist, None, cached, trigger_monitor
             )
             pm_row_label, pm_row_color, pm_needs_refresh = _watchlist_pm_cell(key)
             personality = {
@@ -15306,7 +15408,10 @@ if view == "watchlist":
                 "rs": t_stub["rs"],
                 "rs_delta": 0,
                 "pct_ma50": _safe_float(snapshot.get("pct_ma50"), 0),
-                "trig_dist": None,
+                "trig_dist": trig_dist,
+                "trigger_label": trigger_monitor.get("label") or "—",
+                "trigger_status": trigger_monitor.get("status") or "none",
+                "trigger_detail": trigger_monitor.get("detail") or "",
                 "earnings_days": meta.get("earnings_days") if isinstance(meta, dict) else None,
                 "quality": quality_tier,
                 "sector": sector,
@@ -15405,9 +15510,14 @@ if view == "watchlist":
                     # Trigger distance % — how close to a logged trigger?
                     trig = t.get("trigger") or {}
                     buy_above = trig.get("levels", {}).get("buy_above") if trig else None
+                    trigger_monitor = build_trigger_monitor(t)
                     trig_dist = (
-                        (buy_above - t["price"]) / t["price"] * 100
-                        if buy_above and t["price"] else None
+                        trigger_monitor.get("distance_pct")
+                        if trigger_monitor.get("distance_pct") is not None
+                        else (
+                            (buy_above - t["price"]) / t["price"] * 100
+                            if buy_above and t["price"] else None
+                        )
                     )
 
                     # % from MA50
@@ -15423,7 +15533,7 @@ if view == "watchlist":
                     else:
                         sector = (meta.get("sector") if meta else None) or fallback_profile.get("sector") or "—"
                     attention_label, attention_rank, attention_color = _watchlist_attention(
-                        tkr, t, trig_dist, earnings_days, cached
+                        tkr, t, trig_dist, earnings_days, cached, trigger_monitor
                     )
                     pm_row_label, pm_row_color, pm_needs_refresh = _watchlist_pm_cell(tkr)
                     personality = classify_setup_personality(t, quality_tier)
@@ -15439,6 +15549,9 @@ if view == "watchlist":
                         "rs_delta": t.get("rs_delta", 0),
                         "pct_ma50": pct_ma50,
                         "trig_dist": trig_dist,
+                        "trigger_label": trigger_monitor.get("label") or "—",
+                        "trigger_status": trigger_monitor.get("status") or "none",
+                        "trigger_detail": trigger_monitor.get("detail") or "",
                         "earnings_days": earnings_days,
                         "quality": quality_tier,
                         "sector": sector,
@@ -15826,8 +15939,17 @@ if view == "watchlist":
                     "TRANSITION": "rgba(209, 135, 0, 0.10)",
                     "BROKEN": "rgba(209, 69, 69, 0.09)",
                 }.get(state_key, "rgba(100, 116, 139, 0.08)")
-                trig_str = (
+                trig_str = row.get("trigger_label") or (
                     f'{row["trig_dist"]:+.1f}%' if row["trig_dist"] is not None else "—"
+                )
+                trig_color = (
+                    "var(--color-positive)"
+                    if row.get("trigger_status") in {"fired", "hit", "now"}
+                    else (
+                        "var(--color-warning-text)"
+                        if row.get("trigger_status") == "near"
+                        else "var(--color-faint)"
+                    )
                 )
                 earn_str = (
                     f'{row["earnings_days"]}d' if row["earnings_days"] is not None
@@ -15913,7 +16035,7 @@ if view == "watchlist":
                         f'<span style="text-align:right;color:var(--color-faint);">{low_52w_str}</span>'
                         f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
                         f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
-                        f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
+                        f'<span style="text-align:right;color:{trig_color};">{html.escape(str(trig_str))}</span>'
                         f'<span class="watchlist-pm-cell" style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:800;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
                         f'{pm_cell_html}</span>'
@@ -15939,7 +16061,7 @@ if view == "watchlist":
                         f'<span style="text-align:right;color:{ma_color};">{row["pct_ma50"]:+.1f}%</span>'
                         f'<span style="text-align:right;color:{pos_color};">{pct_52w:.0f}%</span>'
                         f'<span style="text-align:right;color:{vol_color};">{row["vol_ratio"]:.1f}×</span>'
-                        f'<span style="text-align:right;color:var(--color-faint);">{trig_str}</span>'
+                        f'<span style="text-align:right;color:{trig_color};">{html.escape(str(trig_str))}</span>'
                         f'<span style="text-align:right;color:var(--color-faint);">{earn_str}</span>'
                     )
 
