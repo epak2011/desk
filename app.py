@@ -407,6 +407,32 @@ def _stable_json(value):
     return json.dumps(_json_safe(value), allow_nan=False, sort_keys=True, separators=(",", ":"))
 
 
+def _seed_persist_fingerprints(store):
+    """Mark freshly loaded rows as clean so first click does not rewrite them."""
+    try:
+        fingerprints = _persist_cache()
+        core, chat, decisions, regime_cache = _split_store_sections(_json_safe(store or {}))
+        fingerprints["core"] = _stable_json(core)
+        fingerprints["chat"] = {
+            str(ticker).upper().strip(): _stable_json(messages or [])
+            for ticker, messages in (chat if isinstance(chat, dict) else {}).items()
+            if str(ticker).strip()
+        }
+        fingerprints["decisions"] = {}
+        for idx, entry in enumerate(decisions if isinstance(decisions, list) else []):
+            if not isinstance(entry, dict):
+                continue
+            entry_id = str(entry.get("id") or "").strip() or f"legacy-{idx}"
+            fingerprints["decisions"][entry_id] = _stable_json(entry)
+        fingerprints["regime"] = {
+            str(day).strip(): _stable_json(entry or {})
+            for day, entry in (regime_cache if isinstance(regime_cache, dict) else {}).items()
+            if str(day).strip()
+        }
+    except Exception:
+        pass
+
+
 def _load_split_sections(cur, store):
     """Merge normalized Postgres rows back into the legacy in-memory store."""
     cur.execute("SELECT ticker, messages FROM chat_history")
@@ -526,7 +552,9 @@ def load_store():
                         defaults = _store_default()
                         for key, value in defaults.items():
                             store.setdefault(key, value)
-                        return _load_split_sections(cur, store)
+                        loaded_store = _load_split_sections(cur, store)
+                        _seed_persist_fingerprints(loaded_store)
+                        return loaded_store
                     # No row yet — return defaults; first save creates the row.
                     return _store_default()
         except Exception as e:
