@@ -611,7 +611,7 @@ def save_store(store):
     STORE_PATH.write_text(json.dumps(safe_store, indent=2, allow_nan=False))
 
 
-ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "triggers", "holdings", "ideas"}
+ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "triggers", "health", "holdings", "ideas"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -6447,6 +6447,143 @@ def build_trigger_monitor_rows(tickers):
     return rows
 
 
+def _parse_iso_dt(value):
+    """Best-effort datetime parser for persisted ISO-ish timestamps."""
+    if not value:
+        return None
+    try:
+        text = str(value).replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone().replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+
+def _age_days_from_ts(value):
+    parsed = _parse_iso_dt(value)
+    if not parsed:
+        return None
+    try:
+        return max(0, (datetime.now() - parsed).days)
+    except Exception:
+        return None
+
+
+def _age_minutes_from_ts(value):
+    parsed = _parse_iso_dt(value)
+    if not parsed:
+        return None
+    try:
+        return max(0, int((datetime.now() - parsed).total_seconds() // 60))
+    except Exception:
+        return None
+
+
+def build_health_audit():
+    """Fast reliability audit from persisted state; never calls market data or Claude."""
+    store = st.session_state.store
+    watchlist = [
+        str(t).upper().strip()
+        for t in store.get("watchlist", [])
+        if str(t or "").strip()
+    ]
+    pm_cache = store.get("pm_cache", {}) if isinstance(store.get("pm_cache"), dict) else {}
+    dossier_cache = store.get("dossier_cache", {}) if isinstance(store.get("dossier_cache"), dict) else {}
+    sidebar_cache = store.get("watchlist_sidebar_cache", {})
+    if not isinstance(sidebar_cache, dict):
+        sidebar_cache = {}
+    trigger_rows = build_trigger_monitor_rows(watchlist) if watchlist else []
+    db_health = st.session_state.get("_db_health")
+    if db_health is None:
+        db_health = _pg_storage_health()
+        st.session_state["_db_health"] = db_health
+
+    stale_market = []
+    missing_market = []
+    stale_pm = []
+    missing_pm = []
+    stale_dossier = []
+    missing_dossier = []
+    mismatches = []
+
+    for tkr in watchlist:
+        snapshot = ticker_snapshot(tkr)
+        market = snapshot.get("market") or {}
+        market_ts = market.get("updated_at") or market.get("ts") or market.get("market_updated_at")
+        market_age = _age_minutes_from_ts(market_ts)
+        if not market:
+            missing_market.append(tkr)
+        elif market_age is None or market_age > 20:
+            stale_market.append((tkr, market_age))
+
+        pm_entry = pm_cache.get(tkr) if isinstance(pm_cache, dict) else None
+        pm_view = pm_entry.get("view") if isinstance(pm_entry, dict) else None
+        thesis = str((pm_view or {}).get("thesis") or "")
+        if (
+            not isinstance(pm_view, dict)
+            or not thesis
+            or thesis.startswith("No generated PM thesis yet")
+            or thesis.startswith("No thesis on file")
+        ):
+            missing_pm.append(tkr)
+        else:
+            pm_age = _age_days_from_ts(pm_entry.get("ts") if isinstance(pm_entry, dict) else None)
+            if pm_age is None or pm_age >= 14:
+                stale_pm.append((tkr, pm_age))
+
+        dossier_entry = dossier_cache.get(tkr) if isinstance(dossier_cache, dict) else None
+        dossier_text = ""
+        if isinstance(dossier_entry, dict):
+            dossier_text = str(dossier_entry.get("dossier") or dossier_entry.get("text") or "")
+        if not dossier_text:
+            missing_dossier.append(tkr)
+        else:
+            dossier_age = _age_days_from_ts(dossier_entry.get("ts") if isinstance(dossier_entry, dict) else None)
+            if dossier_age is None or dossier_age >= 30:
+                stale_dossier.append((tkr, dossier_age))
+
+        sidebar_action = normalize_action_key((sidebar_cache.get(tkr, {}) or {}).get("action"))
+        canonical_action = normalize_action_key((current_final_action(snapshot) or {}).get("action"))
+        if sidebar_action and canonical_action and sidebar_action != canonical_action:
+            mismatches.append((tkr, sidebar_action, canonical_action))
+
+    trigger_counts = {
+        "Actionable now": 0,
+        "Near trigger": 0,
+        "Failed / broken": 0,
+        "Waiting": 0,
+    }
+    for row in trigger_rows:
+        trigger_counts[row.get("bucket", "Waiting")] = trigger_counts.get(row.get("bucket", "Waiting"), 0) + 1
+
+    issues = (
+        len(missing_market)
+        + len(stale_market)
+        + len(missing_pm)
+        + len(stale_pm)
+        + len(missing_dossier)
+        + len(stale_dossier)
+        + len(mismatches)
+    )
+    return {
+        "watchlist": watchlist,
+        "db": db_health if isinstance(db_health, dict) else {"ok": False, "message": str(db_health)},
+        "trigger_counts": trigger_counts,
+        "trigger_rows": trigger_rows,
+        "missing_market": missing_market,
+        "stale_market": stale_market,
+        "missing_pm": missing_pm,
+        "stale_pm": stale_pm,
+        "missing_dossier": missing_dossier,
+        "stale_dossier": stale_dossier,
+        "mismatches": mismatches,
+        "issues": issues,
+        "last_checked": now_market_time().strftime("%-I:%M %p"),
+    }
+
+
 def _tracker_first_hit(hist, start_date, level, direction):
     if hist is None or level is None:
         return None
@@ -7588,6 +7725,7 @@ with st.sidebar:
         "analyze": "Analyze",
         "watchlist": "Watchlist",
         "triggers": "Trigger Monitor",
+        "health": "Health",
         "holdings": "Holdings",
         "ideas": "Ideas",
     }
@@ -15373,6 +15511,252 @@ if view == "holdings":
                         holdings.pop(tkr, None)
                         save_store(st.session_state.store)
                         st.rerun()
+
+
+if view == "health":
+    st.markdown(
+        """
+        <style>
+        .health-head {
+            display:flex;
+            align-items:flex-end;
+            justify-content:space-between;
+            gap:18px;
+            margin:8px 0 18px;
+        }
+        .health-title {
+            font-family:var(--font-sans);
+            font-size:var(--fs-2xl);
+            font-weight:750;
+            color:var(--color-text);
+            letter-spacing:0;
+            margin:0;
+        }
+        .health-sub {
+            font-family:var(--font-sans);
+            font-size:var(--fs-sm);
+            color:var(--color-muted);
+            margin-top:4px;
+        }
+        .health-grid {
+            display:grid;
+            grid-template-columns:repeat(4, minmax(0, 1fr));
+            gap:10px;
+            margin:0 0 18px;
+        }
+        .health-card,
+        .health-panel {
+            background:var(--panel-bg);
+            border:1px solid var(--border-color);
+            border-radius:6px;
+        }
+        .health-card {
+            padding:14px 16px;
+            min-height:90px;
+        }
+        .health-label,
+        .health-panel-title,
+        .health-table-head {
+            font-family:var(--font-mono);
+            font-size:var(--fs-xs);
+            font-weight:750;
+            letter-spacing:var(--ls-caps-xl);
+            text-transform:uppercase;
+            color:var(--color-muted);
+        }
+        .health-value {
+            font-family:var(--font-mono);
+            font-size:var(--fs-2xl);
+            font-weight:800;
+            color:var(--color-text);
+            margin-top:7px;
+        }
+        .health-note {
+            font-family:var(--font-sans);
+            font-size:var(--fs-xs);
+            color:var(--color-muted);
+            margin-top:5px;
+            line-height:1.35;
+        }
+        .health-panels {
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:12px;
+            margin-top:14px;
+        }
+        .health-panel {
+            padding:16px;
+        }
+        .health-list {
+            margin-top:12px;
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+        }
+        .health-row {
+            display:grid;
+            grid-template-columns:minmax(90px, .65fr) minmax(130px, 1fr) minmax(180px, 1.4fr);
+            gap:14px;
+            align-items:start;
+            border-top:1px solid var(--border-subtle);
+            padding-top:10px;
+            font-family:var(--font-mono);
+            font-size:var(--fs-sm);
+        }
+        .health-row:first-child {
+            border-top:0;
+            padding-top:0;
+        }
+        .health-ticker {
+            font-weight:800;
+            color:var(--color-text);
+        }
+        .health-status {
+            font-weight:800;
+        }
+        .health-detail {
+            color:var(--color-muted);
+            line-height:1.35;
+        }
+        .health-ok { color:var(--color-positive); }
+        .health-warn { color:var(--color-warning-text); }
+        .health-bad { color:var(--color-negative); }
+        @media (max-width: 980px) {
+            .health-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+            .health-panels { grid-template-columns:1fr; }
+            .health-row { grid-template-columns:1fr; gap:4px; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    h1, h2 = st.columns([3, 1])
+    with h1:
+        st.markdown(
+            '<div class="health-head"><div>'
+            '<h1 class="health-title">System Health</h1>'
+            '<div class="health-sub">Fast audit of stale data, missing PM work, storage, and action consistency.</div>'
+            '</div></div>',
+            unsafe_allow_html=True,
+        )
+    with h2:
+        if st.button(
+            "↻ Recheck health",
+            key="recheck_system_health",
+            help="Rechecks storage and the saved watchlist state. This does not refresh market data or call Claude.",
+            use_container_width=True,
+        ):
+            st.session_state["_db_health"] = _pg_storage_health()
+            st.session_state["_health_audit_checked_at"] = now_market_time().strftime("%-I:%M %p")
+            st.rerun()
+
+    audit = build_health_audit()
+    checked_at = st.session_state.get("_health_audit_checked_at") or audit.get("last_checked")
+    db_ok = bool((audit.get("db") or {}).get("ok"))
+    market_issues = len(audit["missing_market"]) + len(audit["stale_market"])
+    pm_issues = len(audit["missing_pm"]) + len(audit["stale_pm"])
+    report_issues = len(audit["missing_dossier"]) + len(audit["stale_dossier"])
+    mismatch_count = len(audit["mismatches"])
+    action_now = audit["trigger_counts"].get("Actionable now", 0)
+    near_trigger = audit["trigger_counts"].get("Near trigger", 0)
+    summary_cards = [
+        ("Storage", "OK" if db_ok else "Needs attention", (audit.get("db") or {}).get("message", ""), "health-ok" if db_ok else "health-bad"),
+        ("Market rows", str(market_issues), "missing or older than 20 minutes", "health-ok" if market_issues == 0 else "health-warn"),
+        ("PM memos", str(pm_issues), "missing or older than 14 days", "health-ok" if pm_issues == 0 else "health-warn"),
+        ("Full reports", str(report_issues), "missing or older than 30 days", "health-ok" if report_issues == 0 else "health-warn"),
+        ("Action mismatches", str(mismatch_count), "sidebar/watchlist vs canonical action", "health-ok" if mismatch_count == 0 else "health-bad"),
+        ("Actionable now", str(action_now), "from Trigger Monitor", "health-ok" if action_now == 0 else "health-warn"),
+        ("Near trigger", str(near_trigger), "within the monitor threshold", "health-ok" if near_trigger == 0 else "health-warn"),
+        ("Checked", str(checked_at), "health audit only; no slow refresh", "health-ok"),
+    ]
+    st.markdown(
+        '<div class="health-grid">'
+        + "".join(
+            f'<div class="health-card">'
+            f'<div class="health-label">{html.escape(label)}</div>'
+            f'<div class="health-value {klass}">{html.escape(value)}</div>'
+            f'<div class="health-note">{html.escape(str(note or ""))}</div>'
+            f'</div>'
+            for label, value, note, klass in summary_cards
+        )
+        + '</div>',
+        unsafe_allow_html=True,
+    )
+
+    def _age_note(age, unit):
+        if age is None:
+            return "age unknown"
+        return f"{age}{unit} old"
+
+    issues = []
+    for tkr in audit["missing_market"]:
+        issues.append((tkr, "Market missing", "Refresh prices/actions for the watchlist or open Analyze.", "health-bad"))
+    for tkr, age in audit["stale_market"]:
+        issues.append((tkr, "Market stale", _age_note(age, "m"), "health-warn"))
+    for tkr in audit["missing_pm"]:
+        issues.append((tkr, "PM memo missing", "Open Analyze and refresh PM memo if you need research.", "health-warn"))
+    for tkr, age in audit["stale_pm"]:
+        issues.append((tkr, "PM memo stale", _age_note(age, "d"), "health-warn"))
+    for tkr in audit["missing_dossier"]:
+        issues.append((tkr, "Full report missing", "Refresh from the full report page.", "health-warn"))
+    for tkr, age in audit["stale_dossier"]:
+        issues.append((tkr, "Full report stale", _age_note(age, "d"), "health-warn"))
+    for tkr, sidebar_action, canonical_action in audit["mismatches"]:
+        issues.append((
+            tkr,
+            "Action mismatch",
+            f"sidebar {sidebar_action.replace('_', ' ')} vs canonical {canonical_action.replace('_', ' ')}",
+            "health-bad",
+        ))
+
+    rows_html = []
+    for tkr, status, detail, klass in issues[:40]:
+        rows_html.append(
+            f'<div class="health-row">'
+            f'<div class="health-ticker">{html.escape(tkr)}</div>'
+            f'<div class="health-status {klass}">{html.escape(status)}</div>'
+            f'<div class="health-detail">{html.escape(detail)}</div>'
+            f'</div>'
+        )
+    if not rows_html:
+        rows_html.append(
+            '<div class="health-row">'
+            '<div class="health-ticker">All clear</div>'
+            '<div class="health-status health-ok">No obvious reliability issues</div>'
+            '<div class="health-detail">Stored watchlist rows, PM memos, reports, and actions look internally consistent.</div>'
+            '</div>'
+        )
+
+    trigger_rows = audit["trigger_rows"]
+    trigger_preview = []
+    for row in trigger_rows[:12]:
+        trigger_preview.append(
+            f'<div class="health-row">'
+            f'<div class="health-ticker">{html.escape(row["ticker"])}</div>'
+            f'<div class="health-status" style="color:{row["bucket_color"]};">{html.escape(row["bucket"])}</div>'
+            f'<div class="health-detail">{html.escape(row["action_emoji"] + " " + row["action_label"])} · {html.escape(row.get("trigger_detail") or row.get("trigger_label") or "No trigger detail")}</div>'
+            f'</div>'
+        )
+    if not trigger_preview:
+        trigger_preview.append(
+            '<div class="health-row"><div class="health-ticker">No watchlist</div>'
+            '<div class="health-status health-warn">Nothing to monitor</div>'
+            '<div class="health-detail">Add tickers to the watchlist first.</div></div>'
+        )
+
+    st.markdown(
+        '<div class="health-panels">'
+        '<div class="health-panel">'
+        '<div class="health-panel-title">Reliability issues</div>'
+        '<div class="health-list">' + "".join(rows_html) + '</div>'
+        '</div>'
+        '<div class="health-panel">'
+        '<div class="health-panel-title">Trigger snapshot</div>'
+        '<div class="health-list">' + "".join(trigger_preview) + '</div>'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
 
 if view == "triggers":
