@@ -12525,10 +12525,9 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
-        # Investment thesis is visible by default. The extra structured
-        # deep-dive stays behind one compact button so the PM panel remains
-        # readable on first load.
-        pm_narrative = dossier_result.get("pm_narrative") if dossier_result else None
+        # The visible thesis already renders in the PM memo above. Keep the
+        # lower area for optional expanded research only so the PM side does
+        # not repeat the same investment thesis twice.
         deep = pm.get("deep_dive") or {}
         has_deep = any(
             deep.get(key)
@@ -12545,26 +12544,6 @@ if view == "analyze":
                 "would_change_mind",
             )
         )
-
-        if pm_narrative:
-            paragraphs = [p.strip() for p in pm_narrative.split("\n\n") if p.strip()]
-            narrative_html = "".join(f"<p>{p}</p>" for p in paragraphs)
-            st.markdown(
-                f'<div class="desk-pm-thesis">'
-                f'<div class="desk-pm-block"><div class="lb">🧠 Investment thesis</div></div>'
-                f'{narrative_html}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            fallback_thesis = pm.get("thesis") or "Investment thesis appears here after the PM dossier is generated."
-            st.markdown(
-                f'<div class="desk-pm-thesis">'
-                f'<div class="desk-pm-block"><div class="lb">🧠 Investment thesis</div></div>'
-                f'<p>{fallback_thesis}</p>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
 
         # Track expanded deep-dive state per ticker.
         ticker_key = ticker.upper()
