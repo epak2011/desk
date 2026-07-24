@@ -611,7 +611,7 @@ def save_store(store):
     STORE_PATH.write_text(json.dumps(safe_store, indent=2, allow_nan=False))
 
 
-ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "holdings", "ideas"}
+ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "triggers", "holdings", "ideas"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -5093,14 +5093,21 @@ def canonical_freshness_html(items, refresh_event=None):
     if isinstance(refresh_event, dict):
         refreshed_at = refresh_event.get("time")
         research_requested = bool(refresh_event.get("research"))
+        refresh_lane = str(refresh_event.get("lane") or "").strip().lower()
     else:
         refreshed_at = refresh_event
         research_requested = False
+        refresh_lane = ""
     if refreshed_at:
-        if research_requested:
+        if refresh_lane == "market":
+            receipt = (
+                f'<div class="desk-refresh-receipt">Market data refreshed at '
+                f'{html.escape(refreshed_at)}. This updates price, fundamentals, rule action, '
+                f'and sidebar/watchlist rows only. PM memo and full report are unchanged.</div>'
+            )
+        elif refresh_lane == "pm":
             pm_label = str(refresh_event.get("pm_label") or "").strip()
             pm_kind = str(refresh_event.get("pm_kind") or "").strip()
-            dossier_label = str(refresh_event.get("dossier_label") or "").strip()
             pm_lower = pm_label.lower()
             pm_ok = pm_kind in ("fresh", "info") and not any(
                 marker in pm_label.lower()
@@ -5120,11 +5127,29 @@ def canonical_freshness_html(items, refresh_event=None):
                     f"PM memo did not update"
                     f"{': ' + pm_label if pm_label else ''}."
                 )
-            if dossier_label and "not generated" not in dossier_label.lower():
-                if "timed out" in dossier_label.lower() and pm_ok:
-                    status += " Full dossier timed out; PM memo still updated."
-                else:
-                    status += f" Full dossier: {dossier_label}."
+            status += " Full report was not refreshed here; refresh it from the full report page."
+            receipt = (
+                f'<div class="desk-refresh-receipt {"" if pm_ok else "warn"}">'
+                f'{html.escape(status)} Updated at {html.escape(refreshed_at)}.</div>'
+            )
+        elif refresh_lane == "full_report":
+            dossier_label = str(refresh_event.get("dossier_label") or "").strip()
+            status = "Full report refresh requested."
+            if dossier_label:
+                status = f"Full report status: {dossier_label}."
+            receipt = (
+                f'<div class="desk-refresh-receipt">'
+                f'{html.escape(status)} Market data/PM memo are unchanged unless refreshed separately. '
+                f'Updated at {html.escape(refreshed_at)}.</div>'
+            )
+        elif research_requested:
+            pm_label = str(refresh_event.get("pm_label") or "").strip()
+            pm_kind = str(refresh_event.get("pm_kind") or "").strip()
+            pm_ok = pm_kind in ("fresh", "info") and not any(
+                marker in pm_label.lower()
+                for marker in ("timeout", "failed", "not generated", "unavailable", "cached/static")
+            )
+            status = f"PM memo updated ({pm_label})." if pm_ok else f"PM memo did not update{': ' + pm_label if pm_label else ''}."
             receipt = (
                 f'<div class="desk-refresh-receipt {"" if pm_ok else "warn"}">'
                 f'{html.escape(status)} Updated at {html.escape(refreshed_at)}.</div>'
@@ -5172,7 +5197,7 @@ def sidebar_cache_status(ticker):
 
 
 def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full_report=False):
-    """Refresh the four visible ticker layers: price, fundamentals, PM, sidebar."""
+    """Refresh one ticker lane: market data by default, PM/report only when requested."""
     refresh_ticker = str(ticker or "").upper().strip()
     if not refresh_ticker:
         return
@@ -5231,6 +5256,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         "time": now_market_time().strftime("%-I:%M %p"),
         "research": bool(refresh_research),
         "full_report": bool(refresh_full_report),
+        "lane": "full_report" if refresh_full_report else ("pm" if refresh_research else "market"),
     }
     save_store(st.session_state.store)
 
@@ -5257,8 +5283,34 @@ def queue_full_report_refresh(ticker):
         "time": now_market_time().strftime("%-I:%M %p"),
         "research": True,
         "full_report": True,
+        "lane": "full_report",
     }
     save_store(st.session_state.store)
+
+
+def refresh_watchlist_market_scan():
+    """Refresh watchlist market inputs only when explicitly requested."""
+    fetch_history.clear()
+    watchlist_tickers = [
+        str(scan_tkr).upper().strip()
+        for scan_tkr in st.session_state.store.get("watchlist", [])
+        if str(scan_tkr or "").strip()
+    ]
+    snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
+    for scan_tkr in watchlist_tickers:
+        _delete_history_cache(scan_tkr)
+        snapshot_entry = snapshots.get(scan_tkr)
+        if isinstance(snapshot_entry, dict):
+            snapshot_entry.pop("market", None)
+            snapshot_entry.pop("market_updated_at", None)
+    fetch_quote_meta.clear()
+    sidebar_watchlist_snapshot.clear()
+    st.session_state.store["watchlist_sidebar_cache"] = {}
+    update_sidebar_watchlist_cache(watchlist_tickers)
+    st.session_state["_watchlist_scan_result"] = {
+        "time": now_market_time().strftime("%-I:%M %p"),
+        "count": len(watchlist_tickers),
+    }
 
 
 def get_effective_api_key():
@@ -6323,6 +6375,76 @@ def claude_dissent_signal(rule_action, claude_action, confidence, note=""):
         "reason": f"Claude {claude_label} ({confidence}/10) vs rules {rule_label}",
         "note": _compact_dissent_note(note),
     }
+
+
+def build_trigger_monitor_rows(tickers):
+    """Rows for the daily trigger monitor, sourced from canonical ticker snapshots."""
+    rows = []
+    owned = active_position_tickers()
+    for raw_tkr in tickers:
+        tkr = str(raw_tkr or "").upper().strip()
+        if not tkr:
+            continue
+        canonical = ticker_snapshot(tkr)
+        market = canonical.get("market") or {}
+        final_action = current_final_action(canonical)
+        action = (
+            normalize_action_key(final_action.get("action"))
+            or normalize_action_key(market.get("action"))
+            or "watch"
+        )
+        trigger_monitor = market.get("trigger_monitor")
+        if not isinstance(trigger_monitor, dict):
+            trigger_monitor = build_trigger_monitor({
+                **market,
+                "price": market.get("last") or market.get("price"),
+                "action": action,
+            })
+
+        state = str(market.get("state") or "").upper()
+        status = str(trigger_monitor.get("status") or "none").lower()
+        distance = trigger_monitor.get("distance_pct")
+        price = _num_or_none(market.get("last") or market.get("price"))
+        level = _num_or_none(trigger_monitor.get("level"))
+        action_style = STATE_STYLES.get(action, STATE_STYLES["watch"])
+
+        if action == "avoid" or state == "BROKEN":
+            bucket = "Failed / broken"
+            bucket_rank = 2
+            bucket_color = "var(--color-negative)"
+        elif action == "enter_now" or status in {"fired", "hit", "now"}:
+            bucket = "Actionable now"
+            bucket_rank = 0
+            bucket_color = "var(--color-positive)"
+        elif status == "near" or (distance is not None and abs(distance) <= 3):
+            bucket = "Near trigger"
+            bucket_rank = 1
+            bucket_color = "var(--color-warning-text)"
+        else:
+            bucket = "Waiting"
+            bucket_rank = 3
+            bucket_color = "var(--color-muted)"
+
+        rows.append({
+            "ticker": tkr,
+            "price": price,
+            "change": _num_or_none(market.get("change_pct")) or 0,
+            "action": action,
+            "action_label": action_style.get("label", action.replace("_", " ").title()),
+            "action_emoji": action_style.get("emoji", ""),
+            "bucket": bucket,
+            "bucket_rank": bucket_rank,
+            "bucket_color": bucket_color,
+            "trigger_status": status,
+            "trigger_label": trigger_monitor.get("label") or "—",
+            "trigger_detail": trigger_monitor.get("detail") or "",
+            "trigger_level": level,
+            "distance_pct": distance,
+            "state": state or "—",
+            "owned": tkr in owned,
+        })
+    rows.sort(key=lambda r: (r["bucket_rank"], abs(r["distance_pct"]) if r["distance_pct"] is not None else 999, r["ticker"]))
+    return rows
 
 
 def _tracker_first_hit(hist, start_date, level, direction):
@@ -7465,6 +7587,7 @@ with st.sidebar:
         "regime": "Market Regime",
         "analyze": "Analyze",
         "watchlist": "Watchlist",
+        "triggers": "Trigger Monitor",
         "holdings": "Holdings",
         "ideas": "Ideas",
     }
@@ -15252,29 +15375,220 @@ if view == "holdings":
                         st.rerun()
 
 
+if view == "triggers":
+    watchlist_tickers = [
+        str(t).upper().strip()
+        for t in st.session_state.store.get("watchlist", [])
+        if str(t or "").strip()
+    ]
+    st.markdown(
+        """
+        <style>
+        .trigger-monitor-head {
+            display:flex;
+            align-items:flex-end;
+            justify-content:space-between;
+            gap:18px;
+            margin:8px 0 18px;
+        }
+        .trigger-monitor-title {
+            font-family:var(--font-sans);
+            font-size:var(--fs-2xl);
+            font-weight:750;
+            color:var(--color-text);
+            letter-spacing:0;
+            margin:0;
+        }
+        .trigger-monitor-sub {
+            font-family:var(--font-sans);
+            font-size:var(--fs-sm);
+            color:var(--color-muted);
+            margin-top:4px;
+        }
+        .trigger-monitor-summary {
+            display:grid;
+            grid-template-columns:repeat(4, minmax(0, 1fr));
+            gap:10px;
+            margin:0 0 18px;
+        }
+        .trigger-monitor-card {
+            background:var(--panel-bg);
+            border:1px solid var(--border-color);
+            border-radius:6px;
+            padding:14px 16px;
+            min-height:84px;
+        }
+        .trigger-monitor-label {
+            font-family:var(--font-mono);
+            font-size:var(--fs-xs);
+            font-weight:750;
+            letter-spacing:var(--ls-caps-xl);
+            text-transform:uppercase;
+            color:var(--color-muted);
+        }
+        .trigger-monitor-count {
+            font-family:var(--font-mono);
+            font-size:var(--fs-2xl);
+            font-weight:750;
+            color:var(--color-text);
+            margin-top:6px;
+        }
+        .trigger-monitor-preview {
+            font-family:var(--font-mono);
+            font-size:var(--fs-xs);
+            color:var(--color-muted);
+            margin-top:4px;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+        .trigger-table {
+            background:var(--panel-bg);
+            border:1px solid var(--border-color);
+            border-radius:6px;
+            overflow:hidden;
+        }
+        .trigger-row {
+            display:grid;
+            grid-template-columns:minmax(90px, .75fr) minmax(130px, .9fr) minmax(140px, 1fr) minmax(110px, .75fr) minmax(110px, .75fr) minmax(180px, 1.6fr);
+            gap:16px;
+            align-items:center;
+            padding:13px 16px;
+            border-top:1px solid var(--border-subtle);
+            font-family:var(--font-mono);
+            font-size:var(--fs-sm);
+        }
+        .trigger-row:first-child {
+            border-top:0;
+        }
+        .trigger-row.header {
+            background:#F8FAFC;
+            color:var(--color-muted);
+            text-transform:uppercase;
+            letter-spacing:var(--ls-caps-lg);
+            font-size:var(--fs-xs);
+            font-weight:750;
+        }
+        .trigger-row a {
+            color:var(--color-text);
+            text-decoration:none;
+            font-weight:800;
+        }
+        .trigger-muted {
+            color:var(--color-muted);
+        }
+        .trigger-reason {
+            color:var(--color-muted);
+            font-family:var(--font-sans);
+            line-height:1.35;
+        }
+        @media (max-width: 980px) {
+            .trigger-monitor-summary { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+            .trigger-row { grid-template-columns:1fr 1fr; }
+            .trigger-row.header { display:none; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    head_c1, head_c2 = st.columns([3, 1])
+    with head_c1:
+        st.markdown(
+            '<div class="trigger-monitor-head"><div>'
+            '<h1 class="trigger-monitor-title">Trigger Monitor</h1>'
+            '<div class="trigger-monitor-sub">Daily queue of fired, near, failed, and waiting setups. Rules remain the source of truth.</div>'
+            '</div></div>',
+            unsafe_allow_html=True,
+        )
+    with head_c2:
+        if st.button(
+            "↻ Refresh trigger data",
+            key="refresh_trigger_monitor_scan",
+            help="Refreshes prices, fundamentals, rule actions, sidebar rows, and trigger status for the watchlist. PM memos/full reports are separate.",
+            use_container_width=True,
+        ):
+            refresh_watchlist_market_scan()
+            st.rerun()
+
+    if not watchlist_tickers:
+        st.info("Your watchlist is empty. Add tickers from the sidebar first.")
+    else:
+        rows = build_trigger_monitor_rows(watchlist_tickers)
+        buckets = {
+            "Actionable now": [],
+            "Near trigger": [],
+            "Failed / broken": [],
+            "Waiting": [],
+        }
+        for row in rows:
+            buckets.setdefault(row["bucket"], []).append(row)
+        summary_order = [
+            ("Actionable now", "🚀", "var(--color-positive)"),
+            ("Near trigger", "🎯", "var(--color-warning-text)"),
+            ("Failed / broken", "⛔", "var(--color-negative)"),
+            ("Waiting", "👀", "var(--color-muted)"),
+        ]
+        cards = []
+        for label, emoji, color in summary_order:
+            bucket_rows = buckets.get(label, [])
+            preview = " · ".join(r["ticker"] for r in bucket_rows[:5])
+            if len(bucket_rows) > 5:
+                preview += f" +{len(bucket_rows) - 5}"
+            cards.append(
+                f'<div class="trigger-monitor-card">'
+                f'<div class="trigger-monitor-label" style="color:{color};">{emoji} {html.escape(label)}</div>'
+                f'<div class="trigger-monitor-count">{len(bucket_rows)}</div>'
+                f'<div class="trigger-monitor-preview">{html.escape(preview or "—")}</div>'
+                f'</div>'
+            )
+        st.markdown(
+            '<div class="trigger-monitor-summary">' + "".join(cards) + '</div>',
+            unsafe_allow_html=True,
+        )
+        scan_event = st.session_state.get("_watchlist_scan_result") or {}
+        scan_time = scan_event.get("time")
+        if scan_time:
+            st.markdown(
+                f'<div class="desk-refresh-receipt">Trigger data refreshed at {html.escape(str(scan_time))}. '
+                f'PM memos and full reports were not regenerated.</div>',
+                unsafe_allow_html=True,
+            )
+
+        table_rows = [
+            '<div class="trigger-row header">'
+            '<div>Ticker</div><div>Action</div><div>Trigger</div><div>Distance</div><div>Price</div><div>Reason</div>'
+            '</div>'
+        ]
+        for row in rows:
+            action_color = STATE_STYLES.get(row["action"], {}).get("color", "var(--color-text)")
+            distance = row.get("distance_pct")
+            distance_text = f'{distance:+.1f}%' if distance is not None else "—"
+            level_text = _fmt_px(row.get("trigger_level")) if row.get("trigger_level") is not None else "—"
+            reason = row.get("trigger_detail") or row.get("trigger_label") or "No active trigger level."
+            owned_tag = ' <span class="trigger-muted">· owned</span>' if row.get("owned") else ""
+            table_rows.append(
+                f'<div class="trigger-row">'
+                f'<div><a href="?open={html.escape(row["ticker"])}" target="_self">{html.escape(row["ticker"])}</a>'
+                f'{owned_tag}</div>'
+                f'<div style="color:{action_color};font-weight:800;">{html.escape(row["action_emoji"])} {html.escape(row["action_label"])}</div>'
+                f'<div><b>{html.escape(row["bucket"])}</b> <span class="trigger-muted">· {html.escape(level_text)}</span></div>'
+                f'<div class="trigger-muted">{html.escape(distance_text)}</div>'
+                f'<div>{html.escape(_fmt_px(row.get("price")))}</div>'
+                f'<div class="trigger-reason">{html.escape(reason)}</div>'
+                f'</div>'
+            )
+        st.markdown(
+            '<div class="trigger-table">' + "".join(table_rows) + '</div>',
+            unsafe_allow_html=True,
+        )
+
+
 if view == "watchlist":
     if not st.session_state.store["watchlist"]:
         st.info("Your watchlist is empty. Type a ticker in the sidebar and add it.")
     else:
         def _run_watchlist_market_scan():
-            """Refresh watchlist market inputs only when explicitly requested."""
-            fetch_history.clear()
-            watchlist_tickers = [
-                str(scan_tkr).upper().strip()
-                for scan_tkr in st.session_state.store.get("watchlist", [])
-                if str(scan_tkr or "").strip()
-            ]
-            snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
-            for scan_tkr in watchlist_tickers:
-                _delete_history_cache(scan_tkr)
-                snapshot_entry = snapshots.get(scan_tkr)
-                if isinstance(snapshot_entry, dict):
-                    snapshot_entry.pop("market", None)
-                    snapshot_entry.pop("market_updated_at", None)
-            fetch_quote_meta.clear()
-            sidebar_watchlist_snapshot.clear()
-            st.session_state.store["watchlist_sidebar_cache"] = {}
-            update_sidebar_watchlist_cache(watchlist_tickers)
+            refresh_watchlist_market_scan()
 
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
