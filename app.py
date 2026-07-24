@@ -289,6 +289,43 @@ def _pg_init():
             """)
 
 
+def _pg_storage_health():
+    """Return whether Postgres and the split high-growth tables are active."""
+    if not USE_POSTGRES:
+        return {
+            "ok": False,
+            "split": False,
+            "message": "session-only",
+            "missing": [],
+        }
+    required = ["kv_store", "chat_history", "decisions_log", "regime_daily_cache"]
+    try:
+        _pg_init()
+        with _pg_connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_name = ANY(%s)
+                """, (required,))
+                found = {str(row[0]) for row in cur.fetchall()}
+        missing = [name for name in required if name not in found]
+        return {
+            "ok": not missing,
+            "split": not missing,
+            "message": "split storage active" if not missing else "database connected, migration incomplete",
+            "missing": missing,
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "split": False,
+            "message": f"error: {str(e)[:120]}",
+            "missing": required,
+        }
+
+
 def _store_default():
     return {
         "watchlist": ["NVDA", "META", "AAPL", "MSFT", "TSLA"],
@@ -8513,31 +8550,31 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
     # so we don't hammer Postgres on every render.
     if USE_POSTGRES:
         if "_db_health" not in st.session_state:
-            try:
-                with _pg_connect() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute("SELECT 1")
-                        cur.fetchone()
-                st.session_state["_db_health"] = "ok"
-            except Exception as _e:
-                st.session_state["_db_health"] = f"error: {str(_e)[:80]}"
+            st.session_state["_db_health"] = _pg_storage_health()
         _health = st.session_state["_db_health"]
-        if _health == "ok":
+        if isinstance(_health, dict) and _health.get("ok"):
             st.markdown(
                 '<div style="margin-top:8px;padding:6px 10px;background:#F0FDF4;'
                 'border:1px solid #BBF7D0;border-radius:3px;'
                 'font-family:Geist Mono,monospace;font-size:var(--fs-xs);color:#15803D;">'
-                '✓ Database connected · data persisting'
+                '✓ Database connected · split storage active'
                 '</div>',
                 unsafe_allow_html=True,
             )
         else:
+            if isinstance(_health, dict):
+                _health_msg = html.escape(str(_health.get("message") or "unknown error"))
+                _missing = _health.get("missing") or []
+                if _missing:
+                    _health_msg += "<br>Missing: " + html.escape(", ".join(_missing))
+            else:
+                _health_msg = html.escape(str(_health))
             st.markdown(
                 f'<div style="margin-top:8px;padding:6px 10px;background:#FEF2F2;'
                 f'border:1px solid #FECACA;border-radius:3px;'
                 f'font-family:Geist Mono,monospace;font-size:var(--fs-xs);color:#B91C1C;">'
-                f'✗ Database error · data NOT persisting<br>'
-                f'<span style="font-size:var(--fs-xs);color:var(--color-warning);">{_health}</span>'
+                f'✗ Database storage needs attention<br>'
+                f'<span style="font-size:var(--fs-xs);color:var(--color-warning);">{_health_msg}</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
