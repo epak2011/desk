@@ -6584,6 +6584,61 @@ def build_health_audit():
     }
 
 
+def repair_watchlist_action_cache():
+    """Repair saved action labels from the canonical Analyze-page decision."""
+    store = st.session_state.store
+    watchlist = [
+        str(t).upper().strip()
+        for t in store.get("watchlist", [])
+        if str(t or "").strip()
+    ]
+    sidebar_cache = store.setdefault("watchlist_sidebar_cache", {})
+    final_cache = store.setdefault("final_action_cache", {})
+    if not isinstance(sidebar_cache, dict) or not isinstance(final_cache, dict):
+        return {"count": 0, "tickers": [], "message": "Action caches were not repairable."}
+
+    repaired = []
+    now_iso = datetime.now().isoformat(timespec="seconds")
+    for tkr in watchlist:
+        snapshot = ticker_snapshot(tkr)
+        final_action = current_final_action(snapshot) or {}
+        action = normalize_action_key(final_action.get("action"))
+        if not action:
+            continue
+        style = STATE_STYLES.get(action, STATE_STYLES["watch"])
+        sidebar_row = sidebar_cache.setdefault(tkr, {})
+        existing_action = normalize_action_key(sidebar_row.get("action"))
+        existing_final = final_cache.get(tkr, {}) if isinstance(final_cache.get(tkr), dict) else {}
+        changed = False
+
+        if existing_action != action:
+            sidebar_row["action"] = action
+            sidebar_row["action_label"] = style.get("label", action.replace("_", " ").title())
+            sidebar_row["action_emoji"] = style.get("emoji", "")
+            sidebar_row["action_synced_at"] = now_iso
+            changed = True
+
+        if normalize_action_key(existing_final.get("action")) != action:
+            updated_final = {**existing_final, **_slim_dict(final_action), "action": action}
+            final_cache[tkr] = updated_final
+            merge_ticker_snapshot(tkr, final_action=updated_final)
+            changed = True
+
+        if changed:
+            repaired.append(tkr)
+
+    if repaired:
+        save_store(store)
+    return {
+        "count": len(repaired),
+        "tickers": repaired,
+        "message": (
+            f"Repaired action cache for {len(repaired)} ticker"
+            f"{'' if len(repaired) == 1 else 's'}."
+        ),
+    }
+
+
 def _tracker_first_hit(hist, start_date, level, direction):
     if hist is None or level is None:
         return None
@@ -15621,25 +15676,43 @@ if view == "health":
         .health-ok { color:var(--color-positive); }
         .health-warn { color:var(--color-warning-text); }
         .health-bad { color:var(--color-negative); }
+        .health-actions {
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:10px;
+            margin:0 0 16px;
+        }
+        .health-receipt {
+            background:#F8FAFC;
+            border:1px solid var(--border-color);
+            border-left:3px solid var(--color-accent);
+            border-radius:6px;
+            padding:12px 14px;
+            margin:0 0 16px;
+            font-family:var(--font-mono);
+            font-size:var(--fs-sm);
+            color:var(--color-text);
+            line-height:1.4;
+        }
         @media (max-width: 980px) {
             .health-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
             .health-panels { grid-template-columns:1fr; }
             .health-row { grid-template-columns:1fr; gap:4px; }
+            .health-actions { grid-template-columns:1fr; }
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    h1, h2 = st.columns([3, 1])
-    with h1:
-        st.markdown(
-            '<div class="health-head"><div>'
-            '<h1 class="health-title">System Health</h1>'
-            '<div class="health-sub">Fast audit of stale data, missing PM work, storage, and action consistency.</div>'
-            '</div></div>',
-            unsafe_allow_html=True,
-        )
-    with h2:
+    st.markdown(
+        '<div class="health-head"><div>'
+        '<h1 class="health-title">System Health</h1>'
+        '<div class="health-sub">Fast audit of stale data, missing PM work, storage, and action consistency.</div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+    action_c1, action_c2, action_c3 = st.columns([1, 1, 2])
+    with action_c1:
         if st.button(
             "↻ Recheck health",
             key="recheck_system_health",
@@ -15649,8 +15722,40 @@ if view == "health":
             st.session_state["_db_health"] = _pg_storage_health()
             st.session_state["_health_audit_checked_at"] = now_market_time().strftime("%-I:%M %p")
             st.rerun()
+    with action_c2:
+        if st.button(
+            "Repair cached actions",
+            key="repair_cached_actions",
+            help="Aligns sidebar/watchlist actions with the canonical Analyze decision. No price refresh and no Claude call.",
+            use_container_width=True,
+        ):
+            st.session_state["_health_repair_result"] = {
+                **repair_watchlist_action_cache(),
+                "ts": now_market_time().strftime("%-I:%M %p"),
+            }
+            st.session_state["_health_audit_checked_at"] = now_market_time().strftime("%-I:%M %p")
+            st.rerun()
+    with action_c3:
+        st.markdown(
+            '<div class="health-note" style="padding-top:8px;">'
+            'Repair is intentionally cheap: it fixes cached action labels from saved analysis, without refreshing market data or PM research.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
     audit = build_health_audit()
+    repair_result = st.session_state.get("_health_repair_result")
+    if isinstance(repair_result, dict):
+        repaired_tickers = repair_result.get("tickers") or []
+        repaired_label = ", ".join(repaired_tickers) if repaired_tickers else "No mismatched actions found"
+        st.markdown(
+            '<div class="health-receipt">'
+            f'{html.escape(str(repair_result.get("message") or ""))} '
+            f'Checked at {html.escape(str(repair_result.get("ts") or ""))}. '
+            f'{html.escape(repaired_label)}'
+            '</div>',
+            unsafe_allow_html=True,
+        )
     checked_at = st.session_state.get("_health_audit_checked_at") or audit.get("last_checked")
     db_ok = bool((audit.get("db") or {}).get("ok"))
     market_issues = len(audit["missing_market"]) + len(audit["stale_market"])
