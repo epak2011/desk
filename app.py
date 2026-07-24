@@ -5316,10 +5316,16 @@ def refresh_watchlist_market_scan():
     fetch_quote_meta.clear()
     sidebar_watchlist_snapshot.clear()
     st.session_state.store["watchlist_sidebar_cache"] = {}
-    update_sidebar_watchlist_cache(watchlist_tickers)
+    refreshed_rows = update_sidebar_watchlist_cache(watchlist_tickers)
+    synced_actions = sum(
+        1
+        for _scan_tkr, scan_row in (refreshed_rows or {}).items()
+        if isinstance(scan_row, dict) and normalize_action_key(scan_row.get("action"))
+    )
     st.session_state["_watchlist_scan_result"] = {
         "time": now_market_time().strftime("%-I:%M %p"),
         "count": len(watchlist_tickers),
+        "synced_actions": synced_actions,
     }
 
 
@@ -16047,9 +16053,15 @@ if view == "triggers":
         scan_event = st.session_state.get("_watchlist_scan_result") or {}
         scan_time = scan_event.get("time")
         if scan_time:
+            synced_count = scan_event.get("synced_actions")
+            sync_text = (
+                f' Rule actions synced for {int(synced_count)} names.'
+                if isinstance(synced_count, int)
+                else " Rule actions synced."
+            )
             st.markdown(
                 f'<div class="desk-refresh-receipt">Trigger data refreshed at {html.escape(str(scan_time))}. '
-                f'PM memos and full reports were not regenerated.</div>',
+                f'{html.escape(sync_text)} PM memos and full reports were not regenerated.</div>',
                 unsafe_allow_html=True,
             )
 
@@ -16496,6 +16508,20 @@ if view == "watchlist":
             ("Sidebar", f"{len(rows)}/{len(st.session_state.store['watchlist'])} rows updated", "fresh" if rows else "stale"),
         ]), unsafe_allow_html=True)
         if fast_watchlist:
+            scan_event = st.session_state.get("_watchlist_scan_result") or {}
+            scan_time = scan_event.get("time")
+            if scan_time:
+                synced_count = scan_event.get("synced_actions")
+                sync_text = (
+                    f"Price data and rule actions synced for {int(synced_count)} names."
+                    if isinstance(synced_count, int)
+                    else "Price data and rule actions synced."
+                )
+                st.markdown(
+                    f'<div class="desk-refresh-receipt">Watchlist refreshed at {html.escape(str(scan_time))}. '
+                    f'{html.escape(sync_text)} PM memos were not regenerated.</div>',
+                    unsafe_allow_html=True,
+                )
             refresh_note_c1, refresh_note_c2 = st.columns([1.35, 4])
             with refresh_note_c1:
                 if st.button(
