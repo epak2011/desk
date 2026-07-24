@@ -19,8 +19,8 @@ CLAUDE_MODEL_FALLBACKS = [
     "claude-sonnet-4-5-20250929",
     "claude-haiku-4-5-20251015",
 ]
-CLAUDE_PM_TIMEOUT_SECONDS = max(8, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "18")))
-CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(8, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "18")))
+CLAUDE_PM_TIMEOUT_SECONDS = max(12, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "24")))
+CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(24, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "45")))
 
 
 def _call_with_timeout(fn, timeout_seconds, label):
@@ -626,7 +626,7 @@ Rules:
                     temperature=0,
                     messages=[{"role": "user", "content": compact_prompt}],
                 ),
-                min(CLAUDE_PM_TIMEOUT_SECONDS, 14),
+                CLAUDE_PM_TIMEOUT_SECONDS,
                 "Claude fast PM memo",
             )
             text = message.content[0].text.strip()
