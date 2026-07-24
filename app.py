@@ -3489,13 +3489,23 @@ def update_sidebar_watchlist_cache(tickers):
     refreshed = sidebar_watchlist_snapshot(normalized)
     if refreshed:
         cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+        final_action_cache = st.session_state.store.setdefault("final_action_cache", {})
         cache.update({
             k: v for k, v in refreshed.items()
             if isinstance(v, dict) and v.get("last") is not None
         })
         for k, v in refreshed.items():
             if isinstance(v, dict) and v.get("last") is not None:
-                merge_ticker_snapshot(k, market=v)
+                final_payload = {}
+                action = normalize_action_key(v.get("action"))
+                if action:
+                    final_payload = {"action": action, "source": "rule"}
+                    final_action_cache[k] = final_payload
+                merge_ticker_snapshot(
+                    k,
+                    market=v,
+                    final_action=final_payload if final_payload else None,
+                )
         save_store(st.session_state.store)
     return refreshed
 
