@@ -4873,7 +4873,7 @@ def pm_status_label(source):
     if "rules fallback" in lower:
         return source, "info"
     if "cached only" in lower or "fast mode" in lower:
-        return "cached/static · fast mode", "info"
+        return "unchanged · fast mode", "info"
     if "unavailable" in lower:
         return "not available", "warn"
     if "fallback" in lower or "failed" in lower:
@@ -4940,7 +4940,7 @@ def research_health_items(pm, dossier_result, api_key):
             "warn",
         )
     elif "cached only" in dossier_lower or "fast mode" in dossier_lower:
-        dossier_row = ("Full dossier", "cached/static · fast mode", "info")
+        dossier_row = ("Full dossier", "unchanged · fast mode", "info")
     else:
         dossier_row = ("Full dossier", "not generated", "warn")
 
@@ -5165,7 +5165,7 @@ def canonical_freshness_html(items, refresh_event=None):
                     f"PM memo did not update"
                     f"{': ' + pm_label if pm_label else ''}."
                 )
-            status += " Full report was not refreshed here; refresh it from the full report page."
+            status += " Full report unchanged; refresh it from the full report page."
             receipt = (
                 f'<div class="desk-refresh-receipt {"" if pm_ok else "warn"}">'
                 f'{html.escape(status)} Updated at {html.escape(refreshed_at)}.</div>'
@@ -12286,7 +12286,7 @@ if view == "analyze":
 """, unsafe_allow_html=True)
         st.markdown(
             '<div class="desk-pm-utility">'
-            '<div class="desk-pm-utility-label">PM / research actions</div>',
+            '<div class="desk-pm-utility-label">PM memo</div>',
             unsafe_allow_html=True,
         )
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
