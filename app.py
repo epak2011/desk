@@ -37,6 +37,13 @@ except ImportError:
         return client.messages.create(model=CLAUDE_MODEL, **kwargs)
 
 
+def render_html_frame(body, *, height=400):
+    """Embed HTML without relying on Streamlit's deprecated component shim."""
+    if hasattr(st, "iframe"):
+        return st.iframe(body, height=height)
+    return st.components.v1.html(body, height=height)
+
+
 st.set_page_config(
     page_title="Trading Desk",
     page_icon="▸",
@@ -11968,7 +11975,7 @@ if view == "analyze":
         }})();
         </script>
         """
-                st.components.v1.html(chart_html, height=500)
+                render_html_frame(chart_html, height=500)
             except Exception as _chart_err:
                 st.warning(f"Chart could not render: {_chart_err}")
 
@@ -14933,7 +14940,7 @@ Return ONLY this JSON shape:
             mime="text/html",
             key="download_regime_email_html",
         )
-        st.components.v1.html(email_html, height=760, scrolling=True)
+        render_html_frame(email_html, height=760)
 
 
 if view == "ideas":
