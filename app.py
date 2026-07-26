@@ -3507,9 +3507,17 @@ def sidebar_watchlist_snapshot(tickers):
         price_age_label, price_age_kind = format_market_data_age(hist)
         action = None
         t_state = None
+        meta = {}
         if bench is not None:
             try:
                 t_state = tactical.compute(hist, bench) or {}
+                try:
+                    meta = fetch_quote_meta(tkr, include_slow_fallbacks=False) or {}
+                    remember_quote_meta(tkr, meta)
+                except Exception:
+                    meta = cached_quote_meta_snapshot(tkr) or {}
+                earnings_days = meta.get("earnings_days") if isinstance(meta, dict) else None
+                t_state = apply_earnings_event_gate(t_state, earnings_days)
                 action = t_state.get("action")
             except Exception:
                 t_state = None
@@ -5283,6 +5291,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         except Exception:
             pass
     else:
+        refreshed_meta = None
         try:
             fetch_quote_meta.clear(refresh_ticker)
         except Exception:
@@ -5298,6 +5307,12 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
             if refreshed_hist is not None and refreshed_bench is not None:
                 refreshed_t = tactical.compute(refreshed_hist, refreshed_bench)
                 if refreshed_t is not None:
+                    earnings_days = (
+                        refreshed_meta.get("earnings_days")
+                        if isinstance(refreshed_meta, dict)
+                        else None
+                    )
+                    refreshed_t = apply_earnings_event_gate(refreshed_t, earnings_days)
                     remember_sidebar_ticker_snapshot(refresh_ticker, refreshed_t, refreshed_hist)
         except Exception:
             pass
@@ -5362,7 +5377,9 @@ def refresh_watchlist_market_scan():
         if isinstance(snapshot_entry, dict):
             snapshot_entry.pop("market", None)
             snapshot_entry.pop("market_updated_at", None)
-    fetch_quote_meta.clear()
+    # Keep metadata cache warm during full-watchlist scans. Clearing every
+    # ticker's Yahoo metadata here makes the page feel frozen and is not
+    # needed to keep price/action reads current.
     sidebar_watchlist_snapshot.clear()
     st.session_state.store["watchlist_sidebar_cache"] = {}
     refreshed_rows = update_sidebar_watchlist_cache(watchlist_tickers)
@@ -7859,7 +7876,7 @@ with st.sidebar:
         section[data-testid="stSidebar"] [class*="st-key-sidebar_nav_"] {
             display: block !important;
             text-align: left !important;
-            margin: 0 0 2px 0 !important;
+            margin: 0 0 1px 0 !important;
             padding: 0 !important;
             width: 100% !important;
         }
@@ -7875,9 +7892,9 @@ with st.sidebar:
             justify-content: flex-start !important;
             width: auto !important;
             max-width: max-content !important;
-            height: 26px !important;
-            min-height: 26px !important;
-            padding: 3px 10px !important;
+            height: 24px !important;
+            min-height: 24px !important;
+            padding: 2px 9px !important;
             border-radius: 5px !important;
             text-align: left !important;
             box-shadow: none !important;
@@ -7897,7 +7914,7 @@ with st.sidebar:
             width: auto !important;
             margin: 0 !important;
             color: inherit !important;
-            font-size: var(--fs-sm) !important;
+            font-size: var(--fs-xs) !important;
             font-weight: 650 !important;
             line-height: 1 !important;
             text-align: left !important;
@@ -7941,7 +7958,7 @@ with st.sidebar:
                 reason="sidebar nav",
                 sync_url=True,
                 sync_widget=False,
-                rerun=True,
+                rerun=False,
             )
     st.markdown(
         '<div style="height:18px;"></div>',
@@ -7993,7 +8010,7 @@ with st.sidebar:
             view="analyze",
             reason="sidebar ticker",
             sync_widget=False,
-            rerun=True,
+            rerun=False,
         )
 
     if st.session_state.get("view") == "analyze" and st.session_state.current_ticker:
