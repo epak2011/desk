@@ -7861,8 +7861,6 @@ with st.sidebar:
         "regime": "Market Regime",
         "analyze": "Analyze",
         "watchlist": "Watchlist",
-        "triggers": "Trigger Monitor",
-        "health": "Health",
         "holdings": "Holdings",
         "ideas": "Ideas",
     }
@@ -16604,22 +16602,6 @@ if view == "watchlist":
                 st.markdown(
                     f'<div class="desk-refresh-receipt">Watchlist refreshed at {html.escape(str(scan_time))}. '
                     f'{html.escape(sync_text)} PM memos were not regenerated.</div>',
-                    unsafe_allow_html=True,
-                )
-            refresh_note_c1, refresh_note_c2 = st.columns([1.35, 4])
-            with refresh_note_c1:
-                if st.button(
-                    "↻ Refresh saved queue",
-                    key="refresh_watchlist_scan_inline",
-                    help="Updates saved prices/actions without regenerating every ticker's PM memo.",
-                    use_container_width=True,
-                ):
-                    _run_watchlist_market_scan()
-                    st.rerun()
-            with refresh_note_c2:
-                st.markdown(
-                    '<div class="watchlist-control-note">'
-                    'Showing saved setup rows so the page opens quickly. Refresh saved queue updates prices and rule actions; PM memo links refresh one ticker at a time.</div>',
                     unsafe_allow_html=True,
                 )
 
