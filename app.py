@@ -7907,7 +7907,7 @@ with st.sidebar:
             view_label,
             key=f"sidebar_nav_{view_key}",
             type="primary" if is_active else "secondary",
-            use_container_width=True,
+            use_container_width=False,
         ):
             route_to(
                 view=view_key,
