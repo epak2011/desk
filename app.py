@@ -3997,16 +3997,30 @@ def current_final_action(snapshot):
 
 
 def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None, *, persist=False):
-    """Keep the sidebar price/action aligned with the main Analyze read."""
+    """Keep sidebar/watchlist/analyze aligned from one canonical rule action."""
     tkr = str(ticker or "").upper().strip()
     if not tkr or not isinstance(t_state, dict):
         return
     market_payload = _market_snapshot_from_t_state(t_state, hist)
     if not market_payload:
         return
+    action = normalize_action_key(t_state.get("action"))
+    final_payload = {}
+    if action:
+        final_payload = {
+            "action": action,
+            "source": t_state.get("_primary_source") or "rule",
+            "rule_trace": t_state.get("_rule_trace") or [],
+        }
     cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
     cache[tkr] = market_payload
-    merge_ticker_snapshot(tkr, market=market_payload)
+    if final_payload:
+        st.session_state.store.setdefault("final_action_cache", {})[tkr] = final_payload
+    merge_ticker_snapshot(
+        tkr,
+        market=market_payload,
+        final_action=final_payload if final_payload else None,
+    )
     if persist:
         save_store(st.session_state.store)
 
@@ -5615,10 +5629,13 @@ def canonical_freshness_html(items, refresh_event=None):
         refresh_lane = ""
     if refreshed_at:
         if refresh_lane == "market":
+            action_label = str(refresh_event.get("action_label") or "").strip()
+            action_text = f" Rule action is now {action_label}." if action_label else ""
             receipt = (
                 f'<div class="desk-refresh-receipt">Market data refreshed at '
                 f'{html.escape(refreshed_at)}. This updates price, fundamentals, rule action, '
-                f'and sidebar/watchlist rows only. PM memo and full report are unchanged.</div>'
+                f'and sidebar/watchlist rows only.{html.escape(action_text)} '
+                f'PM memo and full report are unchanged.</div>'
             )
         elif refresh_lane == "pm":
             pm_label = str(refresh_event.get("pm_label") or "").strip()
@@ -5740,6 +5757,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
             pass
     else:
         refreshed_meta = None
+        refreshed_action = ""
         try:
             fetch_quote_meta.clear(refresh_ticker)
         except Exception:
@@ -5762,6 +5780,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
                     )
                     refreshed_t = apply_earnings_event_gate(refreshed_t, earnings_days)
                     remember_sidebar_ticker_snapshot(refresh_ticker, refreshed_t, refreshed_hist)
+                    refreshed_action = normalize_action_key(refreshed_t.get("action")) or ""
         except Exception:
             pass
     sidebar_watchlist_snapshot.clear()
@@ -5779,6 +5798,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         "research": bool(refresh_research),
         "full_report": bool(refresh_full_report),
         "lane": "full_report" if refresh_full_report else ("pm" if refresh_research else "market"),
+        "action_label": STATE_STYLES.get(refreshed_action, {}).get("label", refreshed_action.replace("_", " ").title()) if not refresh_research and not refresh_full_report and refreshed_action else "",
     }
     save_store(st.session_state.store)
 
