@@ -2765,7 +2765,8 @@ div.streamlit-expanderHeader {
     color: var(--color-muted);
 }
 .watchlist-grid-row > .watchlist-pm-cell,
-.watchlist-grid-row > .watchlist-attention-cell {
+.watchlist-grid-row > .watchlist-attention-cell,
+.watchlist-grid-row > .watchlist-action-cell {
     position: relative;
     overflow: visible;
 }
@@ -2773,14 +2774,62 @@ div.streamlit-expanderHeader {
 .watchlist-grid-row .watchlist-dissent-bubble span {
     white-space: normal;
 }
+.watchlist-rule-hover {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: max-content;
+    max-width: 100%;
+    cursor: help;
+}
+.watchlist-rule-bubble {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: calc(100% + 8px);
+    width: min(520px, 78vw);
+    background: #FFFFFF !important;
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-blue);
+    border-radius: 8px;
+    padding: 12px 14px;
+    box-shadow: 0 22px 54px rgba(15, 23, 42, 0.24);
+    color: var(--color-body);
+    z-index: 100000;
+    text-align: left;
+    white-space: normal;
+}
+.watchlist-rule-bubble-title {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: var(--ls-caps);
+    text-transform: uppercase;
+}
+.watchlist-rule-bubble .desk-rule-source-steps {
+    grid-template-columns: 1fr;
+}
+.watchlist-rule-hover:hover .watchlist-rule-bubble,
+.watchlist-rule-hover:focus-within .watchlist-rule-bubble {
+    display: block;
+}
 .watchlist-dissent-hover:hover .watchlist-dissent-bubble,
 .watchlist-dissent-hover:focus-within .watchlist-dissent-bubble {
     display: block;
 }
 .watchlist-dissent-hover:hover,
 .watchlist-dissent-hover:focus-within,
+.watchlist-rule-hover:hover,
+.watchlist-rule-hover:focus-within,
+.watchlist-grid-row > .watchlist-action-cell:has(.watchlist-rule-hover:hover),
+.watchlist-grid-row > .watchlist-action-cell:has(.watchlist-rule-hover:focus-within),
 .watchlist-grid-row > .watchlist-attention-cell:has(.watchlist-dissent-hover:hover),
 .watchlist-grid-row > .watchlist-attention-cell:has(.watchlist-dissent-hover:focus-within),
+.watchlist-grid-row:has(.watchlist-rule-hover:hover),
+.watchlist-grid-row:has(.watchlist-rule-hover:focus-within),
 .watchlist-grid-row:has(.watchlist-dissent-hover:hover),
 .watchlist-grid-row:has(.watchlist-dissent-hover:focus-within) {
     z-index: 100000 !important;
@@ -3575,7 +3624,11 @@ def update_sidebar_watchlist_cache(tickers):
                 final_payload = {}
                 action = normalize_action_key(v.get("action"))
                 if action:
-                    final_payload = {"action": action, "source": "rule"}
+                    final_payload = {
+                        "action": action,
+                        "source": "rule",
+                        "rule_trace": v.get("rule_trace") or [],
+                    }
                     final_action_cache[k] = final_payload
                 merge_ticker_snapshot(
                     k,
@@ -3722,6 +3775,7 @@ def _market_snapshot_from_t_state(t_state, hist=None):
             "action": t_state.get("action"),
             "trigger": trigger_monitor,
         },
+        "rule_trace": t_state.get("_rule_trace") or [],
         "price_age": price_age_label,
         "price_age_kind": price_age_kind,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
@@ -6298,6 +6352,33 @@ def bold_numbers(s):
     s = re.sub(r"(\$[\d,]+\.?\d*)", r"<b>\1</b>", s)
     s = re.sub(r"(?<![\$>])(\b\d{1,3}(?:,\d{3})+\b)", r"<b>\1</b>", s)
     return s
+
+
+def rule_trace_steps_html(rule_trace, *, max_steps=4):
+    """Compact HTML for the rule path behind a final action."""
+    if not isinstance(rule_trace, list):
+        return ""
+    steps = []
+    for step in rule_trace[-max_steps:]:
+        if not isinstance(step, dict):
+            continue
+        step_label = html.escape(str(step.get("label") or "Rule step"))
+        step_detail = html.escape(str(step.get("detail") or ""))
+        step_action_label = html.escape(str(step.get("action_label") or ""))
+        step_action_html = f"<b>{step_action_label}</b>" if step_action_label else ""
+        if step_action_html and step_detail:
+            detail_html = f"{step_action_html} · {step_detail}"
+        else:
+            detail_html = step_action_html or step_detail
+        if not detail_html:
+            continue
+        steps.append(
+            f'<div class="desk-rule-source-step">'
+            f'<div class="desk-rule-source-step-label">{step_label}</div>'
+            f'<div class="desk-rule-source-step-detail">{detail_html}</div>'
+            f'</div>'
+        )
+    return "".join(steps)
 
 
 def trigger_text(t):
@@ -10770,6 +10851,7 @@ if view == "analyze":
     final_payload = {
         "action": t.get("action"),
         "source": t.get("_primary_source", "rule"),
+        "rule_trace": t.get("_rule_trace") or [],
     }
     snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
     snapshot_entry = snapshots.get(ticker.upper(), {})
@@ -10962,26 +11044,7 @@ if view == "analyze":
 
         rule_trace = t.get("_rule_trace") or []
         if rule_trace:
-            trace_steps = []
-            for step in rule_trace[-4:]:
-                step_label = html.escape(str(step.get("label") or "Rule step"))
-                step_detail = html.escape(str(step.get("detail") or ""))
-                step_action = step.get("action")
-                step_action_label = html.escape(str(step.get("action_label") or ""))
-                step_action_html = (
-                    f"<b>{step_action_label}</b>"
-                    if step_action_label else ""
-                )
-                if step_action_html and step_detail:
-                    detail_html = f"{step_action_html} · {step_detail}"
-                else:
-                    detail_html = step_action_html or step_detail
-                trace_steps.append(
-                    f'<div class="desk-rule-source-step">'
-                    f'<div class="desk-rule-source-step-label">{step_label}</div>'
-                    f'<div class="desk-rule-source-step-detail">{detail_html}</div>'
-                    f'</div>'
-                )
+            trace_steps_html = rule_trace_steps_html(rule_trace)
             final_rule_label = html.escape(sty.get("label", t.get("action", "—")))
             st.markdown(
                 f'<div class="desk-rule-source">'
@@ -10989,7 +11052,7 @@ if view == "analyze":
                 f'<div class="desk-rule-source-title">Decision source</div>'
                 f'<div class="desk-rule-source-final">Final rules action: {final_rule_label}</div>'
                 f'</div>'
-                f'<div class="desk-rule-source-steps">{"".join(trace_steps)}</div>'
+                f'<div class="desk-rule-source-steps">{trace_steps_html}</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -16497,6 +16560,11 @@ if view == "watchlist":
                 or cached_action
                 or "watch"
             )
+            rule_trace = (
+                final_cached.get("rule_trace")
+                or snapshot.get("rule_trace")
+                or []
+            )
             trigger_monitor = snapshot.get("trigger_monitor")
             if not isinstance(trigger_monitor, dict):
                 trigger_monitor = build_trigger_monitor({
@@ -16561,6 +16629,7 @@ if view == "watchlist":
                 "price": t_stub["price"],
                 "change": t_stub["change"],
                 "action": action,
+                "rule_trace": rule_trace,
                 "state": t_stub["state"],
                 "rs": t_stub["rs"],
                 "rs_delta": 0,
@@ -16696,6 +16765,7 @@ if view == "watchlist":
                         "price": t["price"],
                         "change": t["change"],
                         "action": t["action"],
+                        "rule_trace": t.get("_rule_trace") or [],
                         "state": t.get("state", "TRENDING"),
                         "rs": t.get("rs", 1.0),
                         "rs_delta": t.get("rs_delta", 0),
@@ -17174,12 +17244,32 @@ if view == "watchlist":
                     )
                 else:
                     pm_cell_html = html.escape(str(row["pm_status"]))
+                rule_trace_html = rule_trace_steps_html(row.get("rule_trace") or [])
+                rule_bubble_html = ""
+                if rule_trace_html:
+                    final_rule_label = html.escape(sty.get("label", row.get("action", "—")))
+                    rule_bubble_html = (
+                        f'<span class="watchlist-rule-bubble">'
+                        f'<span class="watchlist-rule-bubble-title">'
+                        f'{html.escape(row["ticker"])} · final rules action: {final_rule_label}'
+                        f'</span>'
+                        f'<span class="desk-rule-source-steps">{rule_trace_html}</span>'
+                        f'</span>'
+                    )
+                action_cell_html = (
+                    f'<span class="watchlist-action-cell">'
+                    f'<span class="watchlist-rule-hover" tabindex="0" '
+                    f'style="font-family:var(--font-sans);font-size:var(--fs-sm);'
+                    f'font-weight:600;color:{sty["color"]};">'
+                    f'{sty["emoji"]} {sty["label"]}{rule_bubble_html}</span>'
+                    f'</span>'
+                )
                 if compact_watchlist:
                     row_cells = (
                         f'{ticker_link}'
                         f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
                         f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                        f'{action_cell_html}'
                         f'{attention_cell_html}'
                         f'<span style="text-align:right;color:var(--color-faint);">{high_52w_str}</span>'
                         f'<span style="text-align:right;color:var(--color-faint);">{low_52w_str}</span>'
@@ -17197,7 +17287,7 @@ if view == "watchlist":
                         f'{attention_cell_html}'
                         f'<span style="text-align:right;color:var(--color-text);">{price_str}</span>'
                         f'<span style="text-align:right;color:{chg_color};">{row["change"]:+.2f}%</span>'
-                        f'<span style="font-family:var(--font-sans);font-size:var(--fs-sm);font-weight:600;color:{sty["color"]};">{sty["emoji"]} {sty["label"]}</span>'
+                        f'{action_cell_html}'
                         f'<span class="watchlist-pm-cell" style="font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
                         f'letter-spacing:var(--ls-caps);text-transform:uppercase;color:{row["pm_status_color"]};">'
                         f'{pm_cell_html}</span>'
