@@ -294,6 +294,15 @@ def _pg_init():
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ticker_cache (
+                    cache_name TEXT NOT NULL,
+                    ticker TEXT NOT NULL,
+                    value JSONB NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (cache_name, ticker)
+                )
+            """)
 
 
 def _pg_storage_health():
@@ -305,7 +314,7 @@ def _pg_storage_health():
             "message": "session-only",
             "missing": [],
         }
-    required = ["kv_store", "chat_history", "decisions_log", "regime_daily_cache"]
+    required = ["kv_store", "chat_history", "decisions_log", "regime_daily_cache", "ticker_cache"]
     try:
         _pg_init()
         with _pg_connect() as conn:
@@ -383,7 +392,15 @@ def _store_default():
     }
 
 
-_SPLIT_STORE_KEYS = {"chat_history", "decisions_log", "regime_daily_cache"}
+_TICKER_CACHE_KEYS = {
+    "pm_cache",
+    "dossier_cache",
+    "watchlist_sidebar_cache",
+    "final_action_cache",
+    "quote_meta_cache",
+    "ticker_snapshots",
+}
+_SPLIT_STORE_KEYS = {"chat_history", "decisions_log", "regime_daily_cache"} | _TICKER_CACHE_KEYS
 
 
 def _split_store_sections(store):
@@ -396,18 +413,28 @@ def _split_store_sections(store):
     chat = (store or {}).get("chat_history") or {}
     decisions = (store or {}).get("decisions_log") or []
     regime_cache = (store or {}).get("regime_daily_cache") or {}
-    return core, chat, decisions, regime_cache
+    ticker_caches = {
+        key: ((store or {}).get(key) or {})
+        for key in _TICKER_CACHE_KEYS
+    }
+    return core, chat, decisions, regime_cache, ticker_caches
 
 
 def _persist_cache():
     """Per-session fingerprints so unchanged rows are not rewritten."""
     try:
-        return st.session_state.setdefault(
+        fingerprints = st.session_state.setdefault(
             "_persist_fingerprints",
-            {"core": None, "chat": {}, "decisions": {}, "regime": {}},
+            {"core": None, "chat": {}, "decisions": {}, "regime": {}, "ticker_caches": {}},
         )
+        fingerprints.setdefault("core", None)
+        fingerprints.setdefault("chat", {})
+        fingerprints.setdefault("decisions", {})
+        fingerprints.setdefault("regime", {})
+        fingerprints.setdefault("ticker_caches", {})
+        return fingerprints
     except Exception:
-        return {"core": None, "chat": {}, "decisions": {}, "regime": {}}
+        return {"core": None, "chat": {}, "decisions": {}, "regime": {}, "ticker_caches": {}}
 
 
 def _stable_json(value):
@@ -418,7 +445,7 @@ def _seed_persist_fingerprints(store):
     """Mark freshly loaded rows as clean so first click does not rewrite them."""
     try:
         fingerprints = _persist_cache()
-        core, chat, decisions, regime_cache = _split_store_sections(_json_safe(store or {}))
+        core, chat, decisions, regime_cache, ticker_caches = _split_store_sections(_json_safe(store or {}))
         fingerprints["core"] = _stable_json(core)
         fingerprints["chat"] = {
             str(ticker).upper().strip(): _stable_json(messages or [])
@@ -436,6 +463,15 @@ def _seed_persist_fingerprints(store):
             for day, entry in (regime_cache if isinstance(regime_cache, dict) else {}).items()
             if str(day).strip()
         }
+        fingerprints["ticker_caches"] = {}
+        for cache_name, cache_rows in ticker_caches.items():
+            if not isinstance(cache_rows, dict):
+                continue
+            fingerprints["ticker_caches"][cache_name] = {
+                str(ticker).upper().strip(): _stable_json(value or {})
+                for ticker, value in cache_rows.items()
+                if str(ticker).strip()
+            }
     except Exception:
         pass
 
@@ -460,12 +496,33 @@ def _load_split_sections(cur, store):
     regime_rows = cur.fetchall()
     if regime_rows:
         store["regime_daily_cache"] = {str(day): (entry or {}) for day, entry in regime_rows}
+
+    cur.execute("""
+        SELECT cache_name, ticker, value
+        FROM ticker_cache
+        WHERE cache_name = ANY(%s)
+    """, (list(_TICKER_CACHE_KEYS),))
+    ticker_rows = cur.fetchall()
+    for cache_name, ticker, value in ticker_rows:
+        name = str(cache_name or "")
+        if name not in _TICKER_CACHE_KEYS:
+            continue
+        key = str(ticker or "").upper().strip()
+        if not key:
+            continue
+        store.setdefault(name, {})
+        if isinstance(store[name], dict):
+            store[name][key] = value or {}
     return store
 
 
-def _save_split_sections(cur, chat, decisions, regime_cache):
+def _save_split_sections(cur, chat, decisions, regime_cache, ticker_caches):
     """Persist high-growth store sections with targeted row upserts."""
     fingerprints = _persist_cache()
+    fingerprints.setdefault("chat", {})
+    fingerprints.setdefault("decisions", {})
+    fingerprints.setdefault("regime", {})
+    fingerprints.setdefault("ticker_caches", {})
     chat = chat if isinstance(chat, dict) else {}
     chat_keys = []
     for ticker, messages in chat.items():
@@ -545,6 +602,39 @@ def _save_split_sections(cur, chat, decisions, regime_cache):
         cur.execute("DELETE FROM regime_daily_cache WHERE NOT (day = ANY(%s))", (regime_days,))
         fingerprints["regime"] = {k: v for k, v in fingerprints["regime"].items() if k in set(regime_days)}
 
+    ticker_caches = ticker_caches if isinstance(ticker_caches, dict) else {}
+    for cache_name in sorted(_TICKER_CACHE_KEYS):
+        cache_rows = ticker_caches.get(cache_name) or {}
+        cache_rows = cache_rows if isinstance(cache_rows, dict) else {}
+        cache_fingerprints = fingerprints["ticker_caches"].setdefault(cache_name, {})
+        cache_tickers = []
+        for ticker, value in cache_rows.items():
+            key = str(ticker).upper().strip()
+            if not key:
+                continue
+            cache_tickers.append(key)
+            value_json = _stable_json(value or {})
+            if cache_fingerprints.get(key) == value_json:
+                continue
+            cur.execute("""
+                INSERT INTO ticker_cache (cache_name, ticker, value, updated_at)
+                VALUES (%s, %s, %s::jsonb, NOW())
+                ON CONFLICT (cache_name, ticker) DO UPDATE
+                    SET value = EXCLUDED.value, updated_at = NOW()
+            """, (cache_name, key, value_json))
+            cache_fingerprints[key] = value_json
+        if not cache_tickers:
+            cur.execute("DELETE FROM ticker_cache WHERE cache_name = %s", (cache_name,))
+            fingerprints["ticker_caches"][cache_name] = {}
+        elif set(cache_fingerprints.keys()) != set(cache_tickers):
+            cur.execute(
+                "DELETE FROM ticker_cache WHERE cache_name = %s AND NOT (ticker = ANY(%s))",
+                (cache_name, cache_tickers),
+            )
+            fingerprints["ticker_caches"][cache_name] = {
+                k: v for k, v in cache_fingerprints.items() if k in set(cache_tickers)
+            }
+
 
 def load_store():
     if USE_POSTGRES:
@@ -617,8 +707,9 @@ def save_store(store):
         try:
             with _pg_connect() as conn:
                 with conn.cursor() as cur:
-                    core_store, chat, decisions, regime_cache = _split_store_sections(safe_store)
+                    core_store, chat, decisions, regime_cache, ticker_caches = _split_store_sections(safe_store)
                     fingerprints = _persist_cache()
+                    fingerprints.setdefault("ticker_caches", {})
                     core_json = _stable_json(core_store)
                     if fingerprints.get("core") != core_json:
                         cur.execute("""
@@ -628,7 +719,7 @@ def save_store(store):
                                 SET value = EXCLUDED.value, updated_at = NOW()
                         """, (core_json,))
                         fingerprints["core"] = core_json
-                    _save_split_sections(cur, chat, decisions, regime_cache)
+                    _save_split_sections(cur, chat, decisions, regime_cache, ticker_caches)
             return
         except Exception as e:
             # CRITICAL: Do NOT fall through to local file when USE_POSTGRES
