@@ -4807,8 +4807,52 @@ def finalize_rule_action_for_ticker(
 
     tkr = str(ticker or "").upper().strip()
     updated = dict(t_state)
+    rule_trace = []
+
+    def _action_label(action):
+        style = STATE_STYLES.get(action or "", {})
+        return style.get("label", str(action or "—").replace("_", " ").title())
+
+    def _add_trace(label, detail="", action=None):
+        item = {
+            "label": str(label or "").strip(),
+            "detail": str(detail or "").strip(),
+        }
+        if action:
+            item["action"] = action
+            item["action_label"] = _action_label(action)
+        if item["label"] or item["detail"]:
+            rule_trace.append(item)
+
+    base_action = updated.get("action")
+    base_detail_bits = []
+    if updated.get("state"):
+        base_detail_bits.append(str(updated.get("state")).replace("_", " ").title())
+    if updated.get("setup_score") is not None:
+        try:
+            base_detail_bits.append(f"setup {float(updated.get('setup_score')):.1f}/10")
+        except (TypeError, ValueError):
+            pass
+    if updated.get("reward_risk") is not None:
+        try:
+            base_detail_bits.append(f"reward/risk {float(updated.get('reward_risk')):.2f}:1")
+        except (TypeError, ValueError):
+            pass
+    _add_trace(
+        "Base rules",
+        " · ".join(base_detail_bits) or "Initial technical read",
+        base_action,
+    )
+
     earnings_days = meta.get("earnings_days") if isinstance(meta, dict) else None
+    before_earnings_action = updated.get("action")
     updated = apply_earnings_event_gate(updated, earnings_days) or updated
+    if updated.get("action") != before_earnings_action:
+        _add_trace(
+            "Earnings gate",
+            f"Earnings in {earnings_days} days; fresh entries are gated.",
+            updated.get("action"),
+        )
 
     if updated.get("is_accumulation_eligible") and updated.get("action") == "avoid":
         new_action = tactical.apply_accumulation_override(
@@ -4816,6 +4860,11 @@ def finalize_rule_action_for_ticker(
         )
         if new_action != updated.get("action"):
             updated = {**updated, "action": new_action}
+            _add_trace(
+                "Quality drawdown override",
+                "Quality / stabilization profile prevents a strict Avoid.",
+                updated.get("action"),
+            )
 
     hidden_auto_levels = (
         st.session_state.store.get("hidden_levels", {}).get(tkr, []) or []
@@ -4909,6 +4958,17 @@ def finalize_rule_action_for_ticker(
                         "abort_below", updated.get("stop")
                     ),
                 }
+                if support_action == "enter_now":
+                    support_detail = support_trigger_fired_reason
+                else:
+                    support_detail = support_trigger_override.get("summary") or (
+                        "Historical support is close enough to define the trigger."
+                    )
+                _add_trace(
+                    "Support trigger",
+                    support_detail,
+                    updated.get("action"),
+                )
 
     trigger_memory_changed = False
     trigger_memory = st.session_state.store.setdefault("trigger_memory", {})
@@ -4960,6 +5020,11 @@ def finalize_rule_action_for_ticker(
                 "entry_is_projected": False,
                 "stop": prior_trigger.get("abort_below") or updated.get("stop"),
             }
+            _add_trace(
+                "Prior trigger memory",
+                fired_reason,
+                updated.get("action"),
+            )
             if remember_trigger:
                 prior_trigger["fired_at"] = datetime.now().isoformat(timespec="seconds")
                 prior_trigger["fired_price"] = round(float(updated.get("price") or remembered_level), 2)
@@ -4988,8 +5053,21 @@ def finalize_rule_action_for_ticker(
             "volume_min": (active_trigger.get("levels") or {}).get("volume_min"),
         }
         trigger_memory_changed = True
+        _add_trace(
+            "Trigger saved",
+            f"Watching ${active_buy_level:,.2f}; if it fires and holds, the app will not move the goalpost.",
+            updated.get("action"),
+        )
 
+    before_final_earnings_action = updated.get("action")
     updated = apply_earnings_event_gate(updated, earnings_days) or updated
+    if updated.get("action") != before_final_earnings_action:
+        _add_trace(
+            "Final earnings gate",
+            f"Earnings in {earnings_days} days; final action was constrained.",
+            updated.get("action"),
+        )
+    updated["_rule_trace"] = rule_trace
     return updated, trigger_memory_changed
 
 
@@ -9636,9 +9714,82 @@ div[data-testid="element-container"]:has(.desk-bar) {
     margin-left: 6px;
 }
 
+.desk-rule-source {
+    border: 1px solid var(--desk-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    margin: -6px 0 16px;
+    padding: 10px 12px;
+}
+
+.desk-rule-source-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.desk-rule-source-title {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+}
+
+.desk-rule-source-final {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    color: var(--desk-text);
+}
+
+.desk-rule-source-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 8px;
+}
+
+.desk-rule-source-step {
+    border: 1px solid var(--desk-border);
+    border-radius: 6px;
+    background: #FBFCFE;
+    padding: 8px 9px;
+}
+
+.desk-rule-source-step-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+    margin-bottom: 4px;
+}
+
+.desk-rule-source-step-detail {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--desk-muted);
+}
+
+.desk-rule-source-step-detail b {
+    color: var(--desk-text);
+    font-weight: 850;
+}
+
 @media (max-width: 760px) {
     .desk-decision-stack {
         grid-template-columns: 1fr;
+    }
+    .desk-rule-source-head {
+        display: block;
+    }
+    .desk-rule-source-final {
+        margin-top: 4px;
     }
 }
 
@@ -10808,6 +10959,40 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
+
+        rule_trace = t.get("_rule_trace") or []
+        if rule_trace:
+            trace_steps = []
+            for step in rule_trace[-4:]:
+                step_label = html.escape(str(step.get("label") or "Rule step"))
+                step_detail = html.escape(str(step.get("detail") or ""))
+                step_action = step.get("action")
+                step_action_label = html.escape(str(step.get("action_label") or ""))
+                step_action_html = (
+                    f"<b>{step_action_label}</b>"
+                    if step_action_label else ""
+                )
+                if step_action_html and step_detail:
+                    detail_html = f"{step_action_html} · {step_detail}"
+                else:
+                    detail_html = step_action_html or step_detail
+                trace_steps.append(
+                    f'<div class="desk-rule-source-step">'
+                    f'<div class="desk-rule-source-step-label">{step_label}</div>'
+                    f'<div class="desk-rule-source-step-detail">{detail_html}</div>'
+                    f'</div>'
+                )
+            final_rule_label = html.escape(sty.get("label", t.get("action", "—")))
+            st.markdown(
+                f'<div class="desk-rule-source">'
+                f'<div class="desk-rule-source-head">'
+                f'<div class="desk-rule-source-title">Decision source</div>'
+                f'<div class="desk-rule-source-final">Final rules action: {final_rule_label}</div>'
+                f'</div>'
+                f'<div class="desk-rule-source-steps">{"".join(trace_steps)}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
         refresh_data_col, refresh_data_note_col = st.columns([1, 2])
         with refresh_data_col:
