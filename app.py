@@ -3525,6 +3525,18 @@ def sidebar_watchlist_snapshot(tickers):
                     meta = cached_quote_meta_snapshot(tkr) or {}
                 earnings_days = meta.get("earnings_days") if isinstance(meta, dict) else None
                 t_state = apply_earnings_event_gate(t_state, earnings_days)
+                cached = st.session_state.store.get("dossier_cache", {}).get(tkr, {})
+                quality_tier = (
+                    ((cached.get("result") or {}).get("quality") or {}).get("tier", "")
+                    if isinstance(cached, dict) else ""
+                )
+                t_state, _ = finalize_rule_action_for_ticker(
+                    tkr,
+                    t_state,
+                    meta,
+                    quality_tier,
+                    remember_trigger=False,
+                )
                 action = t_state.get("action")
             except Exception:
                 t_state = None
@@ -4779,6 +4791,206 @@ def apply_earnings_event_gate(t_state, earnings_days):
             updated["action"] = "watch"
         return updated
     return t_state
+
+
+def finalize_rule_action_for_ticker(
+    ticker,
+    t_state,
+    meta=None,
+    quality_tier="",
+    *,
+    remember_trigger=True,
+):
+    """Single rules-action overlay used by Analyze, Watchlist, and Sidebar."""
+    if not isinstance(t_state, dict):
+        return t_state, False
+
+    tkr = str(ticker or "").upper().strip()
+    updated = dict(t_state)
+    earnings_days = meta.get("earnings_days") if isinstance(meta, dict) else None
+    updated = apply_earnings_event_gate(updated, earnings_days) or updated
+
+    if updated.get("is_accumulation_eligible") and updated.get("action") == "avoid":
+        new_action = tactical.apply_accumulation_override(
+            updated.get("action"), True, quality_tier
+        )
+        if new_action != updated.get("action"):
+            updated = {**updated, "action": new_action}
+
+    hidden_auto_levels = (
+        st.session_state.store.get("hidden_levels", {}).get(tkr, []) or []
+    )
+
+    def _is_hidden_auto_level(level):
+        try:
+            level = float(level)
+            return any(abs(level - float(h)) <= 0.02 for h in hidden_auto_levels)
+        except (TypeError, ValueError):
+            return False
+
+    auto_levels = [
+        lv for lv in (updated.get("key_levels") or [])
+        if not _is_hidden_auto_level(lv.get("level"))
+    ]
+    user_levels_for_ticker = (
+        st.session_state.store.get("manual_levels", {}).get(tkr, {})
+    )
+    user_supports = user_levels_for_ticker.get("support", []) or []
+
+    merged_supports = []
+    for lv in auto_levels:
+        if lv.get("kind") == "support":
+            merged_supports.append({**lv, "source": "auto"})
+    for level_price in user_supports:
+        try:
+            merged_supports.append({
+                "level": float(level_price),
+                "touches": 0,
+                "is_flip": False,
+                "_score": 999,
+                "source": "manual",
+            })
+        except (TypeError, ValueError):
+            continue
+
+    if updated.get("action") == "hold_off" and merged_supports:
+        support_trigger_override = tactical.historical_support_trigger(
+            price=updated.get("price"),
+            ma50=updated.get("ma50"),
+            atr_pct=updated.get("atr_pct"),
+            support_levels=merged_supports,
+        )
+        if support_trigger_override:
+            is_user_marked = (
+                support_trigger_override.get("support_meta", {}).get("source") == "manual"
+            )
+            blocked_by_quality = (
+                quality_tier in ("Avoid", "Speculative") and not is_user_marked
+            )
+            if not blocked_by_quality:
+                support_action = "watch"
+                support_trigger_fired = False
+                support_trigger_fired_reason = ""
+                support_meta = support_trigger_override.get("support_meta") or {}
+                support_level = support_trigger_override.get("levels", {}).get("buy_above")
+                support_confirmation_ok = (
+                    updated.get("vol_ratio", 1.0) >= 0.75 or
+                    updated.get("tech_delta", 0) > 0 or
+                    updated.get("rs_delta", 0) >= 0
+                )
+                if (
+                    support_meta.get("status") == "held_above" and
+                    support_confirmation_ok and
+                    support_level is not None
+                ):
+                    support_action = "enter_now"
+                    support_trigger_fired = True
+                    support_trigger_fired_reason = (
+                        f"Support at ${float(support_level):,.2f} already held; "
+                        "continuation is sufficient for an entry signal."
+                    )
+                    support_trigger_override = {
+                        **support_trigger_override,
+                        "fired": True,
+                        "fired_reason": support_trigger_fired_reason,
+                    }
+                updated = {
+                    **updated,
+                    "action": support_action,
+                    "trigger": support_trigger_override,
+                    "trigger_fired": support_trigger_fired,
+                    "trigger_fired_reason": support_trigger_fired_reason,
+                    "entry": (
+                        updated.get("price") if support_trigger_fired
+                        else support_trigger_override.get("levels", {}).get("buy_above")
+                    ),
+                    "entry_is_projected": not support_trigger_fired,
+                    "stop": support_trigger_override.get("levels", {}).get(
+                        "abort_below", updated.get("stop")
+                    ),
+                }
+
+    trigger_memory_changed = False
+    trigger_memory = st.session_state.store.setdefault("trigger_memory", {})
+    prior_trigger = trigger_memory.get(tkr) if isinstance(trigger_memory, dict) else None
+    if isinstance(prior_trigger, dict) and updated.get("action") in ("watch", "hold_off"):
+        try:
+            remembered_level = float(prior_trigger.get("buy_above"))
+        except (TypeError, ValueError):
+            remembered_level = None
+        try:
+            remembered_at = datetime.fromisoformat(str(prior_trigger.get("ts")))
+            remembered_age_days = (datetime.now() - remembered_at).days
+        except Exception:
+            remembered_age_days = 999
+        if (
+            remembered_level and
+            remembered_age_days <= 30 and
+            float(updated.get("price") or 0) >= remembered_level * 1.003 and
+            (
+                updated.get("vol_ratio", 1.0) >= 0.75 or
+                updated.get("tech_delta", 0) > 0 or
+                updated.get("rs_delta", 0) >= 0
+            )
+        ):
+            fired_reason = (
+                f"Prior trigger at ${remembered_level:,.2f} fired and held; "
+                "do not move the goalpost to the next resistance level."
+            )
+            fired_trigger = {
+                "kind": prior_trigger.get("kind") or "remembered_trigger",
+                "summary": prior_trigger.get("summary") or f"prior trigger above ${remembered_level:,.2f}",
+                "buy_rule": prior_trigger.get("buy_rule") or f"Buy once price clears ${remembered_level:,.2f}.",
+                "abort_rule": prior_trigger.get("abort_rule") or "",
+                "levels": {
+                    "buy_above": remembered_level,
+                    "abort_below": prior_trigger.get("abort_below") or updated.get("stop"),
+                    "volume_min": prior_trigger.get("volume_min"),
+                },
+                "fired": True,
+                "fired_reason": fired_reason,
+            }
+            updated = {
+                **updated,
+                "action": "enter_now",
+                "trigger": fired_trigger,
+                "trigger_fired": True,
+                "trigger_fired_reason": fired_reason,
+                "entry": updated.get("price"),
+                "entry_is_projected": False,
+                "stop": prior_trigger.get("abort_below") or updated.get("stop"),
+            }
+            if remember_trigger:
+                prior_trigger["fired_at"] = datetime.now().isoformat(timespec="seconds")
+                prior_trigger["fired_price"] = round(float(updated.get("price") or remembered_level), 2)
+                trigger_memory_changed = True
+
+    active_trigger = updated.get("trigger") if isinstance(updated.get("trigger"), dict) else None
+    active_buy_level = (active_trigger or {}).get("levels", {}).get("buy_above")
+    try:
+        active_buy_level = float(active_buy_level) if active_buy_level is not None else None
+    except (TypeError, ValueError):
+        active_buy_level = None
+    if (
+        remember_trigger and
+        active_buy_level and
+        updated.get("action") == "watch" and
+        float(updated.get("price") or 0) < active_buy_level * 0.997
+    ):
+        trigger_memory[tkr] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "kind": active_trigger.get("kind"),
+            "summary": active_trigger.get("summary"),
+            "buy_rule": active_trigger.get("buy_rule"),
+            "abort_rule": active_trigger.get("abort_rule"),
+            "buy_above": round(active_buy_level, 2),
+            "abort_below": (active_trigger.get("levels") or {}).get("abort_below"),
+            "volume_min": (active_trigger.get("levels") or {}).get("volume_min"),
+        }
+        trigger_memory_changed = True
+
+    updated = apply_earnings_event_gate(updated, earnings_days) or updated
+    return updated, trigger_memory_changed
 
 
 def classify_setup_personality(t_state, quality_tier=""):
@@ -10320,206 +10532,15 @@ if view == "analyze":
         ("Sidebar", sidebar_status_item[0], sidebar_status_item[1]),
     ], refresh_event=refresh_event)
 
-    # Accumulation Watch override: if compute() flagged the name as
-    # accumulation-eligible (deep drawdown + near low + stabilizing + not
-    # breaking down) AND the dossier returned a Quality A or B tier, then
-    # upgrade the action from "avoid" to "accumulate". Quality gate is
-    # hard — this is the value-trap protection. Only fires when there's a
-    # dossier (i.e., API key is set).
     quality_tier = ((dossier_result or {}).get("quality") or {}).get("tier", "")
-    if t.get("is_accumulation_eligible") and t["action"] == "avoid":
-        new_action = tactical.apply_accumulation_override(
-            t["action"], True, quality_tier
-        )
-        if new_action != t["action"]:
-            t = {**t, "action": new_action}
-
-    # Historical-support trigger override: when price is approaching a
-    # meaningful S/R level (auto-detected or user-marked), upgrade hold_off
-    # to watch with a precise trigger. Only overrides hold_off — never
-    # touches enter_now / watch / accumulate / avoid. The override is
-    # gated on Quality A/B when a dossier is available, but auto-detected
-    # levels can also fire on names where Claude hasn't been run yet (the
-    # support setup itself is meaningful regardless of fundamentals).
-    hidden_auto_levels = st.session_state.store.get("hidden_levels", {}).get(ticker.upper(), []) or []
-
-    def _is_hidden_auto_level(level):
-        try:
-            level = float(level)
-            return any(abs(level - float(h)) <= 0.02 for h in hidden_auto_levels)
-        except (TypeError, ValueError):
-            return False
-
-    auto_levels = [
-        lv for lv in (t.get("key_levels") or [])
-        if not _is_hidden_auto_level(lv.get("level"))
-    ]
-    user_levels_for_ticker = (
-        st.session_state.store.get("manual_levels", {}).get(ticker.upper(), {})
+    t, shared_trigger_memory_changed = finalize_rule_action_for_ticker(
+        ticker,
+        t,
+        meta,
+        quality_tier,
+        remember_trigger=True,
     )
-    user_supports = user_levels_for_ticker.get("support", []) or []
-
-    # Tag auto levels with source, build user-level objects matching shape
-    merged_supports = []
-    for lv in auto_levels:
-        if lv.get("kind") == "support":
-            merged_supports.append({**lv, "source": "auto"})
-    for level_price in user_supports:
-        try:
-            merged_supports.append({
-                "level": float(level_price),
-                "touches": 0,
-                "is_flip": False,
-                "_score": 999,  # user-marked levels rank ABOVE auto
-                "source": "manual",
-            })
-        except (TypeError, ValueError):
-            continue
-
-    support_trigger_override = None
-    if t["action"] == "hold_off" and merged_supports:
-        support_trigger_override = tactical.historical_support_trigger(
-            price=t["price"], ma50=t["ma50"], atr_pct=t["atr_pct"],
-            support_levels=merged_supports,
-        )
-        if support_trigger_override:
-            # Block the upgrade for low-quality names (value trap risk).
-            # When dossier is unavailable, allow the upgrade — the support
-            # setup is real regardless. Only block when we explicitly know
-            # quality is "Avoid" or "Speculative" (and the level is auto-
-            # detected, not user-marked — user-marked = trusted override).
-            is_user_marked = support_trigger_override["support_meta"]["source"] == "manual"
-            blocked_by_quality = (
-                quality_tier in ("Avoid", "Speculative") and not is_user_marked
-            )
-            if not blocked_by_quality:
-                # Promote to watch and inject the trigger. If the support
-                # trigger already fired and held, promote to Enter instead
-                # of keeping the user trapped in a stale "almost there"
-                # state for multiple sessions.
-                support_action = "watch"
-                support_trigger_fired = False
-                support_trigger_fired_reason = ""
-                support_meta = support_trigger_override.get("support_meta") or {}
-                support_level = support_trigger_override["levels"].get("buy_above")
-                support_confirmation_ok = (
-                    t.get("vol_ratio", 1.0) >= 0.75 or
-                    t.get("tech_delta", 0) > 0 or
-                    t.get("rs_delta", 0) >= 0
-                )
-                if (
-                    support_meta.get("status") == "held_above" and
-                    support_confirmation_ok and
-                    support_level is not None
-                ):
-                    support_action = "enter_now"
-                    support_trigger_fired = True
-                    support_trigger_fired_reason = (
-                        f"Support at ${float(support_level):,.2f} already held; "
-                        "continuation is sufficient for an entry signal."
-                    )
-                    support_trigger_override = {
-                        **support_trigger_override,
-                        "fired": True,
-                        "fired_reason": support_trigger_fired_reason,
-                    }
-                t = {
-                    **t,
-                    "action": support_action,
-                    "trigger": support_trigger_override,
-                    "trigger_fired": support_trigger_fired,
-                    "trigger_fired_reason": support_trigger_fired_reason,
-                    "entry": (
-                        t["price"] if support_trigger_fired
-                        else support_trigger_override["levels"]["buy_above"]
-                    ),
-                    "entry_is_projected": not support_trigger_fired,
-                    "stop": support_trigger_override["levels"].get("abort_below", t.get("stop")),
-                }
-            else:
-                support_trigger_override = None  # don't render banner
-
-    # Trigger memory: if the app previously told the user "act above X",
-    # keep that level alive for a short window. Without this, recomputing
-    # the setup after price moves can shift the target upward and make a
-    # fired trigger look like it never happened.
-    trigger_memory = st.session_state.store.setdefault("trigger_memory", {})
-    trigger_memory_changed = False
-    prior_trigger = trigger_memory.get(ticker_key) if isinstance(trigger_memory, dict) else None
-    if isinstance(prior_trigger, dict) and t.get("action") in ("watch", "hold_off"):
-        try:
-            remembered_level = float(prior_trigger.get("buy_above"))
-        except (TypeError, ValueError):
-            remembered_level = None
-        try:
-            remembered_at = datetime.fromisoformat(str(prior_trigger.get("ts")))
-            remembered_age_days = (datetime.now() - remembered_at).days
-        except Exception:
-            remembered_age_days = 999
-        if (
-            remembered_level and
-            remembered_age_days <= 30 and
-            float(t.get("price") or 0) >= remembered_level * 1.003 and
-            (
-                t.get("vol_ratio", 1.0) >= 0.75 or
-                t.get("tech_delta", 0) > 0 or
-                t.get("rs_delta", 0) >= 0
-            )
-        ):
-            fired_reason = (
-                f"Prior trigger at ${remembered_level:,.2f} fired and held; "
-                "do not move the goalpost to the next resistance level."
-            )
-            fired_trigger = {
-                "kind": prior_trigger.get("kind") or "remembered_trigger",
-                "summary": prior_trigger.get("summary") or f"prior trigger above ${remembered_level:,.2f}",
-                "buy_rule": prior_trigger.get("buy_rule") or f"Buy once price clears ${remembered_level:,.2f}.",
-                "abort_rule": prior_trigger.get("abort_rule") or "",
-                "levels": {
-                    "buy_above": remembered_level,
-                    "abort_below": prior_trigger.get("abort_below") or t.get("stop"),
-                    "volume_min": prior_trigger.get("volume_min"),
-                },
-                "fired": True,
-                "fired_reason": fired_reason,
-            }
-            t = {
-                **t,
-                "action": "enter_now",
-                "trigger": fired_trigger,
-                "trigger_fired": True,
-                "trigger_fired_reason": fired_reason,
-                "entry": t.get("price"),
-                "entry_is_projected": False,
-                "stop": prior_trigger.get("abort_below") or t.get("stop"),
-            }
-            prior_trigger["fired_at"] = datetime.now().isoformat(timespec="seconds")
-            prior_trigger["fired_price"] = round(float(t.get("price") or remembered_level), 2)
-            trigger_memory_changed = True
-
-    active_trigger = t.get("trigger") if isinstance(t.get("trigger"), dict) else None
-    active_buy_level = (active_trigger or {}).get("levels", {}).get("buy_above")
-    try:
-        active_buy_level = float(active_buy_level) if active_buy_level is not None else None
-    except (TypeError, ValueError):
-        active_buy_level = None
-    if (
-        active_buy_level and
-        t.get("action") == "watch" and
-        float(t.get("price") or 0) < active_buy_level * 0.997
-    ):
-        trigger_memory[ticker_key] = {
-            "ts": datetime.now().isoformat(timespec="seconds"),
-            "kind": active_trigger.get("kind"),
-            "summary": active_trigger.get("summary"),
-            "buy_rule": active_trigger.get("buy_rule"),
-            "abort_rule": active_trigger.get("abort_rule"),
-            "buy_above": round(active_buy_level, 2),
-            "abort_below": (active_trigger.get("levels") or {}).get("abort_below"),
-            "volume_min": (active_trigger.get("levels") or {}).get("volume_min"),
-        }
-        trigger_memory_changed = True
-    if trigger_memory_changed:
+    if shared_trigger_memory_changed:
         save_store(st.session_state.store)
 
     # The rule engine owns the actionable headline. Claude works as a PM
@@ -16412,17 +16433,6 @@ if view == "watchlist":
                     if t is None:
                         continue
 
-                    # Apply accumulation override using cached quality
-                    if t.get("is_accumulation_eligible") and t["action"] == "avoid":
-                        cached = dossier_cache.get(tkr.upper(), {})
-                        cached_quality = ((cached.get("result") or {}).get("quality") or {})
-                        q_tier = cached_quality.get("tier", "")
-                        new_action = tactical.apply_accumulation_override(
-                            t["action"], True, q_tier
-                        )
-                        if new_action != t["action"]:
-                            t = {**t, "action": new_action}
-
                     # Quality tier from dossier cache (if available)
                     cached = dossier_cache.get(tkr.upper(), {})
                     quality_tier = (
@@ -16435,7 +16445,13 @@ if view == "watchlist":
                     if metadata_status_label(meta)[1] != "fresh":
                         meta_sparse += 1
                     earnings_days = meta.get("earnings_days") if meta else None
-                    t = apply_earnings_event_gate(t, earnings_days)
+                    t, _ = finalize_rule_action_for_ticker(
+                        tkr,
+                        t,
+                        meta,
+                        quality_tier,
+                        remember_trigger=False,
+                    )
                     cached_call = ((cached.get("result") or {}).get("tactical_call") or {})
                     cached_action = normalize_action_key(cached_call.get("action"))
                     try:
