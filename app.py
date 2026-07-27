@@ -4064,6 +4064,45 @@ def sidebar_row_needs_refresh(row, *, max_age_minutes=5):
         return True
 
 
+def repair_missing_sidebar_price_rows(watchlist, *, retry_seconds=60):
+    """Backfill blank sidebar prices without scanning on every rerun."""
+    missing = []
+    seen = set()
+    for raw in watchlist or []:
+        tkr = str(raw or "").upper().strip()
+        if not tkr or tkr in seen:
+            continue
+        seen.add(tkr)
+        market = ticker_snapshot(tkr).get("market") or {}
+        if _num_or_none(market.get("last")) is None:
+            missing.append(tkr)
+    if not missing:
+        return []
+
+    repair_key = "|".join(missing)
+    last_key = st.session_state.get("_sidebar_missing_price_repair_key")
+    last_at = _parse_iso_dt(st.session_state.get("_sidebar_missing_price_repair_at"))
+    if (
+        last_key == repair_key
+        and last_at is not None
+        and (datetime.now() - last_at) < timedelta(seconds=retry_seconds)
+    ):
+        return []
+
+    st.session_state["_sidebar_missing_price_repair_key"] = repair_key
+    st.session_state["_sidebar_missing_price_repair_at"] = datetime.now().isoformat(timespec="seconds")
+    try:
+        sidebar_watchlist_snapshot.clear()
+        refreshed = update_sidebar_watchlist_cache(tuple(missing))
+    except Exception:
+        return []
+
+    return [
+        tkr for tkr, row in (refreshed or {}).items()
+        if isinstance(row, dict) and _num_or_none(row.get("last")) is not None
+    ]
+
+
 def normalize_action_key(raw):
     """Normalize logged/user/Claude action labels to internal action keys."""
     if raw is None:
@@ -9244,6 +9283,9 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
                             remember_sidebar_ticker_snapshot(current_key, t_current, hist_current)
                 except Exception:
                     pass
+        repaired_sidebar_prices = repair_missing_sidebar_price_rows(watchlist)
+        if repaired_sidebar_prices:
+            saved_sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
         wl_data = {
             str(tkr).upper(): (ticker_snapshot(tkr).get("market") or {})
             for tkr in watchlist
