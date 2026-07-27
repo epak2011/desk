@@ -2728,9 +2728,10 @@ div.streamlit-expanderHeader {
 .watchlist-dissent-bubble {
     display: none;
     position: absolute;
-    right: 0;
+    left: 0;
+    right: auto;
     top: calc(100% + 8px);
-    width: min(420px, 72vw);
+    width: min(460px, 72vw);
     padding: 12px 14px;
     border: 1px solid var(--color-border);
     border-left: 3px solid var(--color-blue);
@@ -2749,6 +2750,15 @@ div.streamlit-expanderHeader {
     text-align: left;
     z-index: 100000;
     pointer-events: auto;
+    isolation: isolate;
+}
+.watchlist-dissent-bubble::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #FFFFFF;
+    z-index: -1;
 }
 .watchlist-dissent-bubble strong {
     display: block;
@@ -8597,36 +8607,28 @@ section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
     margin: 0 !important;
 }
 
-/* Final sidebar skin: brighter, younger, more app-like */
+/* Sidebar skin: quiet workstation rail. Keep page navigation compact and
+   left-aligned; watchlist rows and form buttons get their own styling below. */
 section[data-testid='stSidebar'] {
-    background: linear-gradient(180deg, #F8FAFC 0%, #ECFDF5 48%, #EFF6FF 100%) !important;
-    border-right: 1px solid rgba(15, 23, 42, 0.08) !important;
+    background: #F3F5F7 !important;
+    border-right: 1px solid var(--desk-border) !important;
 }
 section[data-testid='stSidebar'] hr {
-    border-color: rgba(15, 23, 42, 0.09) !important;
+    border-color: var(--desk-border) !important;
 }
 section[data-testid='stSidebar'] input {
-    border-radius: 14px !important;
+    border-radius: 6px !important;
     background: #FFFFFF !important;
-    border: 1px solid rgba(37, 99, 235, 0.14) !important;
-    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.06) !important;
-}
-section[data-testid='stSidebar'] div.stButton > button,
-section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
-    border-radius: 12px !important;
-    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease !important;
-}
-section[data-testid='stSidebar'] div.stButton > button:hover,
-section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
-    transform: translateX(2px);
-    background: rgba(37, 99, 235, 0.08) !important;
-    border-color: rgba(37, 99, 235, 0.14) !important;
+    border: 1px solid var(--desk-border) !important;
+    box-shadow: none !important;
 }
 /* Sidebar primary navigation: compact left rail, not giant full-width pills. */
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] {
-    display: block !important;
+    display: flex !important;
+    justify-content: flex-start !important;
     text-align: left !important;
-    margin: 0 0 2px 0 !important;
+    margin: 0 0 3px 0 !important;
+    padding: 0 !important;
     width: 100% !important;
 }
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] div.stButton {
@@ -8636,17 +8638,20 @@ section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] div.stButton {
 }
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button {
     display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
     width: auto !important;
     max-width: max-content !important;
-    min-height: 26px !important;
-    height: 26px !important;
-    padding: 3px 10px !important;
+    min-height: 24px !important;
+    height: 24px !important;
+    padding: 2px 9px !important;
     border-radius: 5px !important;
-    justify-content: flex-start !important;
     text-align: left !important;
     transform: none !important;
     margin: 0 !important;
     align-self: flex-start !important;
+    box-shadow: none !important;
+    transition: none !important;
 }
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button p,
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button [data-testid="stMarkdownContainer"] {
@@ -8655,6 +8660,18 @@ section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button [data-tes
     text-align: left !important;
     line-height: 1 !important;
     white-space: nowrap !important;
+    font-size: var(--fs-xs) !important;
+    font-weight: 650 !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button[kind="secondary"] {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    color: var(--color-text) !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button[kind="secondary"]:hover {
+    background: #FFFFFF !important;
+    border-color: var(--desk-border) !important;
+    color: var(--color-text) !important;
 }
 section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button[kind="primary"] {
     background: #111111 !important;
@@ -8669,19 +8686,27 @@ section[data-testid='stSidebar'] [class*="st-key-sidebar_nav_"] button[kind="pri
     color: #FFFFFF !important;
     transform: none !important;
 }
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
+    border-radius: 6px !important;
+    transition: background 0.12s ease, border-color 0.12s ease !important;
+}
+section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button:hover {
+    background: #FFFFFF !important;
+    border-color: var(--desk-border) !important;
+}
 section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
-    background: linear-gradient(135deg, #111827 0%, #2563EB 72%, #06B6D4 100%) !important;
+    background: #111111 !important;
     color: #FFFFFF !important;
-    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.18) !important;
+    box-shadow: none !important;
 }
 section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button:hover {
-    background: linear-gradient(135deg, #111827 0%, #2563EB 72%, #06B6D4 100%) !important;
+    background: #111111 !important;
 }
 section[data-testid='stSidebar'] [class*="st-key-add_to_watchlist_btn"] button {
-    border-radius: 999px !important;
+    border-radius: 6px !important;
     background: #FFFFFF !important;
-    border: 1px solid rgba(37, 99, 235, 0.16) !important;
-    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08) !important;
+    border: 1px solid var(--desk-border) !important;
+    box-shadow: none !important;
 }
 
 /* Refined skin: young but premium, less noisy than the first pass */
@@ -11542,9 +11567,8 @@ if view == "analyze":
                 unsafe_allow_html=True,
             )
 
-            # Side-by-side via CSS grid: Claude (primary) | divider | Rule engine (secondary)
-            # Claude is on the left because it's the primary decision source —
-            # the rule engine is the comparison baseline. The 1px middle column
+            # Side-by-side via CSS grid: Rule engine (primary) | divider | Claude (dissent/context)
+            # Rules own the actionable call; Claude is a second-look layer. The 1px middle column
             # of the grid renders as a vertical divider that spans the full
             # height of both sides.
             rule_color = rule_sty.get("color", "#0F0E0D")
@@ -11554,14 +11578,14 @@ if view == "analyze":
             st.markdown(
                 f'<div class="desk-cmp-grid">'
                 f'<div>'
-                f'<div class="desk-cmp-side-label">Claude <span style="color:var(--color-muted);font-weight:500;">· primary</span></div>'
-                f'{claude_html}'
+                f'<div class="desk-cmp-side-label">Rule engine <span style="color:var(--color-muted);font-weight:500;">· primary</span></div>'
+                f'<div class="desk-cmp-action" style="color:{rule_color};">{rule_emoji} {rule_label}</div>'
+                f'<div class="desk-cmp-meta">State: {state_label}</div>'
                 f'</div>'
                 f'<div class="desk-cmp-divider"></div>'
                 f'<div>'
-                f'<div class="desk-cmp-side-label">Rule engine <span style="color:var(--color-faint);font-weight:500;">· secondary</span></div>'
-                f'<div class="desk-cmp-action" style="color:{rule_color};">{rule_emoji} {rule_label}</div>'
-                f'<div class="desk-cmp-meta">State: {state_label}</div>'
+                f'<div class="desk-cmp-side-label">Claude <span style="color:var(--color-faint);font-weight:500;">· dissent/context</span></div>'
+                f'{claude_html}'
                 f'</div>'
                 f'</div>',
                 unsafe_allow_html=True,
