@@ -3958,7 +3958,10 @@ def ticker_snapshot(ticker):
     market = dict(snap.get("market") or {})
     legacy_market = st.session_state.store.get("watchlist_sidebar_cache", {}).get(tkr, {})
     if isinstance(legacy_market, dict):
-        market = {**legacy_market, **market}
+        merged_market = {**legacy_market, **market}
+        if _num_or_none(merged_market.get("last")) is None and _num_or_none(legacy_market.get("last")) is not None:
+            merged_market = {**market, **legacy_market}
+        market = merged_market
     meta = dict(snap.get("meta") or {})
     legacy_meta_entry = st.session_state.store.get("quote_meta_cache", {}).get(tkr, {})
     legacy_meta = legacy_meta_entry.get("meta") if isinstance(legacy_meta_entry, dict) else {}
@@ -5882,19 +5885,18 @@ def refresh_watchlist_market_scan():
         for scan_tkr in st.session_state.store.get("watchlist", [])
         if str(scan_tkr or "").strip()
     ]
-    snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
     for scan_tkr in watchlist_tickers:
         _delete_history_cache(scan_tkr)
-        snapshot_entry = snapshots.get(scan_tkr)
-        if isinstance(snapshot_entry, dict):
-            snapshot_entry.pop("market", None)
-            snapshot_entry.pop("market_updated_at", None)
     # Keep metadata cache warm during full-watchlist scans. Clearing every
     # ticker's Yahoo metadata here makes the page feel frozen and is not
     # needed to keep price/action reads current.
     sidebar_watchlist_snapshot.clear()
-    st.session_state.store["watchlist_sidebar_cache"] = {}
     refreshed_rows = update_sidebar_watchlist_cache(watchlist_tickers)
+    price_rows = sum(
+        1
+        for _scan_tkr, scan_row in (refreshed_rows or {}).items()
+        if isinstance(scan_row, dict) and _num_or_none(scan_row.get("last")) is not None
+    )
     synced_actions = sum(
         1
         for _scan_tkr, scan_row in (refreshed_rows or {}).items()
@@ -5903,8 +5905,10 @@ def refresh_watchlist_market_scan():
     st.session_state["_watchlist_scan_result"] = {
         "time": now_market_time().strftime("%-I:%M %p"),
         "count": len(watchlist_tickers),
+        "price_rows": price_rows,
         "synced_actions": synced_actions,
     }
+    save_store(st.session_state.store)
 
 
 def get_effective_api_key():
@@ -16784,11 +16788,15 @@ if view == "watchlist":
                 cached_confidence,
                 cached_dissent_note,
             )
+            price_value = _num_or_none(snapshot.get("last"))
+            if price_value is None:
+                price_value = _num_or_none(snapshot.get("price"))
+            change_value = _num_or_none(snapshot.get("change_pct"))
             t_stub = {
                 "action": action,
                 "state": snapshot.get("state") or "CACHED",
-                "price": _safe_float(snapshot.get("last")),
-                "change": _safe_float(snapshot.get("change_pct")),
+                "price": price_value,
+                "change": change_value if change_value is not None else 0.0,
                 "rs": _safe_float(snapshot.get("rs"), 1.0),
                 "tech_delta": 0,
             }
@@ -17052,11 +17060,16 @@ if view == "watchlist":
             scan_time = scan_event.get("time")
             if scan_time:
                 synced_count = scan_event.get("synced_actions")
-                sync_text = (
-                    f"Price data and rule actions synced for {int(synced_count)} names."
-                    if isinstance(synced_count, int)
-                    else "Price data and rule actions synced."
-                )
+                price_count = scan_event.get("price_rows")
+                total_count = scan_event.get("count")
+                if isinstance(price_count, int) and isinstance(total_count, int):
+                    sync_text = f"Prices updated for {price_count}/{total_count} names."
+                    if isinstance(synced_count, int):
+                        sync_text += f" Rule actions synced for {synced_count} names."
+                elif isinstance(synced_count, int):
+                    sync_text = f"Price data and rule actions synced for {synced_count} names."
+                else:
+                    sync_text = "Price data and rule actions synced."
                 st.markdown(
                     f'<div class="desk-refresh-receipt">Watchlist refreshed at {html.escape(str(scan_time))}. '
                     f'{html.escape(sync_text)} PM memos were not regenerated.</div>',
@@ -17356,7 +17369,7 @@ if view == "watchlist":
                     else "—"
                 )
                 price_value = row.get("price")
-                price_str = f'${price_value:,.2f}' if price_value else "—"
+                price_str = f'${float(price_value):,.2f}' if price_value is not None else "—"
                 high_52w = row.get("high_52w")
                 low_52w = row.get("low_52w")
                 high_52w_str = f'${float(high_52w):,.2f}' if high_52w else "—"
