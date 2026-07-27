@@ -342,6 +342,19 @@ def _pg_storage_health():
         }
 
 
+def record_perf_metric(name, started_at):
+    """Keep a tiny last-run timing record for the Health page."""
+    try:
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        metrics = st.session_state.setdefault("_perf_metrics", {})
+        metrics[str(name)] = {
+            "ms": elapsed_ms,
+            "ts": now_market_time().strftime("%-I:%M:%S %p"),
+        }
+    except Exception:
+        pass
+
+
 def _store_default():
     return {
         "watchlist": ["NVDA", "META", "AAPL", "MSFT", "TSLA"],
@@ -633,6 +646,7 @@ def _save_split_sections(cur, chat, decisions, regime_cache, ticker_caches):
 
 
 def load_store():
+    _perf_t0 = time.perf_counter()
     if USE_POSTGRES:
         try:
             _pg_init()
@@ -647,8 +661,10 @@ def load_store():
                             store.setdefault(key, value)
                         loaded_store = _load_split_sections(cur, store)
                         _seed_persist_fingerprints(loaded_store)
+                        record_perf_metric("load_store", _perf_t0)
                         return loaded_store
                     # No row yet — return defaults; first save creates the row.
+                    record_perf_metric("load_store", _perf_t0)
                     return _store_default()
         except Exception as e:
             # CRITICAL: When DATABASE_URL is set but unreachable, do NOT fall
@@ -660,13 +676,17 @@ def load_store():
                 st.session_state["_db_error"] = str(e)
             except Exception:
                 pass
+            record_perf_metric("load_store", _perf_t0)
             return _store_default()
     # File fallback — only reached when DATABASE_URL is unset (local dev)
     if STORE_PATH.exists():
         try:
-            return json.loads(STORE_PATH.read_text())
+            store = json.loads(STORE_PATH.read_text())
+            record_perf_metric("load_store", _perf_t0)
+            return store
         except Exception:
             pass
+    record_perf_metric("load_store", _perf_t0)
     return _store_default()
 
 
@@ -698,6 +718,7 @@ def _json_safe(value):
 
 
 def save_store(store):
+    _perf_t0 = time.perf_counter()
     safe_store = _json_safe(store)
     if USE_POSTGRES:
         try:
@@ -716,6 +737,7 @@ def save_store(store):
                         """, (core_json,))
                         fingerprints["core"] = core_json
                     _save_split_sections(cur, chat, decisions, regime_cache, ticker_caches)
+            record_perf_metric("save_store", _perf_t0)
             return
         except Exception as e:
             # CRITICAL: Do NOT fall through to local file when USE_POSTGRES
@@ -728,9 +750,11 @@ def save_store(store):
                 )
             except Exception:
                 pass
+            record_perf_metric("save_store", _perf_t0)
             return
     # File fallback — only reached when DATABASE_URL is unset (local dev)
     STORE_PATH.write_text(json.dumps(safe_store, indent=2, allow_nan=False))
+    record_perf_metric("save_store", _perf_t0)
 
 
 ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "triggers", "health", "holdings", "ideas"}
@@ -5641,23 +5665,33 @@ def canonical_freshness_html(items, refresh_event=None):
             pm_label = str(refresh_event.get("pm_label") or "").strip()
             pm_kind = str(refresh_event.get("pm_kind") or "").strip()
             pm_lower = pm_label.lower()
-            pm_ok = pm_kind in ("fresh", "info") and not any(
-                marker in pm_label.lower()
-                for marker in ("timeout", "failed", "not generated", "unavailable", "cached/static")
+            pm_problem = any(
+                marker in pm_lower
+                for marker in (
+                    "timeout",
+                    "timed out",
+                    "failed",
+                    "not generated",
+                    "unavailable",
+                    "cached/static",
+                    "fast mode",
+                )
             )
+            pm_ok = pm_kind in ("fresh", "info") and not pm_problem
             pm_fallback_ok = (
                 "rules fallback" in pm_lower
                 and "not generated" not in pm_lower
                 and "unavailable" not in pm_lower
+                and "failed" not in pm_lower
             )
             if pm_ok:
-                status = f"PM memo updated ({pm_label})."
+                status = f"PM memo refreshed: {pm_label}."
             elif pm_fallback_ok:
-                status = f"PM snapshot updated from rules fallback ({pm_label}). Claude did not finish cleanly."
+                status = f"PM memo refreshed from rules fallback: {pm_label}. Claude did not finish cleanly."
             else:
                 status = (
-                    f"PM memo did not update"
-                    f"{': ' + pm_label if pm_label else ''}."
+                    f"PM memo unchanged"
+                    f"{': ' + pm_label if pm_label else ': refresh did not complete'}."
                 )
             status += " Full report unchanged; refresh it from the full report page."
             receipt = (
@@ -5666,22 +5700,32 @@ def canonical_freshness_html(items, refresh_event=None):
             )
         elif refresh_lane == "full_report":
             dossier_label = str(refresh_event.get("dossier_label") or "").strip()
+            dossier_lower = dossier_label.lower()
+            dossier_problem = any(
+                marker in dossier_lower
+                for marker in ("timeout", "timed out", "failed", "unavailable", "cached/static", "fast mode")
+            )
             status = "Full report refresh requested."
             if dossier_label:
-                status = f"Full report status: {dossier_label}."
+                if dossier_problem:
+                    status = f"Full report unchanged: {dossier_label}."
+                else:
+                    status = f"Full report refreshed: {dossier_label}."
             receipt = (
-                f'<div class="desk-refresh-receipt">'
+                f'<div class="desk-refresh-receipt {"warn" if dossier_problem else ""}">'
                 f'{html.escape(status)} Market data/PM memo are unchanged unless refreshed separately. '
                 f'Updated at {html.escape(refreshed_at)}.</div>'
             )
         elif research_requested:
             pm_label = str(refresh_event.get("pm_label") or "").strip()
             pm_kind = str(refresh_event.get("pm_kind") or "").strip()
-            pm_ok = pm_kind in ("fresh", "info") and not any(
-                marker in pm_label.lower()
-                for marker in ("timeout", "failed", "not generated", "unavailable", "cached/static")
+            pm_lower = pm_label.lower()
+            pm_problem = any(
+                marker in pm_lower
+                for marker in ("timeout", "timed out", "failed", "not generated", "unavailable", "cached/static", "fast mode")
             )
-            status = f"PM memo updated ({pm_label})." if pm_ok else f"PM memo did not update{': ' + pm_label if pm_label else ''}."
+            pm_ok = pm_kind in ("fresh", "info") and not pm_problem
+            status = f"PM memo refreshed: {pm_label}." if pm_ok else f"PM memo unchanged{': ' + pm_label if pm_label else ': refresh did not complete'}."
             receipt = (
                 f'<div class="desk-refresh-receipt {"" if pm_ok else "warn"}">'
                 f'{html.escape(status)} Updated at {html.escape(refreshed_at)}.</div>'
@@ -7158,6 +7202,7 @@ def build_health_audit():
         "mismatches": mismatches,
         "issues": issues,
         "last_checked": now_market_time().strftime("%-I:%M %p"),
+        "perf": st.session_state.get("_perf_metrics", {}),
     }
 
 
@@ -11492,17 +11537,11 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
             if dossier_is_stale:
-                if st.button(
-                    "Refresh decision dossier",
-                    key=f"refresh_stale_dossier_{ticker.upper()}",
-                    help="Regenerates the written decision dossier with current market data. This can take longer than the fast market-data refresh.",
-                ):
-                    refresh_current_ticker_state(
-                        ticker,
-                        refresh_research=True,
-                        refresh_full_report=True,
-                    )
-                    st.rerun()
+                st.markdown(
+                    f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
+                    f'target="_blank" rel="noopener">Refresh long report on the full report page ↗</a>',
+                    unsafe_allow_html=True,
+                )
 
         # 1a-extra. DECISION COMPARISON — rule engine vs Claude vs you.
         # Diagnostic panel for the 2-4 week trial period to evaluate which
@@ -16269,6 +16308,15 @@ if view == "health":
     mismatch_count = len(audit["mismatches"])
     action_now = audit["trigger_counts"].get("Actionable now", 0)
     near_trigger = audit["trigger_counts"].get("Near trigger", 0)
+    perf_metrics = audit.get("perf") if isinstance(audit.get("perf"), dict) else {}
+    perf_parts = []
+    for metric_name in ("load_store", "save_store"):
+        metric = perf_metrics.get(metric_name)
+        if isinstance(metric, dict) and metric.get("ms") is not None:
+            label = "load" if metric_name == "load_store" else "save"
+            perf_parts.append(f"{label} {metric.get('ms')}ms")
+    perf_value = " · ".join(perf_parts) if perf_parts else "—"
+    perf_note = "last app-state load/save; excludes Yahoo and Claude"
     summary_cards = [
         ("Storage", "OK" if db_ok else "Needs attention", (audit.get("db") or {}).get("message", ""), "health-ok" if db_ok else "health-bad"),
         ("Market rows", str(market_issues), "missing or older than 20 minutes", "health-ok" if market_issues == 0 else "health-warn"),
@@ -16277,6 +16325,7 @@ if view == "health":
         ("Action mismatches", str(mismatch_count), "sidebar/watchlist vs canonical action", "health-ok" if mismatch_count == 0 else "health-bad"),
         ("Actionable now", str(action_now), "from Trigger Monitor", "health-ok" if action_now == 0 else "health-warn"),
         ("Near trigger", str(near_trigger), "within the monitor threshold", "health-ok" if near_trigger == 0 else "health-warn"),
+        ("App state speed", perf_value, perf_note, "health-ok"),
         ("Checked", str(checked_at), "health audit only; no slow refresh", "health-ok"),
     ]
     st.markdown(
