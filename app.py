@@ -463,15 +463,11 @@ def _seed_persist_fingerprints(store):
             for day, entry in (regime_cache if isinstance(regime_cache, dict) else {}).items()
             if str(day).strip()
         }
+        # Do not seed ticker-cache fingerprints here. On the first deploy after
+        # this migration, those caches still live inside the legacy default row.
+        # The next save must upsert them into ticker_cache before the default row
+        # is rewritten without them.
         fingerprints["ticker_caches"] = {}
-        for cache_name, cache_rows in ticker_caches.items():
-            if not isinstance(cache_rows, dict):
-                continue
-            fingerprints["ticker_caches"][cache_name] = {
-                str(ticker).upper().strip(): _stable_json(value or {})
-                for ticker, value in cache_rows.items()
-                if str(ticker).strip()
-            }
     except Exception:
         pass
 
