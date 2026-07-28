@@ -15,8 +15,10 @@ import html
 import math
 import os
 import time
+import threading
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 try:
@@ -3663,48 +3665,107 @@ def fetch_bench():
 def sidebar_watchlist_snapshot(tickers):
     """Small cached payload for the always-visible sidebar watchlist."""
     bench = fetch_bench()
-    snapshot = {}
-    for raw_ticker in tickers:
+    normalized = []
+    seen = set()
+    for raw_ticker in tickers or ():
         tkr = str(raw_ticker or "").upper().strip()
-        if not tkr:
+        if not tkr or tkr in seen:
             continue
+        seen.add(tkr)
+        normalized.append(tkr)
+
+    store = st.session_state.get("store", {})
+    dossier_cache = store.get("dossier_cache", {}) if isinstance(store, dict) else {}
+    quality_by_ticker = {}
+    for tkr in normalized:
+        cached = dossier_cache.get(tkr, {}) if isinstance(dossier_cache, dict) else {}
+        quality_by_ticker[tkr] = (
+            ((cached.get("result") or {}).get("quality") or {}).get("tier", "")
+            if isinstance(cached, dict) else ""
+        )
+
+    def _unavailable_row():
+        return {
+            "last": None,
+            "change_pct": None,
+            "action": None,
+            "price_age": "unavailable",
+            "price_age_kind": "stale",
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }
+
+    def _fetch_sidebar_inputs(tkr):
         hist, _, _ = fetch_history(tkr)
-        if hist is None or len(hist) < 2:
-            snapshot[tkr] = {
-                "last": None,
-                "change_pct": None,
-                "action": None,
-                "price_age": "unavailable",
-                "price_age_kind": "stale",
-                "updated_at": datetime.now().isoformat(timespec="seconds"),
+        meta = {}
+        if hist is not None and len(hist) >= 2:
+            try:
+                meta = fetch_quote_meta(tkr, include_slow_fallbacks=False) or {}
+            except Exception:
+                meta = {}
+        return tkr, hist, meta
+
+    worker_initializer = None
+    try:
+        from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
+        script_ctx = get_script_run_ctx()
+
+        def _attach_script_context():
+            if script_ctx is not None:
+                add_script_run_ctx(threading.current_thread(), script_ctx)
+
+        worker_initializer = _attach_script_context
+    except Exception:
+        worker_initializer = None
+
+    fetched_inputs = {}
+    if normalized:
+        max_workers = min(8, max(1, len(normalized)))
+        try:
+            with ThreadPoolExecutor(
+                max_workers=max_workers,
+                initializer=worker_initializer,
+            ) as executor:
+                futures = {
+                    executor.submit(_fetch_sidebar_inputs, tkr): tkr
+                    for tkr in normalized
+                }
+                for future in as_completed(futures):
+                    tkr = futures[future]
+                    try:
+                        fetched_inputs[tkr] = future.result()
+                    except Exception:
+                        fetched_inputs[tkr] = (tkr, None, {})
+        except Exception:
+            fetched_inputs = {
+                tkr: _fetch_sidebar_inputs(tkr)
+                for tkr in normalized
             }
+
+    snapshot = {}
+    for tkr in normalized:
+        _tkr, hist, meta = fetched_inputs.get(tkr, (tkr, None, {}))
+        if hist is None or len(hist) < 2:
+            snapshot[tkr] = _unavailable_row()
             continue
         last = float(hist["Close"].iloc[-1])
         prev = float(hist["Close"].iloc[-2])
         price_age_label, price_age_kind = format_market_data_age(hist)
         action = None
         t_state = None
-        meta = {}
+        if isinstance(meta, dict) and meta:
+            remember_quote_meta(tkr, meta)
+        else:
+            meta = cached_quote_meta_snapshot(tkr) or {}
         if bench is not None:
             try:
                 t_state = tactical.compute(hist, bench) or {}
-                try:
-                    meta = fetch_quote_meta(tkr, include_slow_fallbacks=False) or {}
-                    remember_quote_meta(tkr, meta)
-                except Exception:
-                    meta = cached_quote_meta_snapshot(tkr) or {}
                 earnings_days = meta.get("earnings_days") if isinstance(meta, dict) else None
                 t_state = apply_earnings_event_gate(t_state, earnings_days)
-                cached = st.session_state.store.get("dossier_cache", {}).get(tkr, {})
-                quality_tier = (
-                    ((cached.get("result") or {}).get("quality") or {}).get("tier", "")
-                    if isinstance(cached, dict) else ""
-                )
                 t_state, _ = finalize_rule_action_for_ticker(
                     tkr,
                     t_state,
                     meta,
-                    quality_tier,
+                    quality_by_ticker.get(tkr, ""),
                     remember_trigger=False,
                 )
                 action = t_state.get("action")
@@ -5918,13 +5979,16 @@ def queue_full_report_refresh(ticker):
 
 def refresh_watchlist_market_scan():
     """Refresh watchlist market inputs only when explicitly requested."""
-    fetch_history.clear()
     watchlist_tickers = [
         str(scan_tkr).upper().strip()
         for scan_tkr in st.session_state.store.get("watchlist", [])
         if str(scan_tkr or "").strip()
     ]
     for scan_tkr in watchlist_tickers:
+        try:
+            fetch_history.clear(scan_tkr)
+        except Exception:
+            pass
         _delete_history_cache(scan_tkr)
     # Keep metadata cache warm during full-watchlist scans. Clearing every
     # ticker's Yahoo metadata here makes the page feel frozen and is not
