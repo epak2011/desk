@@ -759,7 +759,7 @@ def save_store(store):
     record_perf_metric("save_store", _perf_t0)
 
 
-ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "triggers", "health", "holdings", "ideas"}
+ACTIVE_VIEWS = {"today", "regime", "analyze", "watchlist", "triggers", "health", "holdings", "ideas"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -833,11 +833,11 @@ if "view" not in st.session_state:
         _qp_view = str(st.query_params.get("view") or "").strip().lower()
     except Exception:
         _qp_view = ""
-    _stored_view = str(st.session_state.store.get("last_view") or "regime").strip().lower()
+    _stored_view = str(st.session_state.store.get("last_view") or "today").strip().lower()
     st.session_state.view = (
         _qp_view
         if _qp_view in ACTIVE_VIEWS
-        else (_stored_view if _stored_view in ACTIVE_VIEWS else "regime")
+        else (_stored_view if _stored_view in ACTIVE_VIEWS else "today")
     )
 if "pm_expanded" not in st.session_state:
     st.session_state.pm_expanded = {}
@@ -3560,6 +3560,142 @@ def fetch_history(ticker):
     return None, None, (last_error or "Yahoo returned no rows for this ticker")
 
 
+@st.cache_data(ttl=PRICE_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_watchlist_histories(tickers):
+    """Fetch many 2y daily histories in one Yahoo request where possible.
+
+    The sidebar/watchlist refresh used to force one network round-trip per
+    ticker. This keeps the per-ticker disk cache behavior, but hydrates misses
+    with a single batched yfinance download before falling back row-by-row.
+    """
+    normalized = []
+    seen = set()
+    for raw in tickers or ():
+        tkr = str(raw or "").upper().strip()
+        if not tkr or tkr in seen:
+            continue
+        seen.add(tkr)
+        normalized.append(tkr)
+    if not normalized:
+        return {}
+
+    histories = {}
+    missing = []
+    for tkr in normalized:
+        cached = _read_history_cache(tkr, max_age_hours=PRICE_CACHE_TTL_SECONDS / 3600)
+        if cached is not None and len(cached) >= 50:
+            histories[tkr] = cached
+        else:
+            missing.append(tkr)
+
+    if missing:
+        try:
+            raw = yf.download(
+                " ".join(missing),
+                period="2y",
+                interval="1d",
+                auto_adjust=True,
+                progress=False,
+                threads=True,
+                group_by="ticker",
+                timeout=6,
+            )
+            if raw is not None and len(raw) > 0:
+                for tkr in list(missing):
+                    frame = None
+                    try:
+                        if len(missing) == 1:
+                            frame = raw
+                        elif hasattr(raw.columns, "nlevels") and raw.columns.nlevels > 1:
+                            if tkr in raw.columns.get_level_values(0):
+                                frame = raw[tkr]
+                            elif tkr in raw.columns.get_level_values(-1):
+                                frame = raw.xs(tkr, axis=1, level=-1)
+                        if frame is None or len(frame) == 0:
+                            continue
+                        hist = _prepare_history_frame(frame, source="yfinance-batch")
+                        if hist is not None and len(hist) >= 50:
+                            _write_history_cache(tkr, hist)
+                            histories[tkr] = hist
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+    for tkr in normalized:
+        if tkr in histories:
+            continue
+        stale = _read_history_cache(tkr, max_age_hours=None)
+        if stale is not None and len(stale) >= 50:
+            stale.attrs["source"] = "stale-cache"
+            histories[tkr] = stale
+    return histories
+
+
+@st.cache_data(ttl=PRICE_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_watchlist_price_quotes(tickers):
+    """Fetch only last/previous close for sidebar rows in one quick batch.
+
+    This is intentionally lighter than the full 2y technical history scan. It
+    lets the sidebar repair blank prices without forcing every ticker through
+    the full rule engine on ordinary page loads.
+    """
+    normalized = []
+    seen = set()
+    for raw in tickers or ():
+        tkr = str(raw or "").upper().strip()
+        if not tkr or tkr in seen:
+            continue
+        seen.add(tkr)
+        normalized.append(tkr)
+    if not normalized:
+        return {}
+
+    quotes = {}
+    try:
+        raw = yf.download(
+            " ".join(normalized),
+            period="5d",
+            interval="1d",
+            auto_adjust=True,
+            progress=False,
+            threads=True,
+            group_by="ticker",
+            timeout=4,
+        )
+        if raw is None or len(raw) == 0:
+            return quotes
+        for tkr in normalized:
+            frame = None
+            try:
+                if len(normalized) == 1:
+                    frame = raw
+                elif hasattr(raw.columns, "nlevels") and raw.columns.nlevels > 1:
+                    if tkr in raw.columns.get_level_values(0):
+                        frame = raw[tkr]
+                    elif tkr in raw.columns.get_level_values(-1):
+                        frame = raw.xs(tkr, axis=1, level=-1)
+                if frame is None or len(frame) == 0 or "Close" not in frame.columns:
+                    continue
+                close = frame["Close"].dropna()
+                if len(close) == 0:
+                    continue
+                last = float(close.iloc[-1])
+                prev = float(close.iloc[-2]) if len(close) >= 2 else last
+                quotes[tkr] = {
+                    "last": last,
+                    "change_pct": (last / prev - 1) * 100 if prev else 0,
+                    "price_age": "last close",
+                    "price_age_kind": "fresh",
+                    "updated_at": datetime.now().isoformat(timespec="seconds"),
+                }
+            except Exception:
+                continue
+    except Exception:
+        return quotes
+    return quotes
+
+
 def _prepare_benchmark_hist(hist, source="live", error=None):
     """Normalize benchmark history and tag where it came from."""
     if hist is None or len(hist) == 0:
@@ -3694,8 +3830,12 @@ def sidebar_watchlist_snapshot(tickers):
             "updated_at": datetime.now().isoformat(timespec="seconds"),
         }
 
+    batch_histories = fetch_watchlist_histories(tuple(normalized))
+
     def _fetch_sidebar_inputs(tkr):
-        hist, _, _ = fetch_history(tkr)
+        hist = batch_histories.get(tkr)
+        if hist is None or len(hist) < 50:
+            hist, _, _ = fetch_history(tkr)
         meta = {}
         if hist is not None and len(hist) >= 2:
             try:
@@ -4084,6 +4224,31 @@ def current_final_action(snapshot):
         return {}
 
 
+def canonical_action_for_ticker(ticker, snapshot=None):
+    """One fast action read used by sidebar/watchlist/command-center views."""
+    tkr = _ticker_key(ticker)
+    if not tkr:
+        return ""
+    if tkr == str(st.session_state.get("current_ticker", "")).upper():
+        current_t = st.session_state.get("_current_tactical")
+        if (
+            isinstance(current_t, dict)
+            and str(current_t.get("ticker", "")).upper() == tkr
+            and normalize_action_key(current_t.get("action"))
+        ):
+            return normalize_action_key(current_t.get("action")) or ""
+    snapshot = snapshot or ticker_snapshot(tkr)
+    final_cached = current_final_action(snapshot) or {}
+    final_action = normalize_action_key(final_cached.get("action"))
+    if final_action and final_cached.get("source") != "claude":
+        return final_action
+    market = snapshot.get("market") if isinstance(snapshot, dict) else {}
+    market_action = normalize_action_key((market or {}).get("action"))
+    if market_action:
+        return market_action
+    return ""
+
+
 def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None, *, persist=False):
     """Keep sidebar/watchlist/analyze aligned from one canonical rule action."""
     tkr = str(ticker or "").upper().strip()
@@ -4152,16 +4317,38 @@ def repair_missing_sidebar_price_rows(watchlist, *, retry_seconds=60):
 
     st.session_state["_sidebar_missing_price_repair_key"] = repair_key
     st.session_state["_sidebar_missing_price_repair_at"] = datetime.now().isoformat(timespec="seconds")
+    repaired = []
+    try:
+        quote_rows = fetch_watchlist_price_quotes(tuple(missing))
+        if quote_rows:
+            cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+            for tkr, quote_row in quote_rows.items():
+                if not isinstance(quote_row, dict) or _num_or_none(quote_row.get("last")) is None:
+                    continue
+                existing_market = (ticker_snapshot(tkr).get("market") or {})
+                merged_market = {**existing_market, **quote_row}
+                cache[tkr] = merged_market
+                merge_ticker_snapshot(tkr, market=merged_market)
+                repaired.append(tkr)
+            if repaired:
+                save_store(st.session_state.store)
+    except Exception:
+        repaired = []
+
+    still_missing = [tkr for tkr in missing if tkr not in set(repaired)]
+    if not still_missing:
+        return repaired
     try:
         sidebar_watchlist_snapshot.clear()
-        refreshed = update_sidebar_watchlist_cache(tuple(missing))
+        refreshed = update_sidebar_watchlist_cache(tuple(still_missing))
     except Exception:
-        return []
+        return repaired
 
-    return [
+    repaired.extend([
         tkr for tkr, row in (refreshed or {}).items()
         if isinstance(row, dict) and _num_or_none(row.get("last")) is not None
-    ]
+    ])
+    return repaired
 
 
 def normalize_action_key(raw):
@@ -4187,25 +4374,12 @@ def normalize_action_key(raw):
 def sidebar_action_hint(ticker, snapshot=None):
     """Sidebar emoji source aligned with the main Analyze decision."""
     tkr = str(ticker or "").upper().strip()
-    snapshot = snapshot or {}
-
-    if tkr == str(st.session_state.get("current_ticker", "")).upper():
-        current_t = st.session_state.get("_current_tactical")
-        if (
-            isinstance(current_t, dict) and
-            str(current_t.get("ticker", "")).upper() == tkr and
-            current_t.get("action")
-        ):
-            return current_t.get("action")
-
     canonical = ticker_snapshot(tkr)
-    final_cached = current_final_action(canonical)
-    final_action = (
-        normalize_action_key(final_cached.get("action"))
-        if final_cached.get("source") != "claude" else ""
-    )
-    if final_action:
-        return final_action
+    action = canonical_action_for_ticker(tkr, canonical)
+    if action:
+        return action
+
+    snapshot = snapshot or {}
 
     action = snapshot.get("action")
     if action:
@@ -5891,6 +6065,14 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         fetch_history.clear(refresh_ticker)
     except Exception:
         fetch_history.clear()
+    try:
+        fetch_watchlist_histories.clear()
+    except Exception:
+        pass
+    try:
+        fetch_watchlist_price_quotes.clear()
+    except Exception:
+        pass
     _delete_history_cache(refresh_ticker)
     if refresh_research:
         # Do not do slow Yahoo metadata fetches inside the button callback.
@@ -5963,6 +6145,10 @@ def queue_full_report_refresh(ticker):
         fetch_history.clear(refresh_ticker)
     except Exception:
         fetch_history.clear()
+    try:
+        fetch_watchlist_histories.clear()
+    except Exception:
+        pass
     _delete_history_cache(refresh_ticker)
     st.session_state["_force_dossier_refresh_ticker"] = refresh_ticker
     pending_dossier = st.session_state.setdefault("_pending_dossier_refreshes", {})
@@ -5990,6 +6176,14 @@ def refresh_watchlist_market_scan():
         except Exception:
             pass
         _delete_history_cache(scan_tkr)
+    try:
+        fetch_watchlist_histories.clear()
+    except Exception:
+        pass
+    try:
+        fetch_watchlist_price_quotes.clear()
+    except Exception:
+        pass
     # Keep metadata cache warm during full-watchlist scans. Clearing every
     # ticker's Yahoo metadata here makes the page feel frozen and is not
     # needed to keep price/action reads current.
@@ -6005,11 +6199,17 @@ def refresh_watchlist_market_scan():
         for _scan_tkr, scan_row in (refreshed_rows or {}).items()
         if isinstance(scan_row, dict) and normalize_action_key(scan_row.get("action"))
     )
+    missing_price_tickers = [
+        scan_tkr
+        for scan_tkr in watchlist_tickers
+        if _num_or_none((refreshed_rows or {}).get(scan_tkr, {}).get("last")) is None
+    ]
     st.session_state["_watchlist_scan_result"] = {
         "time": now_market_time().strftime("%-I:%M %p"),
         "count": len(watchlist_tickers),
         "price_rows": price_rows,
         "synced_actions": synced_actions,
+        "missing_price_tickers": missing_price_tickers,
     }
     save_store(st.session_state.store)
 
@@ -7116,11 +7316,7 @@ def build_trigger_monitor_rows(tickers):
         canonical = ticker_snapshot(tkr)
         market = canonical.get("market") or {}
         final_action = current_final_action(canonical)
-        action = (
-            normalize_action_key(final_action.get("action"))
-            or normalize_action_key(market.get("action"))
-            or "watch"
-        )
+        action = canonical_action_for_ticker(tkr, canonical) or "watch"
         trigger_monitor = market.get("trigger_monitor")
         if not isinstance(trigger_monitor, dict):
             trigger_monitor = build_trigger_monitor({
@@ -8505,16 +8701,18 @@ with st.sidebar:
     )
 
     view_labels = {
+        "today": "Today",
         "regime": "Market Regime",
         "analyze": "Analyze",
         "watchlist": "Watchlist",
         "holdings": "Holdings",
         "ideas": "Ideas",
+        "health": "System Health",
     }
     if SHOW_ARCHIVED_TRACKER:
         view_labels["tracker"] = "Tracker"
     if st.session_state.view not in view_labels:
-        st.session_state.view = "regime"
+        st.session_state.view = "today"
     st.markdown(
         """
         <style>
@@ -10855,6 +11053,308 @@ if st.session_state.get("_db_error"):
     )
 
 # ─────────────────────────────────────────────────────────────────────
+# TODAY — fast command center
+# ─────────────────────────────────────────────────────────────────────
+if view == "today":
+    watchlist_tickers = st.session_state.store.get("watchlist", []) or []
+    watchlist_tickers = [
+        str(t).upper().strip()
+        for t in watchlist_tickers
+        if str(t or "").strip()
+    ]
+
+    st.markdown(
+        """
+        <style>
+        .today-page {
+            max-width: 1240px;
+        }
+        .today-head {
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-end;
+            gap:18px;
+            margin: 4px 0 18px;
+            padding-bottom:14px;
+            border-bottom:1px solid var(--color-border-soft);
+        }
+        .today-title {
+            margin:0;
+            font-size: clamp(34px, 5vw, 56px);
+            line-height:.96;
+            letter-spacing:0;
+        }
+        .today-sub {
+            margin-top:9px;
+            color:var(--color-muted);
+            font-size:var(--fs-md);
+            line-height:1.35;
+            max-width:720px;
+        }
+        .today-grid {
+            display:grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap:10px;
+            margin: 12px 0 18px;
+        }
+        .today-card {
+            background:var(--surface-panel);
+            border:1px solid var(--color-border);
+            border-radius:8px;
+            padding:14px 14px 12px;
+            min-height:110px;
+        }
+        .today-card .k,
+        .today-table-head,
+        .today-label {
+            font-family:var(--font-mono);
+            text-transform:uppercase;
+            letter-spacing:var(--ls-caps-lg);
+            font-size:var(--fs-xs);
+            font-weight:800;
+            color:var(--color-faint);
+        }
+        .today-card .v {
+            margin-top:10px;
+            font-size:34px;
+            line-height:1;
+            font-weight:850;
+            color:var(--color-text);
+        }
+        .today-card .n {
+            margin-top:10px;
+            font-size:var(--fs-sm);
+            color:var(--color-muted);
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+        .today-section {
+            background:var(--surface-panel);
+            border:1px solid var(--color-border);
+            border-radius:8px;
+            margin-top:14px;
+            overflow:hidden;
+        }
+        .today-section-title {
+            display:flex;
+            justify-content:space-between;
+            gap:14px;
+            align-items:center;
+            padding:13px 16px;
+            border-bottom:1px solid var(--color-border-soft);
+        }
+        .today-section-title h2 {
+            margin:0;
+            font-size:18px;
+            letter-spacing:0;
+        }
+        .today-table,
+        .today-table-row {
+            display:grid;
+            grid-template-columns: 0.75fr 0.95fr 1fr 0.8fr 1.35fr 2fr;
+            gap:12px;
+            align-items:center;
+        }
+        .today-table {
+            padding:0 16px 8px;
+        }
+        .today-table-head {
+            padding:11px 0 8px;
+            border-bottom:1px solid var(--color-border-soft);
+        }
+        .today-table-row {
+            padding:12px 0;
+            border-bottom:1px dashed var(--color-border-soft);
+            font-size:var(--fs-sm);
+        }
+        .today-table-row:last-child {
+            border-bottom:0;
+        }
+        .today-ticker {
+            color:var(--color-text);
+            font-weight:850;
+            text-decoration:none;
+        }
+        .today-action {
+            font-weight:850;
+        }
+        .today-muted {
+            color:var(--color-muted);
+        }
+        .today-regime {
+            display:grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap:0;
+        }
+        .today-regime > div {
+            padding:14px 16px;
+            border-right:1px solid var(--color-border-soft);
+        }
+        .today-regime > div:last-child {
+            border-right:0;
+        }
+        .today-regime .v {
+            margin-top:7px;
+            font-size:22px;
+            font-weight:850;
+        }
+        @media (max-width: 980px) {
+            .today-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .today-table,
+            .today-table-row {
+                grid-template-columns: 0.75fr 0.9fr 0.9fr 0.9fr 1fr;
+            }
+            .today-table-head div:nth-child(6),
+            .today-table-row div:nth-child(6) {
+                display:none;
+            }
+            .today-regime {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 620px) {
+            .today-head {
+                display:block;
+            }
+            .today-grid,
+            .today-regime {
+                grid-template-columns: 1fr;
+            }
+            .today-table {
+                overflow-x:auto;
+            }
+            .today-table-head,
+            .today-table-row {
+                min-width: 760px;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<div class="today-page"><div class="today-head"><div>'
+        '<h1 class="today-title">Today</h1>'
+        '<div class="today-sub">Fast command center from saved market and rule snapshots. '
+        'Claude research stays separate so this page stays quick.</div>'
+        '</div></div></div>',
+        unsafe_allow_html=True,
+    )
+
+    refresh_col, note_col = st.columns([1, 2])
+    with refresh_col:
+        if st.button(
+            "↻ Update market scan",
+            key="today_update_market_scan",
+            help="Refreshes prices, fundamentals, rule actions, sidebar rows, and trigger status. PM memos and full reports update separately.",
+            use_container_width=True,
+        ):
+            refresh_watchlist_market_scan()
+            st.rerun()
+    with note_col:
+        st.markdown(
+            '<div class="desk-refresh-note">Use this when prices or watchlist actions look stale. '
+            'PM memo and full-report refreshes are slower and live in their own controls.</div>',
+            unsafe_allow_html=True,
+        )
+
+    if not watchlist_tickers:
+        st.info("Add tickers to your watchlist to populate Today.")
+        st.stop()
+
+    trigger_rows = build_trigger_monitor_rows(watchlist_tickers)
+    health_audit = build_health_audit()
+    owned = active_position_tickers()
+    missing_pm = set(health_audit.get("missing_pm") or [])
+    stale_pm = {t for t, _age in (health_audit.get("stale_pm") or [])}
+
+    def _names_for(bucket, limit=4):
+        names = [r["ticker"] for r in trigger_rows if r.get("bucket") == bucket]
+        return " · ".join(names[:limit]) + (" · ..." if len(names) > limit else "") if names else "—"
+
+    card_specs = [
+        ("Actionable now", sum(1 for r in trigger_rows if r.get("bucket") == "Actionable now"), _names_for("Actionable now"), "var(--color-positive)"),
+        ("Near trigger", sum(1 for r in trigger_rows if r.get("bucket") == "Near trigger"), _names_for("Near trigger"), "var(--color-warning-text)"),
+        ("Owned positions", sum(1 for t in owned if t in watchlist_tickers), " · ".join(sorted(t for t in owned if t in watchlist_tickers)[:4]) or "—", "var(--color-accent)"),
+        ("Broken / avoid", sum(1 for r in trigger_rows if r.get("bucket") == "Failed / broken"), _names_for("Failed / broken"), "var(--color-negative)"),
+        ("Needs PM", len(missing_pm | stale_pm), " · ".join(sorted(missing_pm | stale_pm)[:4]) or "—", "var(--color-muted)"),
+    ]
+    st.markdown(
+        '<div class="today-page"><div class="today-grid">'
+        + "".join(
+            f'<div class="today-card">'
+            f'<div class="k">{html.escape(label)}</div>'
+            f'<div class="v" style="color:{color};">{count}</div>'
+            f'<div class="n">{html.escape(names)}</div>'
+            f'</div>'
+            for label, count, names, color in card_specs
+        )
+        + '</div></div>',
+        unsafe_allow_html=True,
+    )
+
+    regime_cache = st.session_state.store.get("regime_daily_cache", {})
+    regime_entry = regime_cache.get(regime_daily_key()) if isinstance(regime_cache, dict) else {}
+    memo = (regime_entry or {}).get("memo") if isinstance(regime_entry, dict) else {}
+    regime_summary = memo if isinstance(memo, dict) else {}
+    if regime_summary:
+        st.markdown(
+            '<div class="today-page"><div class="today-section">'
+            '<div class="today-section-title"><h2>Market Regime</h2>'
+            '<span class="today-muted">Daily context</span></div>'
+            '<div class="today-regime">'
+            f'<div><div class="today-label">Regime</div><div class="v">{html.escape(str(regime_summary.get("regime") or "—"))}</div></div>'
+            f'<div><div class="today-label">Opportunity</div><div class="v">{html.escape(str(regime_summary.get("opportunity_window") or regime_summary.get("portfolio_stance") or "—"))}</div></div>'
+            f'<div><div class="today-label">Action</div><div class="v">{html.escape(str(regime_summary.get("action") or "—"))}</div></div>'
+            f'<div><div class="today-label">Execution</div><div class="v">{html.escape(str(regime_summary.get("execution") or regime_summary.get("short_term") or "—"))}</div></div>'
+            '</div></div></div>',
+            unsafe_allow_html=True,
+        )
+
+    priority_rows = [
+        r for r in trigger_rows
+        if r.get("bucket") in {"Actionable now", "Near trigger", "Failed / broken"} or r.get("owned")
+    ][:14]
+    if not priority_rows:
+        priority_rows = trigger_rows[:14]
+
+    table_rows = []
+    for row in priority_rows:
+        price = fmt_big_number(row.get("price")) if row.get("price") is not None else "—"
+        change = fmt_pct(row.get("change")) if row.get("change") is not None else "—"
+        action_color = STATE_STYLES.get(row.get("action"), {}).get("color", "var(--color-text)")
+        trigger_text_short = row.get("trigger_label") or "—"
+        detail = row.get("trigger_detail") or "No trigger detail saved yet."
+        table_rows.append(
+            f'<div class="today-table-row">'
+            f'<div><a class="today-ticker" href="?open={html.escape(row["ticker"])}" target="_self">{html.escape(row["ticker"])}</a></div>'
+            f'<div class="today-action" style="color:{action_color};">{html.escape(row["action_emoji"])} {html.escape(row["action_label"])}</div>'
+            f'<div style="color:{row["bucket_color"]};font-weight:800;">{html.escape(row["bucket"])}</div>'
+            f'<div>{html.escape(price)} <span class="today-muted">{html.escape(change)}</span></div>'
+            f'<div>{html.escape(trigger_text_short)}</div>'
+            f'<div class="today-muted">{html.escape(detail)}</div>'
+            f'</div>'
+        )
+
+    st.markdown(
+        '<div class="today-page"><div class="today-section">'
+        '<div class="today-section-title"><h2>Priority Watchlist</h2>'
+        '<span class="today-muted">Rules-first; Claude only flags dissent</span></div>'
+        '<div class="today-table">'
+        '<div class="today-table-head">'
+        '<div>Ticker</div><div>Action</div><div>Status</div><div>Price</div><div>Trigger</div><div>Why it matters</div>'
+        '</div>'
+        + "".join(table_rows)
+        + '</div></div></div>',
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+# ─────────────────────────────────────────────────────────────────────
 # ANALYZE — decision-first
 # ─────────────────────────────────────────────────────────────────────
 if view == "analyze":
@@ -11347,7 +11847,7 @@ if view == "analyze":
         refresh_data_col, refresh_data_note_col = st.columns([1, 2])
         with refresh_data_col:
             if st.button(
-                f"↻ Refresh market data",
+                f"↻ Update market data",
                 key=f"refresh_current_market_{ticker.upper()}",
                 help="Fast refresh: price, fundamentals, rule action, and sidebar row. Does not wait on Claude.",
                 use_container_width=True,
@@ -16459,7 +16959,7 @@ if view == "health":
 
     issues = []
     for tkr in audit["missing_market"]:
-        issues.append((tkr, "Market missing", "Refresh prices/actions for the watchlist or open Analyze.", "health-bad"))
+        issues.append((tkr, "Market missing", "Update market scan from Today or Watchlist, or open Analyze.", "health-bad"))
     for tkr, age in audit["stale_market"]:
         issues.append((tkr, "Market stale", _age_note(age, "m"), "health-warn"))
     for tkr in audit["missing_pm"]:
@@ -16702,11 +17202,21 @@ if view == "triggers":
         scan_time = scan_event.get("time")
         if scan_time:
             synced_count = scan_event.get("synced_actions")
+            price_count = scan_event.get("price_rows")
+            total_count = scan_event.get("count")
+            missing_price_tickers = scan_event.get("missing_price_tickers") or []
             sync_text = (
-                f' Rule actions synced for {int(synced_count)} names.'
-                if isinstance(synced_count, int)
-                else " Rule actions synced."
+                f' Prices updated for {int(price_count)}/{int(total_count)} names.'
+                if isinstance(price_count, int) and isinstance(total_count, int)
+                else " Prices updated."
             )
+            if isinstance(synced_count, int):
+                sync_text += f' Rule actions synced for {int(synced_count)} names.'
+            if missing_price_tickers:
+                shown_missing = ", ".join(str(t) for t in missing_price_tickers[:8])
+                if len(missing_price_tickers) > 8:
+                    shown_missing += f" +{len(missing_price_tickers) - 8}"
+                sync_text += f' Missing prices: {shown_missing}.'
             st.markdown(
                 f'<div class="desk-refresh-receipt">Trigger data refreshed at {html.escape(str(scan_time))}. '
                 f'{html.escape(sync_text)} PM memos and full reports were not regenerated.</div>',
@@ -16752,9 +17262,9 @@ if view == "watchlist":
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
             if st.button(
-                "↻ Refresh prices/actions",
+                "↻ Update market scan",
                 key="refresh_watchlist_scan",
-                help="Refresh prices, fundamentals, sidebar rows, and rule/scan metrics for the full watchlist. PM memos refresh per ticker from the PM memo column or Analyze page.",
+                help="Refreshes prices, fundamentals, rule actions, trigger status, and sidebar rows. PM memos and full reports update separately.",
                 use_container_width=True,
             ):
                 _run_watchlist_market_scan()
@@ -16762,7 +17272,7 @@ if view == "watchlist":
         with scan_c2:
             st.markdown(
                 '<div class="watchlist-control-note">'
-                'Default view opens from saved setup data for speed. Refresh prices/actions updates market data. PM memo age is separate; use the PM memo links to refresh research for one ticker.</div>',
+                'Fast market layer. This page loads from saved data first; Update market scan refreshes prices/rules. PM memos and full reports update separately from their own controls.</div>',
                 unsafe_allow_html=True,
             )
         watchlist_layout_pref = st.session_state.get("watchlist_layout", "Decision queue")
@@ -16844,12 +17354,7 @@ if view == "watchlist":
             except (TypeError, ValueError):
                 cached_confidence = 0
             final_cached = current_final_action(canonical)
-            action = (
-                normalize_action_key(final_cached.get("action"))
-                or normalize_action_key(snapshot.get("action"))
-                or cached_action
-                or "watch"
-            )
+            action = canonical_action_for_ticker(key, canonical) or cached_action or "watch"
             rule_trace = (
                 final_cached.get("rule_trace")
                 or snapshot.get("rule_trace")
@@ -17168,6 +17673,7 @@ if view == "watchlist":
                 synced_count = scan_event.get("synced_actions")
                 price_count = scan_event.get("price_rows")
                 total_count = scan_event.get("count")
+                missing_price_tickers = scan_event.get("missing_price_tickers") or []
                 if isinstance(price_count, int) and isinstance(total_count, int):
                     sync_text = f"Prices updated for {price_count}/{total_count} names."
                     if isinstance(synced_count, int):
@@ -17176,6 +17682,11 @@ if view == "watchlist":
                     sync_text = f"Price data and rule actions synced for {synced_count} names."
                 else:
                     sync_text = "Price data and rule actions synced."
+                if missing_price_tickers:
+                    shown_missing = ", ".join(str(t) for t in missing_price_tickers[:8])
+                    if len(missing_price_tickers) > 8:
+                        shown_missing += f" +{len(missing_price_tickers) - 8}"
+                    sync_text += f" Missing prices: {shown_missing}."
                 st.markdown(
                     f'<div class="desk-refresh-receipt">Watchlist refreshed at {html.escape(str(scan_time))}. '
                     f'{html.escape(sync_text)} PM memos were not regenerated.</div>',
