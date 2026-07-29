@@ -29,6 +29,7 @@ except ImportError:
 import streamlit as st
 import yfinance as yf
 
+import backend_layer
 import tactical
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
@@ -305,6 +306,10 @@ def _pg_init():
                     PRIMARY KEY (cache_name, ticker)
                 )
             """)
+    try:
+        backend_layer.ensure_backend_schema()
+    except Exception:
+        pass
 
 
 def _pg_storage_health():
@@ -2601,6 +2606,39 @@ div.streamlit-expanderHeader {
 }
 .desk-refresh-receipt.warn {
     color: var(--color-warning-text);
+}
+.desk-job-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 10px;
+}
+.desk-job-pill {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 5px;
+    background: #FFFFFF;
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-sm);
+    line-height: 1.2;
+    padding: 5px 7px;
+    text-transform: uppercase;
+}
+.desk-job-pill.fresh {
+    border-color: rgba(20, 160, 84, 0.28);
+    color: var(--color-positive);
+}
+.desk-job-pill.warn {
+    border-color: rgba(197, 124, 0, 0.35);
+    color: var(--color-warning-text);
+}
+.desk-job-pill.info {
+    border-color: rgba(38, 101, 240, 0.28);
+    color: var(--color-accent);
 }
 .position-decision-panel {
     border: 1px solid var(--color-border);
@@ -6031,6 +6069,52 @@ def active_refresh_event(ticker):
     return event
 
 
+def enqueue_refresh_job(job_type, *, ticker=None, payload=None, priority=100):
+    """Create a durable backend job when DATABASE_URL is available."""
+    if not backend_layer.has_database():
+        return None
+    try:
+        job_id = backend_layer.enqueue_job(
+            job_type,
+            ticker=ticker,
+            payload=payload or {},
+            priority=priority,
+            requested_by="streamlit",
+        )
+        jobs = st.session_state.setdefault("_queued_refresh_jobs", {})
+        jobs[str(job_id)] = {
+            "job_type": job_type,
+            "ticker": str(ticker or "").upper().strip(),
+            "queued_at": now_market_time().isoformat(timespec="seconds"),
+        }
+        return job_id
+    except Exception as exc:
+        st.session_state["_last_job_error"] = str(exc)[:240]
+        return None
+
+
+def backend_job_status_html(ticker=None, *, limit=3):
+    """Tiny status line for recently queued backend jobs."""
+    if not backend_layer.has_database():
+        return ""
+    try:
+        jobs = backend_layer.latest_jobs(ticker=ticker, limit=limit)
+    except Exception:
+        return ""
+    if not jobs:
+        return ""
+    pieces = []
+    for job in jobs[:limit]:
+        job_type = str(job.get("job_type") or "").replace("_", " ")
+        status = str(job.get("status") or "queued")
+        klass = "fresh" if status == "succeeded" else ("warn" if status == "failed" else "info")
+        label = f"{job_type}: {status}"
+        if job.get("error"):
+            label += f" · {str(job.get('error'))[:80]}"
+        pieces.append(f'<span class="desk-job-pill {klass}">{html.escape(label)}</span>')
+    return '<div class="desk-job-status">' + "".join(pieces) + "</div>"
+
+
 def sidebar_cache_status(ticker):
     """Freshness label for the active ticker row in the sidebar cache."""
     entry = ticker_snapshot(ticker).get("market") or {}
@@ -6054,6 +6138,13 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
     refresh_ticker = str(ticker or "").upper().strip()
     if not refresh_ticker:
         return
+    job_type = "full_report" if refresh_full_report else ("pm_memo" if refresh_research else "market_snapshot")
+    queued_job_id = enqueue_refresh_job(
+        job_type,
+        ticker=refresh_ticker,
+        payload={"ticker": refresh_ticker, "source": "analyze_refresh"},
+        priority=40 if job_type == "market_snapshot" else 70,
+    )
     st.session_state.current_ticker = refresh_ticker
     st.session_state.view = "analyze"
     # Do not write to st.session_state["ticker_input"] here. This helper is
@@ -6128,6 +6219,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         "full_report": bool(refresh_full_report),
         "lane": "full_report" if refresh_full_report else ("pm" if refresh_research else "market"),
         "action_label": STATE_STYLES.get(refreshed_action, {}).get("label", refreshed_action.replace("_", " ").title()) if not refresh_research and not refresh_full_report and refreshed_action else "",
+        "job_id": queued_job_id,
     }
     save_store(st.session_state.store)
 
@@ -6137,6 +6229,12 @@ def queue_full_report_refresh(ticker):
     refresh_ticker = str(ticker or "").upper().strip()
     if not refresh_ticker:
         return
+    queued_job_id = enqueue_refresh_job(
+        "full_report",
+        ticker=refresh_ticker,
+        payload={"ticker": refresh_ticker, "source": "full_report_page"},
+        priority=80,
+    )
     try:
         fetch_quote_meta.clear(refresh_ticker)
     except Exception:
@@ -6159,6 +6257,7 @@ def queue_full_report_refresh(ticker):
         "research": True,
         "full_report": True,
         "lane": "full_report",
+        "job_id": queued_job_id,
     }
     save_store(st.session_state.store)
 
@@ -6176,6 +6275,15 @@ def refresh_watchlist_market_scan():
         except Exception:
             pass
         _delete_history_cache(scan_tkr)
+    try:
+        backend_layer.sync_watchlist_assets(watchlist_tickers)
+    except Exception:
+        pass
+    queued_job_id = enqueue_refresh_job(
+        "watchlist_market_scan",
+        payload={"tickers": watchlist_tickers, "source": "watchlist_refresh"},
+        priority=30,
+    )
     try:
         fetch_watchlist_histories.clear()
     except Exception:
@@ -6210,6 +6318,7 @@ def refresh_watchlist_market_scan():
         "price_rows": price_rows,
         "synced_actions": synced_actions,
         "missing_price_tickers": missing_price_tickers,
+        "job_id": queued_job_id,
     }
     save_store(st.session_state.store)
 
@@ -11261,6 +11370,7 @@ if view == "today":
             'PM memo and full-report refreshes are slower and live in their own controls.</div>',
             unsafe_allow_html=True,
         )
+        st.markdown(backend_job_status_html(limit=4), unsafe_allow_html=True)
 
     if not watchlist_tickers:
         st.info("Add tickers to your watchlist to populate Today.")
@@ -11860,6 +11970,7 @@ if view == "analyze":
                 'Narrative refreshes live on the PM memo / dossier controls.</div>',
                 unsafe_allow_html=True,
             )
+        st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
 
         if position_read:
             stat_html = "".join(
@@ -13421,6 +13532,7 @@ if view == "analyze":
             unsafe_allow_html=True,
         )
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
+        st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
         if st.button(
             f"🧠 Refresh PM memo",
             key=f"refresh_current_pm_{ticker.upper()}",
@@ -17275,6 +17387,7 @@ if view == "watchlist":
                 'Fast market layer. This page loads from saved data first; Update market scan refreshes prices/rules. PM memos and full reports update separately from their own controls.</div>',
                 unsafe_allow_html=True,
             )
+            st.markdown(backend_job_status_html(limit=4), unsafe_allow_html=True)
         watchlist_layout_pref = st.session_state.get("watchlist_layout", "Decision queue")
         fast_watchlist = watchlist_layout_pref == "Decision queue"
         bench = None if fast_watchlist else fetch_bench()

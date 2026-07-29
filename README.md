@@ -79,11 +79,39 @@ Every time you want to use it after that first setup, just:
 
 ---
 
+## Background refresh layer
+
+The app can now enqueue durable refresh jobs in Postgres instead of making every slow refresh happen inside the Streamlit click path.
+
+Run the worker locally with:
+
+```
+python3 worker.py --loop --sleep 10
+```
+
+The worker processes queued market scans, PM memos, and full research reports from the `refresh_jobs` table and writes results into normalized tables:
+
+- `market_snapshots`
+- `rule_outputs`
+- `pm_memos`
+- `research_reports`
+- `watchlist_assets`
+- `holdings`
+- `market_regime_daily`
+
+If you manage the database manually, apply `migrations/001_backend_layer.sql`. The Streamlit app also creates these tables automatically on startup when `DATABASE_URL` is configured.
+
+For Claude-powered PM/report jobs, set `ANTHROPIC_API_KEY` in the worker environment.
+
+---
+
 ## Files
 
 - `app.py` — Streamlit UI
 - `tactical.py` — the tactical engine (bias, action, trigger, levels)
 - `pm_view.py` — Portfolio Manager views, static + optional live Claude call
+- `backend_layer.py` — database tables and refresh job queue
+- `worker.py` — background processor for market scans, PM memos, and full reports
 - `~/.desk_store.json` — your watchlist, tracker log, account size, and saved API key (created on first save, lives in your home folder so app upgrades preserve it)
 - `requirements.txt` — Python dependencies
 
