@@ -6108,7 +6108,14 @@ def backend_job_status_html(ticker=None, *, limit=3):
         job_type = str(job.get("job_type") or "").replace("_", " ")
         status = str(job.get("status") or "queued")
         klass = "fresh" if status == "succeeded" else ("warn" if status == "failed" else "info")
-        label = f"{job_type}: {status}"
+        status_label = {
+            "queued": "queued",
+            "running": "running",
+            "succeeded": "done",
+            "failed": "failed",
+            "cancelled": "cancelled",
+        }.get(status, status)
+        label = f"{job_type}: {status_label}"
         if job.get("error"):
             label += f" · {str(job.get('error'))[:80]}"
         pieces.append(f'<span class="desk-job-pill {klass}">{html.escape(label)}</span>')
@@ -6666,9 +6673,9 @@ def render_research_report(ticker):
     refresh_col, back_col = st.columns([1, 3])
     with refresh_col:
         if st.button(
-            f"📋 Refresh full report",
+            f"📋 Queue full report",
             key=f"refresh_full_report_page_{ticker}",
-            help="Regenerate this full research report and its long-form dossier.",
+            help="Queues the long-form research report. Market data and the visible PM memo stay separate.",
             use_container_width=True,
         ):
             queue_full_report_refresh(ticker)
@@ -11202,7 +11209,7 @@ if view == "today":
         }
         .today-grid {
             display:grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap:10px;
             margin: 12px 0 18px;
         }
@@ -11309,9 +11316,6 @@ if view == "today":
             font-weight:850;
         }
         @media (max-width: 980px) {
-            .today-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
             .today-table,
             .today-table-row {
                 grid-template-columns: 0.75fr 0.9fr 0.9fr 0.9fr 1fr;
@@ -11328,7 +11332,6 @@ if view == "today":
             .today-head {
                 display:block;
             }
-            .today-grid,
             .today-regime {
                 grid-template-columns: 1fr;
             }
@@ -11347,9 +11350,9 @@ if view == "today":
 
     st.markdown(
         '<div class="today-page"><div class="today-head"><div>'
-        '<h1 class="today-title">Today</h1>'
-        '<div class="today-sub">Fast command center from saved market and rule snapshots. '
-        'Claude research stays separate so this page stays quick.</div>'
+        '<h1 class="today-title">Morning Queue</h1>'
+        '<div class="today-sub">A fast daily worklist from saved market and rule snapshots. '
+        'Market refreshes are queued separately from PM memos and full reports so the page stays responsive.</div>'
         '</div></div></div>',
         unsafe_allow_html=True,
     )
@@ -11357,9 +11360,9 @@ if view == "today":
     refresh_col, note_col = st.columns([1, 2])
     with refresh_col:
         if st.button(
-            "↻ Update market scan",
+            "↻ Queue market scan",
             key="today_update_market_scan",
-            help="Refreshes prices, fundamentals, rule actions, sidebar rows, and trigger status. PM memos and full reports update separately.",
+            help="Queues a fast refresh for prices, fundamentals, rule actions, sidebar rows, and trigger status. PM memos and full reports update separately.",
             use_container_width=True,
         ):
             refresh_watchlist_market_scan()
@@ -11367,7 +11370,7 @@ if view == "today":
     with note_col:
         st.markdown(
             '<div class="desk-refresh-note">Use this when prices or watchlist actions look stale. '
-            'PM memo and full-report refreshes are slower and live in their own controls.</div>',
+            'The background worker updates the saved rows; PM memo and full-report refreshes stay in their own lanes.</div>',
             unsafe_allow_html=True,
         )
         st.markdown(backend_job_status_html(limit=4), unsafe_allow_html=True)
@@ -11381,6 +11384,18 @@ if view == "today":
     owned = active_position_tickers()
     missing_pm = set(health_audit.get("missing_pm") or [])
     stale_pm = {t for t, _age in (health_audit.get("stale_pm") or [])}
+    try:
+        recent_jobs = backend_layer.latest_jobs(limit=20) if backend_layer.has_database() else []
+    except Exception:
+        recent_jobs = []
+    active_jobs = [
+        job for job in recent_jobs
+        if str(job.get("status") or "") in {"queued", "running"}
+    ]
+    failed_jobs = [
+        job for job in recent_jobs
+        if str(job.get("status") or "") == "failed"
+    ]
 
     def _names_for(bucket, limit=4):
         names = [r["ticker"] for r in trigger_rows if r.get("bucket") == bucket]
@@ -11392,6 +11407,7 @@ if view == "today":
         ("Owned positions", sum(1 for t in owned if t in watchlist_tickers), " · ".join(sorted(t for t in owned if t in watchlist_tickers)[:4]) or "—", "var(--color-accent)"),
         ("Broken / avoid", sum(1 for r in trigger_rows if r.get("bucket") == "Failed / broken"), _names_for("Failed / broken"), "var(--color-negative)"),
         ("Needs PM", len(missing_pm | stale_pm), " · ".join(sorted(missing_pm | stale_pm)[:4]) or "—", "var(--color-muted)"),
+        ("Background queue", len(active_jobs), "working" if active_jobs else ("recent failures" if failed_jobs else "clear"), "var(--color-blue)" if active_jobs else ("var(--color-warning-text)" if failed_jobs else "var(--color-positive)")),
     ]
     st.markdown(
         '<div class="today-page"><div class="today-grid">'
@@ -11957,17 +11973,17 @@ if view == "analyze":
         refresh_data_col, refresh_data_note_col = st.columns([1, 2])
         with refresh_data_col:
             if st.button(
-                f"↻ Update market data",
+                f"↻ Queue market data",
                 key=f"refresh_current_market_{ticker.upper()}",
-                help="Fast refresh: price, fundamentals, rule action, and sidebar row. Does not wait on Claude.",
+                help="Queues the fast market lane: price, fundamentals, rule action, and sidebar row. Does not wait on Claude.",
                 use_container_width=True,
             ):
                 refresh_current_ticker_state(ticker, refresh_research=False)
                 st.rerun()
         with refresh_data_note_col:
             st.markdown(
-                '<div class="desk-refresh-note">Updates price, metadata, rule action, and sidebar row. '
-                'Narrative refreshes live on the PM memo / dossier controls.</div>',
+                '<div class="desk-refresh-note">Queues price, metadata, rule action, and sidebar row. '
+                'Narrative refreshes live on the PM memo / full-report controls.</div>',
                 unsafe_allow_html=True,
             )
         st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
@@ -13534,9 +13550,9 @@ if view == "analyze":
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
         st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
         if st.button(
-            f"🧠 Refresh PM memo",
+            f"🧠 Queue PM memo",
             key=f"refresh_current_pm_{ticker.upper()}",
-            help="Fast refresh: visible PM thesis, quality box, drivers, risks, and valuation. The long full report refresh lives on the full report page.",
+            help="Queues the visible PM thesis, quality box, drivers, risks, and valuation. The long full report refresh lives on the full report page.",
             use_container_width=True,
         ):
             refresh_current_ticker_state(ticker, refresh_research=True)
@@ -17071,7 +17087,7 @@ if view == "health":
 
     issues = []
     for tkr in audit["missing_market"]:
-        issues.append((tkr, "Market missing", "Update market scan from Today or Watchlist, or open Analyze.", "health-bad"))
+        issues.append((tkr, "Market missing", "Queue market scan from Morning Queue or Watchlist, or open Analyze.", "health-bad"))
     for tkr, age in audit["stale_market"]:
         issues.append((tkr, "Market stale", _age_note(age, "m"), "health-warn"))
     for tkr in audit["missing_pm"]:
@@ -17267,9 +17283,9 @@ if view == "triggers":
         )
     with head_c2:
         if st.button(
-            "↻ Refresh trigger data",
+            "↻ Queue trigger data",
             key="refresh_trigger_monitor_scan",
-            help="Refreshes prices, fundamentals, rule actions, sidebar rows, and trigger status for the watchlist. PM memos/full reports are separate.",
+            help="Queues prices, fundamentals, rule actions, sidebar rows, and trigger status for the watchlist. PM memos/full reports are separate.",
             use_container_width=True,
         ):
             refresh_watchlist_market_scan()
@@ -17330,7 +17346,7 @@ if view == "triggers":
                     shown_missing += f" +{len(missing_price_tickers) - 8}"
                 sync_text += f' Missing prices: {shown_missing}.'
             st.markdown(
-                f'<div class="desk-refresh-receipt">Trigger data refreshed at {html.escape(str(scan_time))}. '
+                f'<div class="desk-refresh-receipt">Trigger data queued at {html.escape(str(scan_time))}. '
                 f'{html.escape(sync_text)} PM memos and full reports were not regenerated.</div>',
                 unsafe_allow_html=True,
             )
@@ -17374,9 +17390,9 @@ if view == "watchlist":
         scan_c1, scan_c2 = st.columns([1.3, 4])
         with scan_c1:
             if st.button(
-                "↻ Update market scan",
+                "↻ Queue market scan",
                 key="refresh_watchlist_scan",
-                help="Refreshes prices, fundamentals, rule actions, trigger status, and sidebar rows. PM memos and full reports update separately.",
+                help="Queues prices, fundamentals, rule actions, trigger status, and sidebar rows. PM memos and full reports update separately.",
                 use_container_width=True,
             ):
                 _run_watchlist_market_scan()
@@ -17384,7 +17400,7 @@ if view == "watchlist":
         with scan_c2:
             st.markdown(
                 '<div class="watchlist-control-note">'
-                'Fast market layer. This page loads from saved data first; Update market scan refreshes prices/rules. PM memos and full reports update separately from their own controls.</div>',
+                'Fast market layer. This page loads from saved data first; Queue market scan refreshes prices/rules in the background. PM memos and full reports update separately from their own controls.</div>',
                 unsafe_allow_html=True,
             )
             st.markdown(backend_job_status_html(limit=4), unsafe_allow_html=True)
