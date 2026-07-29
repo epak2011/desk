@@ -17154,7 +17154,7 @@ if view == "health":
         '</div></div>',
         unsafe_allow_html=True,
     )
-    action_c1, action_c2, action_c3 = st.columns([1, 1, 2])
+    action_c1, action_c2, action_c3, action_c4 = st.columns([1, 1, 1, 1.4])
     with action_c1:
         if st.button(
             "↻ Recheck health",
@@ -17179,9 +17179,30 @@ if view == "health":
             st.session_state["_health_audit_checked_at"] = now_market_time().strftime("%-I:%M %p")
             st.rerun()
     with action_c3:
+        if st.button(
+            "Retry failed jobs",
+            key="retry_failed_refresh_jobs",
+            help="Moves recent failed background jobs back to queued. Use this after a code fix or temporary provider/API issue.",
+            use_container_width=True,
+        ):
+            try:
+                retried = backend_layer.retry_failed_jobs(limit=100) if backend_layer.has_database() else 0
+                recovered = backend_layer.recover_stale_running_jobs(max_age_minutes=30, limit=100) if backend_layer.has_database() else 0
+                st.session_state["_health_job_repair_result"] = {
+                    "message": f"Queued {retried} failed job(s) and recovered {recovered} stuck job(s).",
+                    "ts": now_market_time().strftime("%-I:%M %p"),
+                }
+            except Exception as exc:
+                st.session_state["_health_job_repair_result"] = {
+                    "message": f"Could not retry jobs: {str(exc)[:180]}",
+                    "ts": now_market_time().strftime("%-I:%M %p"),
+                }
+            st.session_state["_health_audit_checked_at"] = now_market_time().strftime("%-I:%M %p")
+            st.rerun()
+    with action_c4:
         st.markdown(
             '<div class="health-note" style="padding-top:8px;">'
-            'Repair is intentionally cheap: it fixes cached action labels from saved analysis, without refreshing market data or PM research.'
+            'Repairs are intentionally cheap: action repair fixes saved labels; job retry requeues failed/stuck background work without running Yahoo or Claude in the page.'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -17196,6 +17217,15 @@ if view == "health":
             f'{html.escape(str(repair_result.get("message") or ""))} '
             f'Checked at {html.escape(str(repair_result.get("ts") or ""))}. '
             f'{html.escape(repaired_label)}'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    job_repair_result = st.session_state.get("_health_job_repair_result")
+    if isinstance(job_repair_result, dict):
+        st.markdown(
+            '<div class="health-receipt">'
+            f'{html.escape(str(job_repair_result.get("message") or ""))} '
+            f'Checked at {html.escape(str(job_repair_result.get("ts") or ""))}.'
             '</div>',
             unsafe_allow_html=True,
         )

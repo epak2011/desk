@@ -351,6 +351,88 @@ def latest_jobs(ticker: str | None = None, limit: int = 8) -> list[dict[str, Any
     return jobs
 
 
+def retry_failed_jobs(
+    ticker: str | None = None,
+    job_type: str | None = None,
+    *,
+    limit: int = 50,
+) -> int:
+    """Move recent failed jobs back to queued so the worker can retry them."""
+    if not has_database():
+        return 0
+    clean_ticker = str(ticker or "").upper().strip()
+    clean_job_type = str(job_type or "").strip()
+    if clean_job_type and clean_job_type not in JOB_TYPES:
+        raise ValueError(f"Unknown job_type: {clean_job_type}")
+    ensure_backend_schema()
+    clauses = ["status = 'failed'"]
+    params: list[Any] = []
+    if clean_ticker:
+        clauses.append("ticker = %s")
+        params.append(clean_ticker)
+    if clean_job_type:
+        clauses.append("job_type = %s")
+        params.append(clean_job_type)
+    params.append(max(1, int(limit)))
+    where_sql = " AND ".join(clauses)
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                WITH retry AS (
+                    SELECT id
+                    FROM refresh_jobs
+                    WHERE {where_sql}
+                    ORDER BY updated_at DESC
+                    LIMIT %s
+                )
+                UPDATE refresh_jobs j
+                SET status = 'queued',
+                    error = NULL,
+                    result = '{{}}'::jsonb,
+                    started_at = NULL,
+                    completed_at = NULL,
+                    updated_at = NOW()
+                FROM retry
+                WHERE j.id = retry.id
+                """,
+                tuple(params),
+            )
+            return int(cur.rowcount or 0)
+
+
+def recover_stale_running_jobs(*, max_age_minutes: int = 30, limit: int = 50) -> int:
+    """Requeue running jobs whose worker disappeared before marking completion."""
+    if not has_database():
+        return 0
+    ensure_backend_schema()
+    age_minutes = max(5, int(max_age_minutes))
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH stale AS (
+                    SELECT id
+                    FROM refresh_jobs
+                    WHERE status = 'running'
+                      AND COALESCE(started_at, updated_at, created_at) < NOW() - (%s::text || ' minutes')::interval
+                    ORDER BY COALESCE(started_at, updated_at, created_at) ASC
+                    LIMIT %s
+                )
+                UPDATE refresh_jobs j
+                SET status = 'queued',
+                    error = NULL,
+                    started_at = NULL,
+                    completed_at = NULL,
+                    updated_at = NOW()
+                FROM stale
+                WHERE j.id = stale.id
+                """,
+                (str(age_minutes), max(1, int(limit))),
+            )
+            return int(cur.rowcount or 0)
+
+
 def read_json_table(table: str, key_value: str | None = None, *, limit: int | None = None) -> dict[str, dict[str, Any]]:
     """Read normalized JSON payload rows keyed by ticker/day.
 
