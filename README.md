@@ -89,6 +89,12 @@ Run the worker locally with:
 python3 worker.py --loop --sleep 10
 ```
 
+Or run one hosted batch with:
+
+```
+python3 worker.py --drain --max-jobs 25
+```
+
 The worker processes queued market scans, PM memos, and full research reports from the `refresh_jobs` table and writes results into normalized tables:
 
 - `market_snapshots`
@@ -102,6 +108,17 @@ The worker processes queued market scans, PM memos, and full research reports fr
 If you manage the database manually, apply `migrations/001_backend_layer.sql`. The Streamlit app also creates these tables automatically on startup when `DATABASE_URL` is configured.
 
 For Claude-powered PM/report jobs, set `ANTHROPIC_API_KEY` in the worker environment.
+
+### GitHub Actions worker
+
+The repo includes `.github/workflows/desk-worker.yml`, which runs every 5 minutes and drains up to 25 queued refresh jobs. It can also be run manually from GitHub Actions.
+
+Add these GitHub repository secrets before expecting it to process real jobs:
+
+- `DATABASE_URL` — Supabase/Postgres connection string
+- `ANTHROPIC_API_KEY` — required for PM memo and full report generation
+
+Without `DATABASE_URL`, the worker cannot reach the queue. Without `ANTHROPIC_API_KEY`, market-data jobs can run, but Claude PM/report jobs will fail.
 
 ---
 
