@@ -2,6 +2,7 @@
 
 Run locally:
     python worker.py --once
+    python worker.py --drain --max-jobs 25
 
 Run on a hosted worker:
     python worker.py --loop --sleep 10
@@ -252,12 +253,24 @@ def run_once(worker_name: str = "worker") -> bool:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true", help="Process one queued job and exit.")
+    parser.add_argument("--drain", action="store_true", help="Process a batch of queued jobs and exit.")
     parser.add_argument("--loop", action="store_true", help="Continuously process jobs.")
+    parser.add_argument("--max-jobs", type=int, default=25, help="Maximum jobs to process for --drain.")
     parser.add_argument("--sleep", type=float, default=10.0, help="Seconds to sleep when no job is queued.")
     parser.add_argument("--worker-name", default=os.environ.get("WORKER_NAME", "desk-worker"))
     args = parser.parse_args()
 
     backend.ensure_backend_schema()
+    if args.drain:
+        processed = 0
+        limit = max(1, args.max_jobs)
+        while processed < limit:
+            did_work = run_once(worker_name=args.worker_name)
+            if not did_work:
+                break
+            processed += 1
+        print(f"drained {processed} job(s)")
+        return
     if args.once or not args.loop:
         run_once(worker_name=args.worker_name)
         return
