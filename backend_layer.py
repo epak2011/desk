@@ -252,6 +252,32 @@ def sync_watchlist_assets(tickers: Iterable[str]) -> None:
                 )
 
 
+def stale_watchlist_market_tickers(*, max_age_minutes: int = 10, limit: int = 100) -> list[str]:
+    """Enabled watchlist tickers with missing/stale market snapshot rows."""
+    if not has_database():
+        return []
+    ensure_backend_schema()
+    age_minutes = max(1, int(max_age_minutes))
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT w.ticker
+                FROM watchlist_assets w
+                LEFT JOIN market_snapshots m ON m.ticker = w.ticker
+                WHERE w.enabled = TRUE
+                  AND (
+                    m.ticker IS NULL
+                    OR m.updated_at < NOW() - (%s::text || ' minutes')::interval
+                  )
+                ORDER BY COALESCE(m.updated_at, w.created_at) ASC
+                LIMIT %s
+                """,
+                (str(age_minutes), max(1, int(limit))),
+            )
+            return [str(row[0]).upper().strip() for row in cur.fetchall() if str(row[0] or "").strip()]
+
+
 def enqueue_job(
     job_type: str,
     *,

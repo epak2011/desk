@@ -227,6 +227,27 @@ def refresh_watchlist_market_scan(payload: dict | None = None) -> dict:
     return {"updated": len(updated), "errors": errors, "tickers": [r["ticker"] for r in updated]}
 
 
+def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 100) -> dict:
+    """Queue a watchlist scan when scheduled worker runs find stale rows."""
+    tickers = backend.stale_watchlist_market_tickers(
+        max_age_minutes=max_age_minutes,
+        limit=limit,
+    )
+    if not tickers:
+        return {"queued": False, "tickers": [], "reason": "market snapshots fresh"}
+    job_id = backend.enqueue_job(
+        "watchlist_market_scan",
+        payload={
+            "tickers": tickers,
+            "source": "scheduled_maintenance",
+            "max_age_minutes": max_age_minutes,
+        },
+        priority=30,
+        requested_by="worker-maintenance",
+    )
+    return {"queued": True, "job_id": job_id, "tickers": tickers}
+
+
 def process_job(job: dict) -> dict:
     job_type = job.get("job_type")
     ticker = job.get("ticker")
@@ -266,7 +287,9 @@ def main():
     parser.add_argument("--once", action="store_true", help="Process one queued job and exit.")
     parser.add_argument("--drain", action="store_true", help="Process a batch of queued jobs and exit.")
     parser.add_argument("--loop", action="store_true", help="Continuously process jobs.")
+    parser.add_argument("--maintenance", action="store_true", help="Queue stale recurring work before processing jobs.")
     parser.add_argument("--max-jobs", type=int, default=25, help="Maximum jobs to process for --drain.")
+    parser.add_argument("--market-max-age-minutes", type=int, default=10, help="Max watchlist market row age before scheduled refresh.")
     parser.add_argument("--sleep", type=float, default=10.0, help="Seconds to sleep when no job is queued.")
     parser.add_argument("--worker-name", default=os.environ.get("WORKER_NAME", "desk-worker"))
     args = parser.parse_args()
@@ -278,6 +301,18 @@ def main():
             print(f"recovered {recovered} stale running job(s)")
     except Exception as exc:
         print(f"stale job recovery skipped: {exc}")
+    if args.maintenance:
+        try:
+            queued = queue_stale_watchlist_market_scan(
+                max_age_minutes=args.market_max_age_minutes,
+                limit=100,
+            )
+            if queued.get("queued"):
+                print(f"queued stale watchlist market scan for {len(queued.get('tickers') or [])} ticker(s)")
+            else:
+                print("scheduled maintenance: market snapshots fresh")
+        except Exception as exc:
+            print(f"scheduled maintenance skipped: {exc}")
     if args.drain:
         processed = 0
         limit = max(1, args.max_jobs)

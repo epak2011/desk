@@ -1,0 +1,34 @@
+name: Trading Desk worker
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+concurrency:
+  group: trading-desk-worker
+  cancel-in-progress: false
+
+jobs:
+  drain-refresh-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      WORKER_NAME: github-actions-worker
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Drain queued refresh jobs
+        run: python worker.py --maintenance --drain --max-jobs 25 --market-max-age-minutes 10
