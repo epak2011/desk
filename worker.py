@@ -294,6 +294,11 @@ def main():
     parser.add_argument("--worker-name", default=os.environ.get("WORKER_NAME", "desk-worker"))
     args = parser.parse_args()
 
+    if not backend.has_database():
+        print("::warning::DATABASE_URL is not configured for this worker environment. "
+              "Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs.")
+        return
+
     backend.ensure_backend_schema()
     try:
         recovered = backend.recover_stale_running_jobs(max_age_minutes=30, limit=100)
