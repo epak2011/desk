@@ -348,6 +348,134 @@ def latest_jobs(ticker: str | None = None, limit: int = 8) -> list[dict[str, Any
     return jobs
 
 
+def read_json_table(table: str, key_value: str | None = None, *, limit: int | None = None) -> dict[str, dict[str, Any]]:
+    """Read normalized JSON payload rows keyed by ticker/day.
+
+    This gives the Streamlit UI a cheap way to hydrate from worker output
+    without recomputing market data on every rerun.
+    """
+    allowed = {
+        "market_snapshots": ("ticker", "updated_at"),
+        "rule_outputs": ("ticker", "updated_at"),
+        "pm_memos": ("ticker", "updated_at"),
+        "research_reports": ("ticker", "updated_at"),
+        "holdings": ("ticker", "updated_at"),
+        "market_regime_daily": ("day", "updated_at"),
+    }
+    if table not in allowed:
+        raise ValueError(f"Unsupported table: {table}")
+    if not has_database():
+        return {}
+    ensure_backend_schema()
+    key_column, order_column = allowed[table]
+    clean_key = str(key_value or "").upper().strip()
+    rows: list[tuple[Any, Any, Any]] = []
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            if clean_key:
+                cur.execute(
+                    f"""
+                    SELECT {key_column}, payload, {order_column}
+                    FROM {table}
+                    WHERE {key_column} = %s
+                    """,
+                    (clean_key,),
+                )
+            elif limit:
+                cur.execute(
+                    f"""
+                    SELECT {key_column}, payload, {order_column}
+                    FROM {table}
+                    ORDER BY {order_column} DESC
+                    LIMIT %s
+                    """,
+                    (int(limit),),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT {key_column}, payload, {order_column}
+                    FROM {table}
+                    ORDER BY {order_column} DESC
+                    """
+                )
+            rows = cur.fetchall()
+    out: dict[str, dict[str, Any]] = {}
+    for key, payload, updated_at in rows:
+        normalized_key = str(key or "").upper().strip()
+        if not normalized_key:
+            continue
+        value = payload or {}
+        if isinstance(value, dict):
+            value = dict(value)
+        else:
+            value = {"value": value}
+        if updated_at is not None and not value.get("updated_at"):
+            try:
+                value["updated_at"] = updated_at.isoformat()
+            except Exception:
+                value["updated_at"] = str(updated_at)
+        out[normalized_key] = value
+    return out
+
+
+def read_json_table_many(table: str, key_values: Iterable[str]) -> dict[str, dict[str, Any]]:
+    """Read normalized JSON payload rows for a specific key set."""
+    allowed = {
+        "market_snapshots": ("ticker", "updated_at"),
+        "rule_outputs": ("ticker", "updated_at"),
+        "pm_memos": ("ticker", "updated_at"),
+        "research_reports": ("ticker", "updated_at"),
+        "holdings": ("ticker", "updated_at"),
+        "market_regime_daily": ("day", "updated_at"),
+    }
+    if table not in allowed:
+        raise ValueError(f"Unsupported table: {table}")
+    clean_keys = [
+        str(key or "").upper().strip()
+        for key in (key_values or [])
+        if str(key or "").strip()
+    ]
+    clean_keys = list(dict.fromkeys(clean_keys))
+    if not clean_keys or not has_database():
+        return {}
+    ensure_backend_schema()
+    key_column, order_column = allowed[table]
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT {key_column}, payload, {order_column}
+                FROM {table}
+                WHERE {key_column} = ANY(%s)
+                """,
+                (clean_keys,),
+            )
+            rows = cur.fetchall()
+    out: dict[str, dict[str, Any]] = {}
+    for key, payload, updated_at in rows:
+        normalized_key = str(key or "").upper().strip()
+        if not normalized_key:
+            continue
+        value = payload or {}
+        if isinstance(value, dict):
+            value = dict(value)
+        else:
+            value = {"value": value}
+        if updated_at is not None and not value.get("updated_at"):
+            try:
+                value["updated_at"] = updated_at.isoformat()
+            except Exception:
+                value["updated_at"] = str(updated_at)
+        out[normalized_key] = value
+    return out
+
+
+def read_json_tables(tables: Iterable[str], key_value: str | None = None) -> dict[str, dict[str, dict[str, Any]]]:
+    """Read several normalized payload tables with one small helper call."""
+    return {str(table): read_json_table(str(table), key_value) for table in tables}
+
+
 def claim_next_job(worker_name: str = "worker") -> dict[str, Any] | None:
     ensure_backend_schema()
     with db_connection() as conn:

@@ -4142,6 +4142,175 @@ def _market_snapshot_from_t_state(t_state, hist=None):
     }
 
 
+def _backend_payload_age(updated_at):
+    """Return a compact freshness label for normalized backend rows."""
+    try:
+        if not updated_at:
+            return "backend saved", "stale"
+        value = str(updated_at).replace("Z", "+00:00")
+        ts = datetime.fromisoformat(value)
+        now = datetime.now(ts.tzinfo) if ts.tzinfo else datetime.now()
+        age = now - ts
+        minutes = max(int(age.total_seconds() // 60), 0)
+        if minutes < 1:
+            return "just now", "fresh"
+        if minutes < 60:
+            return f"{minutes}m old", "fresh" if minutes <= 20 else "stale"
+        hours = minutes // 60
+        if hours < 24:
+            return f"{hours}h old", "stale"
+        return f"{hours // 24}d old", "stale"
+    except Exception:
+        return "age unknown", "stale"
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def backend_ticker_payloads(tickers):
+    """Read worker-written market/rule rows once, then fan out locally."""
+    normalized = tuple(
+        dict.fromkeys(
+            str(raw or "").upper().strip()
+            for raw in (tickers or ())
+            if str(raw or "").strip()
+        )
+    )
+    if not normalized or not backend_layer.has_database():
+        return {}
+    try:
+        market_rows = backend_layer.read_json_table_many("market_snapshots", normalized)
+        rule_rows = backend_layer.read_json_table_many("rule_outputs", normalized)
+    except Exception:
+        return {}
+    return {
+        tkr: {
+            "market": market_rows.get(tkr, {}) if isinstance(market_rows, dict) else {},
+            "rules": rule_rows.get(tkr, {}) if isinstance(rule_rows, dict) else {},
+        }
+        for tkr in normalized
+    }
+
+
+def _market_snapshot_from_backend_payloads(market_payload, rule_payload):
+    """Normalize background worker payloads into the app's ticker snapshot shape."""
+    if not isinstance(market_payload, dict):
+        market_payload = {}
+    if not isinstance(rule_payload, dict):
+        rule_payload = {}
+
+    price = _num_or_none(
+        market_payload.get("last")
+        or market_payload.get("price")
+        or rule_payload.get("price")
+    )
+    if price is None:
+        return {}
+
+    merged_state = {
+        **rule_payload,
+        "price": price,
+        "last": price,
+        "change": market_payload.get("change_pct", rule_payload.get("change")),
+        "ma20": market_payload.get("ma20", rule_payload.get("ma20")),
+        "ma50": market_payload.get("ma50", rule_payload.get("ma50")),
+        "ma100": market_payload.get("ma100", rule_payload.get("ma100")),
+        "ma200": market_payload.get("ma200", rule_payload.get("ma200")),
+        "high_52w": market_payload.get("high_52w", rule_payload.get("high_52w")),
+        "low_52w": market_payload.get("low_52w", rule_payload.get("low_52w")),
+        "pct_of_52w_range": market_payload.get(
+            "pct_of_52w_range",
+            market_payload.get("pct_52w_range", rule_payload.get("pct_of_52w_range")),
+        ),
+        "vol_ratio": market_payload.get(
+            "vol_ratio",
+            market_payload.get("volume_ratio", rule_payload.get("vol_ratio")),
+        ),
+        "rs": market_payload.get("rs", rule_payload.get("rs")),
+        "rsi14": market_payload.get("rsi14", rule_payload.get("rsi14")),
+    }
+    action = normalize_action_key(rule_payload.get("action") or market_payload.get("action"))
+    if action:
+        merged_state["action"] = action
+
+    updated_at = (
+        market_payload.get("updated_at")
+        or rule_payload.get("updated_at")
+        or datetime.now().isoformat(timespec="seconds")
+    )
+    price_age_label, price_age_kind = _backend_payload_age(updated_at)
+    trigger_monitor = build_trigger_monitor(merged_state)
+    pct_ma50 = None
+    ma50 = _num_or_none(merged_state.get("ma50"))
+    if ma50:
+        pct_ma50 = (price - ma50) / ma50 * 100
+    trigger_obj = merged_state.get("trigger") if isinstance(merged_state.get("trigger"), dict) else {}
+
+    return {
+        "last": price,
+        "change_pct": _num_or_none(merged_state.get("change")),
+        "action": action or merged_state.get("action"),
+        "state": merged_state.get("state"),
+        "rs": merged_state.get("rs"),
+        "rsi14": merged_state.get("rsi14"),
+        "pct_ma50": pct_ma50,
+        "high_52w": merged_state.get("high_52w"),
+        "low_52w": merged_state.get("low_52w"),
+        "pct_52w_range": merged_state.get("pct_of_52w_range"),
+        "vol_ratio": merged_state.get("vol_ratio"),
+        "trigger": merged_state.get("trigger"),
+        "trigger_monitor": trigger_monitor,
+        "trigger_fired": bool(merged_state.get("trigger_fired") or trigger_obj.get("fired")),
+        "trigger_fired_reason": merged_state.get("trigger_fired_reason") or trigger_obj.get("fired_reason"),
+        "entry": merged_state.get("entry"),
+        "entry_is_projected": merged_state.get("entry_is_projected"),
+        "stop": merged_state.get("stop"),
+        "t1": merged_state.get("t1"),
+        "decision": {
+            "action": action or merged_state.get("action"),
+            "trigger": trigger_monitor,
+        },
+        "rule_trace": merged_state.get("_rule_trace") or merged_state.get("rule_trace") or [],
+        "price_age": price_age_label,
+        "price_age_kind": price_age_kind,
+        "updated_at": updated_at,
+    }
+
+
+def hydrate_backend_ticker_snapshots(tickers):
+    """Merge completed worker output into session memory without rewriting the DB."""
+    payloads = backend_ticker_payloads(tuple(tickers or ()))
+    if not payloads:
+        return {"updated": 0, "tickers": []}
+    cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+    final_action_cache = st.session_state.store.setdefault("final_action_cache", {})
+    updated = []
+    for tkr, payload in payloads.items():
+        if not isinstance(payload, dict):
+            continue
+        market = _market_snapshot_from_backend_payloads(
+            payload.get("market") or {},
+            payload.get("rules") or {},
+        )
+        if not market:
+            continue
+        action = normalize_action_key(market.get("action"))
+        final_payload = {}
+        if action:
+            final_payload = {
+                "action": action,
+                "source": "rule",
+                "rule_trace": market.get("rule_trace") or [],
+            }
+            final_action_cache[tkr] = final_payload
+        cache[tkr] = {**(cache.get(tkr) or {}), **market}
+        merge_ticker_snapshot(
+            tkr,
+            market=market,
+            final_action=final_payload if final_payload else None,
+        )
+        updated.append(tkr)
+    return {"updated": len(updated), "tickers": updated}
+
+
 def merge_ticker_snapshot(ticker, *, market=None, meta=None, pm_entry=None, final_action=None):
     """Merge one or more layers into the canonical per-ticker snapshot."""
     tkr = _ticker_key(ticker)
@@ -6159,19 +6328,7 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
     # already been instantiated, and Streamlit forbids mutating a widget's
     # session key at that point. The normal sidebar sync block updates the
     # widget safely on the next rerun if current_ticker changed.
-    try:
-        fetch_history.clear(refresh_ticker)
-    except Exception:
-        fetch_history.clear()
-    try:
-        fetch_watchlist_histories.clear()
-    except Exception:
-        pass
-    try:
-        fetch_watchlist_price_quotes.clear()
-    except Exception:
-        pass
-    _delete_history_cache(refresh_ticker)
+    refreshed_action = ""
     if refresh_research:
         # Do not do slow Yahoo metadata fetches inside the button callback.
         # The callback reruns the app immediately; doing network work here
@@ -6183,34 +6340,14 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         except Exception:
             pass
     else:
-        refreshed_meta = None
-        refreshed_action = ""
         try:
-            fetch_quote_meta.clear(refresh_ticker)
-        except Exception:
-            fetch_quote_meta.clear()
-        try:
-            refreshed_meta = fetch_quote_meta(refresh_ticker, include_slow_fallbacks=False)
-            remember_quote_meta(refresh_ticker, refreshed_meta)
+            hydrate_backend_ticker_snapshots((refresh_ticker,))
         except Exception:
             pass
         try:
-            refreshed_hist, _name, _err = fetch_history(refresh_ticker)
-            refreshed_bench = fetch_bench()
-            if refreshed_hist is not None and refreshed_bench is not None:
-                refreshed_t = tactical.compute(refreshed_hist, refreshed_bench)
-                if refreshed_t is not None:
-                    earnings_days = (
-                        refreshed_meta.get("earnings_days")
-                        if isinstance(refreshed_meta, dict)
-                        else None
-                    )
-                    refreshed_t = apply_earnings_event_gate(refreshed_t, earnings_days)
-                    remember_sidebar_ticker_snapshot(refresh_ticker, refreshed_t, refreshed_hist)
-                    refreshed_action = normalize_action_key(refreshed_t.get("action")) or ""
+            refreshed_action = canonical_action_for_ticker(refresh_ticker)
         except Exception:
-            pass
-    sidebar_watchlist_snapshot.clear()
+            refreshed_action = ""
     if refresh_research:
         st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
         pending = st.session_state.setdefault("_pending_pm_refreshes", {})
@@ -6276,12 +6413,6 @@ def refresh_watchlist_market_scan():
         for scan_tkr in st.session_state.store.get("watchlist", [])
         if str(scan_tkr or "").strip()
     ]
-    for scan_tkr in watchlist_tickers:
-        try:
-            fetch_history.clear(scan_tkr)
-        except Exception:
-            pass
-        _delete_history_cache(scan_tkr)
     try:
         backend_layer.sync_watchlist_assets(watchlist_tickers)
     except Exception:
@@ -6292,18 +6423,13 @@ def refresh_watchlist_market_scan():
         priority=30,
     )
     try:
-        fetch_watchlist_histories.clear()
+        hydrated = hydrate_backend_ticker_snapshots(watchlist_tickers)
     except Exception:
-        pass
-    try:
-        fetch_watchlist_price_quotes.clear()
-    except Exception:
-        pass
-    # Keep metadata cache warm during full-watchlist scans. Clearing every
-    # ticker's Yahoo metadata here makes the page feel frozen and is not
-    # needed to keep price/action reads current.
-    sidebar_watchlist_snapshot.clear()
-    refreshed_rows = update_sidebar_watchlist_cache(watchlist_tickers)
+        hydrated = {"updated": 0, "tickers": []}
+    refreshed_rows = {
+        scan_tkr: (ticker_snapshot(scan_tkr).get("market") or {})
+        for scan_tkr in watchlist_tickers
+    }
     price_rows = sum(
         1
         for _scan_tkr, scan_row in (refreshed_rows or {}).items()
@@ -6326,8 +6452,8 @@ def refresh_watchlist_market_scan():
         "synced_actions": synced_actions,
         "missing_price_tickers": missing_price_tickers,
         "job_id": queued_job_id,
+        "hydrated_rows": hydrated.get("updated", 0) if isinstance(hydrated, dict) else 0,
     }
-    save_store(st.session_state.store)
 
 
 def get_effective_api_key():
@@ -9648,6 +9774,10 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
         # Keep Analyze fast: refresh the active ticker row only, and reserve
         # full-watchlist price/action scans for the Watchlist page.
         saved_sidebar_cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
+        try:
+            hydrate_backend_ticker_snapshots(watchlist)
+        except Exception:
+            pass
         current_key = str(current or "").upper().strip()
         if current_key in {str(t or "").upper().strip() for t in watchlist}:
             current_market = ticker_snapshot(current_key).get("market") or {}
@@ -17404,6 +17534,10 @@ if view == "watchlist":
                 unsafe_allow_html=True,
             )
             st.markdown(backend_job_status_html(limit=4), unsafe_allow_html=True)
+        try:
+            hydrate_backend_ticker_snapshots(st.session_state.store["watchlist"])
+        except Exception:
+            pass
         watchlist_layout_pref = st.session_state.get("watchlist_layout", "Decision queue")
         fast_watchlist = watchlist_layout_pref == "Decision queue"
         bench = None if fast_watchlist else fetch_bench()
