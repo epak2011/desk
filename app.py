@@ -6396,7 +6396,6 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         "action_label": STATE_STYLES.get(refreshed_action, {}).get("label", refreshed_action.replace("_", " ").title()) if not refresh_research and not refresh_full_report and refreshed_action else "",
         "job_id": queued_job_id,
     }
-    save_store(st.session_state.store)
 
 
 def queue_full_report_refresh(ticker):
@@ -6434,7 +6433,6 @@ def queue_full_report_refresh(ticker):
         "lane": "full_report",
         "job_id": queued_job_id,
     }
-    save_store(st.session_state.store)
 
 
 def refresh_watchlist_market_scan():

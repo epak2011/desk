@@ -272,6 +272,12 @@ def main():
     args = parser.parse_args()
 
     backend.ensure_backend_schema()
+    try:
+        recovered = backend.recover_stale_running_jobs(max_age_minutes=30, limit=100)
+        if recovered:
+            print(f"recovered {recovered} stale running job(s)")
+    except Exception as exc:
+        print(f"stale job recovery skipped: {exc}")
     if args.drain:
         processed = 0
         limit = max(1, args.max_jobs)
