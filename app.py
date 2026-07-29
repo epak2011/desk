@@ -6517,12 +6517,28 @@ def refresh_watchlist_market_scan():
         payload={"tickers": watchlist_tickers, "source": "watchlist_refresh"},
         priority=30,
     )
+    immediate = {}
+    try:
+        sidebar_watchlist_snapshot.clear()
+    except Exception:
+        pass
+    try:
+        fetch_watchlist_histories.clear()
+    except Exception:
+        pass
+    try:
+        immediate = update_sidebar_watchlist_cache(watchlist_tickers) or {}
+    except Exception:
+        immediate = {}
     try:
         hydrated = hydrate_backend_ticker_snapshots(watchlist_tickers)
     except Exception:
         hydrated = {"updated": 0, "tickers": []}
     refreshed_rows = {
-        scan_tkr: (ticker_snapshot(scan_tkr).get("market") or {})
+        scan_tkr: (
+            (immediate.get(scan_tkr) if isinstance(immediate, dict) else None)
+            or (ticker_snapshot(scan_tkr).get("market") or {})
+        )
         for scan_tkr in watchlist_tickers
     }
     price_rows = sum(
@@ -6548,6 +6564,7 @@ def refresh_watchlist_market_scan():
         "missing_price_tickers": missing_price_tickers,
         "job_id": queued_job_id,
         "hydrated_rows": hydrated.get("updated", 0) if isinstance(hydrated, dict) else 0,
+        "immediate_rows": len(immediate) if isinstance(immediate, dict) else 0,
     }
 
 
@@ -17587,12 +17604,15 @@ if view == "triggers":
             synced_count = scan_event.get("synced_actions")
             price_count = scan_event.get("price_rows")
             total_count = scan_event.get("count")
+            immediate_count = scan_event.get("immediate_rows")
             missing_price_tickers = scan_event.get("missing_price_tickers") or []
             sync_text = (
                 f' Prices updated for {int(price_count)}/{int(total_count)} names.'
                 if isinstance(price_count, int) and isinstance(total_count, int)
                 else " Prices updated."
             )
+            if isinstance(immediate_count, int):
+                sync_text += f' Visible table refreshed for {int(immediate_count)} names.'
             if isinstance(synced_count, int):
                 sync_text += f' Rule actions synced for {int(synced_count)} names.'
             if missing_price_tickers:
@@ -18061,9 +18081,12 @@ if view == "watchlist":
                 synced_count = scan_event.get("synced_actions")
                 price_count = scan_event.get("price_rows")
                 total_count = scan_event.get("count")
+                immediate_count = scan_event.get("immediate_rows")
                 missing_price_tickers = scan_event.get("missing_price_tickers") or []
                 if isinstance(price_count, int) and isinstance(total_count, int):
                     sync_text = f"Prices updated for {price_count}/{total_count} names."
+                    if isinstance(immediate_count, int):
+                        sync_text += f" Visible table refreshed for {immediate_count} names."
                     if isinstance(synced_count, int):
                         sync_text += f" Rule actions synced for {synced_count} names."
                 elif isinstance(synced_count, int):
