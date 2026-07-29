@@ -70,7 +70,15 @@ def _market_payload(ticker: str, hist, t_state: dict):
 
 
 def _api_key() -> str:
-    return os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if key:
+        return key
+    try:
+        import streamlit as st  # type: ignore
+
+        return str(st.secrets.get("ANTHROPIC_API_KEY", "")).strip()
+    except Exception:
+        return ""
 
 
 def _quote_meta(ticker: str) -> dict:
@@ -94,12 +102,12 @@ def _quote_meta(ticker: str) -> dict:
     }
 
 
-def refresh_market_snapshot(ticker: str) -> dict:
+def refresh_market_snapshot(ticker: str, bench=None) -> dict:
     ticker = str(ticker or "").upper().strip()
     if not ticker:
         raise ValueError("ticker is required")
     hist = _flatten_yfinance(_download_history(ticker), ticker)
-    bench = _flatten_yfinance(_download_benchmark(), "SPY")
+    bench = _flatten_yfinance(bench if bench is not None else _download_benchmark(), "SPY")
     if hist is None or hist.empty or bench is None or bench.empty:
         raise RuntimeError(f"No market history returned for {ticker}")
     t_state = tactical.compute(hist, bench)
@@ -204,9 +212,12 @@ def refresh_watchlist_market_scan(payload: dict | None = None) -> dict:
     backend.sync_watchlist_assets(clean)
     updated = []
     errors = {}
+    bench = _flatten_yfinance(_download_benchmark(), "SPY")
+    if bench is None or bench.empty:
+        raise RuntimeError("No benchmark history returned for SPY")
     max_workers = min(8, max(1, len(clean)))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(refresh_market_snapshot, ticker): ticker for ticker in clean}
+        futures = {executor.submit(refresh_market_snapshot, ticker, bench): ticker for ticker in clean}
         for future in as_completed(futures):
             ticker = futures[future]
             try:

@@ -8,6 +8,7 @@ use the same tables without inheriting Streamlit's rerun model.
 from __future__ import annotations
 
 import json
+import math
 import os
 import uuid
 from contextlib import contextmanager
@@ -96,6 +97,8 @@ def json_safe(value: Any) -> Any:
             return json_safe(value.item())
         except Exception:
             return str(value)
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
     return value
 
 

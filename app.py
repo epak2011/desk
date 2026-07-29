@@ -321,7 +321,7 @@ def _pg_storage_health():
             "message": "session-only",
             "missing": [],
         }
-    required = ["kv_store", "chat_history", "decisions_log", "regime_daily_cache", "ticker_cache"]
+    required = ["kv_store", "chat_history", "decisions_log", "regime_daily_cache"]
     try:
         _pg_init()
         with _pg_connect() as conn:
@@ -412,7 +412,7 @@ def _store_default():
     }
 
 
-_TICKER_CACHE_KEYS = {
+_DERIVED_TICKER_CACHE_KEYS = {
     "pm_cache",
     "dossier_cache",
     "watchlist_sidebar_cache",
@@ -420,7 +420,8 @@ _TICKER_CACHE_KEYS = {
     "quote_meta_cache",
     "ticker_snapshots",
 }
-_SPLIT_STORE_KEYS = {"chat_history", "decisions_log", "regime_daily_cache"} | _TICKER_CACHE_KEYS
+_DURABLE_SPLIT_STORE_KEYS = {"chat_history", "decisions_log", "regime_daily_cache"}
+_SPLIT_STORE_KEYS = _DURABLE_SPLIT_STORE_KEYS | _DERIVED_TICKER_CACHE_KEYS
 
 
 def _split_store_sections(store):
@@ -433,10 +434,12 @@ def _split_store_sections(store):
     chat = (store or {}).get("chat_history") or {}
     decisions = (store or {}).get("decisions_log") or []
     regime_cache = (store or {}).get("regime_daily_cache") or {}
-    ticker_caches = {
-        key: ((store or {}).get(key) or {})
-        for key in _TICKER_CACHE_KEYS
-    }
+    # Ticker caches are intentionally not returned here. They are derived
+    # from worker-owned tables (`market_snapshots`, `rule_outputs`,
+    # `pm_memos`, `research_reports`) or short-lived Streamlit caches.
+    # Persisting them as app state made every save/load grow with the
+    # watchlist, which was the main source of "every click is slow" pain.
+    ticker_caches = {}
     return core, chat, decisions, regime_cache, ticker_caches
 
 
@@ -483,10 +486,7 @@ def _seed_persist_fingerprints(store):
             for day, entry in (regime_cache if isinstance(regime_cache, dict) else {}).items()
             if str(day).strip()
         }
-        # Do not seed ticker-cache fingerprints here. On the first deploy after
-        # this migration, those caches still live inside the legacy default row.
-        # The next save must upsert them into ticker_cache before the default row
-        # is rewritten without them.
+        # Ticker caches are derived and no longer persisted by save_store.
         fingerprints["ticker_caches"] = {}
     except Exception:
         pass
@@ -513,22 +513,6 @@ def _load_split_sections(cur, store):
     if regime_rows:
         store["regime_daily_cache"] = {str(day): (entry or {}) for day, entry in regime_rows}
 
-    cur.execute("""
-        SELECT cache_name, ticker, value
-        FROM ticker_cache
-        WHERE cache_name = ANY(%s)
-    """, (list(_TICKER_CACHE_KEYS),))
-    ticker_rows = cur.fetchall()
-    for cache_name, ticker, value in ticker_rows:
-        name = str(cache_name or "")
-        if name not in _TICKER_CACHE_KEYS:
-            continue
-        key = str(ticker or "").upper().strip()
-        if not key:
-            continue
-        store.setdefault(name, {})
-        if isinstance(store[name], dict):
-            store[name][key] = value or {}
     return store
 
 
@@ -618,38 +602,9 @@ def _save_split_sections(cur, chat, decisions, regime_cache, ticker_caches):
         cur.execute("DELETE FROM regime_daily_cache WHERE NOT (day = ANY(%s))", (regime_days,))
         fingerprints["regime"] = {k: v for k, v in fingerprints["regime"].items() if k in set(regime_days)}
 
-    ticker_caches = ticker_caches if isinstance(ticker_caches, dict) else {}
-    for cache_name in sorted(_TICKER_CACHE_KEYS):
-        cache_rows = ticker_caches.get(cache_name) or {}
-        cache_rows = cache_rows if isinstance(cache_rows, dict) else {}
-        cache_fingerprints = fingerprints["ticker_caches"].setdefault(cache_name, {})
-        cache_tickers = []
-        for ticker, value in cache_rows.items():
-            key = str(ticker).upper().strip()
-            if not key:
-                continue
-            cache_tickers.append(key)
-            value_json = _stable_json(value or {})
-            if cache_fingerprints.get(key) == value_json:
-                continue
-            cur.execute("""
-                INSERT INTO ticker_cache (cache_name, ticker, value, updated_at)
-                VALUES (%s, %s, %s::jsonb, NOW())
-                ON CONFLICT (cache_name, ticker) DO UPDATE
-                    SET value = EXCLUDED.value, updated_at = NOW()
-            """, (cache_name, key, value_json))
-            cache_fingerprints[key] = value_json
-        if not cache_tickers:
-            cur.execute("DELETE FROM ticker_cache WHERE cache_name = %s", (cache_name,))
-            fingerprints["ticker_caches"][cache_name] = {}
-        elif set(cache_fingerprints.keys()) != set(cache_tickers):
-            cur.execute(
-                "DELETE FROM ticker_cache WHERE cache_name = %s AND NOT (ticker = ANY(%s))",
-                (cache_name, cache_tickers),
-            )
-            fingerprints["ticker_caches"][cache_name] = {
-                k: v for k, v in cache_fingerprints.items() if k in set(cache_tickers)
-            }
+    # Derived ticker caches are deliberately not written here. They used to be
+    # split into `ticker_cache`, but that still meant loading/saving a row per
+    # ticker per cache layer. Worker tables are the durable source of truth.
 
 
 def load_store():
@@ -850,10 +805,86 @@ if "nav_counter" not in st.session_state:
     st.session_state.nav_counter = 0
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def backend_pm_payload(ticker):
+    """Read one worker-written PM memo row without touching market APIs."""
+    tkr = str(ticker or "").upper().strip()
+    if not tkr or not backend_layer.has_database():
+        return {}
+    try:
+        return (backend_layer.read_json_table("pm_memos", tkr) or {}).get(tkr, {}) or {}
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def backend_report_payload(ticker):
+    """Read one worker-written full report row without touching market APIs."""
+    tkr = str(ticker or "").upper().strip()
+    if not tkr or not backend_layer.has_database():
+        return {}
+    try:
+        return (backend_layer.read_json_table("research_reports", tkr) or {}).get(tkr, {}) or {}
+    except Exception:
+        return {}
+
+
+def hydrate_pm_cache_from_backend(ticker):
+    """Adapt normalized PM memo rows into the legacy in-memory cache shape."""
+    ticker = str(ticker or "").upper().strip()
+    payload = backend_pm_payload(ticker)
+    if not ticker or not isinstance(payload, dict) or not payload:
+        return None
+    thesis = str(payload.get("thesis") or "")
+    if thesis.startswith("No generated PM thesis yet") or thesis.startswith("No thesis on file"):
+        return None
+    source = payload.get("_source") or payload.get("source") or "worker"
+    ts = payload.get("_worker_generated_at") or payload.get("generated_at") or payload.get("updated_at")
+    entry = {
+        "ts": ts or datetime.now().isoformat(timespec="seconds"),
+        "view": {k: v for k, v in payload.items() if not str(k).startswith("_")},
+        "source": source,
+    }
+    st.session_state.store.setdefault("pm_cache", {})[ticker] = entry
+    merge_ticker_snapshot(ticker, pm_entry=entry)
+    return entry
+
+
+def hydrate_dossier_cache_from_backend(ticker):
+    """Adapt normalized full-report rows into the legacy dossier cache shape."""
+    ticker = str(ticker or "").upper().strip()
+    payload = backend_report_payload(ticker)
+    if not ticker or not isinstance(payload, dict) or not payload:
+        return None
+    dossier = payload.get("dossier") if isinstance(payload.get("dossier"), dict) else {}
+    if not dossier.get("dossier"):
+        return None
+    ts = payload.get("_worker_generated_at") or payload.get("generated_at") or payload.get("updated_at")
+    tactical_call = dossier.get("tactical_call") if isinstance(dossier.get("tactical_call"), dict) else {}
+    entry = {
+        "ts": ts or datetime.now().isoformat(timespec="seconds"),
+        "schema_version": DOSSIER_SCHEMA_VERSION,
+        "price_at_generation": payload.get("_market_price"),
+        "action_at_generation": tactical_call.get("action"),
+        "result": {
+            "dossier": dossier.get("dossier"),
+            "technical_narrative": dossier.get("technical_narrative"),
+            "pm_narrative": dossier.get("pm_narrative"),
+            "bullets": dossier.get("bullets") or {},
+            "quality": dossier.get("quality") or {},
+            "tactical_call": tactical_call or {},
+        },
+        "source": dossier.get("_source") or payload.get("source") or "worker",
+    }
+    st.session_state.store.setdefault("dossier_cache", {})[ticker] = entry
+    merge_ticker_snapshot(ticker, pm_entry=entry)
+    return entry
+
+
 def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate=True, force_generate=False):
     ticker = ticker.upper()
     cache = st.session_state.store["pm_cache"]
-    entry = cache.get(ticker)
+    entry = cache.get(ticker) or hydrate_pm_cache_from_backend(ticker)
     if entry and not force_generate:
         ts = entry.get("ts")
         try:
@@ -973,7 +1004,7 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
     """
     ticker = ticker.upper()
     cache = st.session_state.store.setdefault("dossier_cache", {})
-    entry = cache.get(ticker)
+    entry = cache.get(ticker) or hydrate_dossier_cache_from_backend(ticker)
     if not api_key:
         if entry:
             try:
