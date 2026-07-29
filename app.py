@@ -492,19 +492,63 @@ def _seed_persist_fingerprints(store):
         pass
 
 
+def _initial_route_scope():
+    """Best-effort route hint before session_state.view/current_ticker exist."""
+    try:
+        view = str(st.query_params.get("view") or "").strip().lower()
+    except Exception:
+        view = ""
+    try:
+        ticker = (
+            st.query_params.get("ticker")
+            or st.query_params.get("open")
+            or st.query_params.get("pm_refresh")
+            or st.query_params.get("research_refresh")
+            or st.query_params.get("data_refresh")
+            or ""
+        )
+    except Exception:
+        ticker = ""
+    return view, str(ticker or "").upper().strip()
+
+
 def _load_split_sections(cur, store):
     """Merge normalized Postgres rows back into the legacy in-memory store."""
-    cur.execute("SELECT ticker, messages FROM chat_history")
+    view_hint, ticker_hint = _initial_route_scope()
+    view_hint = view_hint or str((store or {}).get("last_view") or "today").strip().lower()
+    ticker_hint = ticker_hint or str((store or {}).get("last_ticker") or "").upper().strip()
+    load_all_chat = view_hint in {"tracker"}
+    if load_all_chat:
+        cur.execute("SELECT ticker, messages FROM chat_history")
+    elif ticker_hint:
+        cur.execute("SELECT ticker, messages FROM chat_history WHERE ticker = %s", (ticker_hint,))
+    else:
+        cur.execute("SELECT ticker, messages FROM chat_history WHERE FALSE")
     chat_rows = cur.fetchall()
+    try:
+        st.session_state["_split_chat_loaded_all"] = load_all_chat
+        st.session_state["_split_chat_loaded_tickers"] = [
+            str(t).upper().strip() for t, _m in chat_rows if str(t or "").strip()
+        ]
+    except Exception:
+        pass
     if chat_rows:
         store["chat_history"] = {str(t).upper(): (m or []) for t, m in chat_rows}
 
-    cur.execute("""
-        SELECT entry
-        FROM decisions_log
-        ORDER BY COALESCE(entry_ts, updated_at) DESC
-    """)
+    load_all_decisions = view_hint in {"tracker"}
+    if load_all_decisions:
+        cur.execute("""
+            SELECT entry
+            FROM decisions_log
+            ORDER BY COALESCE(entry_ts, updated_at) DESC
+        """)
+    else:
+        cur.execute("SELECT entry FROM decisions_log WHERE FALSE")
     decision_rows = cur.fetchall()
+    try:
+        st.session_state["_split_decisions_loaded_all"] = load_all_decisions
+    except Exception:
+        pass
     if decision_rows:
         store["decisions_log"] = [row[0] for row in decision_rows if row and row[0]]
 
@@ -540,12 +584,29 @@ def _save_split_sections(cur, chat, decisions, regime_cache, ticker_caches):
                 SET messages = EXCLUDED.messages, updated_at = NOW()
         """, (key, messages_json))
         fingerprints["chat"][key] = messages_json
-    if not chat_keys:
-        cur.execute("DELETE FROM chat_history")
-        fingerprints["chat"] = {}
-    elif set(fingerprints["chat"].keys()) != set(chat_keys):
-        cur.execute("DELETE FROM chat_history WHERE NOT (ticker = ANY(%s))", (chat_keys,))
-        fingerprints["chat"] = {k: v for k, v in fingerprints["chat"].items() if k in set(chat_keys)}
+    try:
+        chat_loaded_all = bool(st.session_state.get("_split_chat_loaded_all"))
+        chat_loaded_tickers = {
+            str(t).upper().strip()
+            for t in st.session_state.get("_split_chat_loaded_tickers", [])
+            if str(t or "").strip()
+        }
+    except Exception:
+        chat_loaded_all = True
+        chat_loaded_tickers = set()
+    if chat_loaded_all:
+        if not chat_keys:
+            cur.execute("DELETE FROM chat_history")
+            fingerprints["chat"] = {}
+        elif set(fingerprints["chat"].keys()) != set(chat_keys):
+            cur.execute("DELETE FROM chat_history WHERE NOT (ticker = ANY(%s))", (chat_keys,))
+            fingerprints["chat"] = {k: v for k, v in fingerprints["chat"].items() if k in set(chat_keys)}
+    elif chat_loaded_tickers:
+        missing_loaded = sorted(chat_loaded_tickers - set(chat_keys))
+        if missing_loaded:
+            cur.execute("DELETE FROM chat_history WHERE ticker = ANY(%s)", (missing_loaded,))
+            for key in missing_loaded:
+                fingerprints["chat"].pop(key, None)
 
     decisions = decisions if isinstance(decisions, list) else []
     decision_ids = []
@@ -571,12 +632,17 @@ def _save_split_sections(cur, chat, decisions, regime_cache, ticker_caches):
             str(entry_ts or ""),
         ))
         fingerprints["decisions"][entry_id] = entry_json
-    if not decision_ids:
-        cur.execute("DELETE FROM decisions_log")
-        fingerprints["decisions"] = {}
-    elif set(fingerprints["decisions"].keys()) != set(decision_ids):
-        cur.execute("DELETE FROM decisions_log WHERE NOT (id = ANY(%s))", (decision_ids,))
-        fingerprints["decisions"] = {k: v for k, v in fingerprints["decisions"].items() if k in set(decision_ids)}
+    try:
+        decisions_loaded_all = bool(st.session_state.get("_split_decisions_loaded_all"))
+    except Exception:
+        decisions_loaded_all = True
+    if decisions_loaded_all:
+        if not decision_ids:
+            cur.execute("DELETE FROM decisions_log")
+            fingerprints["decisions"] = {}
+        elif set(fingerprints["decisions"].keys()) != set(decision_ids):
+            cur.execute("DELETE FROM decisions_log WHERE NOT (id = ANY(%s))", (decision_ids,))
+            fingerprints["decisions"] = {k: v for k, v in fingerprints["decisions"].items() if k in set(decision_ids)}
 
     regime_cache = regime_cache if isinstance(regime_cache, dict) else {}
     regime_days = []
