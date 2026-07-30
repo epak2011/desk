@@ -10,7 +10,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  missing-database-secret:
+    if: ${{ secrets.DATABASE_URL == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Worker disabled
+        run: echo "::warning::DATABASE_URL is not configured. Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs."
+
   drain-refresh-queue:
+    if: ${{ secrets.DATABASE_URL != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
