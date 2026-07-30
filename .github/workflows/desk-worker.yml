@@ -10,15 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  missing-database-secret:
-    if: ${{ secrets.DATABASE_URL == '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Worker disabled
-        run: echo "::warning::DATABASE_URL is not configured. Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs."
-
   drain-refresh-queue:
-    if: ${{ secrets.DATABASE_URL != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -26,17 +18,31 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       WORKER_NAME: github-actions-worker
     steps:
+      - name: Check database secret
+        id: database
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::warning::DATABASE_URL is not configured. Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out repository
+        if: steps.database.outputs.configured == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Python
+        if: steps.database.outputs.configured == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
 
       - name: Install dependencies
+        if: steps.database.outputs.configured == 'true'
         run: pip install -r requirements.txt
 
       - name: Drain queued refresh jobs
+        if: steps.database.outputs.configured == 'true'
         run: python worker.py --maintenance --drain --max-jobs 25 --market-max-age-minutes 10
