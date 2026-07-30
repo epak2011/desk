@@ -31,4 +31,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Drain queued refresh jobs
-        run: python worker.py --drain --max-jobs 25
+        run: python worker.py --maintenance --drain --max-jobs 25 --market-max-age-minutes 10
