@@ -18,6 +18,9 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       WORKER_NAME: github-actions-worker
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Check database secret
         id: database
         run: |
@@ -27,10 +30,6 @@ jobs:
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Check out repository
-        if: steps.database.outputs.configured == 'true'
-        uses: actions/checkout@v4
 
       - name: Set up Python
         if: steps.database.outputs.configured == 'true'
@@ -42,6 +41,12 @@ jobs:
       - name: Install dependencies
         if: steps.database.outputs.configured == 'true'
         run: pip install -r requirements.txt
+
+      - name: Worker disabled until DATABASE_URL is added
+        if: steps.database.outputs.configured != 'true'
+        run: |
+          echo "Worker disabled: DATABASE_URL is not configured in GitHub Actions secrets."
+          echo "Add DATABASE_URL to repository secrets to enable background refresh jobs."
 
       - name: Drain queued refresh jobs
         if: steps.database.outputs.configured == 'true'
