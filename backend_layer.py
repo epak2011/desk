@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -49,10 +50,15 @@ def database_url() -> str:
 
 
 def _clean_database_url(url: str) -> str:
-    import re
-
+    url = str(url or "").strip().strip('"').strip("'")
+    # Clean URLs copied from docs/chat with markdown artifacts, e.g.
+    # postgresql://...@[host:5432/postgres](http://host:5432/postgres)
+    url = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", url)
     url = re.sub(r"(?<=:)\[([^\]@]*)\](?=@)", r"\1", url)
-    url = re.sub(r"(?<=@)\[([^\]/:]*)\]", r"\1", url)
+    url = re.sub(r"(?<=@)\[([^\]]+)\]", r"\1", url)
+    if url.startswith(("postgres://", "postgresql://")) and "sslmode=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslmode=require"
     return url
 
 
@@ -68,14 +74,62 @@ def get_pool():
         url = database_url()
         if not url:
             raise RuntimeError("DATABASE_URL is not configured.")
-        _POOL = ConnectionPool(url, min_size=1, max_size=5, kwargs={"autocommit": True})
+        _POOL = ConnectionPool(
+            url,
+            min_size=1,
+            max_size=5,
+            max_idle=60,
+            max_lifetime=300,
+            reconnect_timeout=10,
+            kwargs={"autocommit": True},
+            check=ConnectionPool.check_connection,
+        )
     return _POOL
+
+
+def reset_pool() -> None:
+    global _POOL
+    pool = _POOL
+    _POOL = None
+    if pool is not None:
+        try:
+            pool.close()
+        except Exception:
+            pass
+
+
+def _is_transient_db_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return any(
+        token in message
+        for token in (
+            "ssl connection has been closed",
+            "consuming input failed",
+            "server closed the connection",
+            "connection is closed",
+            "terminating connection",
+            "connection timeout",
+            "could not receive data",
+        )
+    )
 
 
 @contextmanager
 def db_connection():
-    with get_pool().connection() as conn:
-        yield conn
+    last_error = None
+    for attempt in range(2):
+        try:
+            with get_pool().connection() as conn:
+                yield conn
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt == 0 and _is_transient_db_error(exc):
+                reset_pool()
+                continue
+            raise
+    if last_error:
+        raise last_error
 
 
 def json_safe(value: Any) -> Any:
@@ -381,6 +435,7 @@ def retry_failed_jobs(
     ticker: str | None = None,
     job_type: str | None = None,
     *,
+    error_contains: str | None = None,
     limit: int = 50,
 ) -> int:
     """Move recent failed jobs back to queued so the worker can retry them."""
@@ -399,6 +454,10 @@ def retry_failed_jobs(
     if clean_job_type:
         clauses.append("job_type = %s")
         params.append(clean_job_type)
+    clean_error = str(error_contains or "").strip()
+    if clean_error:
+        clauses.append("error ILIKE %s")
+        params.append(f"%{clean_error}%")
     params.append(max(1, int(limit)))
     where_sql = " AND ".join(clauses)
     with db_connection() as conn:

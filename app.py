@@ -18,6 +18,7 @@ import time
 import threading
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -232,11 +233,16 @@ def _get_database_url():
             url = st.secrets.get("DATABASE_URL", "").strip()
         except Exception:
             return ""
-    # Strip literal [ ] brackets that appear in some Supabase connection strings
-    # e.g. postgresql://user:[password]@[host]:port/db
+    url = str(url or "").strip().strip('"').strip("'")
+    # Clean URLs copied from docs/chat with markdown artifacts, e.g.
+    # postgresql://user:[password]@[host:5432/postgres](http://host:5432/postgres)
     import re as _re
+    url = _re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", url)
     url = _re.sub(r'(?<=:)\[([^\]@]*)\](?=@)', r'\1', url)    # [password]
-    url = _re.sub(r'(?<=@)\[([^\]/:]*)\]', r'\1', url)         # @[host]
+    url = _re.sub(r'(?<=@)\[([^\]]+)\]', r'\1', url)           # @[host:port/db]
+    if url.startswith(("postgres://", "postgresql://")) and "sslmode=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslmode=require"
     return url
 
 USE_POSTGRES = bool(_get_database_url())
@@ -251,13 +257,59 @@ def _pg_pool():
         _get_database_url(),
         min_size=1,
         max_size=5,
+        max_idle=60,
+        max_lifetime=300,
+        reconnect_timeout=10,
         kwargs={"autocommit": True},
+        check=ConnectionPool.check_connection,
     )
 
 
+def _is_transient_pg_error(exc):
+    message = str(exc).lower()
+    return any(
+        token in message
+        for token in (
+            "ssl connection has been closed",
+            "consuming input failed",
+            "server closed the connection",
+            "connection is closed",
+            "terminating connection",
+            "connection timeout",
+            "could not receive data",
+        )
+    )
+
+
+def _reset_pg_pool():
+    try:
+        pool = _pg_pool()
+        pool.close()
+    except Exception:
+        pass
+    try:
+        _pg_pool.clear()
+    except Exception:
+        pass
+
+
+@contextmanager
 def _pg_connect():
-    """Return a pooled Postgres connection when hosted."""
-    return _pg_pool().connection()
+    """Return a pooled Postgres connection, refreshing stale SSL sessions."""
+    last_error = None
+    for attempt in range(2):
+        try:
+            with _pg_pool().connection() as conn:
+                yield conn
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt == 0 and _is_transient_pg_error(exc):
+                _reset_pg_pool()
+                continue
+            raise
+    if last_error:
+        raise last_error
 
 
 def _pg_init():
@@ -5996,6 +6048,11 @@ def research_health_items(pm, dossier_result, api_key):
     dossier_text = dossier_result.get("dossier")
 
     if not has_key:
+        if backend_layer.has_database():
+            return [
+                ("PM memo", "worker queue", "info"),
+                ("Full dossier", "refresh on report page", "info"),
+            ]
         return [
             ("PM memo", "AI key unavailable", "warn"),
             ("Full dossier", "AI key unavailable", "warn"),
@@ -6383,7 +6440,14 @@ def backend_job_status_html(ticker=None, *, limit=3):
         }.get(status, status)
         label = f"{job_type}: {status_label}"
         if job.get("error"):
-            label += f" · {str(job.get('error'))[:80]}"
+            raw_error = str(job.get("error") or "")
+            error_lower = raw_error.lower()
+            if "anthropic_api_key is not configured" in error_lower:
+                label += " · worker Claude key missing"
+            elif "timed out" in error_lower or "timeout" in error_lower:
+                label += " · timed out"
+            else:
+                label += f" · {raw_error[:80]}"
         pieces.append(f'<span class="desk-job-pill {klass}">{html.escape(label)}</span>')
     return '<div class="desk-job-status">' + "".join(pieces) + "</div>"
 
@@ -6569,11 +6633,19 @@ def refresh_watchlist_market_scan():
 
 
 def get_effective_api_key():
+    aliases = ("ANTHROPIC_API_KEY", "NTHROPIC_API_KEY", "CLAUDE_API_KEY")
     try:
-        secret_key = st.secrets.get("ANTHROPIC_API_KEY", "").strip()
+        secret_key = next(
+            (
+                str(st.secrets.get(name, "")).strip()
+                for name in aliases
+                if str(st.secrets.get(name, "")).strip()
+            ),
+            "",
+        )
     except Exception:
         secret_key = ""
-    env_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    env_key = next((os.environ.get(name, "").strip() for name in aliases if os.environ.get(name, "").strip()), "")
     session_key = st.session_state.get("session_anthropic_api_key", "").strip()
     return secret_key or env_key or session_key
 
@@ -10100,14 +10172,22 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
 
     # Resolution order for the Anthropic API key:
     #   1. Streamlit secrets (canonical for hosted deployments)
-    #   2. ANTHROPIC_API_KEY environment variable (local dev with shell export)
+    #   2. Environment variable (local dev or worker)
     #   3. Session-only pasted key (never persisted)
+    api_key_aliases = ("ANTHROPIC_API_KEY", "NTHROPIC_API_KEY", "CLAUDE_API_KEY")
     secret_key = ""
     try:
-        secret_key = st.secrets.get("ANTHROPIC_API_KEY", "").strip()
+        for key_name in api_key_aliases:
+            secret_key = str(st.secrets.get(key_name, "")).strip()
+            if secret_key:
+                break
     except Exception:
         pass
-    env_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    env_key = ""
+    for key_name in api_key_aliases:
+        env_key = os.environ.get(key_name, "").strip()
+        if env_key:
+            break
     if st.session_state.store.get("anthropic_api_key"):
         # Older builds persisted pasted API keys into the app store. Stop
         # carrying that forward, especially when DATABASE_URL points at
@@ -11404,9 +11484,9 @@ view = st.session_state.view
 if st.session_state.get("_db_error"):
     st.error(
         "🚨 **Database connection failed — your watchlist and tracker are NOT being saved this session.**\n\n"
-        "Fix: Go to Streamlit Cloud → Settings → Secrets and check your `DATABASE_URL`. "
-        "The password must not contain literal `[brackets]`. Reset your Supabase password, "
-        'paste the new URL wrapped in double quotes: `DATABASE_URL = "postgresql://..."`\n\n'
+        "Fix: Refresh once. If this persists, go to Streamlit Cloud → Settings → Secrets and check your `DATABASE_URL`. "
+        "Use the plain Supabase pooler URL, wrapped in double quotes, with no markdown brackets or link text: "
+        '`DATABASE_URL = "postgresql://...?...sslmode=require"`\n\n'
         f"Error detail: `{st.session_state['_db_error']}`"
     )
 
