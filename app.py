@@ -741,9 +741,21 @@ def load_store():
                             store.setdefault(key, value)
                         loaded_store = _load_split_sections(cur, store)
                         _seed_persist_fingerprints(loaded_store)
+                        try:
+                            st.session_state["_db_loaded_ok"] = True
+                            st.session_state["_db_load_failed"] = False
+                            st.session_state.pop("_db_error", None)
+                        except Exception:
+                            pass
                         record_perf_metric("load_store", _perf_t0)
                         return loaded_store
                     # No row yet — return defaults; first save creates the row.
+                    try:
+                        st.session_state["_db_loaded_ok"] = True
+                        st.session_state["_db_load_failed"] = False
+                        st.session_state.pop("_db_error", None)
+                    except Exception:
+                        pass
                     record_perf_metric("load_store", _perf_t0)
                     return _store_default()
         except Exception as e:
@@ -754,6 +766,8 @@ def load_store():
             # error for a prominent banner and return defaults.
             try:
                 st.session_state["_db_error"] = str(e)
+                st.session_state["_db_load_failed"] = True
+                st.session_state["_db_loaded_ok"] = False
             except Exception:
                 pass
             record_perf_metric("load_store", _perf_t0)
@@ -801,6 +815,16 @@ def save_store(store):
     _perf_t0 = time.perf_counter()
     safe_store = _json_safe(store)
     if USE_POSTGRES:
+        try:
+            if st.session_state.get("_db_load_failed") and not st.session_state.get("_db_loaded_ok"):
+                st.error(
+                    "⚠️ Database load failed earlier in this session, so Trading Desk is refusing "
+                    "to save the temporary fallback state. Reload after the database reconnects."
+                )
+                record_perf_metric("save_store", _perf_t0)
+                return
+        except Exception:
+            pass
         try:
             with _pg_connect() as conn:
                 with conn.cursor() as cur:
