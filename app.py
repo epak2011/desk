@@ -5666,6 +5666,196 @@ def apply_earnings_event_gate(t_state, earnings_days):
     return t_state
 
 
+def apply_decision_matrix_overlay(t_state, quality_tier="", earnings_days=None):
+    """Final rules matrix: action, timing, and size.
+
+    Quality is deliberately separate from action. A speculative stock can
+    still be technically actionable, but the matrix caps size; a Quality A
+    stock still has to earn an entry through the tape.
+    """
+    if not isinstance(t_state, dict):
+        return t_state
+
+    def _num(value, default=None):
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    updated = dict(t_state)
+    action = normalize_action_key(updated.get("action")) or updated.get("action")
+    price = _num(updated.get("price"), 0.0) or 0.0
+    ma50 = _num(updated.get("ma50"), price) or price
+    ma200 = _num(updated.get("ma200"), price) or price
+    setup = _num(updated.get("setup_score"), 0.0) or 0.0
+    rs = _num(updated.get("rs"), 1.0) or 1.0
+    rs_delta = _num(updated.get("rs_delta"), 0.0) or 0.0
+    tech_delta = _num(updated.get("tech_delta"), 0.0) or 0.0
+    vol_ratio = _num(updated.get("vol_ratio"), 1.0) or 1.0
+    reward_risk = _num(updated.get("reward_risk"))
+    state = str(updated.get("state") or "TRENDING").upper()
+    trigger = updated.get("trigger") if isinstance(updated.get("trigger"), dict) else {}
+    has_trigger = bool(trigger)
+    trigger_fired = bool(updated.get("trigger_fired") or trigger.get("fired"))
+
+    q = str(quality_tier or "").strip().lower()
+    if q in {"a", "quality a"}:
+        quality_bucket = "Quality A"
+        quality_cap = "full"
+    elif q in {"b", "quality b"}:
+        quality_bucket = "Quality B"
+        quality_cap = "normal"
+    elif "spec" in q:
+        quality_bucket = "Speculative"
+        quality_cap = "starter"
+    elif "avoid" in q:
+        quality_bucket = "Avoid-quality"
+        quality_cap = "review"
+    else:
+        quality_bucket = "Unrated"
+        quality_cap = "normal"
+
+    if action == "avoid" or state == "BROKEN":
+        tape_class = "Broken / repair"
+    elif price > ma50 > ma200 and rs >= 1.10 and setup >= 8.0:
+        tape_class = "Leader"
+    elif price > ma50 and price > ma200 and rs >= 1.0:
+        tape_class = "Trending"
+    elif state == "TRANSITION" or rs_delta >= 0.02 or tech_delta > 0:
+        tape_class = "Improving"
+    elif rs < 0.95:
+        tape_class = "Lagging"
+    else:
+        tape_class = "Mixed"
+
+    if trigger_fired:
+        entry_status = "Fired / held"
+    elif has_trigger and action == "watch":
+        entry_status = "Near trigger"
+    elif action == "enter_now":
+        entry_status = "Market entry"
+    elif action == "avoid":
+        entry_status = "Failed / broken"
+    elif action == "hold_off":
+        entry_status = "Waiting"
+    else:
+        entry_status = "Monitoring"
+
+    if reward_risk is None:
+        rr_tier = "unknown"
+    elif reward_risk >= 1.8:
+        rr_tier = "full"
+    elif reward_risk >= 1.3:
+        rr_tier = "normal"
+    elif reward_risk >= 1.0:
+        rr_tier = "starter"
+    else:
+        rr_tier = "thin"
+
+    try:
+        earnings_days_num = int(earnings_days) if earnings_days is not None else None
+    except (TypeError, ValueError):
+        earnings_days_num = None
+
+    matrix_reason = ""
+    entry_size = "none"
+    matrix_changed_action = None
+    no_near_earnings_gate = not (
+        bool(updated.get("event_risk_hold")) or bool(updated.get("event_risk_watch"))
+        or (earnings_days_num is not None and 0 <= earnings_days_num <= 7)
+    )
+
+    if action == "enter_now":
+        if rr_tier == "full":
+            entry_size = "full"
+            matrix_reason = "Clean trigger, strong math, and no final safety gate."
+        elif rr_tier == "normal":
+            entry_size = "normal"
+            matrix_reason = "Actionable setup with acceptable reward/risk."
+        elif rr_tier == "starter":
+            entry_size = "starter"
+            matrix_reason = "Actionable setup, but reward/risk argues for starter size."
+        elif (
+            trigger_fired and setup >= 8.0 and rs >= 0.98
+            and (vol_ratio >= 0.75 or tech_delta > 0 or rs_delta >= 0)
+            and no_near_earnings_gate
+        ):
+            entry_size = "starter"
+            matrix_reason = "Trigger fired and held; thin reward/risk keeps this starter-size only."
+        else:
+            action = "watch"
+            matrix_changed_action = "watch"
+            entry_size = "none"
+            matrix_reason = "Technical setup is real, but trade math is too thin for a fresh entry."
+
+    elif action == "watch":
+        if (
+            trigger_fired and setup >= 8.0 and rs >= 0.98
+            and (reward_risk is None or reward_risk >= 0.85)
+            and (vol_ratio >= 0.75 or tech_delta > 0 or rs_delta >= 0)
+            and no_near_earnings_gate
+        ):
+            action = "enter_now"
+            matrix_changed_action = "enter_now"
+            entry_size = "starter" if (reward_risk is None or reward_risk < 1.3) else "normal"
+            matrix_reason = "Prior trigger fired and held; rules promote it instead of moving the goalpost."
+            entry_status = "Fired / held"
+        elif has_trigger:
+            entry_size = "none"
+            matrix_reason = "Setup is valid but still needs the trigger to fire."
+        else:
+            entry_size = "none"
+            matrix_reason = "Interesting tape, but no concrete trigger is active yet."
+
+    elif action == "hold_off":
+        if (
+            tape_class in {"Leader", "Trending"} and setup >= 8.0
+            and reward_risk is not None and reward_risk >= 1.0
+            and no_near_earnings_gate
+        ):
+            action = "watch"
+            matrix_changed_action = "watch"
+            entry_size = "none"
+            entry_status = "Waiting"
+            matrix_reason = "Strong enough to monitor closely, but it still needs a cleaner trigger."
+        else:
+            matrix_reason = "No clean entry edge yet; wait for a trigger or repair."
+
+    elif action == "accumulate":
+        entry_size = "starter"
+        matrix_reason = "Ownable drawdown setup; use starter sizing and a longer horizon."
+
+    elif action == "avoid":
+        matrix_reason = "Avoid until structure and relative strength repair."
+
+    if entry_size in {"full", "normal"} and quality_cap == "starter":
+        entry_size = "starter"
+        matrix_reason = f"{matrix_reason} Speculative quality caps this at starter size."
+    elif entry_size == "full" and quality_cap == "normal":
+        entry_size = "normal"
+        matrix_reason = f"{matrix_reason} Quality B caps this below full size."
+    elif action == "enter_now" and quality_cap == "review":
+        entry_size = "starter"
+        matrix_reason = f"{matrix_reason} Quality risk requires manual review and starter sizing."
+
+    updated.update({
+        "action": action,
+        "matrix_action": action,
+        "entry_size": entry_size,
+        "entry_status": entry_status,
+        "tape_class": tape_class,
+        "quality_bucket": quality_bucket,
+        "quality_cap": quality_cap,
+        "reward_risk_tier": rr_tier,
+        "matrix_reason": matrix_reason,
+    })
+    if matrix_changed_action:
+        updated["matrix_changed_action"] = matrix_changed_action
+    return updated
+
+
 def finalize_rule_action_for_ticker(
     ticker,
     t_state,
@@ -5966,6 +6156,21 @@ def finalize_rule_action_for_ticker(
         _add_trace(
             "Final earnings gate",
             f"Earnings in {earnings_days} days; final action was constrained.",
+            updated.get("action"),
+        )
+    before_matrix_action = updated.get("action")
+    updated = apply_decision_matrix_overlay(updated, quality_tier, earnings_days) or updated
+    matrix_reason = updated.get("matrix_reason") or ""
+    if updated.get("action") != before_matrix_action:
+        _add_trace(
+            "Decision matrix",
+            matrix_reason or "Final matrix adjusted action, timing, or sizing.",
+            updated.get("action"),
+        )
+    elif matrix_reason:
+        _add_trace(
+            "Decision matrix",
+            matrix_reason,
             updated.get("action"),
         )
     updated["_rule_trace"] = rule_trace
@@ -7229,8 +7434,17 @@ def decision_context(t):
     """One-line context. No numbers."""
     a = t["action"]
     if a == "enter_now":
+        size = str(t.get("entry_size") or "").lower()
         if t.get("trigger_fired"):
+            if size == "starter":
+                return "Enter starter — prior trigger has fired and held, but size stays controlled."
             return "Enter — prior trigger has fired and held."
+        if size == "starter":
+            return "Enter starter — actionable, but reward/risk or quality keeps size controlled."
+        if size == "normal":
+            return "Enter — actionable setup with acceptable trade math."
+        if size == "full":
+            return "Enter — clean setup, strong trade math, and no final safety gate."
         return "High-conviction setup — trend, structure, and volume aligned."
     if a == "watch":
         if t.get("reward_risk_gate") and t.get("trigger_fired"):
@@ -7379,24 +7593,24 @@ def rules_engine_guide_html():
     """Readable guide for the rules hierarchy that drives the app."""
     cards = [
         (
-            "1 · Tradable?",
-            "Very low daily range is treated as a bad tactical vehicle. This should be read as not useful for this trading system, not a business-quality judgment.",
+            "1 · Vehicle",
+            "Very low daily range is a tactical problem, not a business-quality judgment. If the stock cannot move enough for the system, fresh entries wait.",
         ),
         (
-            "2 · Structure",
-            "Below the 200-day, weak relative strength, no RS improvement, no technical recovery, and no accumulation profile can force Avoid.",
+            "2 · Tape class",
+            "The rules classify the chart as Leader, Trending, Improving, Lagging, or Broken/repair using moving averages, relative strength, trend slope, and momentum repair.",
         ),
         (
-            "3 · Setup",
-            "Bullish names need a strong setup score. Clean trend, structure, relative strength, and volume push the rules toward Enter or Watch.",
+            "3 · Entry status",
+            "A setup becomes actionable only when the trigger is fired/held, at market, or close enough to define. Otherwise it stays Watch or Hold off.",
         ),
         (
-            "4 · Trigger",
-            "Watch means the setup is interesting but needs a defined event: reclaim, breakout, pullback hold, RS catchup, or support test.",
+            "4 · Trade math",
+            "Reward/risk now controls size instead of automatically killing the trade. Above 1.8:1 can be full, 1.3-1.8 normal, 1.0-1.3 starter, below 1.0 requires a fired trigger and confirmation or it stays Watch.",
         ),
         (
-            "5 · Overlays",
-            "Reward/risk, earnings proximity, quality drawdown status, and remembered prior triggers can upgrade, downgrade, or explain the final action. A fired trigger still has to pass the reward/risk gate before it becomes a clean Enter.",
+            "5 · Quality and events",
+            "Quality tier caps size, not action. Speculative names can still be Enter, but normally starter-size. Earnings inside the risk window can still block or downgrade fresh entries.",
         ),
     ]
     card_html = "".join(
@@ -7481,16 +7695,21 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
 
     rows = [
         ("Base action", f"{sty.get('emoji', '')} {final_label}"),
+        ("Entry size", str(t_state.get("entry_size") or "none")),
+        ("Entry status", str(t_state.get("entry_status") or "—")),
+        ("Tape class", str(t_state.get("tape_class") or "—")),
         ("Setup score", f"{_fmt_rule_num(t_state.get('setup_score'), '/10')} · {str(t_state.get('state') or '—').title()}"),
         ("Trend", trend_value),
         ("Relative strength", f"RS {_fmt_rule_num(t_state.get('rs'), precision=2)} · Δ {_fmt_rule_num(t_state.get('rs_delta'), precision=3)}"),
         ("Volume", f"{_fmt_rule_num(t_state.get('vol_ratio'), '×', precision=1)} 20d avg"),
         ("Extension", extension_value),
         ("Reward/risk", f"{_fmt_rule_num(rr, ':1', precision=2)}"),
+        ("Reward/risk tier", str(t_state.get("reward_risk_tier") or "—")),
         ("Reward/risk gate", str(t_state.get("reward_risk_gate_reason") or "not active")),
         ("Trigger", trigger_value),
         ("Earnings", earnings_value),
-        ("Quality overlay", str(quality_tier or "not applied")),
+        ("Quality", str(t_state.get("quality_bucket") or quality_tier or "not applied")),
+        ("Quality cap", str(t_state.get("quality_cap") or "—")),
         ("Source", str(t_state.get("_source_note") or "Rules primary")),
         ("Trace", trace_value),
     ]
@@ -7536,11 +7755,18 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
 def trigger_text(t):
     """Short, price-based, single-condition."""
     if t["action"] == "enter_now":
+        size = str(t.get("entry_size") or "").lower()
+        size_word = {
+            "starter": "starter",
+            "normal": "normal",
+            "full": "full",
+        }.get(size, "")
+        size_phrase = f"{size_word} " if size_word else ""
         if t.get("trigger_fired") and t.get("trigger"):
             reason = str(t.get("trigger_fired_reason") or "").strip()
             return reason or "Prior trigger fired — enter at market."
         entry = t.get("entry") or t.get("price")
-        return f"Enter long at market — ${entry:,.2f}." if entry is not None else "Enter long at market."
+        return f"Enter {size_phrase}long at market — ${entry:,.2f}." if entry is not None else f"Enter {size_phrase}long at market."
     if t["action"] == "watch" and t.get("trigger"):
         trg = t["trigger"]
         kind = trg["kind"]
@@ -12536,6 +12762,11 @@ if view == "analyze":
     final_payload = {
         "action": t.get("action"),
         "source": t.get("_primary_source", "rule"),
+        "entry_size": t.get("entry_size"),
+        "entry_status": t.get("entry_status"),
+        "tape_class": t.get("tape_class"),
+        "reward_risk_tier": t.get("reward_risk_tier"),
+        "matrix_reason": t.get("matrix_reason"),
         "rule_trace": t.get("_rule_trace") or [],
     }
     snapshots = st.session_state.store.setdefault("ticker_snapshots", {})

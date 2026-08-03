@@ -1238,26 +1238,19 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         else None
     )
 
-    # Final risk/reward sanity check. If the trigger requires too much
-    # downside versus the first target, the directional read may be right,
-    # but the trade is not clean enough to present as a clean Enter.
+    # Final risk/reward sanity check. This is intentionally a sizing /
+    # cleanliness overlay, not a hard "no" by itself. The old version
+    # turned every thin reward/risk read into Watch/Hold off, which made
+    # the system miss real fired triggers. The app-level decision matrix
+    # now decides whether thin math means starter size, Watch, or Hold off.
     reward_risk_gate = False
     reward_risk_gate_reason = ""
     if reward_risk is not None and reward_risk < 1.0:
         reward_risk_gate = True
         reward_risk_gate_reason = (
             f"Reward/risk is {reward_risk:.2f}:1 to Target 1, so the setup "
-            "needs a better entry, tighter invalidation, or a higher first target before it is a clean Enter."
+            "is starter-size at best unless the trigger has already fired and the tape confirms."
         )
-        if action == "enter_now":
-            action = "watch"
-            entry_is_projected = bool(
-                trigger and (trigger.get("levels") or {}).get("buy_above") is not None
-            )
-        elif action == "watch":
-            action = "hold_off"
-            trigger = None
-            entry_is_projected = False
     elif reward_risk is not None and reward_risk < 1.2:
         reward_risk_gate = True
         reward_risk_gate_reason = (
