@@ -9755,7 +9755,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
 }
 section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
     background: #111111 !important;
-    box-shadow: none !important;<h1 class="today-title">Today</h1>
+    box-shadow: none !important;
 }
 .desk-bar {
     background: rgba(255, 255, 255, 0.88) !important;
@@ -11611,26 +11611,28 @@ if view == "today":
             font-size:18px;
             letter-spacing:0;
         }
-        .today-table-head,
-        .today-table-row {
-            display:grid;
-            display:block;
-            A quick daily queue for names that need attention now. 
-            width:100%;
-            gap:12px;
-            align-items:center;
-        }
         .today-table {
+            display:block;
             padding:0 16px 8px;
+            width:100%;
         }
         .today-table-head {
+            display:grid;
+            grid-template-columns: 86px 112px 128px 108px minmax(180px, 1fr) minmax(260px, 1.35fr);
+            gap:16px;
+            align-items:end;
             padding:11px 0 8px;
             border-bottom:1px solid var(--color-border-soft);
         }
         .today-table-row {
+            display:grid;
+            grid-template-columns: 86px 112px 128px 108px minmax(180px, 1fr) minmax(260px, 1.35fr);
+            gap:16px;
+            align-items:start;
             padding:12px 0;
             border-bottom:1px dashed var(--color-border-soft);
             font-size:var(--fs-sm);
+            line-height:1.35;
         }
         .today-table-row:last-child {
             border-bottom:0;
@@ -11645,6 +11647,19 @@ if view == "today":
         }
         .today-muted {
             color:var(--color-muted);
+        }
+        .today-why {
+            color:var(--color-muted);
+            max-width:520px;
+        }
+        .today-trigger {
+            color:var(--color-text);
+            max-width:420px;
+        }
+        .today-price {
+            font-family:var(--font-mono);
+            font-weight:800;
+            white-space:nowrap;
         }
         .today-regime {
             display:grid;
@@ -11664,13 +11679,12 @@ if view == "today":
             font-weight:850;
         }
         @media (max-width: 980px) {
-            grid-template-columns: 86px 112px 128px 108px minmax(180px, 1fr) minmax(260px, 1.35fr);
-            .today-table-row {
-                grid-template-columns: 0.75fr 0.9fr 0.9fr 0.9fr 1fr;
+            .today-table {
+                overflow-x:auto;
             }
-            .today-table-head div:nth-child(6),
-            .today-table-row div:nth-child(6) {
-                display:none;
+            .today-table-head,
+            .today-table-row {
+                min-width: 980px;
             }
             .today-regime {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -11683,12 +11697,9 @@ if view == "today":
             .today-regime {
                 grid-template-columns: 1fr;
             }
-            .today-table {
-                overflow-x:auto;
-            }
             .today-table-head,
             .today-table-row {
-                min-width: 760px;
+                min-width: 900px;
             }
         }
         </style>
@@ -11698,9 +11709,9 @@ if view == "today":
 
     st.markdown(
         '<div class="today-page"><div class="today-head"><div>'
-        '.today-table-head,'
-        '<div class="today-sub">It uses the same rules engine as Analyze; Claude only appears as a dissent flag.'
-        'Decision Queue</div>'
+        '<h1 class="today-title">Today</h1>'
+        '<div class="today-sub">A quick decision queue for the names that need attention now: actionable setups, near triggers, owned positions, broken charts, and stale PM work. '
+        'It uses the same rules engine as Analyze; Claude only appears as a dissent flag.</div>'
         '</div></div></div>',
         unsafe_allow_html=True,
     )
@@ -11808,16 +11819,16 @@ if view == "today":
             f'<div><a class="today-ticker" href="?open={html.escape(row["ticker"])}" target="_self">{html.escape(row["ticker"])}</a></div>'
             f'<div class="today-action" style="color:{action_color};">{html.escape(row["action_emoji"])} {html.escape(row["action_label"])}</div>'
             f'<div style="color:{row["bucket_color"]};font-weight:800;">{html.escape(row["bucket"])}</div>'
-            f'<div>{html.escape(price)} <span class="today-muted">{html.escape(change)}</span></div>'
-            f'<div>{html.escape(trigger_text_short)}</div>'
-            f'<div class="today-muted">{html.escape(detail)}</div>'
+            f'<div class="today-price">{html.escape(price)} <span class="today-muted">{html.escape(change)}</span></div>'
+            f'<div class="today-trigger">{html.escape(trigger_text_short)}</div>'
+            f'<div class="today-why">{html.escape(detail)}</div>'
             f'</div>'
         )
 
     st.markdown(
         '<div class="today-page"><div class="today-section">'
-        '<div class="today-section-title"><h2>Same calls as Analyze</h2>'
-        '<span class="today-muted">Rules-first; Claude only flags dissent</span></div>'
+        '<div class="today-section-title"><h2>Decision Queue</h2>'
+        '<span class="today-muted">Same calls as Analyze</span></div>'
         '<div class="today-table">'
         '<div class="today-table-head">'
         '<div>Ticker</div><div>Action</div><div>Status</div><div>Price</div><div>Trigger</div><div>Why it matters</div>'
@@ -17465,7 +17476,7 @@ if view == "health":
 
     issues = []
     for tkr in audit["missing_market"]:
-        issues.append((tkr, "Market missing", "Queue market scan from  or Watchlist, or open Analyze.", "health-bad"))
+        issues.append((tkr, "Market missing", "Queue market scan from Morning Queue or Watchlist, or open Analyze.", "health-bad"))
     for tkr, age in audit["stale_market"]:
         issues.append((tkr, "Market stale", _age_note(age, "m"), "health-warn"))
     for tkr in audit["missing_pm"]:
