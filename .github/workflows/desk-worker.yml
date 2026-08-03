@@ -15,7 +15,9 @@ jobs:
     timeout-minutes: 10
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.NTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
+      NTHROPIC_API_KEY: ${{ secrets.NTHROPIC_API_KEY }}
+      CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
       WORKER_NAME: github-actions-worker
     steps:
       - name: Check out repository
@@ -29,6 +31,15 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Claude secret
+        if: steps.database.outputs.configured == 'true'
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::Claude API key is not configured. Add ANTHROPIC_API_KEY to repository secrets. The worker will still refresh market data, but PM memos and reports will fail."
+          else
+            echo "Claude API key is available to the worker."
           fi
 
       - name: Set up Python
