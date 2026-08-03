@@ -11696,7 +11696,7 @@ if view == "today":
 
     st.markdown(
         '<div class="today-page"><div class="today-head"><div>'
-        '<h1 class="today-title">Morning Queue</h1>'
+        '<h1 class="today-title"></h1>'
         '<div class="today-sub">A fast daily worklist from saved market and rule snapshots. '
         'Market refreshes are queued separately from PM memos and full reports so the page stays responsive.</div>'
         '</div></div></div>',
@@ -17463,7 +17463,7 @@ if view == "health":
 
     issues = []
     for tkr in audit["missing_market"]:
-        issues.append((tkr, "Market missing", "Queue market scan from Morning Queue or Watchlist, or open Analyze.", "health-bad"))
+        issues.append((tkr, "Market missing", "Queue market scan from  or Watchlist, or open Analyze.", "health-bad"))
     for tkr, age in audit["stale_market"]:
         issues.append((tkr, "Market stale", _age_note(age, "m"), "health-warn"))
     for tkr in audit["missing_pm"]:
