@@ -567,7 +567,11 @@ def _initial_route_scope():
 def _load_split_sections(cur, store):
     """Merge normalized Postgres rows back into the legacy in-memory store."""
     view_hint, ticker_hint = _initial_route_scope()
-    view_hint = view_hint or str((store or {}).get("last_view") or "today").strip().lower()
+    if view_hint == "today":
+        view_hint = "watchlist"
+    view_hint = view_hint or str((store or {}).get("last_view") or "regime").strip().lower()
+    if view_hint == "today":
+        view_hint = "watchlist"
     ticker_hint = ticker_hint or str((store or {}).get("last_ticker") or "").upper().strip()
     load_all_chat = view_hint in {"tracker"}
     if load_all_chat:
@@ -861,7 +865,7 @@ def save_store(store):
     record_perf_metric("save_store", _perf_t0)
 
 
-ACTIVE_VIEWS = {"today", "regime", "analyze", "watchlist", "triggers", "health", "holdings", "ideas"}
+ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "triggers", "health", "holdings", "ideas"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -935,11 +939,15 @@ if "view" not in st.session_state:
         _qp_view = str(st.query_params.get("view") or "").strip().lower()
     except Exception:
         _qp_view = ""
-    _stored_view = str(st.session_state.store.get("last_view") or "today").strip().lower()
+    if _qp_view == "today":
+        _qp_view = "watchlist"
+    _stored_view = str(st.session_state.store.get("last_view") or "regime").strip().lower()
+    if _stored_view == "today":
+        _stored_view = "watchlist"
     st.session_state.view = (
         _qp_view
         if _qp_view in ACTIVE_VIEWS
-        else (_stored_view if _stored_view in ACTIVE_VIEWS else "today")
+        else (_stored_view if _stored_view in ACTIVE_VIEWS else "regime")
     )
 if "pm_expanded" not in st.session_state:
     st.session_state.pm_expanded = {}
@@ -8976,6 +8984,8 @@ def render_technical_table(title, rows):
 
 def _valid_view(value, default="analyze"):
     view_value = str(value or "").strip().lower()
+    if view_value == "today":
+        return "watchlist"
     if view_value in ACTIVE_VIEWS:
         return view_value
     if SHOW_ARCHIVED_TRACKER and view_value in ARCHIVED_VIEWS:
@@ -9075,6 +9085,8 @@ try:
             route_to(ticker=tkr_to_open, view="analyze", reason="open ticker", rerun=True)
     if "view" in qp_global:
         view_to_open = str(qp_global.get("view") or "").strip().lower()
+        if view_to_open == "today":
+            route_to(view="watchlist", reason="today merged into watchlist", rerun=True)
         if view_to_open in ARCHIVED_VIEWS and not SHOW_ARCHIVED_TRACKER:
             del qp_global["view"]
             route_to(view="analyze", reason="archived view", rerun=True)
@@ -9151,7 +9163,6 @@ with st.sidebar:
     )
 
     view_labels = {
-        "today": "Today",
         "regime": "Market Regime",
         "analyze": "Analyze",
         "watchlist": "Watchlist",
@@ -9162,7 +9173,7 @@ with st.sidebar:
     if SHOW_ARCHIVED_TRACKER:
         view_labels["tracker"] = "Tracker"
     if st.session_state.view not in view_labels:
-        st.session_state.view = "today"
+        st.session_state.view = "regime"
     st.markdown(
         """
         <style>
