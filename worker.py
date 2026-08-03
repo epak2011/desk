@@ -70,15 +70,22 @@ def _market_payload(ticker: str, hist, t_state: dict):
 
 
 def _api_key() -> str:
-    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if key:
-        return key
+    """Read Claude API key from the canonical name plus legacy aliases."""
+    aliases = ("ANTHROPIC_API_KEY", "NTHROPIC_API_KEY", "CLAUDE_API_KEY")
+    for name in aliases:
+        key = os.environ.get(name, "").strip()
+        if key:
+            return key
     try:
         import streamlit as st  # type: ignore
 
-        return str(st.secrets.get("ANTHROPIC_API_KEY", "")).strip()
+        for name in aliases:
+            key = str(st.secrets.get(name, "")).strip()
+            if key:
+                return key
     except Exception:
-        return ""
+        pass
+    return ""
 
 
 def _quote_meta(ticker: str) -> dict:
@@ -307,6 +314,22 @@ def main():
     except Exception as exc:
         print(f"stale job recovery skipped: {exc}")
     if args.maintenance:
+        if _api_key():
+            try:
+                retried_pm = backend.retry_failed_jobs(
+                    job_type="pm_memo",
+                    error_contains="ANTHROPIC_API_KEY is not configured",
+                    limit=50,
+                )
+                retried_reports = backend.retry_failed_jobs(
+                    job_type="full_report",
+                    error_contains="ANTHROPIC_API_KEY is not configured",
+                    limit=20,
+                )
+                if retried_pm or retried_reports:
+                    print(f"requeued {retried_pm} PM memo and {retried_reports} full report key-missing job(s)")
+            except Exception as exc:
+                print(f"key-missing job retry skipped: {exc}")
         try:
             queued = queue_stale_watchlist_market_scan(
                 max_age_minutes=args.market_max_age_minutes,
