@@ -9755,7 +9755,7 @@ section[data-testid='stSidebar'] [class*="st-key-wl_select_"] button {
 }
 section[data-testid='stSidebar'] [class*="st-key-wl_select_active_"] button {
     background: #111111 !important;
-    box-shadow: none !important;
+    box-shadow: none !important;<h1 class="today-title">Today</h1>
 }
 .desk-bar {
     background: rgba(255, 255, 255, 0.88) !important;
@@ -11611,10 +11611,12 @@ if view == "today":
             font-size:18px;
             letter-spacing:0;
         }
-        .today-table,
+        .today-table-head,
         .today-table-row {
             display:grid;
-            grid-template-columns: 0.75fr 0.95fr 1fr 0.8fr 1.35fr 2fr;
+            display:block;
+            A quick daily queue for names that need attention now. 
+            width:100%;
             gap:12px;
             align-items:center;
         }
@@ -11662,7 +11664,7 @@ if view == "today":
             font-weight:850;
         }
         @media (max-width: 980px) {
-            .today-table,
+            grid-template-columns: 86px 112px 128px 108px minmax(180px, 1fr) minmax(260px, 1.35fr);
             .today-table-row {
                 grid-template-columns: 0.75fr 0.9fr 0.9fr 0.9fr 1fr;
             }
@@ -11696,9 +11698,9 @@ if view == "today":
 
     st.markdown(
         '<div class="today-page"><div class="today-head"><div>'
-        '<h1 class="today-title"></h1>'
-        '<div class="today-sub">A fast daily worklist from saved market and rule snapshots. '
-        'Market refreshes are queued separately from PM memos and full reports so the page stays responsive.</div>'
+        '.today-table-head,'
+        '<div class="today-sub">It uses the same rules engine as Analyze; Claude only appears as a dissent flag.'
+        'Decision Queue</div>'
         '</div></div></div>',
         unsafe_allow_html=True,
     )
@@ -11814,7 +11816,7 @@ if view == "today":
 
     st.markdown(
         '<div class="today-page"><div class="today-section">'
-        '<div class="today-section-title"><h2>Priority Watchlist</h2>'
+        '<div class="today-section-title"><h2>Same calls as Analyze</h2>'
         '<span class="today-muted">Rules-first; Claude only flags dissent</span></div>'
         '<div class="today-table">'
         '<div class="today-table-head">'
