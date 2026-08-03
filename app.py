@@ -5698,6 +5698,13 @@ def finalize_rule_action_for_ticker(
         base_action,
     )
 
+    if updated.get("reward_risk_gate"):
+        _add_trace(
+            "Reward/risk gate",
+            updated.get("reward_risk_gate_reason") or "Reward/risk constrains the final action.",
+            updated.get("action"),
+        )
+
     earnings_days = meta.get("earnings_days") if isinstance(meta, dict) else None
     before_earnings_action = updated.get("action")
     updated = apply_earnings_event_gate(updated, earnings_days) or updated
@@ -5910,6 +5917,27 @@ def finalize_rule_action_for_ticker(
         _add_trace(
             "Trigger saved",
             f"Watching ${active_buy_level:,.2f}; if it fires and holds, the app will not move the goalpost.",
+            updated.get("action"),
+        )
+
+    try:
+        final_rr = float(updated.get("reward_risk"))
+    except (TypeError, ValueError):
+        final_rr = None
+    if updated.get("action") == "enter_now" and final_rr is not None and final_rr < 1.0:
+        rr_reason = (
+            f"Reward/risk is {final_rr:.2f}:1 to Target 1, so the fired trigger is real "
+            "but not clean enough for a full Enter."
+        )
+        updated = {
+            **updated,
+            "action": "watch",
+            "reward_risk_gate": True,
+            "reward_risk_gate_reason": rr_reason,
+        }
+        _add_trace(
+            "Final reward/risk gate",
+            rr_reason,
             updated.get("action"),
         )
 
@@ -7186,6 +7214,10 @@ def decision_context(t):
             return "Enter — prior trigger has fired and held."
         return "High-conviction setup — trend, structure, and volume aligned."
     if a == "watch":
+        if t.get("reward_risk_gate") and t.get("trigger_fired"):
+            return "Watch — trigger fired, but reward/risk is not clean enough for a full Enter."
+        if t.get("reward_risk_gate"):
+            return "Watch — setup is valid, but reward/risk is still thin."
         if t.get("event_risk_watch"):
             return "Watch — setup is valid, but earnings are too close for a fresh entry."
         bias = (t.get("bias") or "bullish").capitalize()
@@ -7219,6 +7251,8 @@ def decision_context(t):
     if a == "hold_off":
         if t.get("event_risk_hold"):
             return "Hold off — earnings are imminent, so the setup should reset after the print."
+        if t.get("reward_risk_gate"):
+            return "Hold off — setup exists, but current reward/risk is not worth forcing."
         # Universal fall-through state. Several distinct shapes can land
         # here under the new strict-Avoid model — pick copy that matches
         # the dominant signal.
@@ -7305,6 +7339,159 @@ def rule_trace_steps_html(rule_trace, *, max_steps=4):
             f'</div>'
         )
     return "".join(steps)
+
+
+def _fmt_rule_num(value, suffix="", default="—", precision=1):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return default
+    return f"{value:.{precision}f}{suffix}"
+
+
+def _fmt_rule_price(value):
+    try:
+        return f"${float(value):,.2f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def rules_engine_guide_html():
+    """Readable guide for the rules hierarchy that drives the app."""
+    cards = [
+        (
+            "1 · Tradable?",
+            "Very low daily range is treated as a bad tactical vehicle. This should be read as not useful for this trading system, not a business-quality judgment.",
+        ),
+        (
+            "2 · Structure",
+            "Below the 200-day, weak relative strength, no RS improvement, no technical recovery, and no accumulation profile can force Avoid.",
+        ),
+        (
+            "3 · Setup",
+            "Bullish names need a strong setup score. Clean trend, structure, relative strength, and volume push the rules toward Enter or Watch.",
+        ),
+        (
+            "4 · Trigger",
+            "Watch means the setup is interesting but needs a defined event: reclaim, breakout, pullback hold, RS catchup, or support test.",
+        ),
+        (
+            "5 · Overlays",
+            "Reward/risk, earnings proximity, quality drawdown status, and remembered prior triggers can upgrade, downgrade, or explain the final action. A fired trigger still has to pass the reward/risk gate before it becomes a clean Enter.",
+        ),
+    ]
+    card_html = "".join(
+        f'<div class="desk-rule-guide-card"><h4>{html.escape(title)}</h4>'
+        f'<p>{html.escape(body)}</p></div>'
+        for title, body in cards
+    )
+    return (
+        '<details class="desk-rule-guide">'
+        '<summary><div class="desk-rule-guide-title">Rules engine guide · what the system checks</div></summary>'
+        f'<div class="desk-rule-guide-body">{card_html}</div>'
+        '</details>'
+    )
+
+
+def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
+    """Ticker-specific audit of the inputs behind the final rules action."""
+    if not isinstance(t_state, dict):
+        return ""
+    action = t_state.get("action") or "watch"
+    sty = STATE_STYLES.get(action, STATE_STYLES["watch"])
+    final_label = sty.get("label", action.replace("_", " ").title())
+    price = t_state.get("price")
+    ma20 = t_state.get("ma20")
+    ma50 = t_state.get("ma50")
+    ma100 = t_state.get("ma100")
+    ma200 = t_state.get("ma200")
+    rr = t_state.get("reward_risk")
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    trigger_kind = trigger.get("kind") or ("market entry" if action == "enter_now" else "none")
+    trigger_level = (trigger.get("levels") or {}).get("buy_above")
+    earnings_days = meta.get("earnings_days") if isinstance(meta, dict) else None
+
+    def _pct_vs(base):
+        try:
+            return (float(price) / float(base) - 1) * 100
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+
+    trend_bits = []
+    for label, value in (("20d", ma20), ("50d", ma50), ("200d", ma200)):
+        pct = _pct_vs(value)
+        if pct is not None:
+            trend_bits.append(f"{label} {pct:+.1f}%")
+    trend_value = " · ".join(trend_bits) or "insufficient MA data"
+
+    extension_value = "—"
+    try:
+        ext50 = (float(price) / float(ma50) - 1) * 100
+        if ma100:
+            ext100 = (float(price) / float(ma100) - 1) * 100
+            extension_value = f"{ext50:+.1f}% vs 50d · {ext100:+.1f}% vs 100d"
+        else:
+            extension_value = f"{ext50:+.1f}% vs 50d"
+    except (TypeError, ValueError, ZeroDivisionError):
+        pass
+
+    if earnings_days is None:
+        earnings_value = "no near-term gate"
+    else:
+        try:
+            days = int(earnings_days)
+            if 0 <= days <= 2:
+                earnings_value = f"{days}d · blocks fresh entry"
+            elif 3 <= days <= 7:
+                earnings_value = f"{days}d · downgrades fresh entry"
+            else:
+                earnings_value = f"{days}d · no gate"
+        except (TypeError, ValueError):
+            earnings_value = "no near-term gate"
+
+    trace_count = len(rule_trace or [])
+    trace_value = f"{trace_count} step{'s' if trace_count != 1 else ''} recorded"
+    if trigger_level is not None:
+        trigger_value = f"{trigger_kind} · {_fmt_rule_price(trigger_level)}"
+    else:
+        trigger_value = trigger_kind
+
+    rows = [
+        ("Base action", f"{sty.get('emoji', '')} {final_label}"),
+        ("Setup score", f"{_fmt_rule_num(t_state.get('setup_score'), '/10')} · {str(t_state.get('state') or '—').title()}"),
+        ("Trend", trend_value),
+        ("Relative strength", f"RS {_fmt_rule_num(t_state.get('rs'), precision=2)} · Δ {_fmt_rule_num(t_state.get('rs_delta'), precision=3)}"),
+        ("Volume", f"{_fmt_rule_num(t_state.get('vol_ratio'), '×', precision=1)} 20d avg"),
+        ("Extension", extension_value),
+        ("Reward/risk", f"{_fmt_rule_num(rr, ':1', precision=2)}"),
+        ("Reward/risk gate", str(t_state.get("reward_risk_gate_reason") or "not active")),
+        ("Trigger", trigger_value),
+        ("Earnings", earnings_value),
+        ("Quality overlay", str(quality_tier or "not applied")),
+        ("Source", str(t_state.get("_source_note") or "Rules primary")),
+        ("Trace", trace_value),
+    ]
+    item_html = "".join(
+        f'<div class="desk-rule-audit-item">'
+        f'<div class="desk-rule-audit-k">{html.escape(k)}</div>'
+        f'<div class="desk-rule-audit-v">{html.escape(v)}</div>'
+        f'</div>'
+        for k, v in rows
+    )
+    note = (
+        "Rules drive the action. Claude is only a dissent/research layer. "
+        "If the final call feels wrong, these are the specific inputs to tune first."
+    )
+    return (
+        '<div class="desk-rule-audit">'
+        '<div class="desk-rule-audit-head">'
+        '<div class="desk-rule-audit-title">Why this action</div>'
+        f'<div class="desk-rule-audit-final">Final rules action: {html.escape(final_label)}</div>'
+        '</div>'
+        f'<div class="desk-rule-audit-grid">{item_html}</div>'
+        f'<div class="desk-rule-audit-note">{html.escape(note)}</div>'
+        '</div>'
+    )
 
 
 def trigger_text(t):
@@ -10761,6 +10948,131 @@ div[data-testid="element-container"]:has(.desk-bar) {
     padding: 10px 12px;
 }
 
+.desk-rule-audit {
+    border: 1px solid var(--desk-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    margin: -6px 0 16px;
+    overflow: hidden;
+}
+
+.desk-rule-audit-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--desk-border);
+    background: #FBFCFE;
+}
+
+.desk-rule-audit-title,
+.desk-rule-guide-title {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+}
+
+.desk-rule-audit-final {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    color: var(--desk-text);
+}
+
+.desk-rule-audit-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-bottom: 1px solid var(--desk-border);
+}
+
+.desk-rule-audit-item {
+    padding: 9px 12px;
+    border-right: 1px solid var(--desk-border);
+    min-width: 0;
+}
+
+.desk-rule-audit-item:nth-child(4n) {
+    border-right: 0;
+}
+
+.desk-rule-audit-k {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+    margin-bottom: 4px;
+}
+
+.desk-rule-audit-v {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--desk-text);
+    white-space: normal;
+}
+
+.desk-rule-audit-note {
+    padding: 9px 12px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--desk-muted);
+}
+
+.desk-rule-guide {
+    border: 1px solid var(--desk-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    margin: 0 0 16px;
+    overflow: hidden;
+}
+
+.desk-rule-guide summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    background: #FBFCFE;
+    border-bottom: 1px solid var(--desk-border);
+}
+
+.desk-rule-guide summary::-webkit-details-marker {
+    display: none;
+}
+
+.desk-rule-guide-body {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+}
+
+.desk-rule-guide-card {
+    padding: 10px 12px;
+    border-right: 1px solid var(--desk-border);
+}
+
+.desk-rule-guide-card:last-child {
+    border-right: 0;
+}
+
+.desk-rule-guide-card h4 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 850;
+}
+
+.desk-rule-guide-card p {
+    margin: 0;
+    color: var(--desk-muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
 .desk-rule-source-head {
     display: flex;
     align-items: baseline;
@@ -10829,6 +11141,25 @@ div[data-testid="element-container"]:has(.desk-bar) {
     }
     .desk-rule-source-final {
         margin-top: 4px;
+    }
+    .desk-rule-audit-head {
+        display: block;
+    }
+    .desk-rule-audit-final {
+        margin-top: 4px;
+    }
+    .desk-rule-audit-grid,
+    .desk-rule-guide-body {
+        grid-template-columns: 1fr;
+    }
+    .desk-rule-audit-item,
+    .desk-rule-guide-card {
+        border-right: 0;
+        border-bottom: 1px solid var(--desk-border);
+    }
+    .desk-rule-audit-item:last-child,
+    .desk-rule-guide-card:last-child {
+        border-bottom: 0;
     }
 }
 
@@ -12326,19 +12657,24 @@ if view == "analyze":
 """, unsafe_allow_html=True)
 
         rule_trace = t.get("_rule_trace") or []
+        st.markdown(
+            rule_audit_panel_html(t, meta, quality_tier, rule_trace),
+            unsafe_allow_html=True,
+        )
         if rule_trace:
             trace_steps_html = rule_trace_steps_html(rule_trace)
             final_rule_label = html.escape(sty.get("label", t.get("action", "—")))
             st.markdown(
                 f'<div class="desk-rule-source">'
                 f'<div class="desk-rule-source-head">'
-                f'<div class="desk-rule-source-title">Decision source</div>'
-                f'<div class="desk-rule-source-final">Final rules action: {final_rule_label}</div>'
+                f'<div class="desk-rule-source-title">Rule path</div>'
+                f'<div class="desk-rule-source-final">Last checks behind {final_rule_label}</div>'
                 f'</div>'
                 f'<div class="desk-rule-source-steps">{trace_steps_html}</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
+        st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
 
         refresh_data_col, refresh_data_note_col = st.columns([1, 2])
         with refresh_data_col:
