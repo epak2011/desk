@@ -7449,8 +7449,12 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
         except (TypeError, ValueError):
             earnings_value = "no near-term gate"
 
-    trace_count = len(rule_trace or [])
-    trace_value = f"{trace_count} step{'s' if trace_count != 1 else ''} recorded"
+    trace_labels = [
+        str(step.get("label") or "").strip()
+        for step in (rule_trace or [])
+        if isinstance(step, dict) and str(step.get("label") or "").strip()
+    ]
+    trace_value = " → ".join(trace_labels) if trace_labels else "no overlays"
     if trigger_level is not None:
         trigger_value = f"{trigger_kind} · {_fmt_rule_price(trigger_level)}"
     else:
@@ -7478,19 +7482,35 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
         f'</div>'
         for k, v in rows
     )
+    trace_steps_html = rule_trace_steps_html(rule_trace, max_steps=8)
+    trace_block = ""
+    if trace_steps_html:
+        trace_block = (
+            '<div class="desk-rule-audit-trace">'
+            '<div class="desk-rule-source-head">'
+            '<div class="desk-rule-source-title">Rule path</div>'
+            '<div class="desk-rule-source-final">Checks that changed or confirmed the call</div>'
+            '</div>'
+            f'<div class="desk-rule-source-steps">{trace_steps_html}</div>'
+            '</div>'
+        )
+
     note = (
         "Rules drive the action. Claude is only a dissent/research layer. "
         "If the final call feels wrong, these are the specific inputs to tune first."
     )
     return (
-        '<div class="desk-rule-audit">'
-        '<div class="desk-rule-audit-head">'
+        '<details class="desk-rule-audit">'
+        '<summary class="desk-rule-audit-head">'
         '<div class="desk-rule-audit-title">Why this action</div>'
         f'<div class="desk-rule-audit-final">Final rules action: {html.escape(final_label)}</div>'
-        '</div>'
+        '</summary>'
+        '<div class="desk-rule-audit-body">'
         f'<div class="desk-rule-audit-grid">{item_html}</div>'
+        f'{trace_block}'
         f'<div class="desk-rule-audit-note">{html.escape(note)}</div>'
         '</div>'
+        '</details>'
     )
 
 
@@ -10962,8 +10982,35 @@ div[data-testid="element-container"]:has(.desk-bar) {
     align-items: baseline;
     gap: 12px;
     padding: 10px 12px;
-    border-bottom: 1px solid var(--desk-border);
     background: #FBFCFE;
+    cursor: pointer;
+    list-style: none;
+}
+
+.desk-rule-audit-head::-webkit-details-marker {
+    display: none;
+}
+
+.desk-rule-audit[open] .desk-rule-audit-head {
+    border-bottom: 1px solid var(--desk-border);
+}
+
+.desk-rule-audit-head:before {
+    content: "›";
+    display: inline-block;
+    margin-right: 8px;
+    color: var(--desk-muted);
+    font-size: 16px;
+    line-height: 1;
+    transform: translateY(1px);
+}
+
+.desk-rule-audit[open] .desk-rule-audit-head:before {
+    transform: rotate(90deg) translateX(1px);
+}
+
+.desk-rule-audit-body {
+    background: #FFFFFF;
 }
 
 .desk-rule-audit-title,
@@ -11023,6 +11070,11 @@ div[data-testid="element-container"]:has(.desk-bar) {
     font-size: 12px;
     line-height: 1.45;
     color: var(--desk-muted);
+}
+
+.desk-rule-audit-trace {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--desk-border);
 }
 
 .desk-rule-guide {
@@ -12661,19 +12713,6 @@ if view == "analyze":
             rule_audit_panel_html(t, meta, quality_tier, rule_trace),
             unsafe_allow_html=True,
         )
-        if rule_trace:
-            trace_steps_html = rule_trace_steps_html(rule_trace)
-            final_rule_label = html.escape(sty.get("label", t.get("action", "—")))
-            st.markdown(
-                f'<div class="desk-rule-source">'
-                f'<div class="desk-rule-source-head">'
-                f'<div class="desk-rule-source-title">Rule path</div>'
-                f'<div class="desk-rule-source-final">Last checks behind {final_rule_label}</div>'
-                f'</div>'
-                f'<div class="desk-rule-source-steps">{trace_steps_html}</div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
         st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
 
         refresh_data_col, refresh_data_note_col = st.columns([1, 2])
