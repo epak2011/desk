@@ -2331,6 +2331,25 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     color: var(--color-muted);
     line-height: 1.4;
 }
+.desk-chat-answer {
+    margin: 8px 0 18px;
+    padding: 16px 18px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+.desk-chat-answer p {
+    margin: 0 0 12px;
+}
+.desk-chat-answer p:last-child {
+    margin-bottom: 0;
+}
 [class*="st-key-clear_chat_"] {
     width: 100% !important;
     margin: 6px auto 0 !important;
@@ -13388,8 +13407,22 @@ if view == "analyze":
                     # Normalize common escaped/model-formatting artifacts so
                     # chat answers render as clean prose instead of raw code.
                     text = text.replace("`", "")
+                    text = text.replace("**", "")
                     text = text.replace("\\n", "\n")
                     return text
+
+                def _chat_answer_html(value):
+                    text = _chat_display_text(value)
+                    paragraphs = [
+                        p.strip()
+                        for p in text.replace("\r\n", "\n").split("\n\n")
+                        if p.strip()
+                    ] or [text]
+                    body = "".join(
+                        f"<p>{_html.escape(p).replace(chr(10), '<br>')}</p>"
+                        for p in paragraphs
+                    )
+                    return f'<div class="desk-chat-answer">{body}</div>'
 
                 def _chat_norm(text):
                     return " ".join((text or "").strip().lower().split())
@@ -13452,8 +13485,10 @@ if view == "analyze":
                             unsafe_allow_html=True,
                         )
                     else:
-                        with st.container(border=True):
-                            st.markdown(_chat_display_text(msg["content"]))
+                        st.markdown(
+                            _chat_answer_html(msg["content"]),
+                            unsafe_allow_html=True,
+                        )
 
                 # Centered input module. Use a form + text input so pressing
                 # Enter submits the question, matching the Ask button.
