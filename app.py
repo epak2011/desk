@@ -592,7 +592,7 @@ def _load_split_sections(cur, store):
     if chat_rows:
         store["chat_history"] = {str(t).upper(): (m or []) for t, m in chat_rows}
 
-    load_all_decisions = view_hint in {"tracker"}
+    load_all_decisions = view_hint in {"tracker", "backtest"}
     if load_all_decisions:
         cur.execute("""
             SELECT entry
@@ -873,7 +873,7 @@ def save_store(store):
     record_perf_metric("save_store", _perf_t0)
 
 
-ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "triggers", "health", "holdings", "ideas"}
+ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "backtest", "triggers", "health", "holdings", "ideas"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -9900,6 +9900,7 @@ with st.sidebar:
         "regime": "Market Regime",
         "analyze": "Analyze",
         "watchlist": "Watchlist",
+        "backtest": "Backtest",
         "holdings": "Holdings",
         "ideas": "Ideas",
         "health": "System Health",
@@ -18143,6 +18144,73 @@ if view == "holdings":
                         holdings.pop(tkr, None)
                         save_store(st.session_state.store)
                         st.rerun()
+
+
+if view == "backtest":
+    st.markdown(
+        """
+        <style>
+        .backtest-head {
+            margin: 8px 0 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .backtest-kicker {
+            font-family: var(--font-mono);
+            font-size: var(--fs-xs);
+            font-weight: 750;
+            letter-spacing: var(--ls-caps-xl);
+            text-transform: uppercase;
+            color: var(--color-muted);
+            margin-bottom: 8px;
+        }
+        .backtest-title {
+            font-family: var(--font-sans);
+            font-size: var(--fs-3xl);
+            font-weight: 800;
+            letter-spacing: 0;
+            color: var(--color-text);
+            margin: 0;
+        }
+        .backtest-sub {
+            max-width: 820px;
+            margin-top: 8px;
+            font-family: var(--font-sans);
+            font-size: var(--fs-md);
+            line-height: 1.45;
+            color: var(--color-muted);
+        }
+        .backtest-note {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin: 0 0 14px;
+            font-family: var(--font-sans);
+            font-size: var(--fs-sm);
+            color: var(--color-muted);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="backtest-head">'
+        '<div class="backtest-kicker">Rules engine · backtest</div>'
+        '<h1 class="backtest-title">Rules Performance</h1>'
+        '<div class="backtest-sub">'
+        'This is the live audit trail for the rules engine. Signals are auto-logged '
+        'from Analyze, Watchlist, and scheduled worker market scans, then scored after '
+        'the outcome window matures.'
+        '</div>'
+        '</div>'
+        '<div class="backtest-note">'
+        'Rules remain the source of the trade action. Claude is only a research and dissent layer, '
+        'so this page evaluates whether the rules are producing useful signals over time.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    render_rules_performance_dashboard()
 
 
 if view == "health":
