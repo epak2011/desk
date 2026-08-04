@@ -14,6 +14,7 @@ Supabase and writes durable results back to tables the UI can read quickly.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -69,6 +70,142 @@ def _market_payload(ticker: str, hist, t_state: dict):
     }
 
 
+RULE_AUTOLOG_VERSION = 1
+RULE_AUTOLOG_ACTIONS = {"enter_now", "watch", "hold_off", "avoid", "accumulate"}
+RULE_ACTION_LABELS = {
+    "enter_now": ("🚀", "Enter"),
+    "watch": ("👀", "Watch"),
+    "hold_off": ("🤔", "Hold off"),
+    "avoid": ("⛔", "Avoid"),
+    "accumulate": ("🌱", "Accumulate"),
+}
+
+
+def _num_or_none(value):
+    try:
+        if value is None:
+            return None
+        value = float(value)
+        if value != value:
+            return None
+        return value
+    except Exception:
+        return None
+
+
+def _normalize_action_key(raw):
+    value = str(raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "enter": "enter_now",
+        "buy": "enter_now",
+        "enter_long": "enter_now",
+        "holdoff": "hold_off",
+        "hold": "hold_off",
+    }
+    return aliases.get(value, value)
+
+
+def _rule_log_price_key(value):
+    num = _num_or_none(value)
+    if num is None:
+        return "na"
+    return f"{num:.2f}"
+
+
+def _rule_log_signature(t_state: dict) -> str:
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    levels = trigger.get("levels") if isinstance(trigger.get("levels"), dict) else {}
+    pieces = [
+        _normalize_action_key(t_state.get("action")) or "",
+        str(t_state.get("state") or ""),
+        str(trigger.get("kind") or ""),
+        _rule_log_price_key(levels.get("buy_above") or t_state.get("entry")),
+        _rule_log_price_key(levels.get("abort_below") or t_state.get("stop")),
+        _rule_log_price_key(t_state.get("t1")),
+    ]
+    return "|".join(pieces)
+
+
+def _rule_log_level_snapshot(t_state: dict) -> dict:
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    levels = trigger.get("levels") if isinstance(trigger.get("levels"), dict) else {}
+    out = {
+        "entry_price": _num_or_none(t_state.get("entry")),
+        "stop_price": _num_or_none(t_state.get("stop")),
+        "target1_price": _num_or_none(t_state.get("t1")),
+        "target2_price": _num_or_none(t_state.get("t2")),
+        "trigger_price": _num_or_none(levels.get("buy_above")),
+        "invalidation_price": _num_or_none(levels.get("abort_below")),
+    }
+    return {
+        key: round(value, 2) if value is not None else None
+        for key, value in out.items()
+    }
+
+
+def _trigger_summary(t_state: dict) -> str:
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    summary = trigger.get("detail") or trigger.get("summary") or t_state.get("trigger_summary")
+    if summary:
+        return str(summary)
+    action = _normalize_action_key(t_state.get("action"))
+    price = _num_or_none(t_state.get("price") or t_state.get("last"))
+    entry = _num_or_none(t_state.get("entry"))
+    if action == "enter_now" and price is not None:
+        return f"Enter long at market — ${price:,.2f}."
+    if entry is not None:
+        return f"Watch trigger near ${entry:,.2f}."
+    return "Rules action recorded from scheduled market scan."
+
+
+def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker") -> bool:
+    """Persist one rules decision when the worker computes a fresh rules state."""
+    tkr = str(ticker or "").upper().strip()
+    if not tkr or not isinstance(t_state, dict):
+        return False
+    action = _normalize_action_key(t_state.get("action"))
+    if action not in RULE_AUTOLOG_ACTIONS:
+        return False
+    price = _num_or_none(t_state.get("price") or t_state.get("last"))
+    if price is None:
+        return False
+    signature = _rule_log_signature(t_state)
+    if backend.recent_auto_rule_decision_exists(tkr, signature, within_days=7):
+        return False
+
+    today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    signature_hash = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:10]
+    emoji, label = RULE_ACTION_LABELS.get(action, ("", action.replace("_", " ").title()))
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    entry = {
+        "id": f"rules-auto-{tkr}-{today_key}-{action}-{signature_hash}",
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ticker": tkr,
+        "price": round(price, 2),
+        "rule_action": action,
+        "rule_state": t_state.get("state"),
+        "rule_signature": signature,
+        "rule_source": source,
+        "rule_autolog_version": RULE_AUTOLOG_VERSION,
+        "rule_trace": t_state.get("_rule_trace") or [],
+        "setup_score": t_state.get("setup_score"),
+        "reward_risk": t_state.get("reward_risk"),
+        "rs": t_state.get("rs"),
+        "vol_ratio": t_state.get("vol_ratio"),
+        "trigger_kind": trigger.get("kind"),
+        "trigger_summary": _trigger_summary(t_state),
+        "trigger_status": trigger.get("status"),
+        "entry_is_projected": bool(t_state.get("entry_is_projected")),
+        "auto_logged": True,
+        "source": "rules_engine",
+        "source_label": f"{emoji} {label}",
+        "outcome": None,
+        **_rule_log_level_snapshot(t_state),
+    }
+    backend.upsert_decision_log(entry)
+    return True
+
+
 def _api_key() -> str:
     """Read Claude API key from the canonical name plus legacy aliases."""
     aliases = ("ANTHROPIC_API_KEY", "NTHROPIC_API_KEY", "CLAUDE_API_KEY")
@@ -121,16 +258,19 @@ def refresh_market_snapshot(ticker: str, bench=None) -> dict:
     if not t_state:
         raise RuntimeError(f"Rule engine could not compute {ticker}")
     market_payload = _market_payload(ticker, hist, t_state)
+    t_state["price"] = market_payload.get("price", t_state.get("price"))
     rule_payload = dict(t_state)
     trigger = rule_payload.get("trigger") or {}
     if isinstance(trigger, dict):
         rule_payload["trigger_summary"] = trigger.get("summary")
     backend.upsert_json_table("market_snapshots", "ticker", ticker, market_payload, source="yahoo")
     backend.upsert_json_table("rule_outputs", "ticker", ticker, rule_payload, source="rules")
+    logged = auto_log_rule_decision(ticker, rule_payload, source="worker_market_scan")
     return {
         "ticker": ticker,
         "price": market_payload.get("price"),
         "action": rule_payload.get("action"),
+        "auto_logged": logged,
         "updated_at": market_payload.get("updated_at"),
     }
 

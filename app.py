@@ -599,6 +599,13 @@ def _load_split_sections(cur, store):
             FROM decisions_log
             ORDER BY COALESCE(entry_ts, updated_at) DESC
         """)
+    elif view_hint == "watchlist":
+        cur.execute("""
+            SELECT entry
+            FROM decisions_log
+            ORDER BY COALESCE(entry_ts, updated_at) DESC
+            LIMIT 200
+        """)
     else:
         cur.execute("SELECT entry FROM decisions_log WHERE FALSE")
     decision_rows = cur.fetchall()

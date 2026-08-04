@@ -243,6 +243,16 @@ def ensure_backend_schema() -> None:
             )
             cur.execute(
                 """
+                CREATE TABLE IF NOT EXISTS decisions_log (
+                    id TEXT PRIMARY KEY,
+                    entry JSONB NOT NULL,
+                    entry_ts TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS market_regime_daily (
                     day DATE PRIMARY KEY,
                     payload JSONB NOT NULL,
@@ -330,6 +340,54 @@ def stale_watchlist_market_tickers(*, max_age_minutes: int = 10, limit: int = 10
                 (str(age_minutes), max(1, int(limit))),
             )
             return [str(row[0]).upper().strip() for row in cur.fetchall() if str(row[0] or "").strip()]
+
+
+def recent_auto_rule_decision_exists(ticker: str, signature: str, *, within_days: int = 7) -> bool:
+    """True when the same open auto-logged rules call was recently persisted."""
+    clean_ticker = str(ticker or "").upper().strip()
+    clean_signature = str(signature or "").strip()
+    if not clean_ticker or not clean_signature or not has_database():
+        return False
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM decisions_log
+                WHERE entry->>'ticker' = %s
+                  AND entry->>'rule_signature' = %s
+                  AND COALESCE((entry->>'auto_logged')::boolean, FALSE) = TRUE
+                  AND (entry->'outcome' IS NULL OR entry->'outcome' = 'null'::jsonb)
+                  AND COALESCE(entry_ts, updated_at) >= NOW() - (%s::text || ' days')::interval
+                LIMIT 1
+                """,
+                (clean_ticker, clean_signature, str(max(1, int(within_days)))),
+            )
+            return cur.fetchone() is not None
+
+
+def upsert_decision_log(entry: dict[str, Any]) -> None:
+    """Persist one decision-log entry without touching the legacy store blob."""
+    entry = entry if isinstance(entry, dict) else {}
+    entry_id = str(entry.get("id") or "").strip()
+    if not entry_id:
+        raise ValueError("decision log entry requires id")
+    entry_ts = entry.get("ts") or entry.get("created_at") or ""
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO decisions_log (id, entry, entry_ts, updated_at)
+                VALUES (%s, %s::jsonb, NULLIF(%s, '')::timestamptz, NOW())
+                ON CONFLICT (id) DO UPDATE
+                    SET entry = EXCLUDED.entry,
+                        entry_ts = EXCLUDED.entry_ts,
+                        updated_at = NOW()
+                """,
+                (entry_id, json_dumps(entry), str(entry_ts or "")),
+            )
 
 
 def enqueue_job(
