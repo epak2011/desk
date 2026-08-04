@@ -7762,7 +7762,8 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
 
 def trigger_text(t):
     """Short, price-based, single-condition."""
-    if t["action"] == "enter_now":
+    action = normalize_action_key(t.get("action"))
+    if action == "enter_now":
         size = str(t.get("entry_size") or "").lower()
         size_word = {
             "starter": "starter",
@@ -7775,7 +7776,7 @@ def trigger_text(t):
             return reason or "Prior trigger fired — enter at market."
         entry = t.get("entry") or t.get("price")
         return f"Enter {size_phrase}long at market — ${entry:,.2f}." if entry is not None else f"Enter {size_phrase}long at market."
-    if t["action"] == "watch" and t.get("trigger"):
+    if action == "watch" and t.get("trigger"):
         trg = t["trigger"]
         kind = trg["kind"]
         buy = trg.get("levels", {}).get("buy_above")
@@ -7807,7 +7808,7 @@ def trigger_text(t):
         if buy:
             return f"Close above ${buy:,.2f}."
         return trg.get("summary", "").capitalize()
-    if t["action"] == "watch" and t.get("entry") is not None:
+    if action == "watch" and t.get("entry") is not None:
         entry = t.get("entry")
         price = t.get("price")
         try:
@@ -7816,10 +7817,10 @@ def trigger_text(t):
         except (TypeError, ValueError, ZeroDivisionError):
             pass
         return f"Target entry at ${entry:,.2f}; wait for confirmation."
-    if t["action"] == "avoid":
-        if t["raw_bias"] == "bearish":
+    if action == "avoid":
+        if t.get("raw_bias") == "bearish":
             return "No action — wait for a confirmed reversal."
-        if not t["atr_ok"]:
+        if t.get("atr_ok") is False:
             return "No action — volatility too low."
         return "No action — no edge."
     return ""
