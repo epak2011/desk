@@ -12,6 +12,7 @@ Hierarchy (strict, top-down):
 
 import json
 import html
+import hashlib
 import math
 import os
 import time
@@ -8104,6 +8105,279 @@ def active_position_tickers():
 TRIAL_DAYS = 14
 TARGET_COMPARISONS = 15
 AUTO_SCORE_VERSION = 2
+RULE_AUTOLOG_VERSION = 1
+RULE_AUTOLOG_ACTIONS = {"enter_now", "watch", "hold_off", "avoid", "accumulate"}
+
+
+def _rule_log_price_key(value):
+    num = _num_or_none(value)
+    if num is None:
+        return "na"
+    return f"{num:.2f}"
+
+
+def _rule_log_signature(t_state):
+    """Stable enough to prevent spam, sensitive enough to capture changed calls."""
+    if not isinstance(t_state, dict):
+        return ""
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    levels = trigger.get("levels") if isinstance(trigger.get("levels"), dict) else {}
+    pieces = [
+        normalize_action_key(t_state.get("action")) or "",
+        str(t_state.get("state") or ""),
+        str(trigger.get("kind") or ""),
+        _rule_log_price_key(levels.get("buy_above") or t_state.get("entry")),
+        _rule_log_price_key(levels.get("abort_below") or t_state.get("stop")),
+        _rule_log_price_key(t_state.get("t1")),
+    ]
+    return "|".join(pieces)
+
+
+def _rule_log_level_snapshot(t_state):
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    levels = trigger.get("levels") if isinstance(trigger.get("levels"), dict) else {}
+    entry = _num_or_none(t_state.get("entry"))
+    stop = _num_or_none(t_state.get("stop"))
+    target1 = _num_or_none(t_state.get("t1"))
+    target2 = _num_or_none(t_state.get("t2"))
+    buy_above = _num_or_none(levels.get("buy_above"))
+    abort_below = _num_or_none(levels.get("abort_below"))
+    return {
+        "entry_price": round(entry, 2) if entry is not None else None,
+        "stop_price": round(stop, 2) if stop is not None else None,
+        "target1_price": round(target1, 2) if target1 is not None else None,
+        "target2_price": round(target2, 2) if target2 is not None else None,
+        "trigger_price": round(buy_above, 2) if buy_above is not None else None,
+        "invalidation_price": round(abort_below, 2) if abort_below is not None else None,
+    }
+
+
+def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True):
+    """Persist one rules decision per meaningful ticker/action/trigger state."""
+    tkr = str(ticker or "").upper().strip()
+    if not tkr or not isinstance(t_state, dict):
+        return False
+    action = normalize_action_key(t_state.get("action"))
+    if action not in RULE_AUTOLOG_ACTIONS:
+        return False
+    price = _num_or_none(t_state.get("price") or t_state.get("last"))
+    if price is None:
+        return False
+
+    decisions = st.session_state.store.setdefault("decisions_log", [])
+    signature = _rule_log_signature(t_state)
+    today_key = datetime.now().strftime("%Y-%m-%d")
+    last_matching = None
+    for entry in decisions:
+        if (
+            entry.get("auto_logged")
+            and str(entry.get("ticker", "")).upper() == tkr
+            and entry.get("rule_signature") == signature
+            and entry.get("outcome") is None
+        ):
+            last_matching = entry
+            break
+    if last_matching:
+        try:
+            logged_at = datetime.fromisoformat(str(last_matching.get("ts"))).date()
+            if (datetime.now().date() - logged_at).days < 7:
+                return False
+        except Exception:
+            return False
+
+    levels = _rule_log_level_snapshot(t_state)
+    trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    trigger_monitor = build_trigger_monitor(t_state)
+    style = STATE_STYLES.get(action, STATE_STYLES["watch"])
+    signature_hash = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:10]
+    entry = {
+        "id": f"rules-auto-{tkr}-{today_key}-{action}-{signature_hash}",
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "ticker": tkr,
+        "price": round(price, 2),
+        "rule_action": action,
+        "rule_state": t_state.get("state"),
+        "rule_signature": signature,
+        "rule_source": source,
+        "rule_autolog_version": RULE_AUTOLOG_VERSION,
+        "rule_trace": t_state.get("_rule_trace") or [],
+        "setup_score": t_state.get("setup_score"),
+        "reward_risk": t_state.get("reward_risk"),
+        "rs": t_state.get("rs"),
+        "vol_ratio": t_state.get("vol_ratio"),
+        "trigger_kind": trigger.get("kind"),
+        "trigger_summary": trigger_monitor.get("detail") or trigger.get("summary") or trigger_text(t_state),
+        "trigger_status": trigger_monitor.get("status"),
+        "entry_is_projected": bool(t_state.get("entry_is_projected")),
+        "auto_logged": True,
+        "source": "rules_engine",
+        "source_label": f"{style.get('emoji', '')} {style.get('label', action)}",
+        "outcome": None,
+        **levels,
+    }
+    decisions.insert(0, entry)
+    if save:
+        save_store(st.session_state.store)
+    return True
+
+
+def auto_log_rule_decisions_from_rows(rows):
+    changed = False
+    for row in rows or []:
+        ticker = row.get("ticker")
+        t_state = row.get("_t") or {}
+        if not isinstance(t_state, dict):
+            continue
+        enriched = dict(t_state)
+        if enriched.get("price") is None:
+            enriched["price"] = row.get("price")
+        if enriched.get("change") is None:
+            enriched["change"] = row.get("change")
+        if enriched.get("action") is None:
+            enriched["action"] = row.get("action")
+        if enriched.get("state") is None:
+            enriched["state"] = row.get("state")
+        changed = auto_log_rule_decision(
+            ticker,
+            enriched,
+            source="watchlist",
+            save=False,
+        ) or changed
+    if changed:
+        save_store(st.session_state.store)
+    return changed
+
+
+def rules_performance_snapshot():
+    """Summarize auto-logged rules calls without reviving the old trial UI."""
+    decisions = [
+        d for d in st.session_state.store.get("decisions_log", [])
+        if d.get("auto_logged") or d.get("source") == "rules_engine"
+    ]
+    scored = [
+        d for d in decisions
+        if isinstance(d.get("outcome"), dict)
+        and d.get("outcome", {}).get("auto_scored")
+    ]
+    open_rows = [d for d in decisions if d.get("outcome") is None]
+    action_counts = {}
+    right_by_action = {}
+    total_by_action = {}
+    for entry in decisions:
+        action = normalize_action_key(entry.get("rule_action")) or "unknown"
+        action_counts[action] = action_counts.get(action, 0) + 1
+    for entry in scored:
+        action = normalize_action_key(entry.get("rule_action")) or "unknown"
+        total_by_action[action] = total_by_action.get(action, 0) + 1
+        outcome = entry.get("outcome") or {}
+        if "rules" in (outcome.get("right_sources") or []):
+            right_by_action[action] = right_by_action.get(action, 0) + 1
+    return {
+        "decisions": decisions,
+        "scored": scored,
+        "open": open_rows,
+        "action_counts": action_counts,
+        "right_by_action": right_by_action,
+        "total_by_action": total_by_action,
+    }
+
+
+def render_rules_performance_dashboard():
+    """Compact rules-first performance dashboard for the Watchlist page."""
+    if st.button(
+        "Score due outcomes",
+        key="score_due_rules_outcomes",
+        help="Scores auto-logged rules calls that are at least 14 days old using current market data.",
+    ):
+        scored_now = auto_close_tracker_outcomes(force_all=False)
+        st.success(
+            f"Scored {scored_now} due outcome"
+            f"{'' if scored_now == 1 else 's'}."
+        )
+    snap = rules_performance_snapshot()
+    decisions = snap["decisions"]
+    scored = snap["scored"]
+    open_rows = snap["open"]
+    rules_right = sum(
+        1 for d in scored
+        if "rules" in ((d.get("outcome") or {}).get("right_sources") or [])
+    )
+    hit_rate = (rules_right / len(scored) * 100) if scored else None
+    long_open = [
+        d for d in open_rows
+        if _tracker_action_family(d.get("rule_action")) == "long"
+    ]
+    hit_rate_value = f"{hit_rate:.0f}%" if hit_rate is not None else "—"
+    hit_rate_note = "rules credited" if hit_rate is not None else "needs scored rows"
+
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));'
+        'gap:10px;margin:8px 0 14px;">'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Rules logged</div>'
+        f'<div class="watch-queue-count">{len(decisions)}</div><div class="watch-queue-preview">auto decision history</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Scored</div>'
+        f'<div class="watch-queue-count">{len(scored)}</div><div class="watch-queue-preview">14d+ outcomes</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Hit rate</div>'
+        f'<div class="watch-queue-count">{hit_rate_value}</div><div class="watch-queue-preview">{hit_rate_note}</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Open longs</div>'
+        f'<div class="watch-queue-count">{len(long_open)}</div><div class="watch-queue-preview">enter / accumulate</div></div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    if not decisions:
+        st.caption("No auto-logged rules decisions yet. The app will begin logging as Analyze and Watchlist compute fresh rules calls.")
+        return
+
+    recent = decisions[:12]
+    rows_html = []
+    for entry in recent:
+        action = normalize_action_key(entry.get("rule_action")) or "watch"
+        sty = STATE_STYLES.get(action, STATE_STYLES["watch"])
+        outcome = entry.get("outcome") or {}
+        outcome_label = "Open"
+        outcome_color = "var(--color-faint)"
+        if isinstance(outcome, dict) and outcome:
+            if "rules" in (outcome.get("right_sources") or []):
+                outcome_label = "Credited"
+                outcome_color = "var(--color-positive)"
+            else:
+                outcome_label = "Missed"
+                outcome_color = "var(--color-negative)"
+        try:
+            logged = datetime.fromisoformat(str(entry.get("ts"))).strftime("%b %-d")
+        except Exception:
+            logged = "—"
+        level = entry.get("trigger_price") or entry.get("entry_price")
+        level_text = f'${float(level):,.2f}' if _num_or_none(level) is not None else "—"
+        note = entry.get("trigger_summary") or ""
+        rows_html.append(
+            '<div class="watchlist-grid-row" style="display:grid;'
+            'grid-template-columns:minmax(0,.7fr) minmax(0,.8fr) minmax(0,1fr) '
+            'minmax(0,.8fr) minmax(0,.8fr) minmax(0,2fr);gap:10px;'
+            'padding:8px 6px;border-bottom:1px dashed var(--color-border-soft);'
+            'font-family:var(--font-mono);font-size:var(--fs-sm);align-items:baseline;">'
+            f'<span style="font-weight:700;">{html.escape(str(entry.get("ticker") or ""))}</span>'
+            f'<span>{html.escape(logged)}</span>'
+            f'<span style="font-weight:700;color:{sty.get("color")};">{sty.get("emoji")} {sty.get("label")}</span>'
+            f'<span>${float(entry.get("price") or 0):,.2f}</span>'
+            f'<span>{level_text}</span>'
+            f'<span style="color:{outcome_color};font-weight:700;">{outcome_label}</span>'
+            f'<span style="grid-column:1 / -1;color:var(--color-muted);font-family:var(--font-sans);font-size:var(--fs-sm);">{html.escape(str(note))}</span>'
+            '</div>'
+        )
+    st.markdown(
+        '<div class="watchlist-grid-row watchlist-grid-head" style="display:grid;'
+        'grid-template-columns:minmax(0,.7fr) minmax(0,.8fr) minmax(0,1fr) '
+        'minmax(0,.8fr) minmax(0,.8fr) minmax(0,2fr);gap:10px;'
+        'padding:8px 6px;border-bottom:1px solid var(--color-border);'
+        'font-family:var(--font-sans);font-size:var(--fs-xs);font-weight:700;'
+        'letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--color-muted);">'
+        '<span>Ticker</span><span>Logged</span><span>Rules action</span>'
+        '<span>Ref px</span><span>Trigger</span><span>Outcome</span></div>'
+        + "".join(rows_html),
+        unsafe_allow_html=True,
+    )
 
 
 def tracker_trial_snapshot():
@@ -12780,6 +13054,7 @@ if view == "analyze":
         final_action_cache[ticker.upper()] = final_payload
         merge_ticker_snapshot(ticker, final_action=final_payload)
         save_store(st.session_state.store)
+    auto_log_rule_decision(ticker, t, source="analyze")
     rendered_sidebar_action = st.session_state.get("_active_sidebar_action_rendered")
     sync_key = f"{ticker.upper()}:{t.get('action')}"
     if (
@@ -18772,6 +19047,8 @@ if view == "watchlist":
                         "_t": t,
                     })
 
+        auto_log_rule_decisions_from_rows(rows)
+
         def _watch_queue_bucket(row):
             attention = str(row.get("attention") or "")
             action = row.get("action")
@@ -18844,6 +19121,8 @@ if view == "watchlist":
             ("PM memo", pm_label.replace("PM ", ""), pm_kind),
             ("Sidebar", f"{len(rows)}/{len(st.session_state.store['watchlist'])} rows updated", "fresh" if rows else "stale"),
         ]), unsafe_allow_html=True)
+        with st.expander("📈 Rules performance", expanded=False):
+            render_rules_performance_dashboard()
         if fast_watchlist:
             scan_event = st.session_state.get("_watchlist_scan_result") or {}
             scan_time = scan_event.get("time")
