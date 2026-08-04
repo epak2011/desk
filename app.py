@@ -12959,29 +12959,30 @@ if view == "analyze":
 """, unsafe_allow_html=True)
 
         rule_trace = t.get("_rule_trace") or []
-        st.markdown(
-            rule_audit_panel_html(t, meta, quality_tier, rule_trace),
-            unsafe_allow_html=True,
-        )
-        st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
-
-        refresh_data_col, refresh_data_note_col = st.columns([1, 2])
-        with refresh_data_col:
-            if st.button(
-                f"↻ Queue market data",
-                key=f"refresh_current_market_{ticker.upper()}",
-                help="Queues the fast market lane: price, fundamentals, rule action, and sidebar row. Does not wait on Claude.",
-                use_container_width=True,
-            ):
-                refresh_current_ticker_state(ticker, refresh_research=False)
-                st.rerun()
-        with refresh_data_note_col:
+        with st.expander("Rules, refresh, and job details", expanded=False):
             st.markdown(
-                '<div class="desk-refresh-note">Queues price, metadata, rule action, and sidebar row. '
-                'Narrative refreshes live on the PM memo / full-report controls.</div>',
+                rule_audit_panel_html(t, meta, quality_tier, rule_trace),
                 unsafe_allow_html=True,
             )
-        st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
+            st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
+
+            refresh_data_col, refresh_data_note_col = st.columns([1, 2])
+            with refresh_data_col:
+                if st.button(
+                    f"↻ Queue market data",
+                    key=f"refresh_current_market_{ticker.upper()}",
+                    help="Queues the fast market lane: price, fundamentals, rule action, and sidebar row. Does not wait on Claude.",
+                    use_container_width=True,
+                ):
+                    refresh_current_ticker_state(ticker, refresh_research=False)
+                    st.rerun()
+            with refresh_data_note_col:
+                st.markdown(
+                    '<div class="desk-refresh-note">Queues price, metadata, rule action, and sidebar row. '
+                    'Narrative refreshes live on the PM memo / full-report controls.</div>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
 
         if position_read:
             stat_html = "".join(
