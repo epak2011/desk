@@ -12770,10 +12770,28 @@ if view == "analyze":
         st.info("Type a ticker in the sidebar.")
         st.stop()
 
+    ticker_key = ticker.upper()
+    pending_pm_refreshes = st.session_state.setdefault("_pending_pm_refreshes", {})
+    pending_dossier_refreshes = st.session_state.setdefault("_pending_dossier_refreshes", {})
+    force_meta_refresh = (
+        st.session_state.get("_force_pm_refresh_ticker", "") == ticker_key
+        or ticker_key in pending_pm_refreshes
+        or st.session_state.get("_force_dossier_refresh_ticker", "") == ticker_key
+        or ticker_key in pending_dossier_refreshes
+    )
+
     with st.spinner(f"Loading {ticker}…"):
         hist, name, err_reason = fetch_history(ticker)
         bench = fetch_bench()
         meta = cached_quote_meta_snapshot(ticker)
+        if force_meta_refresh:
+            try:
+                refreshed_meta = fetch_quote_meta(ticker, include_slow_fallbacks=True) or {}
+                if refreshed_meta:
+                    remember_quote_meta(ticker, refreshed_meta)
+                    meta = refreshed_meta
+            except Exception:
+                pass
         if not name:
             name = (
                 (meta or {}).get("long_name")
@@ -12845,13 +12863,10 @@ if view == "analyze":
     # Fetch PM data here (before splitting into columns) so the dossier on
     # the left can reference the thesis, and the right panel can render
     # the snapshot. Both share the same cached fetch.
-    ticker_key = ticker.upper()
-    pending_pm_refreshes = st.session_state.setdefault("_pending_pm_refreshes", {})
     force_pm_refresh = (
         st.session_state.pop("_force_pm_refresh_ticker", "") == ticker_key
         or ticker_key in pending_pm_refreshes
     )
-    pending_dossier_refreshes = st.session_state.setdefault("_pending_dossier_refreshes", {})
     force_dossier_refresh = (
         st.session_state.pop("_force_dossier_refresh_ticker", "") == ticker_key
         or ticker_key in pending_dossier_refreshes
