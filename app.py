@@ -206,6 +206,118 @@ def _infer_fund_category_from_name(name, is_etf=True):
     return category
 
 
+def tradingview_symbol(ticker, meta=None):
+    """Best-effort conversion from Yahoo-style symbols to TradingView symbols."""
+    raw = str(ticker or "").upper().strip()
+    if not raw:
+        return ""
+    if ":" in raw:
+        return raw
+
+    crypto_map = {
+        "BTC-USD": "COINBASE:BTCUSD",
+        "ETH-USD": "COINBASE:ETHUSD",
+        "SOL-USD": "COINBASE:SOLUSD",
+    }
+    if raw in crypto_map:
+        return crypto_map[raw]
+    if raw.endswith("-USD"):
+        return f"COINBASE:{raw[:-4]}USD"
+
+    meta = meta or {}
+    exchange = str(meta.get("exchange") or "").upper().replace(" ", "")
+    exchange_map = {
+        "NMS": "NASDAQ",
+        "NGM": "NASDAQ",
+        "NCM": "NASDAQ",
+        "NASDAQ": "NASDAQ",
+        "NASDAQGS": "NASDAQ",
+        "NASDAQGM": "NASDAQ",
+        "NASDAQCM": "NASDAQ",
+        "NYQ": "NYSE",
+        "NYSE": "NYSE",
+        "ASE": "AMEX",
+        "AMEX": "AMEX",
+        "PCX": "AMEX",
+        "ARCA": "AMEX",
+        "NYSEARCA": "AMEX",
+    }
+    tv_exchange = exchange_map.get(exchange)
+    return f"{tv_exchange}:{raw}" if tv_exchange else raw
+
+
+def render_tradingview_advanced_chart(ticker, meta=None):
+    """Render TradingView's full advanced chart widget for the active ticker."""
+    tv_symbol = tradingview_symbol(ticker, meta)
+    container_id = f"tv_chart_{hashlib.md5(tv_symbol.encode('utf-8')).hexdigest()[:10]}"
+    widget_config = {
+        "autosize": True,
+        "symbol": tv_symbol,
+        "interval": "D",
+        "timezone": "America/New_York",
+        "theme": "light",
+        "style": "1",
+        "locale": "en",
+        "enable_publishing": False,
+        "allow_symbol_change": True,
+        "hide_side_toolbar": False,
+        "withdateranges": True,
+        "details": True,
+        "hotlist": True,
+        "calendar": True,
+        "show_popup_button": True,
+        "popup_width": "1200",
+        "popup_height": "760",
+        "studies": [
+            "Volume@tv-basicstudies",
+            "RSI@tv-basicstudies",
+            "MACD@tv-basicstudies",
+        ],
+        "support_host": "https://www.tradingview.com",
+        "container_id": container_id,
+    }
+    config_json = json.dumps(widget_config)
+    chart_html = f"""
+    <style>
+      .tv-advanced-shell {{
+        width: 100%;
+        height: 680px;
+        background: #FFFFFF;
+        border: 1px solid #D8E0E8;
+        border-radius: 6px;
+        overflow: hidden;
+      }}
+      .tv-advanced-shell .tradingview-widget-container,
+      .tv-advanced-shell #{container_id} {{
+        width: 100%;
+        height: 100%;
+      }}
+      @media (max-width: 760px) {{
+        .tv-advanced-shell {{ height: 560px; }}
+      }}
+    </style>
+    <div class="tv-advanced-shell">
+      <div class="tradingview-widget-container">
+        <div id="{container_id}"></div>
+      </div>
+    </div>
+    <script src="https://s3.tradingview.com/tv.js"></script>
+    <script>
+      (function() {{
+        function initTradingView() {{
+          if (typeof TradingView === "undefined") {{
+            window.setTimeout(initTradingView, 100);
+            return;
+          }}
+          new TradingView.widget({config_json});
+        }}
+        initTradingView();
+      }})();
+    </script>
+    """
+    render_html_frame(chart_html, height=710)
+
+
 def normalize_percent_value(value):
     """Normalize Yahoo decimal/percent fields to display percent units."""
     if value is None:
@@ -14281,188 +14393,15 @@ if view == "analyze":
         # core tape-read surface, not an optional advanced view.
         show_deep_technicals = True
         if show_deep_technicals:
-            # 4. Chart — TradingView Lightweight Charts (open-source, ~40KB).
-            # Renders client-side from our existing OHLCV data. Replaces the
-            # earlier Plotly attempt because Lightweight Charts produces a
-            # professional-looking trading chart (matches the paid TradingView
-            # widget aesthetic) with full styling control — the free TradingView
-            # embed widget doesn't allow per-MA color overrides, which is why
-            # we own the rendering ourselves.
+            # 4. Chart — TradingView Advanced Chart widget.
             st.markdown(f"""
         <div class="desk-chart-label">
-          <span style="color:var(--color-muted);">📈 Chart · </span>
-          <span style="color:#F97316;font-weight:700;">MA 20</span>
-          <span style="color:var(--color-muted);"> · </span>
-          <span style="color:#2563EB;font-weight:700;">MA 50</span>
-          <span style="color:var(--color-muted);"> · </span>
-          <span style="color:#9333EA;font-weight:700;">MA 100</span>
-          <span style="color:var(--color-muted);"> · </span>
-          <span style="color:#DC2626;font-weight:700;">MA 200</span>
+          <span style="color:var(--color-muted);">📈 TradingView chart</span>
         </div>
         """, unsafe_allow_html=True)
 
             try:
-                import json as _chart_json
-
-                # Build the data payload for Lightweight Charts.
-                # Show 1 year so MA200 has proper context. MAs are computed
-                # on the FULL hist series so they're valid even at the start
-                # of the visible window.
-                chart_hist = hist.iloc[-252:].copy()
-                chart_hist["MA20"] = hist["Close"].rolling(20).mean().iloc[-252:]
-                chart_hist["MA50"] = hist["Close"].rolling(50).mean().iloc[-252:]
-                chart_hist["MA100"] = hist["Close"].rolling(100).mean().iloc[-252:]
-                chart_hist["MA200"] = hist["Close"].rolling(200).mean().iloc[-252:]
-
-                # Lightweight Charts wants seconds-since-epoch (UTCTimestamp)
-                # for time values. The hist index is daily DatetimeIndex.
-                def _ts(idx):
-                    return int(idx.timestamp())
-
-                candles = [
-                    {
-                        "time": _ts(idx),
-                        "open": round(float(row["Open"]), 4),
-                        "high": round(float(row["High"]), 4),
-                        "low": round(float(row["Low"]), 4),
-                        "close": round(float(row["Close"]), 4),
-                    }
-                    for idx, row in chart_hist.iterrows()
-                ]
-                volume = [
-                    {
-                        "time": _ts(idx),
-                        "value": float(row["Volume"]),
-                        "color": ("rgba(22,163,74,0.45)" if row["Close"] >= row["Open"]
-                                  else "rgba(220,38,38,0.45)"),
-                    }
-                    for idx, row in chart_hist.iterrows()
-                ]
-
-                def _ma_series(col):
-                    out = []
-                    for idx, val in chart_hist[col].items():
-                        # Lightweight Charts skips points with None/null
-                        if val is None:
-                            continue
-                        try:
-                            if val != val:  # NaN check
-                                continue
-                        except Exception:
-                            continue
-                        out.append({"time": _ts(idx), "value": round(float(val), 4)})
-                    return out
-
-                ma_data = {
-                    "MA20":  _ma_series("MA20"),
-                    "MA50":  _ma_series("MA50"),
-                    "MA100": _ma_series("MA100"),
-                    "MA200": _ma_series("MA200"),
-                }
-
-                payload = _chart_json.dumps({
-                    "candles": candles,
-                    "volume": volume,
-                    "ma": ma_data,
-                })
-
-                chart_html = f"""
-        <div id="lwchart_{ticker}" style="width:100%;height:480px;background:#FFFFFF;"></div>
-        <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-        <script>
-        (function() {{
-          const data = {payload};
-          const container = document.getElementById('lwchart_{ticker}');
-          if (!container) return;
-
-          const chart = LightweightCharts.createChart(container, {{
-        width: container.clientWidth,
-        height: 480,
-        layout: {{
-          background: {{ type: 'solid', color: '#FFFFFF' }},
-          textColor: '#334155',
-          fontFamily: 'Geist Mono, monospace',
-          fontSize: 11,
-        }},
-        grid: {{
-          vertLines: {{ color: '#E5E7EB' }},
-          horzLines: {{ color: '#E5E7EB' }},
-        }},
-        rightPriceScale: {{
-          borderColor: '#DCE3EA',
-          scaleMargins: {{ top: 0.08, bottom: 0.28 }},
-        }},
-        timeScale: {{
-          borderColor: '#DCE3EA',
-          timeVisible: false,
-          secondsVisible: false,
-        }},
-        crosshair: {{
-          mode: LightweightCharts.CrosshairMode.Normal,
-          vertLine: {{ color: '#94A3B8', width: 1, style: 2 }},
-          horzLine: {{ color: '#94A3B8', width: 1, style: 2 }},
-        }},
-        handleScroll: true,
-        handleScale: true,
-          }});
-
-          // Candlesticks
-          const candleSeries = chart.addCandlestickSeries({{
-        upColor: '#16A34A',
-        downColor: '#DC2626',
-        borderUpColor: '#16A34A',
-        borderDownColor: '#DC2626',
-        wickUpColor: '#16A34A',
-        wickDownColor: '#DC2626',
-        priceLineVisible: true,
-        priceLineColor: '#94A3B8',
-        priceLineWidth: 1,
-        priceLineStyle: 2,
-          }});
-          candleSeries.setData(data.candles);
-
-          // Four colored MA lines — the whole reason we're not using the
-          // free TradingView embed widget, which doesn't allow per-study colors.
-          const maConfigs = [
-        {{ key: 'MA20',  color: '#F97316' }},
-        {{ key: 'MA50',  color: '#2563EB' }},
-        {{ key: 'MA100', color: '#9333EA' }},
-        {{ key: 'MA200', color: '#DC2626' }},
-          ];
-          for (const cfg of maConfigs) {{
-        const series = chart.addLineSeries({{
-          color: cfg.color,
-          lineWidth: 1.5,
-          priceLineVisible: false,
-          lastValueVisible: true,
-          title: cfg.key,
-          crosshairMarkerVisible: false,
-        }});
-        series.setData(data.ma[cfg.key]);
-          }}
-
-          // Volume on a separate price scale at the bottom (overlay)
-          const volumeSeries = chart.addHistogramSeries({{
-        priceFormat: {{ type: 'volume' }},
-        priceScaleId: 'volume',
-        color: 'rgba(107, 101, 91, 0.4)',
-          }});
-          volumeSeries.priceScale().applyOptions({{
-        scaleMargins: {{ top: 0.78, bottom: 0 }},
-          }});
-          volumeSeries.setData(data.volume);
-
-          chart.timeScale().fitContent();
-
-          // Re-fit on window resize so the chart stays full-width
-          const resize = () => {{
-        chart.applyOptions({{ width: container.clientWidth }});
-          }};
-          window.addEventListener('resize', resize);
-        }})();
-        </script>
-        """
-                render_html_frame(chart_html, height=500)
+                render_tradingview_advanced_chart(ticker, meta)
             except Exception as _chart_err:
                 st.warning(f"Chart could not render: {_chart_err}")
 
