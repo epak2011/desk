@@ -268,8 +268,8 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         "calendar": True,
         "save_image": True,
         "show_popup_button": True,
-        "popup_width": "1200",
-        "popup_height": "760",
+        "popup_width": "1500",
+        "popup_height": "860",
         "studies": [
             "Volume@tv-basicstudies",
             "RSI@tv-basicstudies",
@@ -284,7 +284,7 @@ def render_tradingview_advanced_chart(ticker, meta=None):
     <style>
       .tv-advanced-shell {{
         width: 100%;
-        height: 720px;
+        height: 780px;
         background: #FFFFFF;
         border: 1px solid #D8E0E8;
         border-radius: 6px;
@@ -319,7 +319,7 @@ def render_tradingview_advanced_chart(ticker, meta=None):
     </script>
     <!-- TradingView Advanced Chart Widget END -->
     """
-    st.components.v1.html(chart_html, height=750)
+    st.components.v1.html(chart_html, height=810)
 
 
 def normalize_percent_value(value):
@@ -11307,6 +11307,47 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid var(--desk-border) !important;
 }
 
+@media (min-width: 1181px) {
+    .main .block-container,
+    section.main .block-container,
+    div[data-testid="stMainBlockContainer"] {
+        max-width: none !important;
+        width: 100% !important;
+        padding-left: 1.15rem !important;
+        padding-right: 1.15rem !important;
+    }
+
+    section[data-testid="stSidebar"] {
+        width: 252px !important;
+        min-width: 252px !important;
+        max-width: 252px !important;
+    }
+
+    section[data-testid="stSidebar"] > div:first-child {
+        width: 252px !important;
+        min-width: 252px !important;
+        max-width: 252px !important;
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+    }
+}
+
+@media (min-width: 1500px) {
+    .main .block-container,
+    section.main .block-container,
+    div[data-testid="stMainBlockContainer"] {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    section[data-testid="stSidebar"],
+    section[data-testid="stSidebar"] > div:first-child {
+        width: 244px !important;
+        min-width: 244px !important;
+        max-width: 244px !important;
+    }
+}
+
 .desk-sidebar-wordmark {
     display: flex;
     align-items: center;
@@ -13278,7 +13319,7 @@ if view == "analyze":
 
     sty = STATE_STYLES[t["action"]]
 
-    col_decision, col_pm = st.columns([5, 3])
+    col_decision, col_pm = st.columns([5.8, 2.6])
 
     # ───── LEFT COLUMN: decision + trading logic ─────
     with col_decision:
