@@ -14846,9 +14846,9 @@ if view == "analyze":
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
         st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
         if st.button(
-            f"🧠 Queue PM memo",
+            f"🧠 Refresh PM memo",
             key=f"refresh_current_pm_{ticker.upper()}",
-            help="Queues the visible PM thesis, quality box, drivers, risks, and valuation. The long full report refresh lives on the full report page.",
+            help="Refreshes the visible PM thesis, quality box, drivers, risks, and valuation in the background. The long full report refresh lives on the full report page.",
             use_container_width=True,
         ):
             refresh_current_ticker_state(ticker, refresh_research=True)
