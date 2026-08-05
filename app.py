@@ -1079,7 +1079,7 @@ if "nav_counter" not in st.session_state:
     st.session_state.nav_counter = 0
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=10, show_spinner=False)
 def backend_pm_payload(ticker):
     """Read one worker-written PM memo row without touching market APIs."""
     tkr = str(ticker or "").upper().strip()
@@ -1124,6 +1124,65 @@ def hydrate_pm_cache_from_backend(ticker):
     return entry
 
 
+def _pm_entry_ts(entry):
+    """Parse a PM cache timestamp for newest-row comparisons."""
+    try:
+        ts = (entry or {}).get("ts")
+        if not ts:
+            return None
+        parsed = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+
+def newest_pm_cache_entry(ticker):
+    """Return the newest PM memo from session cache vs the normalized backend row."""
+    ticker = str(ticker or "").upper().strip()
+    if not ticker:
+        return None
+    cache = st.session_state.store.setdefault("pm_cache", {})
+    local_entry = cache.get(ticker) if isinstance(cache, dict) else None
+    backend_entry = hydrate_pm_cache_from_backend(ticker)
+    if backend_entry and local_entry:
+        backend_ts = _pm_entry_ts(backend_entry)
+        local_ts = _pm_entry_ts(local_entry)
+        if local_ts and backend_ts and local_ts > backend_ts:
+            cache[ticker] = local_entry
+            return local_entry
+    return backend_entry or local_entry
+
+
+def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
+    """Persist fresh app-generated PM memos to the normalized table workers use."""
+    ticker = str(ticker or "").upper().strip()
+    if not ticker or not isinstance(pm, dict) or not backend_layer.has_database():
+        return
+    thesis_text = str(pm.get("thesis") or "")
+    if thesis_text.startswith("No generated PM thesis yet") or thesis_text.startswith("No thesis on file"):
+        return
+    payload = {k: v for k, v in pm.items() if not str(k).startswith("_")}
+    payload["_worker_generated_at"] = datetime.now(timezone.utc).isoformat()
+    if market_price is not None:
+        payload["_market_price"] = market_price
+    try:
+        backend_layer.upsert_json_table(
+            "pm_memos",
+            "ticker",
+            ticker,
+            payload,
+            source=source or pm.get("_source") or "claude",
+        )
+        try:
+            backend_pm_payload.clear(ticker)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
 def hydrate_dossier_cache_from_backend(ticker):
     """Adapt normalized full-report rows into the legacy dossier cache shape."""
     ticker = str(ticker or "").upper().strip()
@@ -1158,7 +1217,7 @@ def hydrate_dossier_cache_from_backend(ticker):
 def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate=True, force_generate=False):
     ticker = ticker.upper()
     cache = st.session_state.store["pm_cache"]
-    entry = cache.get(ticker) or hydrate_pm_cache_from_backend(ticker)
+    entry = newest_pm_cache_entry(ticker)
     if entry and not force_generate:
         ts = entry.get("ts")
         try:
@@ -1226,6 +1285,13 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
             "source": pm_source or "static",
         }
         merge_ticker_snapshot(ticker, pm_entry=cache[ticker])
+        if source_is_current_pm:
+            persist_pm_entry_to_backend(
+                ticker,
+                pm,
+                source=pm_source or "static",
+                market_price=(tactical_output or {}).get("price") if isinstance(tactical_output, dict) else None,
+            )
         save_store(st.session_state.store)
     return pm
 
@@ -6908,6 +6974,11 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
             fetch_quote_meta.clear(refresh_ticker)
         except Exception:
             pass
+        try:
+            backend_pm_payload.clear(refresh_ticker)
+        except Exception:
+            pass
+        st.session_state.store.setdefault("pm_cache", {}).pop(refresh_ticker, None)
     else:
         try:
             hydrate_backend_ticker_snapshots((refresh_ticker,))
