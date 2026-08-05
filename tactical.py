@@ -143,7 +143,7 @@ def _rsi(prices, period=14):
     return 100 - 100 / (1 + rs)
 
 
-def tech_score(hist):
+def tech_score_breakdown(hist):
     prices = hist["Close"]
     price = prices.iloc[-1]
     ma50 = prices.iloc[-50:].mean() if len(prices) >= 50 else price
@@ -153,15 +153,56 @@ def tech_score(hist):
     vol_ratio = hist["Volume"].iloc[-1] / avg_vol if avg_vol > 0 else 1.0
     slope = _ma_slope(prices, 50, 20)
 
-    score = 5.0
-    if price > ma50: score += 1.5
-    if price > ma200: score += 1.0
-    if 50 <= rsi <= 70: score += 1.0
-    if rsi > 75: score -= 0.5
-    if vol_ratio > 1.2: score += 1.0
-    if vol_ratio < 0.8: score -= 0.5
-    if slope > 0: score += 0.5
-    return max(0.0, min(10.0, score))
+    components = [
+        {
+            "label": "Baseline",
+            "points": 5.0,
+            "max_points": 5.0,
+            "note": "neutral starting point",
+        },
+        {
+            "label": "50d trend",
+            "points": 1.5 if price > ma50 else 0.0,
+            "max_points": 1.5,
+            "note": "price above 50-day MA",
+        },
+        {
+            "label": "200d trend",
+            "points": 1.0 if price > ma200 else 0.0,
+            "max_points": 1.0,
+            "note": "price above 200-day MA",
+        },
+        {
+            "label": "RSI setup",
+            "points": 1.0 if 50 <= rsi <= 70 else (-0.5 if rsi > 75 else 0.0),
+            "max_points": 1.0,
+            "note": f"RSI {rsi:.0f}; ideal range is 50-70, over 75 is extended",
+        },
+        {
+            "label": "Volume",
+            "points": 1.0 if vol_ratio > 1.2 else (-0.5 if vol_ratio < 0.8 else 0.0),
+            "max_points": 1.0,
+            "note": f"{vol_ratio:.2f}x 20-day average",
+        },
+        {
+            "label": "50d slope",
+            "points": 0.5 if slope > 0 else 0.0,
+            "max_points": 0.5,
+            "note": "50-day MA rising",
+        },
+    ]
+    raw_score = sum(component["points"] for component in components)
+    score = max(0.0, min(10.0, raw_score))
+    return {
+        "score": float(score),
+        "raw_score": float(raw_score),
+        "components": components,
+        "method": "Additive: 5.0 baseline plus/subtracts from trend, RSI, volume, and 50d slope; capped at 0-10.",
+    }
+
+
+def tech_score(hist):
+    return tech_score_breakdown(hist)["score"]
 
 
 def relative_strength(ticker_hist, bench_hist):
@@ -982,7 +1023,8 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
 
     rs = relative_strength(ticker_hist, bench_hist)
     sq = structure_quality(ticker_hist)
-    setup = tech_score(ticker_hist)
+    setup_breakdown = tech_score_breakdown(ticker_hist)
+    setup = setup_breakdown["score"]
 
     atr_pct = float(
         ((ticker_hist["High"] - ticker_hist["Low"]) / ticker_hist["Close"])
@@ -1277,6 +1319,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "trigger_fired_reason": trigger_fired_reason,
         "bias_score": bias_score,
         "setup_score": setup,
+        "setup_score_breakdown": setup_breakdown,
         "atr_pct": atr_pct,
         "atr_ok": atr_ok,
         "price": price,

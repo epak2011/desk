@@ -7821,6 +7821,98 @@ def rules_engine_guide_html():
     )
 
 
+def setup_score_breakdown_hover_html(t_state):
+    """Compact hover card explaining the setup score math."""
+    if not isinstance(t_state, dict):
+        return html.escape("—")
+
+    score_txt = _fmt_rule_num(t_state.get("setup_score"), "/10")
+    state_txt = str(t_state.get("state") or "—").title()
+    breakdown = t_state.get("setup_score_breakdown")
+    components = []
+    method = ""
+
+    if isinstance(breakdown, dict):
+        method = str(breakdown.get("method") or "").strip()
+        raw_components = breakdown.get("components")
+        if isinstance(raw_components, list):
+            for component in raw_components:
+                if not isinstance(component, dict):
+                    continue
+                label = str(component.get("label") or "Input").strip()
+                points = component.get("points")
+                max_points = component.get("max_points")
+                note = str(component.get("note") or "").strip()
+                components.append((label, points, max_points, note))
+
+    if not components:
+        price = t_state.get("price")
+        ma50 = t_state.get("ma50")
+        ma200 = t_state.get("ma200")
+        rsi = t_state.get("rsi14")
+        vol_ratio = t_state.get("vol_ratio")
+
+        def _gt(a, b):
+            try:
+                return float(a) > float(b)
+            except (TypeError, ValueError):
+                return False
+
+        def _float_or_none(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        rsi_float = _float_or_none(rsi)
+        vol_float = _float_or_none(vol_ratio)
+        rsi_points = 0.0
+        if rsi_float is not None:
+            if 50 <= rsi_float <= 70:
+                rsi_points = 1.0
+            elif rsi_float > 75:
+                rsi_points = -0.5
+        vol_points = 0.0
+        if vol_float is not None:
+            if vol_float > 1.2:
+                vol_points = 1.0
+            elif vol_float < 0.8:
+                vol_points = -0.5
+        components = [
+            ("Baseline", 5.0, 5.0, "neutral starting point"),
+            ("50d trend", 1.5 if _gt(price, ma50) else 0.0, 1.5, "price above 50-day MA"),
+            ("200d trend", 1.0 if _gt(price, ma200) else 0.0, 1.0, "price above 200-day MA"),
+            ("RSI setup", rsi_points, 1.0, f"RSI {_fmt_rule_num(rsi_float, precision=0)}; ideal range is 50-70"),
+            ("Volume", vol_points, 1.0, f"{_fmt_rule_num(vol_float, '×', precision=2)} 20-day average"),
+            ("50d slope", None, 0.5, "available after next market refresh"),
+        ]
+        method = "Additive: 5.0 baseline plus/subtracts from trend, RSI, volume, and 50d slope; capped at 0-10."
+
+    component_html = ""
+    for label, points, max_points, note in components:
+        point_txt = "—" if points is None else f"{float(points):+.1f}"
+        max_txt = "—" if max_points is None else f"{float(max_points):.1f}"
+        component_html += (
+            '<div class="desk-score-tip-row">'
+            f'<span>{html.escape(label)}</span>'
+            f'<strong>{html.escape(point_txt)} / {html.escape(max_txt)}</strong>'
+            f'<em>{html.escape(note)}</em>'
+            '</div>'
+        )
+    method_html = f'<div class="desk-score-tip-method">{html.escape(method)}</div>' if method else ""
+    return (
+        '<span class="desk-score-tip-wrap">'
+        f'<span>{html.escape(score_txt)} · {html.escape(state_txt)}</span>'
+        '<span class="desk-score-tip-i">i</span>'
+        '<span class="desk-score-tip">'
+        f'<span class="desk-score-tip-title">Setup score: {html.escape(score_txt)}</span>'
+        f'{component_html}'
+        f'{method_html}'
+        '</span>'
+        '</span>'
+    )
+
+
 def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
     """Ticker-specific audit of the inputs behind the final rules action."""
     if not isinstance(t_state, dict):
@@ -7889,31 +7981,31 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
         trigger_value = trigger_kind
 
     rows = [
-        ("Base action", f"{sty.get('emoji', '')} {final_label}"),
-        ("Entry size", str(t_state.get("entry_size") or "none")),
-        ("Entry status", str(t_state.get("entry_status") or "—")),
-        ("Tape class", str(t_state.get("tape_class") or "—")),
-        ("Setup score", f"{_fmt_rule_num(t_state.get('setup_score'), '/10')} · {str(t_state.get('state') or '—').title()}"),
-        ("Trend", trend_value),
-        ("Relative strength", f"RS {_fmt_rule_num(t_state.get('rs'), precision=2)} · Δ {_fmt_rule_num(t_state.get('rs_delta'), precision=3)}"),
-        ("Volume", f"{_fmt_rule_num(t_state.get('vol_ratio'), '×', precision=1)} 20d avg"),
-        ("Extension", extension_value),
-        ("Reward/risk", f"{_fmt_rule_num(rr, ':1', precision=2)}"),
-        ("Reward/risk tier", str(t_state.get("reward_risk_tier") or "—")),
-        ("Reward/risk gate", str(t_state.get("reward_risk_gate_reason") or "not active")),
-        ("Trigger", trigger_value),
-        ("Earnings", earnings_value),
-        ("Quality", str(t_state.get("quality_bucket") or quality_tier or "not applied")),
-        ("Quality cap", str(t_state.get("quality_cap") or "—")),
-        ("Source", str(t_state.get("_source_note") or "Rules primary")),
-        ("Trace", trace_value),
+        ("Base action", f"{sty.get('emoji', '')} {final_label}", False),
+        ("Entry size", str(t_state.get("entry_size") or "none"), False),
+        ("Entry status", str(t_state.get("entry_status") or "—"), False),
+        ("Tape class", str(t_state.get("tape_class") or "—"), False),
+        ("Setup score", setup_score_breakdown_hover_html(t_state), True),
+        ("Trend", trend_value, False),
+        ("Relative strength", f"RS {_fmt_rule_num(t_state.get('rs'), precision=2)} · Δ {_fmt_rule_num(t_state.get('rs_delta'), precision=3)}", False),
+        ("Volume", f"{_fmt_rule_num(t_state.get('vol_ratio'), '×', precision=1)} 20d avg", False),
+        ("Extension", extension_value, False),
+        ("Reward/risk", f"{_fmt_rule_num(rr, ':1', precision=2)}", False),
+        ("Reward/risk tier", str(t_state.get("reward_risk_tier") or "—"), False),
+        ("Reward/risk gate", str(t_state.get("reward_risk_gate_reason") or "not active"), False),
+        ("Trigger", trigger_value, False),
+        ("Earnings", earnings_value, False),
+        ("Quality", str(t_state.get("quality_bucket") or quality_tier or "not applied"), False),
+        ("Quality cap", str(t_state.get("quality_cap") or "—"), False),
+        ("Source", str(t_state.get("_source_note") or "Rules primary"), False),
+        ("Trace", trace_value, False),
     ]
     item_html = "".join(
         f'<div class="desk-rule-audit-item">'
         f'<div class="desk-rule-audit-k">{html.escape(k)}</div>'
-        f'<div class="desk-rule-audit-v">{html.escape(v)}</div>'
+        f'<div class="desk-rule-audit-v">{v if allow_html else html.escape(v)}</div>'
         f'</div>'
-        for k, v in rows
+        for k, v, allow_html in rows
     )
     trace_steps_html = rule_trace_steps_html(rule_trace, max_steps=8)
     trace_block = ""
@@ -11729,7 +11821,8 @@ div[data-testid="element-container"]:has(.desk-bar) {
     border-radius: 8px;
     background: #FFFFFF;
     margin: 16px 0 14px;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
 }
 
 .desk-rule-audit-head {
@@ -11805,6 +11898,99 @@ div[data-testid="element-container"]:has(.desk-bar) {
     font-weight: 800;
     color: var(--desk-text);
     white-space: normal;
+}
+
+.desk-score-tip-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: help;
+    border-bottom: 1px dotted var(--desk-muted);
+}
+
+.desk-score-tip-i {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--desk-border-strong);
+    border-radius: 50%;
+    font-size: 9px;
+    line-height: 1;
+    color: var(--desk-muted);
+    background: #FFFFFF;
+}
+
+.desk-score-tip {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 8px);
+    z-index: 9999;
+    width: min(360px, 78vw);
+    padding: 12px;
+    border: 1px solid var(--desk-border-strong);
+    border-radius: 8px;
+    background: #FFFFFF;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+    color: var(--desk-text);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-3px);
+    transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.desk-score-tip-wrap:hover .desk-score-tip {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.desk-score-tip-title {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+}
+
+.desk-score-tip-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 1fr) auto;
+    gap: 4px 12px;
+    padding: 6px 0;
+    border-top: 1px dashed var(--desk-border);
+}
+
+.desk-score-tip-row span,
+.desk-score-tip-row strong {
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.desk-score-tip-row strong {
+    text-align: right;
+}
+
+.desk-score-tip-row em {
+    grid-column: 1 / -1;
+    font-family: var(--desk-sans);
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--desk-muted);
+}
+
+.desk-score-tip-method {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--desk-border);
+    font-family: var(--desk-sans);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--desk-muted);
 }
 
 .desk-rule-audit-note {
