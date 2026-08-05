@@ -7933,17 +7933,17 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
         "If the final call feels wrong, these are the specific inputs to tune first."
     )
     return (
-        '<details class="desk-rule-audit">'
-        '<summary class="desk-rule-audit-head">'
+        '<section class="desk-rule-audit">'
+        '<div class="desk-rule-audit-head">'
         '<div class="desk-rule-audit-title">Why this action</div>'
         f'<div class="desk-rule-audit-final">Final rules action: {html.escape(final_label)}</div>'
-        '</summary>'
+        '</div>'
         '<div class="desk-rule-audit-body">'
         f'<div class="desk-rule-audit-grid">{item_html}</div>'
         f'{trace_block}'
         f'<div class="desk-rule-audit-note">{html.escape(note)}</div>'
         '</div>'
-        '</details>'
+        '</section>'
     )
 
 
@@ -11728,7 +11728,7 @@ div[data-testid="element-container"]:has(.desk-bar) {
     border: 1px solid var(--desk-border);
     border-radius: 8px;
     background: #FFFFFF;
-    margin: -6px 0 16px;
+    margin: 16px 0 14px;
     overflow: hidden;
 }
 
@@ -11739,8 +11739,8 @@ div[data-testid="element-container"]:has(.desk-bar) {
     gap: 12px;
     padding: 10px 12px;
     background: #FBFCFE;
-    cursor: pointer;
     list-style: none;
+    border-bottom: 1px solid var(--desk-border);
 }
 
 .desk-rule-audit-head::-webkit-details-marker {
@@ -11749,20 +11749,6 @@ div[data-testid="element-container"]:has(.desk-bar) {
 
 .desk-rule-audit[open] .desk-rule-audit-head {
     border-bottom: 1px solid var(--desk-border);
-}
-
-.desk-rule-audit-head:before {
-    content: "›";
-    display: inline-block;
-    margin-right: 8px;
-    color: var(--desk-muted);
-    font-size: 16px;
-    line-height: 1;
-    transform: translateY(1px);
-}
-
-.desk-rule-audit[open] .desk-rule-audit-head:before {
-    transform: rotate(90deg) translateX(1px);
 }
 
 .desk-rule-audit-body {
@@ -13486,13 +13472,13 @@ if view == "analyze":
 """, unsafe_allow_html=True)
 
         rule_trace = t.get("_rule_trace") or []
-        with st.expander("Rules, refresh, and job details", expanded=False):
-            st.markdown(
-                rule_audit_panel_html(t, meta, quality_tier, rule_trace),
-                unsafe_allow_html=True,
-            )
-            st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
+        st.markdown(
+            rule_audit_panel_html(t, meta, quality_tier, rule_trace),
+            unsafe_allow_html=True,
+        )
+        st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
 
+        with st.expander("Data refresh / job details", expanded=False):
             refresh_data_col, refresh_data_note_col = st.columns([1, 2])
             with refresh_data_col:
                 if st.button(
