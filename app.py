@@ -254,6 +254,7 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         "autosize": True,
         "symbol": tv_symbol,
         "interval": "D",
+        "range": "60M",
         "timezone": "America/New_York",
         "theme": "light",
         "style": "1",
@@ -265,6 +266,7 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         "details": True,
         "hotlist": True,
         "calendar": True,
+        "save_image": True,
         "show_popup_button": True,
         "popup_width": "1200",
         "popup_height": "760",
@@ -278,10 +280,11 @@ def render_tradingview_advanced_chart(ticker, meta=None):
     }
     config_json = json.dumps(widget_config)
     chart_html = f"""
+    <!-- TradingView Advanced Chart Widget BEGIN -->
     <style>
       .tv-advanced-shell {{
         width: 100%;
-        height: 680px;
+        height: 720px;
         background: #FFFFFF;
         border: 1px solid #D8E0E8;
         border-radius: 6px;
@@ -293,7 +296,7 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         height: 100%;
       }}
       @media (max-width: 760px) {{
-        .tv-advanced-shell {{ height: 560px; }}
+        .tv-advanced-shell {{ height: 600px; }}
       }}
     </style>
     <div class="tv-advanced-shell">
@@ -314,8 +317,9 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         initTradingView();
       }})();
     </script>
+    <!-- TradingView Advanced Chart Widget END -->
     """
-    render_html_frame(chart_html, height=710)
+    st.components.v1.html(chart_html, height=750)
 
 
 def normalize_percent_value(value):
@@ -14396,7 +14400,7 @@ if view == "analyze":
             # 4. Chart — TradingView Advanced Chart widget.
             st.markdown(f"""
         <div class="desk-chart-label">
-          <span style="color:var(--color-muted);">📈 TradingView chart</span>
+          <span style="color:var(--color-muted);">📈 TradingView advanced chart · 5Y default</span>
         </div>
         """, unsafe_allow_html=True)
 
