@@ -596,14 +596,21 @@ def read_json_table(table: str, key_value: str | None = None, *, limit: int | No
         return {}
     ensure_backend_schema()
     key_column, order_column = allowed[table]
+    source_tables = {"market_snapshots", "pm_memos", "research_reports", "market_regime_daily"}
+    select_source = table in source_tables
+    select_cols = (
+        f"{key_column}, payload, source, {order_column}"
+        if select_source
+        else f"{key_column}, payload, {order_column}"
+    )
     clean_key = str(key_value or "").upper().strip()
-    rows: list[tuple[Any, Any, Any]] = []
+    rows: list[tuple[Any, ...]] = []
     with db_connection() as conn:
         with conn.cursor() as cur:
             if clean_key:
                 cur.execute(
                     f"""
-                    SELECT {key_column}, payload, {order_column}
+                    SELECT {select_cols}
                     FROM {table}
                     WHERE {key_column} = %s
                     """,
@@ -612,7 +619,7 @@ def read_json_table(table: str, key_value: str | None = None, *, limit: int | No
             elif limit:
                 cur.execute(
                     f"""
-                    SELECT {key_column}, payload, {order_column}
+                    SELECT {select_cols}
                     FROM {table}
                     ORDER BY {order_column} DESC
                     LIMIT %s
@@ -622,14 +629,19 @@ def read_json_table(table: str, key_value: str | None = None, *, limit: int | No
             else:
                 cur.execute(
                     f"""
-                    SELECT {key_column}, payload, {order_column}
+                    SELECT {select_cols}
                     FROM {table}
                     ORDER BY {order_column} DESC
                     """
                 )
             rows = cur.fetchall()
     out: dict[str, dict[str, Any]] = {}
-    for key, payload, updated_at in rows:
+    for row in rows:
+        if select_source:
+            key, payload, source, updated_at = row
+        else:
+            key, payload, updated_at = row
+            source = None
         normalized_key = str(key or "").upper().strip()
         if not normalized_key:
             continue
@@ -638,6 +650,8 @@ def read_json_table(table: str, key_value: str | None = None, *, limit: int | No
             value = dict(value)
         else:
             value = {"value": value}
+        if source is not None and not value.get("_source") and not value.get("source"):
+            value["_source"] = source
         if updated_at is not None and not value.get("updated_at"):
             try:
                 value["updated_at"] = updated_at.isoformat()
@@ -669,11 +683,18 @@ def read_json_table_many(table: str, key_values: Iterable[str]) -> dict[str, dic
         return {}
     ensure_backend_schema()
     key_column, order_column = allowed[table]
+    source_tables = {"market_snapshots", "pm_memos", "research_reports", "market_regime_daily"}
+    select_source = table in source_tables
+    select_cols = (
+        f"{key_column}, payload, source, {order_column}"
+        if select_source
+        else f"{key_column}, payload, {order_column}"
+    )
     with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 f"""
-                SELECT {key_column}, payload, {order_column}
+                SELECT {select_cols}
                 FROM {table}
                 WHERE {key_column} = ANY(%s)
                 """,
@@ -681,7 +702,12 @@ def read_json_table_many(table: str, key_values: Iterable[str]) -> dict[str, dic
             )
             rows = cur.fetchall()
     out: dict[str, dict[str, Any]] = {}
-    for key, payload, updated_at in rows:
+    for row in rows:
+        if select_source:
+            key, payload, source, updated_at = row
+        else:
+            key, payload, updated_at = row
+            source = None
         normalized_key = str(key or "").upper().strip()
         if not normalized_key:
             continue
@@ -690,6 +716,8 @@ def read_json_table_many(table: str, key_values: Iterable[str]) -> dict[str, dic
             value = dict(value)
         else:
             value = {"value": value}
+        if source is not None and not value.get("_source") and not value.get("source"):
+            value["_source"] = source
         if updated_at is not None and not value.get("updated_at"):
             try:
                 value["updated_at"] = updated_at.isoformat()

@@ -1103,20 +1103,100 @@ def backend_report_payload(ticker):
         return {}
 
 
+def _is_placeholder_pm_text(text, ticker=""):
+    """True for generated fallback copy that should never replace a real PM memo."""
+    clean = str(text or "").strip()
+    if not clean:
+        return True
+    ticker = str(ticker or "").upper().strip()
+    generic_prefixes = (
+        "No generated PM thesis yet",
+        "No thesis on file",
+        "PM research has not produced",
+    )
+    if any(clean.startswith(prefix) for prefix in generic_prefixes):
+        return True
+    if ticker and (
+        clean.startswith(f"No generated PM thesis yet for {ticker}")
+        or clean.startswith(f"No thesis on file for {ticker}")
+    ):
+        return True
+    return False
+
+
+def _first_pm_paragraph(text):
+    """Extract a compact first paragraph from longer memo/dossier prose."""
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    parts = [part.strip() for part in re.split(r"\n\s*\n|\r\n\s*\r\n", raw) if part.strip()]
+    return parts[0] if parts else raw
+
+
+def normalize_pm_payload(payload, ticker=""):
+    """Normalize PM memo rows saved by either the UI or worker.
+
+    The UI historically expects a top-level `thesis`, while worker/full-report
+    refreshes can save useful PM copy under `bullets`, `pm_narrative`, or a
+    nested `pm` object. Normalize those variants so a real saved memo survives
+    page reloads and new sessions.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    ticker = str(ticker or "").upper().strip()
+    normalized = {}
+    nested_pm = payload.get("pm")
+    if isinstance(nested_pm, dict):
+        normalized.update({k: v for k, v in nested_pm.items() if not str(k).startswith("_")})
+    normalized.update({k: v for k, v in payload.items() if k != "pm" and not str(k).startswith("_")})
+
+    bullets = normalized.get("bullets")
+    if not isinstance(bullets, dict):
+        bullets = payload.get("bullets") if isinstance(payload.get("bullets"), dict) else {}
+    thesis = str(normalized.get("thesis") or "").strip()
+    if _is_placeholder_pm_text(thesis, ticker):
+        thesis = str(bullets.get("thesis") or "").strip()
+    if _is_placeholder_pm_text(thesis, ticker):
+        thesis = _first_pm_paragraph(
+            normalized.get("pm_narrative")
+            or normalized.get("dossier")
+            or normalized.get("expanded_thesis")
+            or ""
+        )
+    if not _is_placeholder_pm_text(thesis, ticker):
+        normalized["thesis"] = thesis
+
+    for key in ("drivers", "risks", "valuation"):
+        if not normalized.get(key) and bullets.get(key):
+            normalized[key] = bullets.get(key)
+    if not normalized.get("quality"):
+        quality = payload.get("quality")
+        if isinstance(quality, dict):
+            normalized["quality"] = quality
+    if bullets and not isinstance(normalized.get("bullets"), dict):
+        normalized["bullets"] = bullets
+
+    for meta_key in ("_source", "source", "_worker_generated_at", "generated_at", "updated_at", "_market_price"):
+        if meta_key in payload and meta_key not in normalized:
+            normalized[meta_key] = payload.get(meta_key)
+    return normalized
+
+
 def hydrate_pm_cache_from_backend(ticker):
     """Adapt normalized PM memo rows into the legacy in-memory cache shape."""
     ticker = str(ticker or "").upper().strip()
-    payload = backend_pm_payload(ticker)
+    raw_payload = backend_pm_payload(ticker)
+    payload = normalize_pm_payload(raw_payload, ticker)
     if not ticker or not isinstance(payload, dict) or not payload:
         return None
     thesis = str(payload.get("thesis") or "")
-    if thesis.startswith("No generated PM thesis yet") or thesis.startswith("No thesis on file"):
+    if _is_placeholder_pm_text(thesis, ticker):
         return None
     source = payload.get("_source") or payload.get("source") or "worker"
     ts = payload.get("_worker_generated_at") or payload.get("generated_at") or payload.get("updated_at")
     entry = {
         "ts": ts or datetime.now().isoformat(timespec="seconds"),
-        "view": {k: v for k, v in payload.items() if not str(k).startswith("_")},
+        "view": {k: v for k, v in payload.items() if not str(k).startswith("_") and k != "source"},
         "source": source,
     }
     st.session_state.store.setdefault("pm_cache", {})[ticker] = entry
@@ -1160,10 +1240,12 @@ def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
     ticker = str(ticker or "").upper().strip()
     if not ticker or not isinstance(pm, dict) or not backend_layer.has_database():
         return
-    thesis_text = str(pm.get("thesis") or "")
-    if thesis_text.startswith("No generated PM thesis yet") or thesis_text.startswith("No thesis on file"):
+    payload = normalize_pm_payload(pm, ticker)
+    thesis_text = str(payload.get("thesis") or "")
+    if _is_placeholder_pm_text(thesis_text, ticker):
         return
-    payload = {k: v for k, v in pm.items() if not str(k).startswith("_")}
+    payload = {k: v for k, v in payload.items() if k != "source"}
+    payload["_source"] = source or pm.get("_source") or payload.get("_source") or "claude"
     payload["_worker_generated_at"] = datetime.now(timezone.utc).isoformat()
     if market_price is not None:
         payload["_market_price"] = market_price
@@ -1175,12 +1257,13 @@ def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
             payload,
             source=source or pm.get("_source") or "claude",
         )
+        st.session_state.pop("_last_pm_persist_error", None)
         try:
             backend_pm_payload.clear(ticker)
         except Exception:
             pass
-    except Exception:
-        pass
+    except Exception as exc:
+        st.session_state["_last_pm_persist_error"] = str(exc)[:300]
 
 
 def hydrate_dossier_cache_from_backend(ticker):
