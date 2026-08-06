@@ -732,16 +732,30 @@ def read_json_tables(tables: Iterable[str], key_value: str | None = None) -> dic
     return {str(table): read_json_table(str(table), key_value) for table in tables}
 
 
-def claim_next_job(worker_name: str = "worker") -> dict[str, Any] | None:
+def claim_next_job(worker_name: str = "worker", job_types: Iterable[str] | None = None) -> dict[str, Any] | None:
+    allowed_job_types = []
+    for raw_type in job_types or []:
+        clean_type = str(raw_type or "").strip()
+        if not clean_type:
+            continue
+        if clean_type not in JOB_TYPES:
+            raise ValueError(f"Unknown job_type: {clean_type}")
+        allowed_job_types.append(clean_type)
+    type_filter = "AND job_type = ANY(%s)" if allowed_job_types else ""
+    params: list[Any] = []
+    if allowed_job_types:
+        params.append(allowed_job_types)
+    params.append(worker_name)
     ensure_backend_schema()
     with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 WITH next_job AS (
                     SELECT id
                     FROM refresh_jobs
                     WHERE status = 'queued'
+                      {type_filter}
                     ORDER BY priority ASC, created_at ASC
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
@@ -756,7 +770,7 @@ def claim_next_job(worker_name: str = "worker") -> dict[str, Any] | None:
                 WHERE j.id = next_job.id
                 RETURNING j.id, j.job_type, j.ticker, j.payload, j.attempts
                 """,
-                (worker_name,),
+                tuple(params),
             )
             row = cur.fetchone()
     if not row:

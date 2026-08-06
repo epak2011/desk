@@ -27,6 +27,10 @@ from pm_view import get_decision_dossier, get_pm_view
 import tactical
 
 
+SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan", "pm_memo"]
+SCHEDULED_SAFE_RUNTIME_SECONDS = 240
+
+
 def _download_history(ticker: str):
     return yf.download(ticker, period="2y", interval="1d", auto_adjust=True, progress=False, threads=False, timeout=10)
 
@@ -420,19 +424,36 @@ def process_job(job: dict) -> dict:
     raise ValueError(f"Unsupported job type: {job_type}")
 
 
-def run_once(worker_name: str = "worker") -> bool:
-    job = backend.claim_next_job(worker_name=worker_name)
+def _parse_job_types(raw: str | None) -> list[str] | None:
+    if not raw:
+        return None
+    job_types = [piece.strip() for piece in raw.split(",") if piece.strip()]
+    unknown = [job_type for job_type in job_types if job_type not in backend.JOB_TYPES]
+    if unknown:
+        raise ValueError(f"Unknown job type(s): {', '.join(unknown)}")
+    return job_types or None
+
+
+def run_once(worker_name: str = "worker", job_types: list[str] | None = None) -> tuple[bool, bool]:
+    try:
+        job = backend.claim_next_job(worker_name=worker_name, job_types=job_types)
+    except Exception as exc:
+        print(f"::warning::worker could not claim a queued job: {exc}")
+        return False, False
     if not job:
-        return False
+        return False, True
     try:
         result = process_job(job)
         backend.complete_job(job["id"], result)
         print(f"completed {job['job_type']} {job.get('ticker') or ''} {job['id']}")
-        return True
+        return True, True
     except Exception as exc:
-        backend.fail_job(job["id"], str(exc))
+        try:
+            backend.fail_job(job["id"], str(exc))
+        except Exception as fail_exc:
+            print(f"::warning::could not mark failed job {job.get('id')}: {fail_exc}")
         print(f"failed {job['job_type']} {job.get('ticker') or ''} {job['id']}: {exc}")
-        return True
+        return True, False
 
 
 def main():
@@ -442,10 +463,17 @@ def main():
     parser.add_argument("--loop", action="store_true", help="Continuously process jobs.")
     parser.add_argument("--maintenance", action="store_true", help="Queue stale recurring work before processing jobs.")
     parser.add_argument("--max-jobs", type=int, default=25, help="Maximum jobs to process for --drain.")
+    parser.add_argument("--max-runtime-seconds", type=int, default=0, help="Stop --drain before this many seconds elapse.")
+    parser.add_argument("--job-types", default="", help="Comma-separated job types this worker may claim.")
     parser.add_argument("--market-max-age-minutes", type=int, default=10, help="Max watchlist market row age before scheduled refresh.")
     parser.add_argument("--sleep", type=float, default=10.0, help="Seconds to sleep when no job is queued.")
     parser.add_argument("--worker-name", default=os.environ.get("WORKER_NAME", "desk-worker"))
     args = parser.parse_args()
+    allowed_job_types = _parse_job_types(args.job_types)
+    if args.maintenance and args.drain and not allowed_job_types:
+        allowed_job_types = SCHEDULED_SAFE_JOB_TYPES
+    if args.maintenance and args.drain and not args.max_runtime_seconds:
+        args.max_runtime_seconds = SCHEDULED_SAFE_RUNTIME_SECONDS
 
     if not backend.has_database():
         print("::warning::DATABASE_URL is not configured for this worker environment. "
@@ -489,19 +517,26 @@ def main():
             print(f"scheduled maintenance skipped: {exc}")
     if args.drain:
         processed = 0
+        failed = 0
         limit = max(1, args.max_jobs)
+        started_at = time.monotonic()
         while processed < limit:
-            did_work = run_once(worker_name=args.worker_name)
+            if args.max_runtime_seconds and time.monotonic() - started_at >= args.max_runtime_seconds:
+                print(f"drain stopped at {processed} job(s): runtime budget reached")
+                break
+            did_work, ok = run_once(worker_name=args.worker_name, job_types=allowed_job_types)
             if not did_work:
                 break
+            if not ok:
+                failed += 1
             processed += 1
-        print(f"drained {processed} job(s)")
+        print(f"drained {processed} job(s), {failed} failed job(s)")
         return
     if args.once or not args.loop:
-        run_once(worker_name=args.worker_name)
+        run_once(worker_name=args.worker_name, job_types=allowed_job_types)
         return
     while True:
-        did_work = run_once(worker_name=args.worker_name)
+        did_work, _ok = run_once(worker_name=args.worker_name, job_types=allowed_job_types)
         if not did_work:
             time.sleep(args.sleep)
 
