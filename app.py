@@ -271,12 +271,12 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         "calendar": False,
         "watchlist": [],
         "favorites": {
-            "intervals": ["60", "D", "W"],
+            "intervals": ["D", "W", "M"],
         },
         "time_frames": [
             {"text": "1D", "resolution": "D", "description": "Daily"},
             {"text": "1W", "resolution": "W", "description": "Weekly"},
-            {"text": "1H", "resolution": "60", "description": "Hourly"},
+            {"text": "1M", "resolution": "M", "description": "Monthly"},
         ],
         "disabled_features": [
             "show_right_widgets_panel_by_default",
