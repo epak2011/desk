@@ -5826,7 +5826,19 @@ def format_recommendation(key, n):
 
 
 def format_market_cap(cap):
-    if not cap:
+    if cap is None:
+        return None
+    try:
+        if isinstance(cap, str):
+            clean = cap.strip().replace("$", "").replace(",", "")
+            if not clean or clean in {"-", "—"}:
+                return None
+            cap = float(clean)
+        else:
+            cap = float(cap)
+    except (TypeError, ValueError):
+        return None
+    if cap <= 0:
         return None
     if cap >= 1e12:
         return f"${cap/1e12:,.2f}T"
@@ -5861,6 +5873,22 @@ def format_expense_pct(value):
     return f"{v:.2f}%"
 
 
+def meta_value_present(value):
+    if value is None:
+        return False
+    if isinstance(value, float) and value != value:
+        return False
+    text = str(value).strip()
+    return bool(text and text.lower() not in {"-", "—", "none", "nan", "n/a", "na", "null"})
+
+
+def meta_first_present(*values):
+    for value in values:
+        if meta_value_present(value):
+            return value
+    return None
+
+
 def display_security_name(ticker, name=None, meta=None, fallback_profile=None):
     meta = meta or {}
     fallback_profile = fallback_profile or {}
@@ -5892,47 +5920,43 @@ def build_security_meta_bits(ticker, meta=None, fallback_profile=None):
     if is_fund:
         label = "ETF" if quote_type == "ETF" or sector == "ETF" else "Fund"
         bits.append(label)
-        if category:
+        if meta_value_present(category):
             bits.append(str(category).title())
-        else:
-            bits.append("Category —")
         assets = format_market_cap(
             meta.get("total_assets") or meta.get("net_assets") or
             fallback_profile.get("total_assets") or fallback_profile.get("net_assets")
         )
         if assets:
             bits.append(f"{assets} AUM")
-        else:
-            bits.append("AUM —")
         er = meta.get("expense_ratio")
         if er is None:
             er = fallback_profile.get("expense_ratio")
         er_pct = format_expense_pct(er)
         if er_pct:
             bits.append(f"{er_pct} expense")
-        else:
-            bits.append("expense —")
         dy = meta.get("dividend_yield") or fallback_profile.get("dividend_yield")
         dy_pct = format_plain_pct(dy, digits=2)
         if dy_pct:
             bits.append(f"{dy_pct} yield")
         family = meta.get("fund_family")
-        if family:
+        if meta_value_present(family):
             bits.append(str(family))
         return bits
 
-    bits.append(str(sector) if sector else "Sector —")
+    if meta_value_present(sector):
+        bits.append(str(sector))
     industry = meta.get("industry") or fallback_profile.get("industry")
-    if industry and str(industry).lower() != str(sector or "").lower():
+    if meta_value_present(industry) and str(industry).lower() != str(sector or "").lower():
         bits.append(str(industry))
-    elif not industry:
-        bits.append("Industry —")
     mcap = format_market_cap(meta.get("market_cap") or fallback_profile.get("market_cap"))
-    bits.append(mcap if mcap else "Market cap —")
+    if mcap:
+        bits.append(mcap)
     short_pct = format_plain_pct(meta.get("short_pct_float"))
-    bits.append(f"{short_pct} short" if short_pct else "short —")
+    if short_pct:
+        bits.append(f"{short_pct} short")
     inst_pct = format_plain_pct(meta.get("institutional_ownership_pct"))
-    bits.append(f"{inst_pct} inst. owned" if inst_pct else "inst. owned —")
+    if inst_pct:
+        bits.append(f"{inst_pct} inst. owned")
     dy_pct = format_plain_pct(meta.get("dividend_yield") or fallback_profile.get("dividend_yield"), digits=2)
     if dy_pct:
         bits.append(f"{dy_pct} yield")
@@ -6806,6 +6830,48 @@ def metadata_status_label(meta):
     if available >= max(2, len(key_fields) - 1):
         return f"Yahoo/meta cached ≤1h · partial {available}/{len(key_fields)}", "warn"
     return f"Yahoo/meta sparse · {available}/{len(key_fields)}", "stale"
+
+
+def quote_meta_needs_header_repair(meta, fallback_profile=None):
+    """Detect header metadata that is too sparse to render a useful identity line."""
+    meta = meta if isinstance(meta, dict) else {}
+    fallback_profile = fallback_profile or {}
+    if not meta or meta.get("_deferred"):
+        return True
+
+    quote_type = str(meta.get("quote_type") or "").upper()
+    sector = meta_first_present(meta.get("sector"), fallback_profile.get("sector"))
+    category = meta_first_present(meta.get("category"), fallback_profile.get("category"))
+    is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(
+        category or meta.get("fund_family") or meta.get("total_assets") or
+        meta.get("net_assets") or sector in {"ETF", "Fund"}
+    )
+    if is_fund:
+        return not any(
+            meta_value_present(value)
+            for value in (
+                category,
+                meta.get("fund_family"),
+                meta.get("total_assets"),
+                meta.get("net_assets"),
+                fallback_profile.get("total_assets"),
+                fallback_profile.get("net_assets"),
+            )
+        )
+
+    return not any(
+        meta_value_present(value)
+        for value in (
+            sector,
+            meta.get("industry"),
+            fallback_profile.get("industry"),
+            meta.get("market_cap"),
+            fallback_profile.get("market_cap"),
+            meta.get("long_name"),
+            meta.get("short_name"),
+            fallback_profile.get("name"),
+        )
+    )
 
 
 def cached_quote_meta_snapshot(ticker):
@@ -13785,9 +13851,11 @@ if view == "analyze":
         hist, name, err_reason = fetch_history(ticker)
         bench = fetch_bench()
         meta = cached_quote_meta_snapshot(ticker)
-        if force_meta_refresh:
+        fallback_profile = infer_security_profile(ticker, meta, name)
+        repair_sparse_meta = quote_meta_needs_header_repair(meta, fallback_profile)
+        if force_meta_refresh or repair_sparse_meta:
             try:
-                refreshed_meta = fetch_quote_meta(ticker, include_slow_fallbacks=True) or {}
+                refreshed_meta = fetch_quote_meta(ticker, include_slow_fallbacks=force_meta_refresh) or {}
                 if refreshed_meta:
                     remember_quote_meta(ticker, refreshed_meta)
                     meta = refreshed_meta
