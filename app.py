@@ -263,9 +263,16 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         "allow_symbol_change": True,
         "hide_side_toolbar": False,
         "withdateranges": True,
-        "details": True,
-        "hotlist": True,
-        "calendar": True,
+        # Keep the chart itself full-featured, but do not open TradingView's
+        # right-side widget tab/panel by default. It was stealing chart width.
+        "details": False,
+        "hotlist": False,
+        "calendar": False,
+        "watchlist": [],
+        "disabled_features": [
+            "show_right_widgets_panel_by_default",
+            "hide_right_toolbar_tabs",
+        ],
         "save_image": True,
         "show_popup_button": True,
         "popup_width": "1500",
