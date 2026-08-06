@@ -2300,6 +2300,15 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-family: var(--font-mono); font-weight: 600;
     color: var(--color-text);
 }
+.desk-tape-read .row .v em {
+    display: block;
+    margin-top: 2px;
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-size: var(--fs-sm);
+    line-height: 1.35;
+    color: var(--color-muted);
+}
 
 /* ────────────────────────────────────────────────────────────── */
 /*  Avoid-state replacements for trigger / invalidation            */
@@ -7899,6 +7908,23 @@ def _fmt_rule_price(value):
         return "—"
 
 
+def setup_opportunity_grade(t_state):
+    """Human label for setup quality; exact math stays in the hover card."""
+    try:
+        score = float(t_state.get("setup_score"))
+    except (TypeError, ValueError, AttributeError):
+        return "Pending"
+    if score >= 9.0:
+        return "Excellent"
+    if score >= 8.0:
+        return "High conviction"
+    if score >= 7.0:
+        return "Good"
+    if score >= 5.5:
+        return "Watching"
+    return "Poor"
+
+
 def rules_engine_guide_html():
     """Readable guide for the rules hierarchy that drives the app."""
     cards = [
@@ -7942,6 +7968,7 @@ def setup_score_breakdown_hover_html(t_state):
         return html.escape("—")
 
     score_txt = _fmt_rule_num(t_state.get("setup_score"), "/10")
+    grade_txt = setup_opportunity_grade(t_state)
     state_txt = str(t_state.get("state") or "—").title()
     breakdown = t_state.get("setup_score_breakdown")
     components = []
@@ -8017,10 +8044,10 @@ def setup_score_breakdown_hover_html(t_state):
     method_html = f'<div class="desk-score-tip-method">{html.escape(method)}</div>' if method else ""
     return (
         '<span class="desk-score-tip-wrap">'
-        f'<span>{html.escape(score_txt)} · {html.escape(state_txt)}</span>'
+        f'<span>{html.escape(grade_txt)} · {html.escape(state_txt)}</span>'
         '<span class="desk-score-tip-i">i</span>'
         '<span class="desk-score-tip">'
-        f'<span class="desk-score-tip-title">Opportunity score: {html.escape(score_txt)}</span>'
+        f'<span class="desk-score-tip-title">Opportunity score: {html.escape(score_txt)} · {html.escape(grade_txt)}</span>'
         f'{component_html}'
         f'{method_html}'
         '</span>'
@@ -9524,6 +9551,194 @@ def tape_read(t):
     rows.append(("Strength", f"{rs_text} · {vol_text}", rs_sev))
 
     return rows
+
+
+def technical_picture_rows(t):
+    """Plain-English technical read for the main Analyze page."""
+    rows = []
+    price = t.get("price")
+    ma50 = t.get("ma50")
+    ma200 = t.get("ma200")
+    tech_delta = float(t.get("tech_delta") or 0)
+    rs = float(t.get("rs") or 0)
+    rs_delta = float(t.get("rs_delta") or 0)
+    vol_ratio = float(t.get("vol_ratio") or 0)
+    pct_range = t.get("pct_of_52w_range")
+
+    try:
+        price_f = float(price)
+        ma50_f = float(ma50)
+        ma200_f = float(ma200)
+    except (TypeError, ValueError):
+        price_f = ma50_f = ma200_f = None
+
+    if price_f is not None and ma50_f and ma200_f:
+        if price_f > ma50_f and price_f > ma200_f:
+            rows.append(("Trend", "Strong", "Above both major moving averages.", "pos"))
+        elif price_f > ma200_f and price_f < ma50_f:
+            rows.append(("Trend", "Repairing", "Long-term trend intact, short-term trend still below the 50-day.", ""))
+        elif price_f < ma200_f and price_f > ma50_f:
+            rows.append(("Trend", "Transition", "Short-term reclaim underway, but still below the 200-day.", ""))
+        else:
+            rows.append(("Trend", "Weak", "Below both major moving averages.", "neg"))
+    else:
+        rows.append(("Trend", "Pending", "Moving-average data is incomplete.", ""))
+
+    if tech_delta >= 1.5:
+        rows.append(("Momentum", "Accelerating", "Technical score is improving over the last 10 sessions.", "pos"))
+    elif tech_delta <= -1.5:
+        rows.append(("Momentum", "Fading", "Technical score is deteriorating over the last 10 sessions.", "neg"))
+    else:
+        rows.append(("Momentum", "Flat", "No clear acceleration or rollover yet.", ""))
+
+    if rs >= 1.05 and rs_delta > 0:
+        rows.append(("Strength", "Leading", "Outperforming the S&P 500 and the lead is widening.", "pos"))
+    elif rs >= 1.00:
+        rows.append(("Strength", "Positive", "Outperforming the S&P 500.", "pos"))
+    elif rs >= 0.95:
+        rows.append(("Strength", "Neutral", "Roughly tracking the S&P 500.", ""))
+    else:
+        rows.append(("Strength", "Lagging", "Underperforming the S&P 500.", "neg"))
+
+    if vol_ratio >= 1.25:
+        rows.append(("Volume", "Confirming", f"Participation is above average at {vol_ratio:.1f}x the 20-day average.", "pos"))
+    elif vol_ratio <= 0.75:
+        rows.append(("Volume", "Light", f"Participation is thin at {vol_ratio:.1f}x the 20-day average.", "neg"))
+    else:
+        rows.append(("Volume", "Normal", "Participation is near the 20-day average.", ""))
+
+    if pct_range is not None:
+        try:
+            pct = float(pct_range)
+            if pct >= 85:
+                rows.append(("Location", "Upper range", "Near the top of the 52-week range.", ""))
+            elif pct >= 50:
+                rows.append(("Location", "Upper half", "Holding in the upper half of the 52-week range.", ""))
+            elif pct >= 20:
+                rows.append(("Location", "Lower half", "Still in the lower half of the 52-week range.", ""))
+            else:
+                rows.append(("Location", "Near lows", "Near the bottom of the 52-week range.", "neg"))
+        except (TypeError, ValueError):
+            pass
+
+    return rows[:5]
+
+
+def setup_stage_items(t):
+    """Return checklist-style setup completeness for the top memo."""
+    action = normalize_action_key(t.get("action"))
+    checks = []
+    price = t.get("price")
+    ma50 = t.get("ma50")
+    ma200 = t.get("ma200")
+    try:
+        trend_ok = float(price) > float(ma50) and float(price) > float(ma200)
+    except (TypeError, ValueError):
+        trend_ok = False
+    checks.append(("Trend", trend_ok))
+    checks.append(("Relative strength", float(t.get("rs") or 0) >= 1.0))
+    checks.append(("Reward/risk", float(t.get("reward_risk") or 0) >= 1.3 or action == "enter_now"))
+    checks.append(("Trigger", bool(t.get("trigger_fired") or action == "enter_now")))
+    checks.append(("Volume", float(t.get("vol_ratio") or 0) >= 0.8))
+    return checks
+
+
+def setup_stage_html(t):
+    checks = setup_stage_items(t)
+    complete = sum(1 for _, ok in checks if ok)
+    chips = "".join(
+        f'<span class="desk-stage-chip {"ok" if ok else "wait"}">'
+        f'{"✓" if ok else "□"} {html.escape(label)}</span>'
+        for label, ok in checks
+    )
+    return (
+        f'<div class="desk-stage-count">Stage {complete} of {len(checks)}</div>'
+        f'<div class="desk-stage-chips">{chips}</div>'
+    )
+
+
+def narrative_why_lines(t, modifiers=None):
+    """Readable reasons for the recommendation; avoids raw-metric phrasing."""
+    lines = []
+    action = normalize_action_key(t.get("action"))
+    price = t.get("price")
+    ma50 = t.get("ma50")
+    ma200 = t.get("ma200")
+    try:
+        above50 = float(price) > float(ma50)
+        above200 = float(price) > float(ma200)
+    except (TypeError, ValueError):
+        above50 = above200 = False
+
+    if above50 and above200:
+        lines.append("Trend is intact above the major moving averages.")
+    elif above200:
+        lines.append("Long-term trend remains intact, but the short-term setup still needs repair.")
+    elif above50:
+        lines.append("Short-term repair is underway, but long-term trend has not fully reclaimed.")
+    else:
+        lines.append("Price is still below the major trend lines.")
+
+    rs = float(t.get("rs") or 0)
+    rs_delta = float(t.get("rs_delta") or 0)
+    if rs >= 1.05 and rs_delta > 0:
+        lines.append("Relative strength versus the S&P 500 is strong and improving.")
+    elif rs >= 1.0:
+        lines.append("Relative strength versus the S&P 500 is positive.")
+    elif rs >= 0.95:
+        lines.append("Relative strength is close to neutral, not yet leadership.")
+    else:
+        lines.append("Relative strength is lagging the S&P 500.")
+
+    rr = t.get("reward_risk")
+    try:
+        rr_float = float(rr)
+        if rr_float >= 1.8:
+            lines.append("Reward/risk is attractive enough for a cleaner entry.")
+        elif rr_float >= 1.3:
+            lines.append("Reward/risk is acceptable, but sizing should stay disciplined.")
+        else:
+            lines.append("Reward/risk is still thin versus the next target.")
+    except (TypeError, ValueError):
+        pass
+
+    for modifier in modifiers or []:
+        text = str(modifier.get("text") or "").strip() if isinstance(modifier, dict) else str(modifier or "").strip()
+        if text:
+            lines.append(text)
+
+    return lines[:3]
+
+
+def technical_thesis_text(t, trigger_line="", risk_line=""):
+    """One-paragraph PM-style technical thesis."""
+    action = normalize_action_key(t.get("action"))
+    picture = {label.lower(): (status, detail) for label, status, detail, _ in technical_picture_rows(t)}
+    trend_status, trend_detail = picture.get("trend", ("Pending", "Trend data is incomplete."))
+    strength_status, strength_detail = picture.get("strength", ("Pending", "Relative strength data is incomplete."))
+    momentum_status, momentum_detail = picture.get("momentum", ("Pending", "Momentum data is incomplete."))
+
+    if action == "enter_now":
+        lead = "The setup is actionable now."
+    elif action == "watch":
+        lead = "The setup is close but still needs confirmation."
+    elif action == "hold_off":
+        lead = "The setup is not ready yet."
+    elif action == "avoid":
+        lead = "The technical picture is not investable for this system right now."
+    else:
+        lead = "The technical setup is still forming."
+
+    clauses = [
+        f"{lead} {trend_detail}",
+        f"{strength_detail}",
+        f"{momentum_detail}",
+    ]
+    if trigger_line:
+        clauses.append(f"The decision changes on: {trigger_line}")
+    if risk_line:
+        clauses.append(f"Invalidation/risk is: {risk_line}")
+    return " ".join(clauses)
 
 
 def why_avoid_reasons(t):
@@ -11955,6 +12170,66 @@ div[data-testid="element-container"]:has(.desk-bar) {
     margin-bottom: 0;
 }
 
+.desk-technical-thesis {
+    border: 1px solid var(--desk-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    padding: 13px 15px;
+    margin: 0 0 12px;
+}
+
+.desk-technical-thesis-k {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+    margin-bottom: 7px;
+}
+
+.desk-technical-thesis p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--desk-text);
+}
+
+.desk-stage-count {
+    font-weight: 850;
+    margin-bottom: 6px;
+}
+
+.desk-stage-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.desk-stage-chip {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--desk-border);
+    border-radius: 5px;
+    padding: 3px 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.desk-stage-chip.ok {
+    color: #16864C;
+    background: #F4FBF7;
+    border-color: #B8E3CA;
+}
+
+.desk-stage-chip.wait {
+    color: var(--desk-muted);
+    background: #FBFCFE;
+}
+
 .desk-technical-picture {
     margin: 0 0 16px;
 }
@@ -13991,17 +14266,7 @@ if view == "analyze":
             if str(m.get("text") or "").strip()
         ]
         why_lines = []
-        why_lines.append(decision_context(t))
-        if t.get("rs") is not None:
-            rs = float(t.get("rs") or 0)
-            rs_delta = float(t.get("rs_delta") or 0)
-            if rs >= 1:
-                why_lines.append(f"Relative strength {rs:.2f} vs S&P 500, 10-day change {rs_delta:+.3f}.")
-            else:
-                why_lines.append(f"Relative strength {rs:.2f} vs S&P 500 is still lagging.")
-        if t.get("reward_risk") is not None:
-            why_lines.append(f"Projected reward/risk is {float(t.get('reward_risk') or 0):.2f}:1.")
-        why_lines.extend(modifier_lines)
+        why_lines.extend(narrative_why_lines(t, modifiers))
 
         waiting_lines = [stack_trigger_line]
         if float(t.get("rs") or 0) < 1:
@@ -14010,6 +14275,11 @@ if view == "analyze":
             waiting_lines.append("Volume expands above the 20-day average.")
         if t.get("action") == "watch":
             waiting_lines.append("Confirmation holds after the first trigger day.")
+        execution_lines = [stack_trigger_line]
+        if str(t.get("entry_size") or "").strip():
+            execution_lines.append(f"Size: {str(t.get('entry_size')).strip().title()}.")
+        if t.get("trigger_fired"):
+            execution_lines.append("Prior trigger has already fired and price is holding above it.")
 
         risk_lines = [stack_risk_line]
         if earn_banner:
@@ -14030,14 +14300,19 @@ if view == "analyze":
         rr_value = "—"
         if t.get("reward_risk") is not None:
             rr_value = f"{float(t.get('reward_risk') or 0):.2f}:1"
+        action_key = normalize_action_key(t.get("action"))
+        action_detail_label = "Execution" if action_key == "enter_now" else "Waiting for"
+        action_detail_lines = execution_lines if action_key == "enter_now" else waiting_lines
+        action_detail_value = stack_trigger_line if action_key != "enter_now" else stack_trigger_line.replace("Enter ", "Execute ", 1)
+        technical_thesis = technical_thesis_text(t, stack_trigger_line, stack_risk_line)
 
         snapshot_items = [
             ("Recommendation", f'<span style="color:{sty["color"]};font-weight:900;">{html.escape(sty["emoji"])} {html.escape(sty["label"])}</span>'),
             ("Setup", html.escape(setup_label)),
-            ("Setup score", setup_score_breakdown_hover_html(t)),
+            ("Opportunity grade", setup_score_breakdown_hover_html(t)),
             ("Risk / reward", html.escape(rr_value)),
-            ("Tape", html.escape(tape_value)),
-            ("Waiting for", bold_numbers(html.escape(stack_trigger_line))),
+            ("Setup stage", setup_stage_html(t)),
+            (action_detail_label, bold_numbers(html.escape(action_detail_value))),
         ]
         snapshot_html = "".join(
             f'<div class="desk-snapshot-item">'
@@ -14055,14 +14330,18 @@ if view == "analyze":
   </div>
   <div class="desk-snapshot-grid">{snapshot_html}</div>
 </div>
+<div class="desk-technical-thesis">
+  <div class="desk-technical-thesis-k">Technical thesis</div>
+  <p>{bold_numbers(html.escape(technical_thesis))}</p>
+</div>
 <div class="desk-memo-card-grid">
   <div class="desk-memo-card">
-    <h4>Why</h4>
+    <h4>Why now</h4>
     {_line_list_html(why_lines)}
   </div>
   <div class="desk-memo-card">
-    <h4>Waiting for</h4>
-    {_line_list_html(waiting_lines)}
+    <h4>{html.escape(action_detail_label)}</h4>
+    {_line_list_html(action_detail_lines)}
   </div>
   <div class="desk-memo-card">
     <h4>Risks</h4>
@@ -14073,14 +14352,14 @@ if view == "analyze":
 
         # Technical picture — high on the page because the chart and tape are
         # the primary evidence for a discretionary trading decision.
-        tape_rows = tape_read(t)
+        tape_rows = technical_picture_rows(t)
         color_map = {"pos": "#2E7D4F", "neg": "#D14545", "": "#334155"}
         tape_html = "".join(
             f'<div class="row">'
             f'  <span class="k">{label}</span>'
-            f'  <span class="v" style="color:{color_map.get(sev, "var(--color-body)")};">{bold_numbers(value)}</span>'
+            f'  <span class="v" style="color:{color_map.get(sev, "var(--color-body)")};"><b>{html.escape(status)}</b><em>{html.escape(detail)}</em></span>'
             f'</div>'
-            for label, value, sev in tape_rows
+            for label, status, detail, sev in tape_rows
         )
         st.markdown(f"""
 <div class="desk-section-label">Technical picture</div>
