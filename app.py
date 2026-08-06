@@ -1255,11 +1255,11 @@ def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
     """Persist fresh app-generated PM memos to the normalized table workers use."""
     ticker = str(ticker or "").upper().strip()
     if not ticker or not isinstance(pm, dict) or not backend_layer.has_database():
-        return
+        return False
     payload = normalize_pm_payload(pm, ticker)
     thesis_text = str(payload.get("thesis") or "")
     if _is_placeholder_pm_text(thesis_text, ticker):
-        return
+        return False
     payload = {k: v for k, v in payload.items() if k != "source"}
     payload["_source"] = source or pm.get("_source") or payload.get("_source") or "claude"
     payload["_worker_generated_at"] = datetime.now(timezone.utc).isoformat()
@@ -1274,12 +1274,41 @@ def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
             source=source or pm.get("_source") or "claude",
         )
         st.session_state.pop("_last_pm_persist_error", None)
+        st.session_state["_last_pm_persist_ok"] = {
+            "ticker": ticker,
+            "ts": payload["_worker_generated_at"],
+            "source": payload["_source"],
+        }
         try:
-            backend_pm_payload.clear(ticker)
+            backend_pm_payload.clear()
         except Exception:
             pass
+        return True
     except Exception as exc:
         st.session_state["_last_pm_persist_error"] = str(exc)[:300]
+        return False
+
+
+def remember_visible_pm_entry(ticker, pm, source=None, market_price=None, *, persist_backend=True):
+    """Keep the final on-screen PM memo and durable backend row in sync."""
+    ticker = str(ticker or "").upper().strip()
+    if not ticker or not isinstance(pm, dict):
+        return False
+    payload = normalize_pm_payload(pm, ticker)
+    thesis_text = str(payload.get("thesis") or "")
+    if _is_placeholder_pm_text(thesis_text, ticker):
+        return False
+    source = source or payload.get("_source") or payload.get("source") or pm.get("_source") or "claude"
+    entry = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "view": {k: v for k, v in payload.items() if not str(k).startswith("_") and k != "source"},
+        "source": source,
+    }
+    st.session_state.store.setdefault("pm_cache", {})[ticker] = entry
+    merge_ticker_snapshot(ticker, pm_entry=entry)
+    if persist_backend:
+        persist_pm_entry_to_backend(ticker, payload, source=source, market_price=market_price)
+    return True
 
 
 def hydrate_dossier_cache_from_backend(ticker):
@@ -1378,20 +1407,13 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
     # Do not persist a generic "no thesis" fallback after a failed refresh.
     # Otherwise one bad refresh makes the PM side look permanently stale.
     if not is_placeholder_pm:
-        cache[ticker] = {
-            "ts": datetime.now().isoformat(timespec="seconds"),
-            "view": {k: v for k, v in pm.items() if not k.startswith("_")},
-            "source": pm_source or "static",
-        }
-        merge_ticker_snapshot(ticker, pm_entry=cache[ticker])
-        if source_is_current_pm:
-            persist_pm_entry_to_backend(
-                ticker,
-                pm,
-                source=pm_source or "static",
-                market_price=(tactical_output or {}).get("price") if isinstance(tactical_output, dict) else None,
-            )
-        save_store(st.session_state.store)
+        remember_visible_pm_entry(
+            ticker,
+            pm,
+            source=pm_source or "static",
+            market_price=(tactical_output or {}).get("price") if isinstance(tactical_output, dict) else None,
+            persist_backend=source_is_current_pm,
+        )
     return pm
 
 
@@ -14021,6 +14043,36 @@ if view == "analyze":
             "_source": "cached dossier fallback · refresh to update",
         }
     pm = pm_snapshot_from_dossier(pm, dossier_result)
+    visible_pm_source = str(pm.get("_source") or "")
+    visible_pm_source_lower = visible_pm_source.lower()
+    visible_pm_is_fresh_research = (
+        visible_pm_source.startswith("claude")
+        or visible_pm_source.startswith("rules fallback")
+    ) and not any(
+        marker in visible_pm_source_lower
+        for marker in (
+            "refresh failed",
+            "refresh to update",
+            "cached only",
+            "cached/static",
+            "fast mode",
+            "unavailable",
+            "error:",
+        )
+    )
+    visible_pm_changed_this_run = (
+        force_pm_refresh
+        or force_dossier_refresh
+        or bool(live_bullets.get("thesis") and dossier_bullets_are_current)
+    )
+    if visible_pm_is_fresh_research and visible_pm_changed_this_run:
+        remember_visible_pm_entry(
+            ticker,
+            pm,
+            source=visible_pm_source or "claude",
+            market_price=t.get("price"),
+            persist_backend=True,
+        )
     research_items = research_health_items(pm, dossier_result, api_key)
     pm_status_item = research_items[0] if research_items else ("PM memo", "not generated", "warn")
     dossier_status_item = (
