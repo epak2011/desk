@@ -8025,17 +8025,17 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
         "If the final call feels wrong, these are the specific inputs to tune first."
     )
     return (
-        '<section class="desk-rule-audit">'
-        '<div class="desk-rule-audit-head">'
+        '<details class="desk-rule-audit">'
+        '<summary class="desk-rule-audit-head">'
         '<div class="desk-rule-audit-title">Why this action</div>'
         f'<div class="desk-rule-audit-final">Final rules action: {html.escape(final_label)}</div>'
-        '</div>'
+        '</summary>'
         '<div class="desk-rule-audit-body">'
         f'<div class="desk-rule-audit-grid">{item_html}</div>'
         f'{trace_block}'
         f'<div class="desk-rule-audit-note">{html.escape(note)}</div>'
         '</div>'
-        '</section>'
+        '</details>'
     )
 
 
@@ -11834,14 +11834,32 @@ div[data-testid="element-container"]:has(.desk-bar) {
     background: #FBFCFE;
     list-style: none;
     border-bottom: 1px solid var(--desk-border);
+    cursor: pointer;
 }
 
 .desk-rule-audit-head::-webkit-details-marker {
     display: none;
 }
 
+.desk-rule-audit-head::before {
+    content: "›";
+    color: var(--desk-muted);
+    font-size: 18px;
+    line-height: 1;
+    transform: translateY(1px);
+    transition: transform 120ms ease;
+}
+
 .desk-rule-audit[open] .desk-rule-audit-head {
     border-bottom: 1px solid var(--desk-border);
+}
+
+.desk-rule-audit:not([open]) .desk-rule-audit-head {
+    border-bottom: 0;
+}
+
+.desk-rule-audit[open] .desk-rule-audit-head::before {
+    transform: rotate(90deg) translateX(1px);
 }
 
 .desk-rule-audit-body {
