@@ -11389,7 +11389,6 @@ html,
 body,
 .stApp,
 [data-testid="stAppViewContainer"],
-[data-testid="stHeader"],
 .main,
 .block-container {
     background: var(--desk-bg) !important;
@@ -11401,12 +11400,29 @@ body,
 .main .block-container,
 section.main .block-container,
 div[data-testid="stMainBlockContainer"] {
-    padding-top: 3.25rem !important;
+    padding-top: 1.15rem !important;
+}
+
+#MainMenu,
+footer,
+header,
+[data-testid="stHeader"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+[data-testid="stDeployButton"],
+.stDeployButton,
+.viewerBadge_container__1QSob,
+.viewerBadge_link__1S137 {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
 }
 
 [data-testid="stHeader"],
 header[data-testid="stHeader"] {
-    background: rgba(246,248,251,0.96) !important;
+    background: transparent !important;
     box-shadow: none !important;
 }
 
