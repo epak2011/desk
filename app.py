@@ -1904,22 +1904,38 @@ html, body, .main, .main p, .main li {
 }
 
 /* ────────────────────────────────────────────────────────────── */
-/*  Decision modifiers — badges between decision word and trigger */
+/*  Decision modifiers — compact caveats under the trade plan      */
 /* ────────────────────────────────────────────────────────────── */
 .desk-modifiers {
-    margin: 4px 0 26px;
-    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 10px 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.desk-modifiers-label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-faint);
+    margin-bottom: 2px;
 }
 .desk-mod {
-    padding: 7px 12px;
-    font-size: var(--fs-base); line-height: 1.35;
-    border-radius: 999px;
-    border: 1px solid;
+    width: min(760px, 100%);
+    padding: 8px 10px;
+    font-size: var(--fs-sm);
+    line-height: 1.35;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    border-left-width: 3px;
     display: flex; align-items: center; gap: 8px;
+    background: var(--color-surface);
+    color: var(--color-body);
 }
-.desk-mod-high { background: var(--color-surface-warning); border-color: #F5C8C8; color: #6E2E2E; }
-.desk-mod-med  { background: var(--color-surface-trigger); border-color: #CFE0FF; color: var(--color-warning-text); }
-.desk-mod-low  { background: var(--color-surface-soft); border-color: var(--color-border); color: var(--color-body); }
+.desk-mod-high { border-left-color: var(--color-negative); }
+.desk-mod-med  { border-left-color: var(--color-warning-text); }
+.desk-mod-low  { border-left-color: var(--color-muted); color: var(--color-muted); }
 .desk-mod .icon {
     font-size: var(--fs-base); line-height: 1;
 }
@@ -13675,6 +13691,24 @@ if view == "analyze":
 </div>
 """, unsafe_allow_html=True)
 
+        if modifiers:
+            mod_icons = {"earnings": "📅", "regime": "🌐", "rs": "📊"}
+            caveats_html = "".join(
+                f'<div class="desk-mod desk-mod-{html.escape(str(m.get("severity", "low")))}">'
+                f'<span class="icon">{html.escape(mod_icons.get(m.get("kind"), "•"))}</span>'
+                f'<span>{html.escape(str(m.get("text") or ""))}</span>'
+                f'</div>'
+                for m in modifiers
+                if str(m.get("text") or "").strip()
+            )
+            if caveats_html:
+                st.markdown(
+                    f'<div class="desk-modifiers">'
+                    f'<div class="desk-modifiers-label">Setup caveats</div>'
+                    f'{caveats_html}</div>',
+                    unsafe_allow_html=True,
+                )
+
         rule_trace = t.get("_rule_trace") or []
         st.markdown(
             rule_audit_panel_html(t, meta, quality_tier, rule_trace),
@@ -14544,24 +14578,6 @@ if view == "analyze":
                     chat_store[chat_key].append({"role": "assistant", "content": reply})
                     save_store(st.session_state.store)
                     st.rerun()
-
-        # 1b. Decision modifiers — badges that nudge conviction up or down
-            # on top of the same nominal decision (earnings proximity, market
-            # regime, leadership/lag versus the index). Replaces the old
-            # earnings-only banner.
-        if modifiers:
-            mod_icons = {"earnings": "📅", "regime": "🌐", "rs": "📊"}
-            badges_html = "".join(
-                f'<div class="desk-mod desk-mod-{m["severity"]}">'
-                f'<span class="icon">{mod_icons.get(m["kind"], "•")}</span>'
-                f'<span>{m["text"]}</span>'
-                f'</div>'
-                for m in modifiers
-            )
-            st.markdown(
-                f'<div class="desk-modifiers">{badges_html}</div>',
-                unsafe_allow_html=True,
-            )
 
         # Read of the tape — always visible, anchors every screen with the
         # current technical state in concrete numbers.
