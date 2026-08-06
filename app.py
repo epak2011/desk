@@ -14408,6 +14408,30 @@ if view == "analyze":
             risk_lines.append("Price remains below the 200-day trend.")
         risk_lines.extend(modifier_lines)
 
+        def _decision_change_lines():
+            """Make the memo answer what would upgrade, execute, or invalidate the call."""
+            changes = []
+            current_action = normalize_action_key(t.get("action"))
+            if current_action == "enter_now":
+                changes.append(f"Invalid if {stack_risk_line[0].lower() + stack_risk_line[1:] if stack_risk_line else 'the stop level breaks'}.")
+                changes.append("Downgrade if relative strength rolls over or volume dries up after entry.")
+                if earn_banner:
+                    changes.append(f"Size around event risk: {earn_banner}.")
+            elif current_action == "watch":
+                changes.append(f"Upgrade if {stack_trigger_line[0].lower() + stack_trigger_line[1:] if stack_trigger_line else 'the trigger confirms'}.")
+                changes.append(f"Invalid if {stack_risk_line[0].lower() + stack_risk_line[1:] if stack_risk_line else 'support fails'}.")
+                if float(t.get("rs") or 0) < 1:
+                    changes.append("Stay patient until relative strength stops lagging the S&P 500.")
+            elif current_action in ("hold_off", "avoid"):
+                changes.append(f"Upgrade only if {stack_trigger_line[0].lower() + stack_trigger_line[1:] if stack_trigger_line else 'price reclaims a clean level'}.")
+                changes.append(f"Do not force it if {stack_risk_line[0].lower() + stack_risk_line[1:] if stack_risk_line else 'the chart remains structurally weak'}.")
+                if float(t.get("rs") or 0) < 1:
+                    changes.append("The tape needs relative strength repair before this becomes actionable.")
+            else:
+                changes.append(f"Add only if {stack_trigger_line[0].lower() + stack_trigger_line[1:] if stack_trigger_line else 'the setup confirms'}.")
+                changes.append(f"Stop adding if {stack_risk_line[0].lower() + stack_risk_line[1:] if stack_risk_line else 'support fails'}.")
+            return changes
+
         tape_value = []
         if t.get("rs") is not None:
             tape_value.append(f"RS {float(t.get('rs') or 0):.2f}")
@@ -14464,8 +14488,8 @@ if view == "analyze":
     {_line_list_html(action_detail_lines)}
   </div>
   <div class="desk-memo-card">
-    <h4>Risks</h4>
-    {_line_list_html(risk_lines)}
+    <h4>What changes the call</h4>
+    {_line_list_html(_decision_change_lines())}
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -14910,7 +14934,8 @@ if view == "analyze":
                         f'</div>'
                     )
 
-            st.markdown(f"""
+            with st.expander("Supporting dossier", expanded=False):
+                st.markdown(f"""
 <div class="desk-dossier">
   <div class="desk-dossier-label">
     <span><span class="em">📋</span>Decision dossier</span>
@@ -14920,12 +14945,12 @@ if view == "analyze":
   {freshness_caption}
 </div>
 """, unsafe_allow_html=True)
-            if dossier_is_stale:
-                st.markdown(
-                    f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
-                    f'target="_blank" rel="noopener">Refresh long report on the full report page ↗</a>',
-                    unsafe_allow_html=True,
-                )
+                if dossier_is_stale:
+                    st.markdown(
+                        f'<a class="research-link" href="?report={html.escape(ticker.upper())}" '
+                        f'target="_blank" rel="noopener">Refresh long report on the full report page ↗</a>',
+                        unsafe_allow_html=True,
+                    )
 
         # 1a-extra. DECISION COMPARISON — rule engine vs Claude vs you.
         # Diagnostic panel for the 2-4 week trial period to evaluate which
