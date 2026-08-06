@@ -143,61 +143,220 @@ def _rsi(prices, period=14):
     return 100 - 100 / (1 + rs)
 
 
+def _nearest_level(levels, price, *, above=False, max_distance=0.08):
+    """Return nearest detected key level above/below price within a band."""
+    if not levels or price <= 0:
+        return None
+    candidates = []
+    for level in levels:
+        try:
+            lv = float(level.get("level"))
+        except (TypeError, ValueError):
+            continue
+        if lv <= 0:
+            continue
+        if above:
+            if lv <= price:
+                continue
+            dist = (lv - price) / price
+        else:
+            if lv > price * 1.02:
+                continue
+            dist = abs(price - lv) / price
+        if dist <= max_distance:
+            candidates.append((dist, level))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1]
+
+
+def _recent_local_lows(prices, lookback=126):
+    if prices is None or len(prices) < 15:
+        return []
+    series = prices.iloc[-min(lookback, len(prices)):].reset_index(drop=True)
+    lows = []
+    for i in range(3, len(series) - 3):
+        center = float(series.iloc[i])
+        window = series.iloc[i - 3:i + 4]
+        if center == float(window.min()) and center < float(series.iloc[i - 1]):
+            lows.append((i, center))
+    return lows
+
+
 def tech_score_breakdown(hist):
+    """Score technical opportunity quality today.
+
+    The score intentionally combines two different ideas:
+      1. Trend / momentum: whether the tape is already strong
+      2. Market structure: whether price is sitting at an attractive,
+         rule-defined location such as multi-touch support, a breakout
+         retest, a failed breakdown/reclaim, or a compressed base
+
+    The output remains deterministic and fully explainable. No language
+    model judgement is used here.
+    """
     prices = hist["Close"]
-    price = prices.iloc[-1]
+    price = float(prices.iloc[-1])
     ma50 = prices.iloc[-50:].mean() if len(prices) >= 50 else price
     ma200 = prices.iloc[-200:].mean() if len(prices) >= 200 else price
     rsi = _rsi(prices)
     avg_vol = hist["Volume"].iloc[-20:].mean()
     vol_ratio = hist["Volume"].iloc[-1] / avg_vol if avg_vol > 0 else 1.0
-    slope = _ma_slope(prices, 50, 20)
+    ma50_slope = _ma_slope(prices, 50, 20)
+    ma200_slope = _ma_slope(prices, 200, 50)
+    key_levels = detect_key_levels(prices)
+    support_level = _nearest_level(key_levels, price, above=False, max_distance=0.06)
+    resistance_level = _nearest_level(key_levels, price, above=True, max_distance=0.18)
+
+    def _component(label, points, max_points, note):
+        return {
+            "label": label,
+            "points": float(points),
+            "max_points": float(max_points),
+            "note": note,
+        }
+
+    trend_50_points = 0.8 if price > ma50 else (-0.6 if price < ma50 * 0.97 else 0.0)
+    trend_200_points = 0.7 if price > ma200 else (-0.8 if price < ma200 * 0.95 else 0.0)
+    slope_points = 0.0
+    if ma50_slope > 0 and ma200_slope >= 0:
+        slope_points = 0.5
+    elif ma50_slope > 0 or ma200_slope > 0:
+        slope_points = 0.25
+    elif ma50_slope < 0 and ma200_slope < 0:
+        slope_points = -0.5
+
+    rsi_points = 0.0
+    if 45 <= rsi <= 70:
+        rsi_points = 0.6
+    elif rsi > 75:
+        rsi_points = -0.4
+    elif rsi < 35:
+        rsi_points = -0.2
+
+    volume_points = 0.0
+    if vol_ratio > 1.2:
+        volume_points = 0.6
+    elif vol_ratio < 0.6:
+        volume_points = -0.3
 
     components = [
-        {
-            "label": "Baseline",
-            "points": 5.0,
-            "max_points": 5.0,
-            "note": "neutral starting point",
-        },
-        {
-            "label": "50d trend",
-            "points": 1.5 if price > ma50 else 0.0,
-            "max_points": 1.5,
-            "note": "price above 50-day MA",
-        },
-        {
-            "label": "200d trend",
-            "points": 1.0 if price > ma200 else 0.0,
-            "max_points": 1.0,
-            "note": "price above 200-day MA",
-        },
-        {
-            "label": "RSI setup",
-            "points": 1.0 if 50 <= rsi <= 70 else (-0.5 if rsi > 75 else 0.0),
-            "max_points": 1.0,
-            "note": f"RSI {rsi:.0f}; ideal range is 50-70, over 75 is extended",
-        },
-        {
-            "label": "Volume",
-            "points": 1.0 if vol_ratio > 1.2 else (-0.5 if vol_ratio < 0.8 else 0.0),
-            "max_points": 1.0,
-            "note": f"{vol_ratio:.2f}x 20-day average",
-        },
-        {
-            "label": "50d slope",
-            "points": 0.5 if slope > 0 else 0.0,
-            "max_points": 0.5,
-            "note": "50-day MA rising",
-        },
+        _component("Baseline", 5.0, 5.0, "neutral opportunity starting point"),
+        _component("50d trend", trend_50_points, 0.8, f"price is {(price / ma50 - 1) * 100:+.1f}% vs 50-day MA"),
+        _component("200d trend", trend_200_points, 0.7, f"price is {(price / ma200 - 1) * 100:+.1f}% vs 200-day MA"),
+        _component("MA slope", slope_points, 0.5, "50-day and 200-day slope direction"),
+        _component("RSI setup", rsi_points, 0.6, f"RSI {rsi:.0f}; ideal opportunity zone is roughly 45-70"),
+        _component("Volume", volume_points, 0.6, f"{vol_ratio:.2f}x 20-day average"),
     ]
+
+    structure_points = 0.0
+    structure_notes = []
+
+    if support_level:
+        level = float(support_level["level"])
+        dist = abs(price - level) / price
+        touches = int(support_level.get("touches") or 0)
+        is_flip = bool(support_level.get("is_flip"))
+        points = 1.4 if is_flip else 1.0
+        if touches >= 5:
+            points += 0.3
+        if dist <= 0.025:
+            points += 0.3
+        structure_points += min(points, 2.0)
+        label = "former resistance/support flip" if is_flip else f"{touches}x tested support"
+        structure_notes.append(f"{label} near ${level:.2f}")
+
+    prior_breakout_level = None
+    if len(prices) >= 180:
+        pre_recent = prices.iloc[:-20]
+        if len(pre_recent) >= 80:
+            prior_breakout_level = float(pre_recent.iloc[-252:].max())
+            recent_high = float(prices.iloc[-63:].max())
+            retest_band = prior_breakout_level > 0 and abs(price - prior_breakout_level) / prior_breakout_level <= 0.06
+            has_broken_out = prior_breakout_level > 0 and recent_high >= prior_breakout_level * 1.03
+            still_holding = prior_breakout_level > 0 and price >= prior_breakout_level * 0.97
+            if retest_band and has_broken_out and still_holding:
+                structure_points += 1.0
+                structure_notes.append(f"prior 52w breakout retest near ${prior_breakout_level:.2f}")
+
+    if support_level:
+        level = float(support_level["level"])
+        recent_low_20 = float(prices.iloc[-20:].min()) if len(prices) >= 20 else price
+        ma20 = prices.iloc[-20:].mean() if len(prices) >= 20 else price
+        reclaim_ok = (
+            recent_low_20 <= level * 0.98 and
+            price >= level * 1.01 and
+            ma20 > 0 and
+            price > ma20
+        )
+        if reclaim_ok:
+            structure_points += 1.0
+            structure_notes.append(f"failed breakdown/reclaim above ${level:.2f}")
+
+    if len(prices) >= 60:
+        last_20 = prices.iloc[-20:]
+        last_60 = prices.iloc[-60:]
+        range_20 = (float(last_20.max()) - float(last_20.min())) / price if price > 0 else 0
+        range_60 = (float(last_60.max()) - float(last_60.min())) / price if price > 0 else 0
+        in_upper_half = price >= float(last_20.min()) + (float(last_20.max()) - float(last_20.min())) * 0.55
+        if range_20 <= 0.12 and range_60 <= 0.30 and in_upper_half:
+            structure_points += 0.7
+            structure_notes.append(f"tight base/compression ({range_20 * 100:.1f}% 20d range)")
+
+    recent_lows = _recent_local_lows(prices)
+    if len(recent_lows) >= 2:
+        prev_low = recent_lows[-2][1]
+        latest_low = recent_lows[-1][1]
+        high_52w = float(prices.iloc[-min(252, len(prices)):].max())
+        drawdown = (price / high_52w - 1) if high_52w > 0 else 0
+        if latest_low >= prev_low * 1.03 and drawdown <= -0.15 and price >= latest_low * 1.03:
+            structure_points += 0.7
+            structure_notes.append(f"higher low after correction (${latest_low:.2f} vs ${prev_low:.2f})")
+
+    asymmetry_points = 0.0
+    asymmetry_note = "no nearby rule-defined support/resistance pair"
+    if support_level and resistance_level:
+        sup = float(support_level["level"])
+        res = float(resistance_level["level"])
+        risk = price - sup
+        reward = res - price
+        if risk > 0 and reward > 0:
+            rr = reward / risk
+            asymmetry_note = f"nearest support ${sup:.2f}, resistance ${res:.2f}; approx {rr:.2f}:1"
+            if rr >= 2.0:
+                asymmetry_points = 0.75
+            elif rr >= 1.5:
+                asymmetry_points = 0.4
+            elif rr < 1.0:
+                asymmetry_points = -0.5
+
+    # Broken-chart guardrail: location credit requires proof. If a name is
+    # deeply below the 200d, lagging, and not reclaiming any detected level,
+    # cap the positive structure credit so the model does not reward blind
+    # falling-knife attempts.
+    below_200_deep = ma200 > 0 and price < ma200 * 0.90
+    no_reclaim_note = not any("reclaim" in note for note in structure_notes)
+    if below_200_deep and no_reclaim_note:
+        structure_points = min(structure_points, 0.7)
+        if structure_notes:
+            structure_notes.append("structure credit capped until a reclaim confirms")
+
+    structure_points = min(structure_points, 3.0)
+    structure_note = "; ".join(structure_notes) if structure_notes else "no objective support/retest/reclaim setup detected"
+    components.append(_component("Market structure", structure_points, 3.0, structure_note))
+    components.append(_component("Location / asymmetry", asymmetry_points, 0.75, asymmetry_note))
+
     raw_score = sum(component["points"] for component in components)
     score = max(0.0, min(10.0, raw_score))
     return {
         "score": float(score),
         "raw_score": float(raw_score),
         "components": components,
-        "method": "Additive: 5.0 baseline plus/subtracts from trend, RSI, volume, and 50d slope; capped at 0-10.",
+        "method": (
+            "Technical opportunity score: 5.0 baseline plus trend/momentum inputs "
+            "and deterministic market-structure/location bonuses; capped at 0-10."
+        ),
     }
 
 

@@ -7921,7 +7921,7 @@ def setup_score_breakdown_hover_html(t_state):
         f'<span>{html.escape(score_txt)} · {html.escape(state_txt)}</span>'
         '<span class="desk-score-tip-i">i</span>'
         '<span class="desk-score-tip">'
-        f'<span class="desk-score-tip-title">Setup score: {html.escape(score_txt)}</span>'
+        f'<span class="desk-score-tip-title">Opportunity score: {html.escape(score_txt)}</span>'
         f'{component_html}'
         f'{method_html}'
         '</span>'
