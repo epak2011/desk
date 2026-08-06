@@ -3,7 +3,7 @@ name: Trading Desk worker
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/15 * * * *"
 
 concurrency:
   group: trading-desk-worker
@@ -12,7 +12,7 @@ concurrency:
 jobs:
   drain-refresh-queue:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.NTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
@@ -61,4 +61,4 @@ jobs:
 
       - name: Drain queued refresh jobs
         if: steps.database.outputs.configured == 'true'
-        run: python worker.py --maintenance --drain --max-jobs 25 --market-max-age-minutes 10
+        run: python worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 240 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan,pm_memo
