@@ -255,6 +255,7 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         "symbol": tv_symbol,
         "interval": "D",
         "range": "60M",
+        "timeframe": "60M",
         "timezone": "America/New_York",
         "theme": "light",
         "style": "1",
@@ -269,6 +270,14 @@ def render_tradingview_advanced_chart(ticker, meta=None):
         "hotlist": False,
         "calendar": False,
         "watchlist": [],
+        "favorites": {
+            "intervals": ["60", "D", "W"],
+        },
+        "time_frames": [
+            {"text": "1D", "resolution": "D", "description": "Daily"},
+            {"text": "1W", "resolution": "W", "description": "Weekly"},
+            {"text": "1H", "resolution": "60", "description": "Hourly"},
+        ],
         "disabled_features": [
             "show_right_widgets_panel_by_default",
             "hide_right_toolbar_tabs",
