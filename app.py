@@ -1079,7 +1079,7 @@ if "nav_counter" not in st.session_state:
     st.session_state.nav_counter = 0
 
 
-@st.cache_data(ttl=10, show_spinner=False)
+@st.cache_data(ttl=2, show_spinner=False)
 def backend_pm_payload(ticker):
     """Read one worker-written PM memo row without touching market APIs."""
     tkr = str(ticker or "").upper().strip()

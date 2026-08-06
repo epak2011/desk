@@ -332,18 +332,24 @@ def refresh_full_report(ticker: str) -> dict:
         company_name=company_name,
         fast=False,
     )
-    payload = {
-        "pm": pm or {},
-        "dossier": dossier or {},
-        "meta": meta,
-        "_worker_generated_at": datetime.now(timezone.utc).isoformat(),
+    generated_at = datetime.now(timezone.utc).isoformat()
+    pm_payload = {
+        **(pm or {}),
+        "_worker_generated_at": generated_at,
         "_market_price": t_state.get("price"),
     }
-    backend.upsert_json_table("pm_memos", "ticker", ticker, pm or {}, source=(pm or {}).get("_source") or "claude")
+    payload = {
+        "pm": pm_payload,
+        "dossier": dossier or {},
+        "meta": meta,
+        "_worker_generated_at": generated_at,
+        "_market_price": t_state.get("price"),
+    }
+    backend.upsert_json_table("pm_memos", "ticker", ticker, pm_payload, source=pm_payload.get("_source") or "claude")
     backend.upsert_json_table("research_reports", "ticker", ticker, payload, source=(dossier or {}).get("_source") or "claude")
     return {
         "ticker": ticker,
-        "pm_source": (pm or {}).get("_source"),
+        "pm_source": pm_payload.get("_source"),
         "report_source": (dossier or {}).get("_source"),
         "updated_at": payload.get("_worker_generated_at"),
     }
