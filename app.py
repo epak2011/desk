@@ -11714,6 +11714,172 @@ div[data-testid="element-container"]:has(.desk-bar) {
     margin: 0 0 6px;
 }
 
+.desk-section-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+    margin: 18px 0 8px;
+}
+
+.desk-decision-memo {
+    border: 1px solid var(--desk-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    overflow: hidden;
+    margin: 0 0 12px;
+}
+
+.desk-decision-memo-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 11px 13px;
+    background: #FBFCFE;
+    border-bottom: 1px solid var(--desk-border);
+}
+
+.desk-decision-memo-title {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+}
+
+.desk-decision-memo-call {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+}
+
+.desk-snapshot-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.desk-snapshot-item {
+    min-width: 0;
+    padding: 11px 13px;
+    border-right: 1px solid var(--desk-border);
+    border-bottom: 1px solid var(--desk-border);
+}
+
+.desk-snapshot-item:nth-child(3n) {
+    border-right: 0;
+}
+
+.desk-snapshot-item:nth-last-child(-n + 3) {
+    border-bottom: 0;
+}
+
+.desk-snapshot-k {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+    margin-bottom: 5px;
+}
+
+.desk-snapshot-v {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.35;
+    color: var(--desk-text);
+}
+
+.desk-snapshot-v strong,
+.desk-snapshot-v b {
+    font-weight: 850;
+}
+
+.desk-memo-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.desk-memo-card {
+    border: 1px solid var(--desk-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    padding: 12px 13px;
+}
+
+.desk-memo-card h4 {
+    margin: 0 0 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+}
+
+.desk-memo-card ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.desk-memo-card li {
+    margin: 0 0 7px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--desk-text);
+}
+
+.desk-memo-card li:last-child {
+    margin-bottom: 0;
+}
+
+.desk-technical-picture {
+    margin: 0 0 16px;
+}
+
+.desk-advanced-note {
+    margin: 6px 0 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.45;
+    color: var(--desk-muted);
+}
+
+div[data-testid="stExpander"] {
+    border: 1px solid var(--desk-border) !important;
+    border-radius: 8px !important;
+    background: #FFFFFF !important;
+    box-shadow: none !important;
+}
+
+div[data-testid="stExpander"] > details > summary {
+    padding: 10px 12px !important;
+    background: #FBFCFE !important;
+    border-radius: 8px !important;
+}
+
+div[data-testid="stExpander"] > details > summary p {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    font-size: 12px !important;
+    font-weight: 850 !important;
+    letter-spacing: 0.08em !important;
+    color: var(--desk-muted) !important;
+}
+
+div[data-testid="stExpander"] > details[open] > summary {
+    border-bottom: 1px solid var(--desk-border) !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
 .desk-stack-cell {
     background: #FFFFFF;
     padding: 9px 12px;
@@ -12149,6 +12315,17 @@ div[data-testid="element-container"]:has(.desk-bar) {
 @media (max-width: 760px) {
     .desk-decision-stack {
         grid-template-columns: 1fr;
+    }
+    .desk-snapshot-grid,
+    .desk-memo-card-grid {
+        grid-template-columns: 1fr;
+    }
+    .desk-snapshot-item {
+        border-right: 0;
+        border-bottom: 1px solid var(--desk-border);
+    }
+    .desk-snapshot-item:last-child {
+        border-bottom: 0;
     }
     .desk-rule-source-head {
         display: block;
@@ -13667,56 +13844,265 @@ if view == "analyze":
                 '<span class="desk-stack-owned">Add a holding to get trim/sell logic.</span>'
             )
 
+        def _memo_line(text):
+            text = str(text or "").strip()
+            return text
+
+        def _unique_lines(lines, limit=3):
+            out = []
+            seen = set()
+            for line in lines:
+                line = _memo_line(line)
+                key = " ".join(line.lower().split())
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                out.append(line)
+                if len(out) >= limit:
+                    break
+            return out
+
+        def _line_list_html(lines):
+            rows = _unique_lines(lines, 3)
+            if not rows:
+                rows = ["No decisive issue yet."]
+            return "<ul>" + "".join(
+                f"<li>{bold_numbers(html.escape(row))}</li>" for row in rows
+            ) + "</ul>"
+
+        modifier_lines = [
+            str(m.get("text") or "").strip()
+            for m in (modifiers or [])
+            if str(m.get("text") or "").strip()
+        ]
+        why_lines = []
+        why_lines.append(decision_context(t))
+        if t.get("rs") is not None:
+            rs = float(t.get("rs") or 0)
+            rs_delta = float(t.get("rs_delta") or 0)
+            if rs >= 1:
+                why_lines.append(f"Relative strength {rs:.2f} vs S&P 500, 10-day change {rs_delta:+.3f}.")
+            else:
+                why_lines.append(f"Relative strength {rs:.2f} vs S&P 500 is still lagging.")
+        if t.get("reward_risk") is not None:
+            why_lines.append(f"Projected reward/risk is {float(t.get('reward_risk') or 0):.2f}:1.")
+        why_lines.extend(modifier_lines)
+
+        waiting_lines = [stack_trigger_line]
+        if float(t.get("rs") or 0) < 1:
+            waiting_lines.append("Relative strength improves back above 1.00.")
+        if float(t.get("vol_ratio") or 0) < 1:
+            waiting_lines.append("Volume expands above the 20-day average.")
+        if t.get("action") == "watch":
+            waiting_lines.append("Confirmation holds after the first trigger day.")
+
+        risk_lines = [stack_risk_line]
+        if earn_banner:
+            risk_lines.append(f"Event risk: {earn_banner}")
+        if t.get("ma200") and t.get("price") and float(t.get("price") or 0) < float(t.get("ma200") or 0):
+            risk_lines.append("Price remains below the 200-day trend.")
+        risk_lines.extend(modifier_lines)
+
+        tape_value = []
+        if t.get("rs") is not None:
+            tape_value.append(f"RS {float(t.get('rs') or 0):.2f}")
+        if t.get("vol_ratio") is not None:
+            tape_value.append(f"vol {float(t.get('vol_ratio') or 0):.2f}x")
+        if t.get("rsi") is not None or t.get("rsi14") is not None:
+            tape_value.append(f"RSI {float(t.get('rsi14', t.get('rsi')) or 0):.0f}")
+        tape_value = " · ".join(tape_value) or "Current tape pending"
+        setup_label = str(t.get("setup_type") or t.get("tape_class") or t.get("state") or "—").replace("_", " ").title()
+        rr_value = "—"
+        if t.get("reward_risk") is not None:
+            rr_value = f"{float(t.get('reward_risk') or 0):.2f}:1"
+
+        snapshot_items = [
+            ("Recommendation", f'<span style="color:{sty["color"]};font-weight:900;">{html.escape(sty["emoji"])} {html.escape(sty["label"])}</span>'),
+            ("Setup", html.escape(setup_label)),
+            ("Setup score", setup_score_breakdown_hover_html(t)),
+            ("Risk / reward", html.escape(rr_value)),
+            ("Tape", html.escape(tape_value)),
+            ("Waiting for", bold_numbers(html.escape(stack_trigger_line))),
+        ]
+        snapshot_html = "".join(
+            f'<div class="desk-snapshot-item">'
+            f'<div class="desk-snapshot-k">{html.escape(label)}</div>'
+            f'<div class="desk-snapshot-v">{value}</div>'
+            f'</div>'
+            for label, value in snapshot_items
+        )
         st.markdown(f"""
-<div class="desk-trade-plan-label">Trade plan</div>
-<div class="desk-decision-stack">
-  <div class="desk-stack-cell hero">
-    <div class="desk-stack-value">
-      <span class="desk-stack-call" style="color:{sty['color']};">{sty['emoji']} {html.escape(sty['label'])}</span>
-      <span class="desk-stack-context">{html.escape(decision_context(t))}</span>
-    </div>
+<div class="desk-section-label">Decision snapshot</div>
+<div class="desk-decision-memo">
+  <div class="desk-decision-memo-head">
+    <div class="desk-decision-memo-title">What to do now</div>
+    <div class="desk-decision-memo-call" style="color:{sty['color']};">{html.escape(sty['label'])}</div>
   </div>
-  <div class="desk-stack-cell compact">
-    <div class="desk-stack-label">Trigger</div>
-    <div class="desk-stack-value">{bold_numbers(stack_trigger_line)}</div>
+  <div class="desk-snapshot-grid">{snapshot_html}</div>
+</div>
+<div class="desk-memo-card-grid">
+  <div class="desk-memo-card">
+    <h4>Why</h4>
+    {_line_list_html(why_lines)}
   </div>
-  <div class="desk-stack-cell compact">
-    <div class="desk-stack-label">Risk</div>
-    <div class="desk-stack-value">{bold_numbers(stack_risk_line)}</div>
+  <div class="desk-memo-card">
+    <h4>Waiting for</h4>
+    {_line_list_html(waiting_lines)}
   </div>
-  <div class="desk-stack-cell compact">
-    <div class="desk-stack-label">If owned</div>
-    <div class="desk-stack-value">{owned_value}</div>
+  <div class="desk-memo-card">
+    <h4>Risks</h4>
+    {_line_list_html(risk_lines)}
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-        if modifiers:
-            mod_icons = {"earnings": "📅", "regime": "🌐", "rs": "📊"}
-            caveats_html = "".join(
-                f'<div class="desk-mod desk-mod-{html.escape(str(m.get("severity", "low")))}">'
-                f'<span class="icon">{html.escape(mod_icons.get(m.get("kind"), "•"))}</span>'
-                f'<span>{html.escape(str(m.get("text") or ""))}</span>'
-                f'</div>'
-                for m in modifiers
-                if str(m.get("text") or "").strip()
+        # Technical picture — high on the page because the chart and tape are
+        # the primary evidence for a discretionary trading decision.
+        tape_rows = tape_read(t)
+        color_map = {"pos": "#2E7D4F", "neg": "#D14545", "": "#334155"}
+        tape_html = "".join(
+            f'<div class="row">'
+            f'  <span class="k">{label}</span>'
+            f'  <span class="v" style="color:{color_map.get(sev, "var(--color-body)")};">{bold_numbers(value)}</span>'
+            f'</div>'
+            for label, value, sev in tape_rows
+        )
+        st.markdown(f"""
+<div class="desk-section-label">Technical picture</div>
+<div class="desk-technical-picture">
+  <div class="desk-tape-read">
+    <div class="label"><span class="em">📊</span>Read of the tape</div>
+    {tape_html}
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+        tech_narrative = dossier_result.get("technical_narrative") if dossier_result else None
+        commentary_lines = technical_commentary(t)
+        st.markdown(f"""
+<div class="desk-chart-label">
+  <span style="color:var(--color-muted);">📈 TradingView advanced chart · 5Y default</span>
+</div>
+""", unsafe_allow_html=True)
+        try:
+            render_tradingview_advanced_chart(ticker, meta)
+        except Exception as _chart_err:
+            st.warning(f"Chart could not render: {_chart_err}")
+
+        with st.expander("Technical evidence", expanded=False):
+            ma_rows, momentum_rows, strength_rows, timeframe_rows, levels_rows = detailed_technical_rows(hist, bench, t)
+            st.markdown(
+                '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                'color:var(--color-muted);margin-bottom:8px;">Technical memo</div>'
+                '<div class="tech-memo-grid">'
+                f'{render_technical_table("Trend / moving averages", ma_rows)}'
+                f'{render_technical_table("Momentum", momentum_rows)}'
+                f'{render_technical_table("Relative strength / volume", strength_rows)}'
+                f'{render_technical_table("Daily vs weekly", timeframe_rows)}'
+                f'{render_technical_table("Levels / volatility", levels_rows)}'
+                '</div>',
+                unsafe_allow_html=True,
             )
-            if caveats_html:
+            if commentary_lines:
+                commentary_html = "".join(
+                    f'<p style="margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.65; '
+                    f'color: var(--color-body); font-family: Geist, sans-serif;">'
+                    f'{bold_numbers(line)}</p>'
+                    for line in commentary_lines
+                )
                 st.markdown(
-                    f'<div class="desk-modifiers">'
-                    f'<div class="desk-modifiers-label">Setup caveats</div>'
-                    f'{caveats_html}</div>',
+                    f'<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                    f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    f'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
+                    f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
+                    unsafe_allow_html=True,
+                )
+            if tech_narrative:
+                paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
+                paras_html = "".join(
+                    f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.65; '
+                    f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
+                    for p in paragraphs
+                )
+                st.markdown(
+                    '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin-bottom:8px;">Narrative</div>'
+                    f'<div style="padding: 0 2px;">{paras_html}</div>',
+                    unsafe_allow_html=True,
+                )
+            if t.get("action") in ("enter_now", "watch"):
+                when_label = "Entry plan if trigger fires" if t.get("action") == "watch" else "Entry plan"
+                atr_dollars = float(t.get("atr_pct") or 0) * float(t.get("entry") or 0)
+                stop_atrs = abs(float(t.get("entry") or 0) - float(t.get("stop") or 0)) / atr_dollars if atr_dollars > 0 else 0
+                t1_atrs = abs(float(t.get("t1") or 0) - float(t.get("entry") or 0)) / atr_dollars if atr_dollars > 0 else 0
+                risk_per_share = float(t.get("entry") or 0) - float(t.get("stop") or 0)
+                reward_per_share = float(t.get("t1") or 0) - float(t.get("entry") or 0)
+                rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
+                plan_rows = [
+                    ("Entry", f"${float(t.get('entry') or 0):,.2f}", ""),
+                    ("Stop", f"${float(t.get('stop') or 0):,.2f}", f"{stop_atrs:.1f}x ATR away" if stop_atrs > 0 else ""),
+                    ("Target 1", f"${float(t.get('t1') or 0):,.2f}", f"{t1_atrs:.1f}x ATR away · reward/risk {rr_ratio:.2f}:1" if t1_atrs > 0 else ""),
+                    ("Target 2", f"${float(t.get('t2') or 0):,.2f}", ""),
+                ]
+                plan_bits = []
+                for label, value, note in plan_rows:
+                    note_html = f'<span class="sub">{html.escape(note)}</span>' if note else ""
+                    plan_bits.append(
+                        f'<div class="desk-plan-row">'
+                        f'<span class="k">{html.escape(label)}</span>'
+                        f'<span style="text-align:right;line-height:1.25;">'
+                        f'<span class="v">{html.escape(value)}</span>'
+                        f'{note_html}'
+                        f'</span></div>'
+                    )
+                plan_html = "".join(plan_bits)
+                account = st.session_state.store.get("account_size", 100000)
+                risk_pct = st.session_state.store.get("risk_per_trade", 0.01)
+                max_pos_pct = st.session_state.store.get("max_position_pct", 0.25)
+                sizing_html = ""
+                if risk_per_share > 0 and float(t.get("entry") or 0) > 0:
+                    risk_dollars = account * risk_pct
+                    risk_shares = int(risk_dollars // risk_per_share)
+                    cap_dollars = account * max_pos_pct
+                    cap_shares = int(cap_dollars // float(t.get("entry") or 0))
+                    shares = min(risk_shares, cap_shares)
+                    position_value = shares * float(t.get("entry") or 0)
+                    effective_risk = shares * risk_per_share
+                    effective_risk_pct = (effective_risk / account) * 100 if account > 0 else 0
+                    pos_pct = (position_value / account) * 100 if account > 0 else 0
+                    cap_note = f" · capped by max position size" if cap_shares < risk_shares else ""
+                    sizing_html = (
+                        f'<div class="desk-advanced-note" style="margin-top:12px;">'
+                        f'Risk ${effective_risk:,.0f} ({effective_risk_pct:.2f}% of ${account:,.0f}) · '
+                        f'{shares:,} shares · position ${position_value:,.0f} ({pos_pct:.1f}% of account){cap_note}'
+                        f'</div>'
+                    )
+                st.markdown(
+                    '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
+                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
+                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
+                    'color:var(--color-muted);margin-bottom:8px;">'
+                    f'{html.escape(when_label)}</div>'
+                    f'<div>{plan_html}{sizing_html}</div>',
                     unsafe_allow_html=True,
                 )
 
         rule_trace = t.get("_rule_trace") or []
-        st.markdown(
-            rule_audit_panel_html(t, meta, quality_tier, rule_trace),
-            unsafe_allow_html=True,
-        )
-        st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
-
-        with st.expander("Data refresh / job details", expanded=False):
+        with st.expander("Advanced diagnostics", expanded=False):
+            st.markdown(
+                '<div class="desk-advanced-note">Rules, score math, refresh jobs, and implementation details live here. '
+                'The investment memo above remains the primary read.</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                rule_audit_panel_html(t, meta, quality_tier, rule_trace),
+                unsafe_allow_html=True,
+            )
+            st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
             refresh_data_col, refresh_data_note_col = st.columns([1, 2])
             with refresh_data_col:
                 if st.button(
@@ -14578,226 +14964,6 @@ if view == "analyze":
                     chat_store[chat_key].append({"role": "assistant", "content": reply})
                     save_store(st.session_state.store)
                     st.rerun()
-
-        # Read of the tape — always visible, anchors every screen with the
-        # current technical state in concrete numbers.
-        tape_rows = tape_read(t)
-        color_map = {"pos": "#2E7D4F", "neg": "#D14545", "": "#334155"}
-        tape_html = "".join(
-            f'<div class="row">'
-            f'  <span class="k">{label}</span>'
-            f'  <span class="v" style="color:{color_map.get(sev, "var(--color-body)")};">{bold_numbers(value)}</span>'
-            f'</div>'
-            for label, value, sev in tape_rows
-        )
-        st.markdown(f"""
-    <div class="desk-tape-read">
-      <div class="label"><span class="em">📊</span>Read of the tape</div>
-      {tape_html}
-    </div>
-    """, unsafe_allow_html=True)
-
-        # Technical narrative/context is rendered once in the footer
-        # "Technical details" expander below the chart. Keep the variables
-        # here because chat context also uses the dossier output.
-        tech_narrative = dossier_result.get("technical_narrative") if dossier_result else None
-        commentary_lines = technical_commentary(t)
-
-        # 4. IF TRIGGER HITS — conditional trade plan
-        if t["action"] in ("enter_now", "watch"):
-            when_label = "If trigger hits" if t["action"] == "watch" else "Entering now"
-            st.markdown(f"""
-    <div class="desk-plan-label">
-      <span class="em">📊</span>{when_label} · Trade plan
-    </div>
-    """, unsafe_allow_html=True)
-
-            def plan_row(label, value, delta=None, delta_color=None, note=None):
-                delta_html = ""
-                if delta is not None:
-                    delta_html = f'<span class="d" style="color:{delta_color};">{"+" if delta >= 0 else ""}{delta:.1f}%</span>'
-                note_html = f'<span class="sub">{note}</span>' if note else ""
-                st.markdown(f"""
-    <div class="desk-plan-row">
-      <span class="k">{label}</span>
-      <span style="text-align:right;line-height:1.2;">
-    <span class="v">${value:,.2f}</span>{delta_html}
-    {note_html}
-      </span>
-    </div>
-    """, unsafe_allow_html=True)
-
-            # ATR in $ terms for distance calculations
-            atr_dollars = t["atr_pct"] * t["entry"]
-            stop_atrs = abs(t["entry"] - t["stop"]) / atr_dollars if atr_dollars > 0 else 0
-            t1_atrs = abs(t["t1"] - t["entry"]) / atr_dollars if atr_dollars > 0 else 0
-            risk_per_share = t["entry"] - t["stop"]
-            reward_per_share = t["t1"] - t["entry"]
-            rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
-
-            plan_row("Entry", t["entry"])
-            plan_row(
-                "Stop",
-                t["stop"],
-                (t["stop"]/t["entry"] - 1)*100,
-                "#D14545",
-                note=f"{stop_atrs:.1f}× ATR away" if stop_atrs > 0 else None,
-            )
-            plan_row(
-                "Target 1",
-                t["t1"],
-                (t["t1"]/t["entry"] - 1)*100,
-                "#2E7D4F",
-                note=f"{t1_atrs:.1f}× ATR away · reward/risk {rr_ratio:.2f}:1" if t1_atrs > 0 else None,
-            )
-            plan_row("Target 2", t["t2"], (t["t2"]/t["entry"] - 1)*100, "#2E7D4F")
-
-            # Position sizing — risk-based shares vs max-position cap, take min.
-            # Label is rewritten to show four numbers in a clear order:
-            #   risk $X (Y% of account) · N shares · position $Z (W% of account)
-            # The "binding constraint" gets a short note when the cap is active.
-            account = st.session_state.store.get("account_size", 100000)
-            risk_pct = st.session_state.store.get("risk_per_trade", 0.01)
-            max_pos_pct = st.session_state.store.get("max_position_pct", 0.25)
-
-            risk_dollars = account * risk_pct
-            per_share_risk = t["entry"] - t["stop"]
-
-            if per_share_risk > 0 and t["entry"] > 0:
-                # 1. Shares the risk math says
-                risk_shares = int(risk_dollars // per_share_risk)
-                # 2. Shares the position cap allows
-                cap_dollars = account * max_pos_pct
-                cap_shares = int(cap_dollars // t["entry"])
-                # 3. Use the smaller — risk math AND the cap must both be satisfied
-                shares = min(risk_shares, cap_shares)
-                cap_active = cap_shares < risk_shares
-
-                position_value = shares * t["entry"]
-                pos_pct = (position_value / account) * 100 if account > 0 else 0
-                # Effective risk after the cap kicks in
-                effective_risk = shares * per_share_risk
-                effective_risk_pct = (effective_risk / account) * 100 if account > 0 else 0
-
-                cap_note = ""
-                if cap_active:
-                    cap_note = (
-                        f'<div style="font-family: var(--font-sans);font-style:italic;'
-                        f'font-size:var(--fs-sm);color:#8B6914;margin-top:4px;">'
-                        f'Capped by max position size ({max_pos_pct*100:.0f}%). '
-                        f'Risk math alone wanted {risk_shares:,} shares.'
-                        f'</div>'
-                    )
-
-                st.markdown(f"""
-    <div style="margin-top:12px;padding:10px 12px;background:var(--color-surface-soft);border-radius:3px;
-            font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-body);line-height:1.45;">
-      <div>
-    <span style="color:var(--color-faint);">Risk</span>
-    <b style="color:var(--color-text);">${effective_risk:,.0f}</b>
-    <span style="color:var(--color-fainter);">({effective_risk_pct:.2f}% of ${account:,.0f})</span>
-      </div>
-      <div>
-    <span style="color:var(--color-faint);">Shares</span>
-    <b style="color:var(--color-text);">{shares:,}</b>
-    <span style="color:var(--color-fainter);">at ${t['entry']:,.2f} entry</span>
-      </div>
-      <div>
-    <span style="color:var(--color-faint);">Position</span>
-    <b style="color:var(--color-text);">${position_value:,.0f}</b>
-    <span style="color:var(--color-fainter);">({pos_pct:.1f}% of account)</span>
-      </div>
-      {cap_note}
-    </div>
-    """, unsafe_allow_html=True)
-
-        # Keep chart and detailed technicals visible by default. This is the
-        # core tape-read surface, not an optional advanced view.
-        show_deep_technicals = True
-        if show_deep_technicals:
-            # 4. Chart — TradingView Advanced Chart widget.
-            st.markdown(f"""
-        <div class="desk-chart-label">
-          <span style="color:var(--color-muted);">📈 TradingView advanced chart · 5Y default</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-            try:
-                render_tradingview_advanced_chart(ticker, meta)
-            except Exception as _chart_err:
-                st.warning(f"Chart could not render: {_chart_err}")
-
-            # 5. Technical details — footer, collapsed
-            with st.expander("Technical details"):
-                ma_rows, momentum_rows, strength_rows, timeframe_rows, levels_rows = detailed_technical_rows(hist, bench, t)
-                st.markdown(
-                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color:var(--color-muted);margin-bottom:8px;">Technical memo</div>'
-                    '<div class="tech-memo-grid">'
-                    f'{render_technical_table("Trend / moving averages", ma_rows)}'
-                    f'{render_technical_table("Momentum", momentum_rows)}'
-                    f'{render_technical_table("Relative strength / volume", strength_rows)}'
-                    f'{render_technical_table("Daily vs weekly", timeframe_rows)}'
-                    f'{render_technical_table("Levels / volatility", levels_rows)}'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
-                if commentary_lines:
-                    commentary_html = "".join(
-                        f'<p style="margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.65; '
-                        f'color: var(--color-body); font-family: Geist, sans-serif;">'
-                        f'{bold_numbers(line)}</p>'
-                        for line in commentary_lines
-                    )
-                    st.markdown(
-                        f'<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                        f'<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                        f'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                        f'color:var(--color-muted);margin-bottom:8px;">Tape detail</div>'
-                        f'<div style="padding: 0 2px 8px;">{commentary_html}</div>',
-                        unsafe_allow_html=True,
-                    )
-                if tech_narrative:
-                    paragraphs = [p.strip() for p in tech_narrative.split("\n\n") if p.strip()]
-                    paras_html = "".join(
-                        f'<p style="margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.65; '
-                        f'color: var(--color-body); font-family: Geist, sans-serif;">{p}</p>'
-                        for p in paragraphs
-                    )
-                    st.markdown(
-                        '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                        '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                        'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                        'color:var(--color-muted);margin-bottom:8px;">Narrative</div>'
-                        f'<div style="padding: 0 2px;">{paras_html}</div>',
-                        unsafe_allow_html=True,
-                    )
-                st.markdown(
-                    '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color:var(--color-muted);margin-bottom:8px;">Rule engine inputs</div>',
-                    unsafe_allow_html=True,
-                )
-                rows = [
-                    ("Bias", f"{t['bias'].capitalize() if t['bias'] else '—'} ({t['bias_score']:+d} on ±10 scale)"),
-                    ("Technical score", f"{t['setup_score']:.1f} / 10"),
-                    ("50-day moving average", f"${t['ma50']:,.2f}"),
-                    ("200-day moving average", f"${t['ma200']:,.2f}"),
-                    ("Average true range", f"{t['atr_pct']*100:.2f}%" + (" · below 1.5% gate" if not t['atr_ok'] else "")),
-                    ("Relative strength vs S&P 500", f"{t['rs']:.3f} · 10d {'+' if t['rs_delta'] >= 0 else ''}{t['rs_delta']:.3f}"),
-                    ("52-week high", f"${t['high_52w']:,.2f}"),
-                    ("20-day average volume", f"{t['avg_vol_20d']:,.0f}"),
-                    ("Today volume / average", f"{t['vol_ratio']:.2f}×"),
-                    ("Structure quality", f"{t['structure_quality']:.1f} / 10"),
-                ]
-                for label, value in rows:
-                    st.markdown(f"""
-        <div style="display:flex;justify-content:space-between;font-family: var(--font-mono);font-size:var(--fs-sm);color:var(--color-muted);padding:3px 0;">
-          <span>{label}</span><span style="color:var(--color-text);">{value}</span>
-        </div>
-        """, unsafe_allow_html=True)
 
         # 7. Key Levels — auto-detected support/resistance, focused on
         # proximate actionable levels. Collapsed by default; opens to show
