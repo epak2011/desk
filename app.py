@@ -7129,6 +7129,9 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         # makes the click feel frozen and then the render repeats work again.
         # Clear caches, mark the PM refresh pending, and let the normal Analyze
         # render fetch price once and generate research once.
+        st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
+        pending_pm = st.session_state.setdefault("_pending_pm_refreshes", {})
+        pending_pm[refresh_ticker] = datetime.now().isoformat(timespec="seconds")
         try:
             fetch_quote_meta.clear(refresh_ticker)
         except Exception:
@@ -7150,7 +7153,10 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         except Exception:
             refreshed_action = ""
     if refresh_research and not queued_job_id:
-        st.session_state["_last_pm_persist_error"] = "PM refresh could not be queued; the saved memo was left unchanged."
+        st.session_state["_last_job_error"] = (
+            "Background PM refresh could not be queued; this page will still "
+            "try an inline PM refresh if Claude is configured."
+        )
     if refresh_full_report:
         st.session_state["_force_dossier_refresh_ticker"] = refresh_ticker
         pending_dossier = st.session_state.setdefault("_pending_dossier_refreshes", {})

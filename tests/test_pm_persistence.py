@@ -131,6 +131,22 @@ class PmPersistenceTests(unittest.TestCase):
         self.assertNotIn("merge_ticker_snapshot", dossier_hydration)
         self.assertNotIn("merge_ticker_snapshot(ticker, pm_entry", dossier_generation)
 
+    def test_manual_pm_refresh_triggers_inline_generation(self):
+        app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+        refresh_body = app_source.split("def refresh_current_ticker_state", 1)[1].split(
+            "def queue_full_report_refresh", 1
+        )[0]
+        analyze_body = app_source.split('if view == "analyze":', 1)[1].split(
+            "# ─────────────────────────────────────────────────────────────────────\n"
+            "# Footer",
+            1,
+        )[0]
+
+        self.assertIn('st.session_state["_force_pm_refresh_ticker"] = refresh_ticker', refresh_body)
+        self.assertIn('st.session_state.setdefault("_pending_pm_refreshes", {})', refresh_body)
+        self.assertIn("allow_generate=allow_pm_generate", analyze_body)
+        self.assertIn("force_generate=force_pm_refresh", analyze_body)
+
 
 if __name__ == "__main__":
     unittest.main()
