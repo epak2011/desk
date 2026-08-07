@@ -309,12 +309,13 @@ def refresh_pm_memo(ticker: str) -> dict:
         "_worker_generated_at": datetime.now(timezone.utc).isoformat(),
         "_market_price": t_state.get("price"),
     }
-    backend.upsert_json_table("pm_memos", "ticker", ticker, pm_payload, source=pm_payload.get("_source") or "claude")
+    stored_pm = backend.upsert_pm_memo(ticker, pm_payload, source=pm_payload.get("_source") or "claude")
     return {
         "ticker": ticker,
         "source": pm_payload.get("_source"),
         "quality": (pm_payload.get("quality") or {}).get("tier") if isinstance(pm_payload.get("quality"), dict) else None,
         "updated_at": pm_payload.get("_worker_generated_at"),
+        "revision_id": stored_pm.get("_revision_id"),
     }
 
 
@@ -349,11 +350,9 @@ def refresh_full_report(ticker: str) -> dict:
         "_worker_generated_at": generated_at,
         "_market_price": t_state.get("price"),
     }
-    backend.upsert_json_table("pm_memos", "ticker", ticker, pm_payload, source=pm_payload.get("_source") or "claude")
     backend.upsert_json_table("research_reports", "ticker", ticker, payload, source=(dossier or {}).get("_source") or "claude")
     return {
         "ticker": ticker,
-        "pm_source": pm_payload.get("_source"),
         "report_source": (dossier or {}).get("_source"),
         "updated_at": payload.get("_worker_generated_at"),
     }

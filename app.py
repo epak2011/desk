@@ -1101,10 +1101,7 @@ def backend_pm_payload(ticker):
     tkr = str(ticker or "").upper().strip()
     if not tkr or not backend_layer.has_database():
         return {}
-    try:
-        return (backend_layer.read_json_table("pm_memos", tkr) or {}).get(tkr, {}) or {}
-    except Exception:
-        return {}
+    return backend_layer.read_pm_memo(tkr)
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -1201,7 +1198,16 @@ def normalize_pm_payload(payload, ticker=""):
 def hydrate_pm_cache_from_backend(ticker):
     """Adapt normalized PM memo rows into the legacy in-memory cache shape."""
     ticker = str(ticker or "").upper().strip()
-    raw_payload = backend_pm_payload(ticker)
+    try:
+        raw_payload = backend_pm_payload(ticker)
+        st.session_state.pop("_last_pm_load_error", None)
+    except Exception as exc:
+        st.session_state["_last_pm_load_error"] = str(exc)[:300]
+        print(
+            f"[pm-persistence] read_failed ticker={ticker} "
+            f"error={type(exc).__name__}: {str(exc)[:240]}"
+        )
+        return None
     payload = normalize_pm_payload(raw_payload, ticker)
     if not ticker or not isinstance(payload, dict) or not payload:
         return None
@@ -1214,6 +1220,8 @@ def hydrate_pm_cache_from_backend(ticker):
         "ts": ts or datetime.now().isoformat(timespec="seconds"),
         "view": {k: v for k, v in payload.items() if not str(k).startswith("_") and k != "source"},
         "source": source,
+        "revision_id": raw_payload.get("_revision_id"),
+        "durable": True,
     }
     st.session_state.store.setdefault("pm_cache", {})[ticker] = entry
     merge_ticker_snapshot(ticker, pm_entry=entry)
@@ -1235,40 +1243,41 @@ def _pm_entry_ts(entry):
 
 
 def newest_pm_cache_entry(ticker):
-    """Return the newest PM memo from session cache vs the normalized backend row."""
+    """Return the durable backend memo, with confirmed session data as fallback."""
     ticker = str(ticker or "").upper().strip()
     if not ticker:
         return None
     cache = st.session_state.store.setdefault("pm_cache", {})
     local_entry = cache.get(ticker) if isinstance(cache, dict) else None
     backend_entry = hydrate_pm_cache_from_backend(ticker)
-    if backend_entry and local_entry:
-        backend_ts = _pm_entry_ts(backend_entry)
-        local_ts = _pm_entry_ts(local_entry)
-        if local_ts and backend_ts and local_ts > backend_ts:
-            cache[ticker] = local_entry
-            return local_entry
-    return backend_entry or local_entry
+    if backend_entry:
+        return backend_entry
+    if isinstance(local_entry, dict) and local_entry.get("durable"):
+        return local_entry
+    return None
 
 
 def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
-    """Persist fresh app-generated PM memos to the normalized table workers use."""
+    """Persist a PM memo and return the exact revision PostgreSQL read back."""
     ticker = str(ticker or "").upper().strip()
-    if not ticker or not isinstance(pm, dict) or not backend_layer.has_database():
-        return False
+    if not ticker or not isinstance(pm, dict):
+        return None
+    if not backend_layer.has_database():
+        error = "DATABASE_URL is not configured; PM memo cannot be saved durably."
+        st.session_state["_last_pm_persist_error"] = error
+        print(f"[pm-persistence] write_failed ticker={ticker} error={error}")
+        return None
     payload = normalize_pm_payload(pm, ticker)
     thesis_text = str(payload.get("thesis") or "")
     if _is_placeholder_pm_text(thesis_text, ticker):
-        return False
+        return None
     payload = {k: v for k, v in payload.items() if k != "source"}
     payload["_source"] = source or pm.get("_source") or payload.get("_source") or "claude"
     payload["_worker_generated_at"] = datetime.now(timezone.utc).isoformat()
     if market_price is not None:
         payload["_market_price"] = market_price
     try:
-        backend_layer.upsert_json_table(
-            "pm_memos",
-            "ticker",
+        confirmed_payload = backend_layer.upsert_pm_memo(
             ticker,
             payload,
             source=source or pm.get("_source") or "claude",
@@ -1276,39 +1285,55 @@ def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
         st.session_state.pop("_last_pm_persist_error", None)
         st.session_state["_last_pm_persist_ok"] = {
             "ticker": ticker,
-            "ts": payload["_worker_generated_at"],
-            "source": payload["_source"],
+            "ts": confirmed_payload.get("_worker_generated_at") or confirmed_payload.get("updated_at"),
+            "source": confirmed_payload.get("_source"),
+            "revision_id": confirmed_payload.get("_revision_id"),
         }
         try:
             backend_pm_payload.clear()
         except Exception:
             pass
-        return True
+        return confirmed_payload
     except Exception as exc:
         st.session_state["_last_pm_persist_error"] = str(exc)[:300]
-        return False
+        print(
+            f"[pm-persistence] write_failed ticker={ticker} "
+            f"error={type(exc).__name__}: {str(exc)[:240]}"
+        )
+        return None
 
 
 def remember_visible_pm_entry(ticker, pm, source=None, market_price=None, *, persist_backend=True):
-    """Keep the final on-screen PM memo and durable backend row in sync."""
+    """Publish a PM memo to session state only after durable storage confirms it."""
     ticker = str(ticker or "").upper().strip()
     if not ticker or not isinstance(pm, dict):
-        return False
+        return None
     payload = normalize_pm_payload(pm, ticker)
     thesis_text = str(payload.get("thesis") or "")
     if _is_placeholder_pm_text(thesis_text, ticker):
-        return False
+        return None
     source = source or payload.get("_source") or payload.get("source") or pm.get("_source") or "claude"
+    if not persist_backend:
+        return None
+    confirmed_payload = persist_pm_entry_to_backend(
+        ticker,
+        payload,
+        source=source,
+        market_price=market_price,
+    )
+    if not confirmed_payload:
+        return None
+    confirmed = normalize_pm_payload(confirmed_payload, ticker)
     entry = {
-        "ts": datetime.now().isoformat(timespec="seconds"),
-        "view": {k: v for k, v in payload.items() if not str(k).startswith("_") and k != "source"},
-        "source": source,
+        "ts": confirmed_payload.get("_worker_generated_at") or confirmed_payload.get("updated_at") or datetime.now().isoformat(timespec="seconds"),
+        "view": {k: v for k, v in confirmed.items() if not str(k).startswith("_") and k != "source"},
+        "source": confirmed_payload.get("_source") or source,
+        "revision_id": confirmed_payload.get("_revision_id"),
+        "durable": True,
     }
     st.session_state.store.setdefault("pm_cache", {})[ticker] = entry
     merge_ticker_snapshot(ticker, pm_entry=entry)
-    if persist_backend:
-        persist_pm_entry_to_backend(ticker, payload, source=source, market_price=market_price)
-    return True
+    return entry
 
 
 def hydrate_dossier_cache_from_backend(ticker):
@@ -1338,7 +1363,6 @@ def hydrate_dossier_cache_from_backend(ticker):
         "source": dossier.get("_source") or payload.get("source") or "worker",
     }
     st.session_state.store.setdefault("dossier_cache", {})[ticker] = entry
-    merge_ticker_snapshot(ticker, pm_entry=entry)
     return entry
 
 
@@ -1404,44 +1428,20 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
             return fallback
         except Exception:
             pass
-    # Do not persist a generic "no thesis" fallback after a failed refresh.
-    # Otherwise one bad refresh makes the PM side look permanently stale.
-    if not is_placeholder_pm:
-        remember_visible_pm_entry(
-            ticker,
-            pm,
-            source=pm_source or "static",
-            market_price=(tactical_output or {}).get("price") if isinstance(tactical_output, dict) else None,
-            persist_backend=source_is_current_pm,
-        )
     return pm
 
 
 def clear_pm_cache(ticker):
-    """Clear BOTH the pm_cache and dossier_cache for a ticker.
+    """Invalidate the read cache without deleting the last durable PM memo.
 
-    Originally these were separate caches (dossier was expensive, PM was
-    cheap, refresh shouldn't trigger both). But now the dossier holds
-    `tactical_call` for the calibration trial — so clearing only pm_cache
-    leaves a stale Claude action on the comparison panel forever, which
-    defeats the purpose of the ↻ button. Clear both.
+    A credential change may affect the next generation request, but it must
+    never erase the last confirmed database revision while the new request is
+    still pending or fails.
     """
-    ticker = ticker.upper()
-    changed = False
-    if ticker in st.session_state.store.get("pm_cache", {}):
-        del st.session_state.store["pm_cache"][ticker]
-        changed = True
-    if ticker in st.session_state.store.get("dossier_cache", {}):
-        del st.session_state.store["dossier_cache"][ticker]
-        changed = True
-    snapshot = st.session_state.store.setdefault("ticker_snapshots", {}).get(ticker)
-    if isinstance(snapshot, dict):
-        for key in ("pm", "pm_updated_at"):
-            if key in snapshot:
-                snapshot.pop(key, None)
-                changed = True
-    if changed:
-        save_store(st.session_state.store)
+    try:
+        backend_pm_payload.clear()
+    except Exception:
+        pass
 
 
 def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name, allow_generate=True, force_generate=False, fast_generate=False):
@@ -1623,7 +1623,6 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
             },
             "source": result.get("_source", "claude"),
         }
-        merge_ticker_snapshot(ticker, pm_entry=cache[ticker])
         save_store(st.session_state.store)
     elif stale_cached_result:
         try:
@@ -6744,58 +6743,6 @@ def research_health_items(pm, dossier_result, api_key):
     return [pm_row, dossier_row]
 
 
-def pm_snapshot_from_dossier(pm, dossier_result):
-    """Use dossier prose as the visible PM snapshot when bullet JSON is sparse.
-
-    The fast Claude refresh asks for both structured bullets and longer
-    narratives. In practice, model output can occasionally include a good
-    pm_narrative/dossier while leaving bullets.thesis empty. Without this
-    fallback the right-side PM panel keeps showing the generic placeholder
-    even though research was generated.
-    """
-    pm = dict(pm or {})
-    dossier_result = dossier_result or {}
-    source = str(dossier_result.get("_source") or pm.get("_source") or "")
-    source_lower = source.lower()
-    if any(marker in source_lower for marker in (
-        "cached only",
-        "fast mode",
-        "unavailable",
-        "error:",
-    )):
-        return pm
-
-    current_thesis = str(pm.get("thesis") or "").strip()
-    is_placeholder = (
-        not current_thesis
-        or current_thesis.startswith("No generated PM thesis yet")
-        or current_thesis.startswith("No thesis on file")
-        or current_thesis == "Not yet analyzed"
-    )
-    if not is_placeholder:
-        return pm
-
-    bullets = dossier_result.get("bullets") or {}
-    thesis = str(bullets.get("thesis") or "").strip()
-    if not thesis:
-        narrative = str(dossier_result.get("pm_narrative") or "").strip()
-        dossier_text = str(dossier_result.get("dossier") or "").strip()
-        candidate = narrative or dossier_text
-        paragraphs = [p.strip() for p in candidate.split("\n\n") if p.strip()]
-        thesis = paragraphs[0] if paragraphs else candidate
-    if not thesis:
-        return pm
-
-    return {
-        **pm,
-        "thesis": thesis,
-        "drivers": bullets.get("drivers") or pm.get("drivers", []),
-        "risks": bullets.get("risks") or pm.get("risks", []),
-        "valuation": bullets.get("valuation") or pm.get("valuation", ""),
-        "_source": dossier_result.get("_source", pm.get("_source", "")),
-    }
-
-
 def inferred_quality_from_pm(pm, t_state=None):
     """Conservative quality tier when an older PM memo lacks a quality object."""
     if not isinstance(pm, dict):
@@ -7190,7 +7137,9 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
             backend_pm_payload.clear(refresh_ticker)
         except Exception:
             pass
-        st.session_state.store.setdefault("pm_cache", {}).pop(refresh_ticker, None)
+        # Keep the last confirmed memo visible until the worker has durably
+        # stored a replacement. Clearing it here was the source of blank PM
+        # panels whenever generation or PostgreSQL failed.
     else:
         try:
             hydrate_backend_ticker_snapshots((refresh_ticker,))
@@ -7200,10 +7149,8 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
             refreshed_action = canonical_action_for_ticker(refresh_ticker)
         except Exception:
             refreshed_action = ""
-    if refresh_research:
-        st.session_state["_force_pm_refresh_ticker"] = refresh_ticker
-        pending = st.session_state.setdefault("_pending_pm_refreshes", {})
-        pending[refresh_ticker] = datetime.now().isoformat(timespec="seconds")
+    if refresh_research and not queued_job_id:
+        st.session_state["_last_pm_persist_error"] = "PM refresh could not be queued; the saved memo was left unchanged."
     if refresh_full_report:
         st.session_state["_force_dossier_refresh_ticker"] = refresh_ticker
         pending_dossier = st.session_state.setdefault("_pending_dossier_refreshes", {})
@@ -14006,73 +13953,51 @@ if view == "analyze":
     if force_dossier_refresh:
         pending_dossier_refreshes.pop(ticker_key, None)
 
-    # Live PM bullets: when the dossier call returned bullets, prefer those
-    # over the static template. This is what makes non-hardcoded tickers
-    # (DASH, PLTR, COIN, etc.) show real thesis/drivers/risks/valuation
-    # instead of "Not yet analyzed". Bullets come from the SAME Claude call
-    # as the dossier, so there's no extra cost.
-    live_bullets = (dossier_result or {}).get("bullets") or {}
-    dossier_source_for_bullets = str((dossier_result or {}).get("_source") or "").lower()
-    dossier_bullets_are_current = not any(
-        marker in dossier_source_for_bullets
-        for marker in (
-            "refresh to update",
-            "research upgraded",
-            "cached only",
-            "fast mode",
-            "unavailable",
-            "error:",
+    # The PM panel has one source of truth: the durable `pm_memos` row.
+    # Full-report/dossier output is intentionally kept separate so refreshing
+    # a report cannot replace a saved PM memo with a different payload shape.
+    # Legacy inline PM generation is accepted only after PostgreSQL verifies
+    # the exact revision; otherwise retain the last confirmed memo.
+    if force_pm_refresh:
+        visible_pm_source = str(pm.get("_source") or "")
+        source_lower = visible_pm_source.lower()
+        generated_pm_is_current = (
+            visible_pm_source.startswith("claude")
+            or visible_pm_source.startswith("rules fallback")
+        ) and not any(
+            marker in source_lower
+            for marker in (
+                "refresh failed",
+                "refresh to update",
+                "cached only",
+                "cached/static",
+                "fast mode",
+                "unavailable",
+                "error:",
+            )
         )
-    )
-    if live_bullets.get("thesis") and dossier_bullets_are_current:
-        pm = {
-            **pm,
-            "thesis": live_bullets.get("thesis", pm.get("thesis", "")),
-            "drivers": live_bullets.get("drivers") or pm.get("drivers", []),
-            "risks": live_bullets.get("risks") or pm.get("risks", []),
-            "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
-            "_source": (dossier_result or {}).get("_source", pm.get("_source", "")),
-        }
-    elif live_bullets.get("thesis") and str(pm.get("thesis") or "").startswith("No generated PM thesis yet"):
-        pm = {
-            **pm,
-            "thesis": live_bullets.get("thesis", pm.get("thesis", "")),
-            "drivers": live_bullets.get("drivers") or pm.get("drivers", []),
-            "risks": live_bullets.get("risks") or pm.get("risks", []),
-            "valuation": live_bullets.get("valuation", pm.get("valuation", "")),
-            "_source": "cached dossier fallback · refresh to update",
-        }
-    pm = pm_snapshot_from_dossier(pm, dossier_result)
-    visible_pm_source = str(pm.get("_source") or "")
-    visible_pm_source_lower = visible_pm_source.lower()
-    visible_pm_is_fresh_research = (
-        visible_pm_source.startswith("claude")
-        or visible_pm_source.startswith("rules fallback")
-    ) and not any(
-        marker in visible_pm_source_lower
-        for marker in (
-            "refresh failed",
-            "refresh to update",
-            "cached only",
-            "cached/static",
-            "fast mode",
-            "unavailable",
-            "error:",
-        )
-    )
-    visible_pm_changed_this_run = (
-        force_pm_refresh
-        or force_dossier_refresh
-        or bool(live_bullets.get("thesis") and dossier_bullets_are_current)
-    )
-    if visible_pm_is_fresh_research and visible_pm_changed_this_run:
-        remember_visible_pm_entry(
-            ticker,
-            pm,
-            source=visible_pm_source or "claude",
-            market_price=t.get("price"),
-            persist_backend=True,
-        )
+        if generated_pm_is_current:
+            confirmed_entry = remember_visible_pm_entry(
+                ticker,
+                pm,
+                source=visible_pm_source or "claude",
+                market_price=t.get("price"),
+                persist_backend=True,
+            )
+            if confirmed_entry:
+                pm = dict(confirmed_entry.get("view") or {})
+                pm["_source"] = confirmed_entry.get("source") or visible_pm_source
+            else:
+                prior_entry = st.session_state.store.get("pm_cache", {}).get(ticker_key)
+                if isinstance(prior_entry, dict) and prior_entry.get("durable"):
+                    pm = dict(prior_entry.get("view") or {})
+                    pm["_source"] = (
+                        str(prior_entry.get("source") or "saved memo")
+                        + " · refresh not saved"
+                    )
+                else:
+                    pm = get_pm_view(ticker, t, api_key=None, company_name=name)
+                    pm["_source"] = "refresh not saved"
     research_items = research_health_items(pm, dossier_result, api_key)
     pm_status_item = research_items[0] if research_items else ("PM memo", "not generated", "warn")
     dossier_status_item = (

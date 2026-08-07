@@ -661,6 +661,126 @@ def read_json_table(table: str, key_value: str | None = None, *, limit: int | No
     return out
 
 
+def _pm_memo_text(payload: dict[str, Any] | None) -> str:
+    """Return the first real memo thesis across supported payload shapes."""
+    if not isinstance(payload, dict):
+        return ""
+    nested_pm = payload.get("pm") if isinstance(payload.get("pm"), dict) else {}
+    bullets = payload.get("bullets") if isinstance(payload.get("bullets"), dict) else {}
+    nested_bullets = nested_pm.get("bullets") if isinstance(nested_pm.get("bullets"), dict) else {}
+    candidates = (
+        payload.get("thesis"),
+        nested_pm.get("thesis"),
+        bullets.get("thesis"),
+        nested_bullets.get("thesis"),
+        payload.get("pm_narrative"),
+        nested_pm.get("pm_narrative"),
+        payload.get("dossier"),
+    )
+    placeholders = (
+        "no generated pm thesis yet",
+        "no thesis on file",
+        "pm research has not produced",
+    )
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if text and not text.lower().startswith(placeholders):
+            return text
+    return ""
+
+
+def validate_pm_memo_payload(payload: dict[str, Any] | None, ticker: str = "") -> dict[str, Any]:
+    """Reject blank/placeholder PM rows before they can replace durable content."""
+    clean_ticker = str(ticker or "").upper().strip()
+    if not isinstance(payload, dict):
+        raise ValueError(f"PM memo payload for {clean_ticker or 'ticker'} must be an object")
+    safe_payload = json_safe(payload)
+    if not isinstance(safe_payload, dict) or not _pm_memo_text(safe_payload):
+        raise ValueError(f"PM memo for {clean_ticker or 'ticker'} has no durable thesis")
+    return safe_payload
+
+
+def read_pm_memo(ticker: str) -> dict[str, Any]:
+    """Read the durable PM memo row. Database errors intentionally propagate."""
+    clean_ticker = str(ticker or "").upper().strip()
+    if not clean_ticker or not has_database():
+        return {}
+    return (read_json_table("pm_memos", clean_ticker) or {}).get(clean_ticker, {}) or {}
+
+
+def upsert_pm_memo(
+    ticker: str,
+    payload: dict[str, Any],
+    *,
+    source: str | None = None,
+) -> dict[str, Any]:
+    """Persist and read back one PM memo, returning only a verified DB revision.
+
+    A generated memo is not considered saved until PostgreSQL returns the row and
+    a second SELECT observes the exact revision id. This prevents session state
+    from masquerading as durable storage and prevents blank initialization state
+    from overwriting a previously valid memo.
+    """
+    clean_ticker = str(ticker or "").upper().strip()
+    if not clean_ticker:
+        raise ValueError("PM memo ticker is required")
+    stored_payload = validate_pm_memo_payload(payload, clean_ticker)
+    revision_id = uuid.uuid4().hex
+    generated_at = str(stored_payload.get("_worker_generated_at") or utc_now_iso())
+    stored_source = str(source or stored_payload.get("_source") or stored_payload.get("source") or "claude")
+    stored_payload = {
+        **stored_payload,
+        "_revision_id": revision_id,
+        "_worker_generated_at": generated_at,
+        "_source": stored_source,
+    }
+
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO pm_memos (ticker, payload, source, generated_at, updated_at)
+                VALUES (%s, %s::jsonb, %s, %s::timestamptz, NOW())
+                ON CONFLICT (ticker) DO UPDATE
+                    SET payload = EXCLUDED.payload,
+                        source = EXCLUDED.source,
+                        generated_at = EXCLUDED.generated_at,
+                        updated_at = NOW()
+                RETURNING payload, source, updated_at
+                """,
+                (clean_ticker, json_dumps(stored_payload), stored_source, generated_at),
+            )
+            returned = cur.fetchone()
+            if not returned or not isinstance(returned[0], dict):
+                raise RuntimeError(f"PostgreSQL did not acknowledge PM memo {clean_ticker}")
+            if returned[0].get("_revision_id") != revision_id:
+                raise RuntimeError(f"PM memo write acknowledgement mismatch for {clean_ticker}")
+            cur.execute(
+                """
+                SELECT payload, source, updated_at
+                FROM pm_memos
+                WHERE ticker = %s
+                """,
+                (clean_ticker,),
+            )
+            verified = cur.fetchone()
+
+    if not verified or not isinstance(verified[0], dict):
+        raise RuntimeError(f"PM memo read-back failed for {clean_ticker}")
+    verified_payload = dict(verified[0])
+    if verified_payload.get("_revision_id") != revision_id:
+        raise RuntimeError(f"PM memo read-back revision mismatch for {clean_ticker}")
+    validate_pm_memo_payload(verified_payload, clean_ticker)
+    verified_payload["_source"] = verified_payload.get("_source") or verified[1] or stored_source
+    if verified[2] is not None:
+        verified_payload["updated_at"] = (
+            verified[2].isoformat() if hasattr(verified[2], "isoformat") else str(verified[2])
+        )
+    print(f"[pm-persistence] write_verified ticker={clean_ticker} revision={revision_id[:10]}")
+    return verified_payload
+
+
 def read_json_table_many(table: str, key_values: Iterable[str]) -> dict[str, dict[str, Any]]:
     """Read normalized JSON payload rows for a specific key set."""
     allowed = {
@@ -822,7 +942,6 @@ def upsert_json_table(table: str, key_column: str, key_value: str, payload: dict
     allowed = {
         "market_snapshots",
         "rule_outputs",
-        "pm_memos",
         "research_reports",
         "holdings",
         "market_regime_daily",
