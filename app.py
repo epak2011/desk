@@ -12099,8 +12099,10 @@ div[data-testid="element-container"]:has(.desk-bar) {
     border: 1px solid var(--desk-border);
     border-radius: 8px;
     background: #FFFFFF;
-    overflow: hidden;
+    overflow: visible;
     margin: 0 0 12px;
+    position: relative;
+    z-index: 3;
 }
 
 .desk-decision-memo-head {
@@ -12132,6 +12134,7 @@ div[data-testid="element-container"]:has(.desk-bar) {
 .desk-snapshot-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
 }
 
 .desk-snapshot-item {
@@ -12139,6 +12142,8 @@ div[data-testid="element-container"]:has(.desk-bar) {
     padding: 11px 13px;
     border-right: 1px solid var(--desk-border);
     border-bottom: 1px solid var(--desk-border);
+    overflow: visible;
+    position: relative;
 }
 
 .desk-snapshot-item:nth-child(3n) {
@@ -12501,12 +12506,15 @@ div[data-testid="stExpander"] > details[open] > summary {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     border-bottom: 1px solid var(--desk-border);
+    overflow: visible;
 }
 
 .desk-rule-audit-item {
     padding: 9px 12px;
     border-right: 1px solid var(--desk-border);
     min-width: 0;
+    overflow: visible;
+    position: relative;
 }
 
 .desk-rule-audit-item:nth-child(4n) {
@@ -12557,9 +12565,11 @@ div[data-testid="stExpander"] > details[open] > summary {
 .desk-score-tip {
     position: absolute;
     left: 0;
-    top: calc(100% + 8px);
-    z-index: 9999;
+    bottom: calc(100% + 8px);
+    z-index: 10000;
     width: min(360px, 78vw);
+    max-height: min(420px, 70vh);
+    overflow-y: auto;
     padding: 12px;
     border: 1px solid var(--desk-border-strong);
     border-radius: 8px;
@@ -12568,7 +12578,7 @@ div[data-testid="stExpander"] > details[open] > summary {
     color: var(--desk-text);
     opacity: 0;
     pointer-events: none;
-    transform: translateY(-3px);
+    transform: translateY(3px);
     transition: opacity 120ms ease, transform 120ms ease;
 }
 
