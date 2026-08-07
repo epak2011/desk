@@ -7955,15 +7955,127 @@ def setup_opportunity_grade(t_state):
         score = float(t_state.get("setup_score"))
     except (TypeError, ValueError, AttributeError):
         return "Pending"
-    if score >= 9.0:
+    if score >= 8.5:
         return "Excellent"
-    if score >= 8.0:
-        return "High conviction"
     if score >= 7.0:
         return "Good"
     if score >= 5.5:
-        return "Watching"
-    return "Poor"
+        return "Average"
+    if score >= 4.0:
+        return "Weak"
+    return "Avoid"
+
+
+def decision_action_label(t_state):
+    """Translate the rules output into the portfolio action language a user can act on."""
+    action = normalize_action_key(t_state.get("action") if isinstance(t_state, dict) else None)
+    size = str((t_state or {}).get("entry_size") or "").strip().lower() if isinstance(t_state, dict) else ""
+    if action == "enter_now":
+        if size == "starter":
+            return "Starter position"
+        if size in {"normal", "full"}:
+            return "Build position"
+        return "Enter"
+    if action == "accumulate":
+        return "Add gradually"
+    if action == "watch":
+        return "Observe"
+    if action == "hold_off":
+        return "Wait"
+    if action == "avoid":
+        return "Avoid"
+    return "Review"
+
+
+def suggested_size_label(t_state):
+    """Convert rules sizing into an easy portfolio-size hint."""
+    if not isinstance(t_state, dict):
+        return "—"
+    action = normalize_action_key(t_state.get("action"))
+    size = str(t_state.get("entry_size") or "").strip().lower()
+    if action in {"avoid", "hold_off", "watch"}:
+        return "0% now"
+    if action == "accumulate":
+        return "25% max"
+    if action == "enter_now":
+        if size == "full":
+            return "100% of target"
+        if size == "normal":
+            return "50% of target"
+        if size == "starter":
+            return "25% of target"
+        return "25-50% of target"
+    return "Manual review"
+
+
+def decision_confidence_label(t_state):
+    """Readable confidence label from the same inputs that drive the final action."""
+    if not isinstance(t_state, dict):
+        return "Pending"
+    action = normalize_action_key(t_state.get("action"))
+    try:
+        score = float(t_state.get("setup_score") or 0)
+    except (TypeError, ValueError):
+        score = 0.0
+    try:
+        rr = float(t_state.get("reward_risk") or 0)
+    except (TypeError, ValueError):
+        rr = 0.0
+    trigger_fired = bool(t_state.get("trigger_fired"))
+    rs_ok = float(t_state.get("rs") or 0) >= 1.0
+    vol_ok = float(t_state.get("vol_ratio") or 0) >= 0.75
+
+    points = 0
+    points += 1 if score >= 7 else 0
+    points += 1 if rr >= 1.3 else 0
+    points += 1 if trigger_fired or action in {"avoid", "hold_off"} else 0
+    points += 1 if rs_ok else 0
+    points += 1 if vol_ok else 0
+
+    if points >= 4:
+        confidence = "High"
+    elif points >= 2:
+        confidence = "Medium"
+    else:
+        confidence = "Low"
+
+    if action == "enter_now":
+        base = "continuation"
+    elif action == "watch":
+        base = "setup forming"
+    elif action == "hold_off":
+        base = "sideways repair"
+    elif action == "avoid":
+        base = "continued weakness"
+    elif action == "accumulate":
+        base = "base building"
+    else:
+        base = "review"
+    return f"{confidence} · base case: {base}"
+
+
+def action_reason_title(t_state):
+    action = normalize_action_key(t_state.get("action") if isinstance(t_state, dict) else None)
+    if action == "enter_now":
+        return "Why Enter"
+    if action == "watch":
+        return "Why Observe"
+    if action == "hold_off":
+        return "Why Wait"
+    if action == "avoid":
+        return "Why Avoid"
+    if action == "accumulate":
+        return "Why Add Gradually"
+    return "Why This Action"
+
+
+def action_change_title(t_state):
+    action = normalize_action_key(t_state.get("action") if isinstance(t_state, dict) else None)
+    if action == "enter_now":
+        return "What Would Make Me Reduce"
+    if action == "accumulate":
+        return "What Would Make Me Add More"
+    return "What Would Make Me Buy"
 
 
 def rules_engine_guide_html():
@@ -8010,7 +8122,6 @@ def setup_score_breakdown_hover_html(t_state):
 
     score_txt = _fmt_rule_num(t_state.get("setup_score"), "/10")
     grade_txt = setup_opportunity_grade(t_state)
-    state_txt = str(t_state.get("state") or "—").title()
     breakdown = t_state.get("setup_score_breakdown")
     components = []
     method = ""
@@ -8085,10 +8196,10 @@ def setup_score_breakdown_hover_html(t_state):
     method_html = f'<div class="desk-score-tip-method">{html.escape(method)}</div>' if method else ""
     return (
         '<span class="desk-score-tip-wrap">'
-        f'<span>{html.escape(grade_txt)} · {html.escape(state_txt)}</span>'
+        f'<span>{html.escape(grade_txt)}</span>'
         '<span class="desk-score-tip-i">i</span>'
         '<span class="desk-score-tip">'
-        f'<span class="desk-score-tip-title">Opportunity score: {html.escape(score_txt)} · {html.escape(grade_txt)}</span>'
+        f'<span class="desk-score-tip-title">Entry quality: {html.escape(score_txt)} · {html.escape(grade_txt)}</span>'
         f'{component_html}'
         f'{method_html}'
         '</span>'
@@ -8168,7 +8279,7 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
         ("Entry size", str(t_state.get("entry_size") or "none"), False),
         ("Entry status", str(t_state.get("entry_status") or "—"), False),
         ("Tape class", str(t_state.get("tape_class") or "—"), False),
-        ("Setup score", setup_score_breakdown_hover_html(t_state), True),
+        ("Setup quality", setup_score_breakdown_hover_html(t_state), True),
         ("Trend", trend_value, False),
         ("Relative strength", f"RS {_fmt_rule_num(t_state.get('rs'), precision=2)} · Δ {_fmt_rule_num(t_state.get('rs_delta'), precision=3)}", False),
         ("Volume", f"{_fmt_rule_num(t_state.get('vol_ratio'), '×', precision=1)} 20d avg", False),
@@ -9760,25 +9871,25 @@ def technical_thesis_text(t, trigger_line="", risk_line=""):
     momentum_status, momentum_detail = picture.get("momentum", ("Pending", "Momentum data is incomplete."))
 
     if action == "enter_now":
-        lead = "The setup is actionable now."
+        lead = "This is actionable today because the setup has crossed the rules threshold."
     elif action == "watch":
-        lead = "The setup is close but still needs confirmation."
+        lead = "This belongs on the screen, but it still needs confirmation before fresh capital."
     elif action == "hold_off":
-        lead = "The setup is not ready yet."
+        lead = "Do not buy today because the setup has not repaired enough."
     elif action == "avoid":
-        lead = "The technical picture is not investable for this system right now."
+        lead = "Avoid today because the chart is not investable for this system."
     else:
         lead = "The technical setup is still forming."
 
     clauses = [
-        f"{lead} {trend_detail}",
-        f"{strength_detail}",
-        f"{momentum_detail}",
+        f"{lead} {trend_status}: {trend_detail}",
+        f"{strength_status}: {strength_detail}",
+        f"{momentum_status}: {momentum_detail}",
     ]
     if trigger_line:
-        clauses.append(f"The decision changes on: {trigger_line}")
+        clauses.append(f"Next decision point: {trigger_line}")
     if risk_line:
-        clauses.append(f"Invalidation/risk is: {risk_line}")
+        clauses.append(f"Risk: {risk_line}")
     return " ".join(clauses)
 
 
@@ -12178,7 +12289,7 @@ div[data-testid="element-container"]:has(.desk-bar) {
 
 .desk-memo-card-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 10px;
     margin: 0 0 16px;
 }
@@ -12565,10 +12676,10 @@ div[data-testid="stExpander"] > details[open] > summary {
 .desk-score-tip {
     position: absolute;
     left: 0;
-    bottom: calc(100% + 8px);
+    top: calc(100% + 8px);
     z-index: 10000;
     width: min(360px, 78vw);
-    max-height: min(420px, 70vh);
+    max-height: min(360px, 58vh);
     overflow-y: auto;
     padding: 12px;
     border: 1px solid var(--desk-border-strong);
@@ -14390,14 +14501,17 @@ if view == "analyze":
         action_detail_lines = execution_lines if action_key == "enter_now" else waiting_lines
         action_detail_value = stack_trigger_line if action_key != "enter_now" else stack_trigger_line.replace("Enter ", "Execute ", 1)
         technical_thesis = technical_thesis_text(t, stack_trigger_line, stack_risk_line)
+        action_label = decision_action_label(t)
+        reason_title = action_reason_title(t)
+        change_title = action_change_title(t)
 
         snapshot_items = [
-            ("Recommendation", f'<span style="color:{sty["color"]};font-weight:900;">{html.escape(sty["emoji"])} {html.escape(sty["label"])}</span>'),
-            ("Setup", html.escape(setup_label)),
-            ("Opportunity grade", setup_score_breakdown_hover_html(t)),
+            ("Current action", f'<span style="color:{sty["color"]};font-weight:900;">{html.escape(sty["emoji"])} {html.escape(action_label)}</span>'),
+            ("Suggested size", html.escape(suggested_size_label(t))),
+            ("Setup quality", setup_score_breakdown_hover_html(t)),
+            ("Confidence", html.escape(decision_confidence_label(t))),
             ("Risk / reward", html.escape(rr_value)),
             ("Setup stage", setup_stage_html(t)),
-            (action_detail_label, bold_numbers(html.escape(action_detail_value))),
         ]
         snapshot_html = "".join(
             f'<div class="desk-snapshot-item">'
@@ -14411,25 +14525,21 @@ if view == "analyze":
 <div class="desk-decision-memo">
   <div class="desk-decision-memo-head">
     <div class="desk-decision-memo-title">What to do now</div>
-    <div class="desk-decision-memo-call" style="color:{sty['color']};">{html.escape(sty['label'])}</div>
+    <div class="desk-decision-memo-call" style="color:{sty['color']};">{html.escape(action_label)}</div>
   </div>
   <div class="desk-snapshot-grid">{snapshot_html}</div>
 </div>
 <div class="desk-technical-thesis">
-  <div class="desk-technical-thesis-k">Technical thesis</div>
+  <div class="desk-technical-thesis-k">{html.escape(reason_title)}</div>
   <p>{bold_numbers(html.escape(technical_thesis))}</p>
 </div>
 <div class="desk-memo-card-grid">
   <div class="desk-memo-card">
-    <h4>Why now</h4>
+    <h4>{html.escape(reason_title)}</h4>
     {_line_list_html(why_lines)}
   </div>
   <div class="desk-memo-card">
-    <h4>{html.escape(action_detail_label)}</h4>
-    {_line_list_html(action_detail_lines)}
-  </div>
-  <div class="desk-memo-card">
-    <h4>What changes the call</h4>
+    <h4>{html.escape(change_title)}</h4>
     {_line_list_html(_decision_change_lines())}
   </div>
 </div>
