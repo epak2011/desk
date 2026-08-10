@@ -14558,11 +14558,28 @@ if view == "analyze":
             risk_per_share = entry_value - stop_value
             reward_per_share = t1_value - entry_value
             rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
+            t1_source = str(t.get("t1_source") or "").strip()
+            t1_detail = str(t.get("t1_detail") or "").strip()
+            t2_source = str(t.get("t2_source") or "").strip()
+            t2_detail = str(t.get("t2_detail") or "").strip()
+
+            def _target_note(source, detail, atrs=None, include_rr=False):
+                bits = []
+                if source:
+                    bits.append(source)
+                if detail:
+                    bits.append(detail)
+                if source == "Volatility-derived target" and atrs and atrs > 0:
+                    bits.append(f"{atrs:.1f}x ATR")
+                if include_rr:
+                    bits.append(f"reward/risk {rr_ratio:.2f}:1")
+                return " · ".join(bits)
+
             plan_rows = [
                 ("Entry", f"${entry_value:,.2f}", ""),
                 ("Stop", f"${stop_value:,.2f}", f"{stop_atrs:.1f}x ATR away" if stop_atrs > 0 else ""),
-                ("Target 1", f"${t1_value:,.2f}", f"{t1_atrs:.1f}x ATR away · reward/risk {rr_ratio:.2f}:1" if t1_atrs > 0 else ""),
-                ("Target 2", f"${t2_value:,.2f}", ""),
+                ("Target 1", f"${t1_value:,.2f}", _target_note(t1_source, t1_detail, t1_atrs, include_rr=True)),
+                ("Target 2", f"${t2_value:,.2f}", _target_note(t2_source, t2_detail)),
             ]
             plan_bits = []
             for label, value, note in plan_rows:

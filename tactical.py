@@ -171,6 +171,68 @@ def _nearest_level(levels, price, *, above=False, max_distance=0.08):
     return candidates[0][1]
 
 
+def _structural_targets_above(entry, atr_pct, *, key_levels=None,
+                              resistance=None, swing_high_60d=None,
+                              prior_high_52w=None, high_52w=None):
+    """Return meaningful technical objectives above entry, nearest first.
+
+    ATR is deliberately not used to generate these levels. It only filters
+    tiny/noisy objectives that sit too close to entry to be useful.
+    """
+    if entry <= 0:
+        return []
+
+    key_levels = key_levels or []
+    min_gap_pct = max(0.01, min(float(atr_pct or 0) * 0.5, 0.03))
+    min_level = entry * (1 + min_gap_pct)
+    raw = []
+
+    def add(value, label, rank):
+        try:
+            level = float(value)
+        except (TypeError, ValueError):
+            return
+        if level <= min_level:
+            return
+        raw.append({
+            "level": level,
+            "label": label,
+            "rank": rank,
+            "distance": (level - entry) / entry,
+        })
+
+    for level in key_levels:
+        try:
+            value = float(level.get("level"))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        touches = int(level.get("touches") or 0)
+        kind = str(level.get("kind") or "level")
+        if level.get("is_flip"):
+            label = "support/resistance flip"
+        elif kind == "resistance":
+            label = f"{touches}x tested resistance" if touches else "detected resistance"
+        else:
+            label = f"{touches}x tested level" if touches else "detected technical level"
+        add(value, label, 1)
+
+    add(resistance, "10-day range high", 2)
+    add(swing_high_60d, "60-day swing high", 3)
+    add(prior_high_52w, "prior 52-week high", 4)
+    add(high_52w, "52-week high", 5)
+
+    deduped = []
+    for item in sorted(raw, key=lambda x: (x["level"], x["rank"])):
+        if deduped and abs(item["level"] - deduped[-1]["level"]) / deduped[-1]["level"] < 0.01:
+            # Keep the stronger/more structural label for near-identical levels.
+            if item["rank"] < deduped[-1]["rank"]:
+                deduped[-1] = item
+            continue
+        deduped.append(item)
+
+    return sorted(deduped, key=lambda x: (x["distance"], x["rank"]))
+
+
 def _recent_local_lows(prices, lookback=126):
     if prices is None or len(prices) < 15:
         return []
@@ -1429,8 +1491,45 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         stop = float(abort_level)
     else:
         stop = anchor * (1 - max(atr_pct * 2, 0.03))
-    t1 = anchor * (1 + max(atr_pct * 3, 0.05))
-    t2 = anchor * (1 + max(atr_pct * 6, 0.10))
+    volatility_t1 = anchor * (1 + max(atr_pct * 3, 0.05))
+    volatility_t2 = anchor * (1 + max(atr_pct * 6, 0.10))
+    structural_targets = _structural_targets_above(
+        anchor,
+        atr_pct,
+        key_levels=key_levels,
+        resistance=resistance,
+        swing_high_60d=swing_high_60d,
+        prior_high_52w=prior_high_52w,
+        high_52w=high_52w,
+    )
+    target_meta = []
+    for target in structural_targets[:2]:
+        target_meta.append({
+            "source": "Structural target",
+            "detail": target["label"],
+            "level": target["level"],
+        })
+    if len(target_meta) == 0:
+        target_meta.append({
+            "source": "Volatility-derived target",
+            "detail": "3x ATR / 5% minimum fallback",
+            "level": volatility_t1,
+        })
+    if len(target_meta) == 1:
+        fallback_level = max(volatility_t2, target_meta[0]["level"] * 1.03)
+        fallback_detail = (
+            "6x ATR / 10% minimum fallback"
+            if fallback_level == volatility_t2
+            else "fallback beyond first structural objective"
+        )
+        target_meta.append({
+            "source": "Volatility-derived target",
+            "detail": fallback_detail,
+            "level": fallback_level,
+        })
+
+    t1 = target_meta[0]["level"]
+    t2 = target_meta[1]["level"]
     risk_per_share = entry - stop
     reward_per_share = t1 - entry
     reward_risk = (
@@ -1449,13 +1548,15 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     if reward_risk is not None and reward_risk < 1.0:
         reward_risk_gate = True
         reward_risk_gate_reason = (
-            f"Reward/risk is {reward_risk:.2f}:1 to Target 1, so the setup "
+            f"Reward/risk is {reward_risk:.2f}:1 to Target 1 "
+            f"({target_meta[0]['detail']}), so the setup "
             "is starter-size at best unless the trigger has already fired and the tape confirms."
         )
     elif reward_risk is not None and reward_risk < 1.2:
         reward_risk_gate = True
         reward_risk_gate_reason = (
-            f"Reward/risk is thin at {reward_risk:.2f}:1 to Target 1; "
+            f"Reward/risk is thin at {reward_risk:.2f}:1 to Target 1 "
+            f"({target_meta[0]['detail']}); "
             "position size should stay conservative unless the setup improves."
         )
     change = float((prices.iloc[-1] / prices.iloc[-2] - 1) * 100) if len(prices) >= 2 else 0.0
@@ -1505,6 +1606,11 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "stop": stop,
         "t1": t1,
         "t2": t2,
+        "t1_source": target_meta[0]["source"],
+        "t1_detail": target_meta[0]["detail"],
+        "t2_source": target_meta[1]["source"],
+        "t2_detail": target_meta[1]["detail"],
+        "structural_targets": structural_targets,
         "reward_risk": reward_risk,
         "reward_risk_gate": reward_risk_gate,
         "reward_risk_gate_reason": reward_risk_gate_reason,
