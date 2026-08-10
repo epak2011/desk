@@ -12287,6 +12287,39 @@ div[data-testid="element-container"]:has(.desk-bar) {
     font-weight: 850;
 }
 
+.desk-execution-plan-card {
+    border: 1px solid var(--desk-border);
+    border-radius: 8px;
+    background: #FFFFFF;
+    padding: 12px 14px;
+    margin: 0 0 14px;
+}
+
+.desk-execution-plan-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px dashed var(--desk-border);
+}
+
+.desk-execution-plan-title {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--desk-muted);
+}
+
+.desk-execution-plan-status {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 900;
+}
+
 .desk-memo-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -14505,6 +14538,80 @@ if view == "analyze":
         reason_title = action_reason_title(t)
         change_title = action_change_title(t)
 
+        def _entry_plan_block_html(title: str, status_label: str = "") -> str:
+            if t.get("action") not in ("enter_now", "watch"):
+                return ""
+            try:
+                entry_value = float(t.get("entry") or 0)
+                stop_value = float(t.get("stop") or 0)
+                t1_value = float(t.get("t1") or 0)
+                t2_value = float(t.get("t2") or 0)
+                atr_dollars = float(t.get("atr_pct") or 0) * entry_value
+            except (TypeError, ValueError):
+                return ""
+
+            if entry_value <= 0:
+                return ""
+
+            stop_atrs = abs(entry_value - stop_value) / atr_dollars if atr_dollars > 0 else 0
+            t1_atrs = abs(t1_value - entry_value) / atr_dollars if atr_dollars > 0 else 0
+            risk_per_share = entry_value - stop_value
+            reward_per_share = t1_value - entry_value
+            rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
+            plan_rows = [
+                ("Entry", f"${entry_value:,.2f}", ""),
+                ("Stop", f"${stop_value:,.2f}", f"{stop_atrs:.1f}x ATR away" if stop_atrs > 0 else ""),
+                ("Target 1", f"${t1_value:,.2f}", f"{t1_atrs:.1f}x ATR away · reward/risk {rr_ratio:.2f}:1" if t1_atrs > 0 else ""),
+                ("Target 2", f"${t2_value:,.2f}", ""),
+            ]
+            plan_bits = []
+            for label, value, note in plan_rows:
+                note_html = f'<span class="sub">{html.escape(note)}</span>' if note else ""
+                plan_bits.append(
+                    f'<div class="desk-plan-row">'
+                    f'<span class="k">{html.escape(label)}</span>'
+                    f'<span style="text-align:right;line-height:1.25;">'
+                    f'<span class="v">{html.escape(value)}</span>'
+                    f'{note_html}'
+                    f'</span></div>'
+                )
+            sizing_html = ""
+            account = st.session_state.store.get("account_size", 100000)
+            risk_pct = st.session_state.store.get("risk_per_trade", 0.01)
+            max_pos_pct = st.session_state.store.get("max_position_pct", 0.25)
+            if risk_per_share > 0 and entry_value > 0:
+                risk_dollars = account * risk_pct
+                risk_shares = int(risk_dollars // risk_per_share)
+                cap_dollars = account * max_pos_pct
+                cap_shares = int(cap_dollars // entry_value)
+                shares = min(risk_shares, cap_shares)
+                position_value = shares * entry_value
+                effective_risk = shares * risk_per_share
+                effective_risk_pct = (effective_risk / account) * 100 if account > 0 else 0
+                pos_pct = (position_value / account) * 100 if account > 0 else 0
+                cap_note = " · capped by max position size" if cap_shares < risk_shares else ""
+                sizing_html = (
+                    f'<div class="desk-advanced-note" style="margin-top:12px;">'
+                    f'Risk ${effective_risk:,.0f} ({effective_risk_pct:.2f}% of ${account:,.0f}) · '
+                    f'{shares:,} shares · position ${position_value:,.0f} ({pos_pct:.1f}% of account){cap_note}'
+                    f'</div>'
+                )
+            status_html = (
+                f'<div class="desk-execution-plan-status">{html.escape(status_label)}</div>'
+                if status_label
+                else ""
+            )
+            return (
+                f'<div class="desk-execution-plan-card">'
+                f'<div class="desk-execution-plan-head">'
+                f'<div class="desk-execution-plan-title">{html.escape(title)}</div>'
+                f'{status_html}'
+                f'</div>'
+                f'{"".join(plan_bits)}'
+                f'{sizing_html}'
+                f'</div>'
+            )
+
         snapshot_items = [
             ("Current action", f'<span style="color:{sty["color"]};font-weight:900;">{html.escape(sty["emoji"])} {html.escape(action_label)}</span>'),
             ("Suggested size", html.escape(suggested_size_label(t))),
@@ -14544,6 +14651,12 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
+
+        if action_key == "enter_now":
+            st.markdown(
+                _entry_plan_block_html("Execution plan", "Enter now"),
+                unsafe_allow_html=True,
+            )
 
         # Technical picture — high on the page because the chart and tape are
         # the primary evidence for a discretionary trading decision.
@@ -14623,60 +14736,10 @@ if view == "analyze":
                     f'<div style="padding: 0 2px;">{paras_html}</div>',
                     unsafe_allow_html=True,
                 )
-            if t.get("action") in ("enter_now", "watch"):
-                when_label = "Entry plan if trigger fires" if t.get("action") == "watch" else "Entry plan"
-                atr_dollars = float(t.get("atr_pct") or 0) * float(t.get("entry") or 0)
-                stop_atrs = abs(float(t.get("entry") or 0) - float(t.get("stop") or 0)) / atr_dollars if atr_dollars > 0 else 0
-                t1_atrs = abs(float(t.get("t1") or 0) - float(t.get("entry") or 0)) / atr_dollars if atr_dollars > 0 else 0
-                risk_per_share = float(t.get("entry") or 0) - float(t.get("stop") or 0)
-                reward_per_share = float(t.get("t1") or 0) - float(t.get("entry") or 0)
-                rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
-                plan_rows = [
-                    ("Entry", f"${float(t.get('entry') or 0):,.2f}", ""),
-                    ("Stop", f"${float(t.get('stop') or 0):,.2f}", f"{stop_atrs:.1f}x ATR away" if stop_atrs > 0 else ""),
-                    ("Target 1", f"${float(t.get('t1') or 0):,.2f}", f"{t1_atrs:.1f}x ATR away · reward/risk {rr_ratio:.2f}:1" if t1_atrs > 0 else ""),
-                    ("Target 2", f"${float(t.get('t2') or 0):,.2f}", ""),
-                ]
-                plan_bits = []
-                for label, value, note in plan_rows:
-                    note_html = f'<span class="sub">{html.escape(note)}</span>' if note else ""
-                    plan_bits.append(
-                        f'<div class="desk-plan-row">'
-                        f'<span class="k">{html.escape(label)}</span>'
-                        f'<span style="text-align:right;line-height:1.25;">'
-                        f'<span class="v">{html.escape(value)}</span>'
-                        f'{note_html}'
-                        f'</span></div>'
-                    )
-                plan_html = "".join(plan_bits)
-                account = st.session_state.store.get("account_size", 100000)
-                risk_pct = st.session_state.store.get("risk_per_trade", 0.01)
-                max_pos_pct = st.session_state.store.get("max_position_pct", 0.25)
-                sizing_html = ""
-                if risk_per_share > 0 and float(t.get("entry") or 0) > 0:
-                    risk_dollars = account * risk_pct
-                    risk_shares = int(risk_dollars // risk_per_share)
-                    cap_dollars = account * max_pos_pct
-                    cap_shares = int(cap_dollars // float(t.get("entry") or 0))
-                    shares = min(risk_shares, cap_shares)
-                    position_value = shares * float(t.get("entry") or 0)
-                    effective_risk = shares * risk_per_share
-                    effective_risk_pct = (effective_risk / account) * 100 if account > 0 else 0
-                    pos_pct = (position_value / account) * 100 if account > 0 else 0
-                    cap_note = f" · capped by max position size" if cap_shares < risk_shares else ""
-                    sizing_html = (
-                        f'<div class="desk-advanced-note" style="margin-top:12px;">'
-                        f'Risk ${effective_risk:,.0f} ({effective_risk_pct:.2f}% of ${account:,.0f}) · '
-                        f'{shares:,} shares · position ${position_value:,.0f} ({pos_pct:.1f}% of account){cap_note}'
-                        f'</div>'
-                    )
+            if t.get("action") == "watch":
                 st.markdown(
                     '<div style="border-top:1px dashed var(--color-border);margin:12px 0 14px;"></div>'
-                    '<div style="font-family:Geist,sans-serif;font-size:var(--fs-xs);'
-                    'font-weight:700;letter-spacing: var(--ls-caps-lg);text-transform:uppercase;'
-                    'color:var(--color-muted);margin-bottom:8px;">'
-                    f'{html.escape(when_label)}</div>'
-                    f'<div>{plan_html}{sizing_html}</div>',
+                    + _entry_plan_block_html("Entry plan if trigger fires", "Conditional"),
                     unsafe_allow_html=True,
                 )
 
