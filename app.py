@@ -11930,6 +11930,34 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid var(--desk-border) !important;
 }
 
+@media (min-width: 900px) {
+    section[data-testid="stSidebar"],
+    section[data-testid="stSidebar"][aria-expanded="false"],
+    section[data-testid="stSidebar"][aria-expanded="true"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        transform: none !important;
+        left: 0 !important;
+        margin-left: 0 !important;
+        width: 252px !important;
+        min-width: 252px !important;
+        max-width: 252px !important;
+        z-index: 9999 !important;
+    }
+
+    section[data-testid="stSidebar"] > div:first-child,
+    section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        transform: none !important;
+        width: 252px !important;
+        min-width: 252px !important;
+        max-width: 252px !important;
+    }
+}
+
 @media (min-width: 1181px) {
     .main .block-container,
     section.main .block-container,
