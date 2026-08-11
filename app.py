@@ -33,7 +33,7 @@ import yfinance as yf
 
 import backend_layer
 import tactical
-from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
+from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS, pm_identity_mismatch
 
 try:
     from pm_view import _messages_create as anthropic_messages_create
@@ -1192,6 +1192,8 @@ def normalize_pm_payload(payload, ticker=""):
     for meta_key in ("_source", "source", "_worker_generated_at", "generated_at", "updated_at", "_market_price"):
         if meta_key in payload and meta_key not in normalized:
             normalized[meta_key] = payload.get(meta_key)
+    if pm_identity_mismatch(ticker, normalized):
+        return {}
     return normalized
 
 
@@ -1251,8 +1253,14 @@ def newest_pm_cache_entry(ticker):
     local_entry = cache.get(ticker) if isinstance(cache, dict) else None
     backend_entry = hydrate_pm_cache_from_backend(ticker)
     if backend_entry:
+        backend_payload = backend_entry.get("view") if isinstance(backend_entry.get("view"), dict) else backend_entry
+        if pm_identity_mismatch(ticker, backend_payload):
+            return None
         return backend_entry
     if isinstance(local_entry, dict) and local_entry.get("durable"):
+        local_payload = local_entry.get("view") if isinstance(local_entry.get("view"), dict) else local_entry
+        if pm_identity_mismatch(ticker, local_payload):
+            return None
         return local_entry
     return None
 
@@ -1267,7 +1275,14 @@ def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
         st.session_state["_last_pm_persist_error"] = error
         print(f"[pm-persistence] write_failed ticker={ticker} error={error}")
         return None
+    if pm_identity_mismatch(ticker, pm):
+        error = "PM memo failed company-identity check; it was not saved."
+        st.session_state["_last_pm_persist_error"] = error
+        print(f"[pm-persistence] write_rejected ticker={ticker} error={error}")
+        return None
     payload = normalize_pm_payload(pm, ticker)
+    if not payload:
+        return None
     thesis_text = str(payload.get("thesis") or "")
     if _is_placeholder_pm_text(thesis_text, ticker):
         return None
@@ -1308,7 +1323,11 @@ def remember_visible_pm_entry(ticker, pm, source=None, market_price=None, *, per
     ticker = str(ticker or "").upper().strip()
     if not ticker or not isinstance(pm, dict):
         return None
+    if pm_identity_mismatch(ticker, pm):
+        return None
     payload = normalize_pm_payload(pm, ticker)
+    if not payload:
+        return None
     thesis_text = str(payload.get("thesis") or "")
     if _is_placeholder_pm_text(thesis_text, ticker):
         return None

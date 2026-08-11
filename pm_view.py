@@ -213,6 +213,12 @@ STATIC_SNAPSHOTS = {
         "risks": ["Deal closing and regulatory mechanics", "Legacy DISH/Hughes cash-flow drag", "SpaceX proxy premium can unwind quickly"],
         "valuation": "Valuation should be framed as a sum-of-parts: SpaceX stock value, remaining spectrum/telecom assets, net debt, and legacy operating burn.",
     },
+    "RDW": {
+        "thesis": "Redwire is a space infrastructure and defense technology company. The investment debate is whether national-security space demand, spacecraft components, and microgravity/in-space systems can scale into durable margins before funding and small-cap execution risk dilute the upside.",
+        "drivers": ["National-security space demand", "Spacecraft components and mission systems", "Microgravity and in-space manufacturing optionality"],
+        "risks": ["Lumpy government program timing", "Funding and margin execution risk", "Small-cap liquidity and dilution sensitivity"],
+        "valuation": "Valuation depends on backlog conversion, revenue growth durability, and proof that space-infrastructure margins can scale.",
+    },
 }
 
 # Keep the older name so existing imports don't break.
@@ -263,6 +269,11 @@ TICKER_RESEARCH_CONTEXT = {
     "RKLB": [
         "Rocket Lab is a space infrastructure company, not only a small-launch provider. Discuss Neutron, spacecraft/components revenue, launch cadence, funding runway, and whether it can become a scaled alternative to SpaceX in selected missions.",
     ],
+    "RDW": [
+        "Redwire Corporation is a space infrastructure and defense technology company. It provides spacecraft components, mission systems, sensors/payloads, power/avionics, microgravity platforms, and in-space manufacturing/biotech infrastructure.",
+        "Do NOT describe RDW as nuclear instrumentation, uranium, small modular reactors, radiation detection, or nuclear measurement. Those are wrong-company themes for RDW unless explicitly tied to space radiation effects, and even then the company thesis must remain space infrastructure.",
+        "The PM debate is whether national-security space demand, spacecraft component backlog, microgravity/in-space systems, and commercial space infrastructure can scale into durable revenue and margins before dilution, contract lumpiness, and small-cap liquidity risk overwhelm the setup.",
+    ],
     "ASTS": [
         "AST SpaceMobile is a direct-to-device cellular satellite special situation. Discuss satellite deployment cadence, carrier/MNO partnerships, spectrum/regulatory execution, funding needs, and whether technical validation converts into commercial service.",
     ],
@@ -308,6 +319,72 @@ TICKER_RESEARCH_CONTEXT = {
 RESEARCH_CONTEXT_TICKERS = set(TICKER_RESEARCH_CONTEXT)
 
 
+def _collect_pm_text(payload):
+    """Flatten generated PM payload text so identity guards can inspect it."""
+    parts = []
+
+    def walk(value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            parts.append(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                walk(item)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                walk(item)
+        else:
+            parts.append(str(value))
+
+    walk(payload)
+    return " ".join(parts)
+
+
+def pm_identity_mismatch(ticker, payload, company_name=None):
+    """Return True when a generated/cached PM memo clearly describes the wrong company."""
+    tkr = str(ticker or "").upper().strip()
+    if not tkr:
+        return False
+    text = _collect_pm_text(payload).lower()
+    if not text:
+        return False
+
+    if tkr == "RDW":
+        wrong_company_terms = (
+            "nuclear instrumentation",
+            "uranium",
+            "small modular reactor",
+            "small modular reactors",
+            "smr buildout",
+            "smr deployment",
+            "radiation detection",
+            "nuclear measurement",
+            "nuclear security systems",
+            "reactor deployment",
+        )
+        return any(term in text for term in wrong_company_terms)
+
+    return False
+
+
+def _identity_guard_for(ticker, company_name=None):
+    tkr = str(ticker or "").upper().strip()
+    name = str(company_name or tkr).strip()
+    lines = [
+        f"The ticker is {tkr} ({name}). Anchor the memo to this exact company/security.",
+        "Do not infer the business from ticker letters alone or reuse a thesis from a different company.",
+        "If company identity conflicts with a stale cached thesis, trust the ticker/company identity and rewrite the memo.",
+    ]
+    if tkr == "RDW":
+        lines.extend([
+            "RDW is Redwire Corporation, a space infrastructure and defense/aerospace technology company.",
+            "Forbidden RDW themes: nuclear instrumentation, uranium, SMRs, reactor deployment, radiation detection, or nuclear measurement as the core thesis.",
+            "Required RDW themes: space infrastructure, spacecraft components/mission systems, national-security space, microgravity/in-space manufacturing optionality, funding and contract-lumpiness risk.",
+        ])
+    return "\n".join(f"- {line}" for line in lines)
+
+
 def _special_context_for(ticker):
     lines = TICKER_RESEARCH_CONTEXT.get((ticker or "").upper())
     if not lines:
@@ -345,6 +422,24 @@ def _generic_snapshot(ticker):
         "drivers": ["Not yet analyzed"],
         "risks": ["Not yet analyzed"],
         "valuation": "Not yet analyzed",
+    }
+
+
+def _identity_guarded_dossier_payload(ticker, reason="identity guard rejected generated PM memo"):
+    snap = STATIC_SNAPSHOTS.get(str(ticker or "").upper(), _generic_snapshot(ticker))
+    return {
+        "dossier": snap.get("thesis"),
+        "technical_narrative": "",
+        "pm_narrative": snap.get("thesis"),
+        "bullets": {
+            "thesis": snap.get("thesis"),
+            "drivers": snap.get("drivers") or [],
+            "risks": snap.get("risks") or [],
+            "valuation": snap.get("valuation") or "",
+        },
+        "quality": snap.get("quality") or {},
+        "tactical_call": {},
+        "_source": f"static ({reason})",
     }
 
 
@@ -569,9 +664,13 @@ def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
         client = Anthropic(api_key=api_key)
         t = tactical_output or {}
         special_context = _special_context_for(ticker)
+        identity_guard = _identity_guard_for(ticker, company_name)
         compact_prompt = f"""You are the PM sidebar in a trading workstation. Generate a FAST, specific portfolio-manager snapshot for {ticker}{' (' + company_name + ')' if company_name else ''}.
 
 Return ONLY valid JSON. No markdown. Keep it concise enough to finish quickly.
+
+Identity guard:
+{identity_guard}
 
 Ticker context:
 {special_context}
@@ -631,6 +730,13 @@ Rules:
             )
             text = message.content[0].text.strip()
             parsed = _parse_json_response(text)
+            if pm_identity_mismatch(ticker, parsed, company_name):
+                snap = STATIC_SNAPSHOTS.get(ticker, _generic_snapshot(ticker))
+                return {
+                    **snap,
+                    "deep_dive": _empty_deep_dive(ticker),
+                    "_source": "static (identity guard rejected generated PM memo)",
+                }
             parsed.setdefault("deep_dive", _empty_deep_dive(ticker))
             parsed["_source"] = "claude fast"
             return parsed
@@ -717,6 +823,13 @@ Return ONLY the JSON, nothing else."""
                 text = text[4:]
             text = text.strip()
         parsed = _parse_json_response(text)
+        if pm_identity_mismatch(ticker, parsed, company_name):
+            snap = STATIC_SNAPSHOTS.get(ticker, _generic_snapshot(ticker))
+            return {
+                **snap,
+                "deep_dive": _empty_deep_dive(ticker),
+                "_source": "static (identity guard rejected generated PM memo)",
+            }
         parsed["_source"] = "claude"
         return parsed
     except Exception as e:
@@ -757,6 +870,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         client = Anthropic(api_key=api_key)
 
         special_context = _special_context_for(ticker)
+        identity_guard = _identity_guard_for(ticker, company_name)
         recent_news_block = ""
 
         bias = t_state.get("bias") or t_state.get("raw_bias") or "unclear"
@@ -793,6 +907,9 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
             fast_prompt = f"""You are a senior portfolio manager and trader. Refresh the on-page PM research for {ticker}{f' ({company_name})' if company_name else ''}.
 
 Return ONLY valid JSON. No markdown.
+
+Identity guard:
+{identity_guard}
 
 Context:
 - Rule action: {action.replace('_', ' ')}
@@ -861,6 +978,8 @@ Be specific. Do not return placeholders. If the business has a special-situation
                         text = text[4:]
                     text = text.strip()
                 parsed = _parse_json_response(text)
+                if pm_identity_mismatch(ticker, parsed, company_name):
+                    return _identity_guarded_dossier_payload(ticker)
                 return {
                     "dossier": parsed.get("dossier"),
                     "technical_narrative": parsed.get("technical_narrative"),
@@ -881,6 +1000,9 @@ Be specific. Do not return placeholders. If the business has a special-situation
         prompt = f"""You are a senior portfolio manager and trader. Generate THREE pieces of analysis on {ticker}{f' ({company_name})' if company_name else ''}.
 
 CRITICAL: The ticker {ticker} refers to the US-listed security "{company_name if company_name else ticker}" trading on US stock exchanges (NYSE/NASDAQ). Do NOT confuse it with any foreign company sharing the same ticker on another exchange. If the company name seems unfamiliar or foreign, use your knowledge of US-listed stocks to identify the correct company for ticker {ticker}. All analysis must be about the US-listed {ticker} only.{recent_news_block}
+Identity guard:
+{identity_guard}
+
 {special_context}
 DATA YOU HAVE:
 
@@ -1140,6 +1262,8 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
                 text = text[4:]
             text = text.strip()
         parsed = _parse_json_response(text)
+        if pm_identity_mismatch(ticker, parsed, company_name):
+            return _identity_guarded_dossier_payload(ticker)
         return {
             "dossier": parsed.get("dossier"),
             "technical_narrative": parsed.get("technical_narrative"),
