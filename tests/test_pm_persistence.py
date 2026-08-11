@@ -147,6 +147,26 @@ class PmPersistenceTests(unittest.TestCase):
         self.assertIn("allow_generate=allow_pm_generate", analyze_body)
         self.assertIn("force_generate=force_pm_refresh", analyze_body)
 
+    def test_manual_pm_refresh_does_not_enqueue_worker_pm_job(self):
+        app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+        refresh_body = app_source.split("def refresh_current_ticker_state", 1)[1].split(
+            "def queue_full_report_refresh", 1
+        )[0]
+
+        self.assertIn('queued_job_id = None', refresh_body)
+        self.assertIn('if job_type != "pm_memo":', refresh_body)
+        self.assertIn('enqueue_refresh_job(', refresh_body)
+        self.assertNotIn('("pm_memo" if refresh_research else "market_snapshot")\n    queued_job_id = enqueue_refresh_job', refresh_body)
+
+    def test_pm_worker_history_is_hidden_from_visible_pm_status(self):
+        app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+        status_body = app_source.split("def backend_job_status_html", 1)[1].split(
+            "def sidebar_cache_status", 1
+        )[0]
+
+        self.assertIn('job.get("job_type")', status_body)
+        self.assertIn('!= "pm_memo"', status_body)
+
 
 if __name__ == "__main__":
     unittest.main()

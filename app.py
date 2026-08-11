@@ -7057,6 +7057,11 @@ def backend_job_status_html(ticker=None, *, limit=3):
         jobs = backend_layer.latest_jobs(ticker=ticker, limit=limit)
     except Exception:
         return ""
+    # PM memos are saved by the foreground app path so the visible memo is only
+    # replaced after PostgreSQL confirms the write. Old worker PM jobs can still
+    # exist in the queue history; showing them here makes the user-facing PM
+    # state look failed even when the durable memo is fine.
+    jobs = [job for job in jobs if str(job.get("job_type") or "") != "pm_memo"]
     if not jobs:
         return ""
     pieces = []
@@ -7109,12 +7114,19 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
     if not refresh_ticker:
         return
     job_type = "full_report" if refresh_full_report else ("pm_memo" if refresh_research else "market_snapshot")
-    queued_job_id = enqueue_refresh_job(
-        job_type,
-        ticker=refresh_ticker,
-        payload={"ticker": refresh_ticker, "source": "analyze_refresh"},
-        priority=40 if job_type == "market_snapshot" else 70,
-    )
+    queued_job_id = None
+    # Manual PM memo refresh must have one source of truth: the Analyze page
+    # generates the memo and only publishes it after `pm_memos` reads back the
+    # same revision. Queueing a separate worker PM job created a race where the
+    # visible memo could look fresh in session but vanish on browser refresh if
+    # the worker timed out or lacked ANTHROPIC_API_KEY.
+    if job_type != "pm_memo":
+        queued_job_id = enqueue_refresh_job(
+            job_type,
+            ticker=refresh_ticker,
+            payload={"ticker": refresh_ticker, "source": "analyze_refresh"},
+            priority=40 if job_type == "market_snapshot" else 70,
+        )
     st.session_state.current_ticker = refresh_ticker
     st.session_state.view = "analyze"
     # Do not write to st.session_state["ticker_input"] here. This helper is
@@ -7152,11 +7164,8 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
             refreshed_action = canonical_action_for_ticker(refresh_ticker)
         except Exception:
             refreshed_action = ""
-    if refresh_research and not queued_job_id:
-        st.session_state["_last_job_error"] = (
-            "Background PM refresh could not be queued; this page will still "
-            "try an inline PM refresh if Claude is configured."
-        )
+    if refresh_research:
+        st.session_state.pop("_last_job_error", None)
     if refresh_full_report:
         st.session_state["_force_dossier_refresh_ticker"] = refresh_ticker
         pending_dossier = st.session_state.setdefault("_pending_dossier_refreshes", {})
@@ -16021,7 +16030,7 @@ if view == "analyze":
         if st.button(
             f"🧠 Refresh PM memo",
             key=f"refresh_current_pm_{ticker.upper()}",
-            help="Refreshes the visible PM thesis, quality box, drivers, risks, and valuation in the background. The long full report refresh lives on the full report page.",
+            help="Refreshes and saves the visible PM thesis, quality box, drivers, risks, and valuation. The long full report refresh lives on the full report page.",
             use_container_width=True,
         ):
             refresh_current_ticker_state(ticker, refresh_research=True)
