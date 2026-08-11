@@ -14069,21 +14069,171 @@ if view == "analyze":
             )
 
     if hist is None or len(hist) < 50:
-        if err_reason:
-            st.error(
-                f"**Couldn't load data for {ticker}.**  \n"
-                f"Reason: `{err_reason}`  \n\n"
-                f"This is almost always a yfinance / Yahoo Finance API issue, "
-                f"not a bug in this app. The yfinance library ships near-weekly "
-                f"patches for Yahoo's API changes — if this persists, bumping "
-                f"the version in `requirements.txt` and rebooting the app usually "
-                f"fixes it within a day or two."
-            )
-        else:
-            st.error(f"Couldn't find data for **{ticker}** — only {len(hist) if hist is not None else 0} rows of history (need ≥50).")
+        rows_loaded = len(hist) if hist is not None else 0
+        detail = str(err_reason or f"Only {rows_loaded} price rows were available.")
+        st.markdown(
+            f"""
+<style>
+.desk-data-unavailable {{
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-warning);
+  border-radius: 8px;
+  padding: 22px 24px;
+  box-shadow: var(--shadow-soft);
+  color: var(--color-text);
+  margin: 10px 0 22px;
+}}
+.desk-data-unavailable .kicker {{
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin-bottom: 8px;
+}}
+.desk-data-unavailable .title {{
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
+  margin-bottom: 8px;
+}}
+.desk-data-unavailable .copy {{
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-body);
+  max-width: 920px;
+}}
+.desk-data-unavailable .next {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}}
+.desk-data-unavailable .next span {{
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-muted);
+  background: var(--color-surface);
+}}
+.desk-data-unavailable details {{
+  margin-top: 16px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}}
+.desk-data-unavailable summary {{
+  cursor: pointer;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+}}
+.desk-data-unavailable code {{
+  display: block;
+  margin-top: 8px;
+  white-space: normal;
+  color: var(--color-muted);
+}}
+</style>
+<div class="desk-data-unavailable">
+  <div class="kicker">Market data unavailable</div>
+  <div class="title">We could not build a reliable read for {html.escape(ticker.upper())} yet.</div>
+  <div class="copy">
+    Trading Desk needs enough recent price history to score trend, relative strength,
+    risk, and targets. This symbol may be newly listed, thinly covered, temporarily
+    unavailable from the market-data feed, or entered in a format the feed does not recognize.
+  </div>
+  <div class="next">
+    <span>Check the ticker symbol</span>
+    <span>Try again in a few minutes</span>
+    <span>Use another symbol while the feed catches up</span>
+  </div>
+  <details>
+    <summary>Technical detail</summary>
+    <code>{html.escape(detail)}</code>
+  </details>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.stop()
     if bench is None:
-        st.error("Couldn't load SPY benchmark — yfinance API issue, see above.")
+        st.markdown(
+            """
+<style>
+.desk-data-unavailable {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-warning);
+  border-radius: 8px;
+  padding: 22px 24px;
+  box-shadow: var(--shadow-soft);
+  color: var(--color-text);
+  margin: 10px 0 22px;
+}
+.desk-data-unavailable .kicker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin-bottom: 8px;
+}
+.desk-data-unavailable .title {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
+  margin-bottom: 8px;
+}
+.desk-data-unavailable .copy {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-body);
+  max-width: 920px;
+}
+.desk-data-unavailable .next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.desk-data-unavailable .next span {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-muted);
+  background: var(--color-surface);
+}
+</style>
+<div class="desk-data-unavailable">
+  <div class="kicker">Benchmark unavailable</div>
+  <div class="title">The S&P 500 benchmark did not load cleanly.</div>
+  <div class="copy">
+    The stock data loaded, but the benchmark feed is unavailable right now. Trading Desk
+    uses the benchmark to calculate relative strength, so this read is paused until the
+    benchmark refreshes.
+  </div>
+  <div class="next">
+    <span>Try again in a few minutes</span>
+    <span>Market data may be temporarily delayed</span>
+  </div>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.stop()
     bench_notice = benchmark_fallback_notice(bench)
     if bench_notice:
