@@ -11871,8 +11871,6 @@ div[data-testid="stMainBlockContainer"] {
 
 #MainMenu,
 footer,
-header,
-[data-testid="stHeader"],
 [data-testid="stToolbar"],
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"],
@@ -11886,10 +11884,45 @@ header,
     min-height: 0 !important;
 }
 
+header,
 [data-testid="stHeader"],
 header[data-testid="stHeader"] {
+    display: block !important;
+    visibility: visible !important;
+    height: 0 !important;
+    min-height: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
+    pointer-events: none !important;
+    overflow: visible !important;
+}
+
+[data-testid="stHeader"] *,
+header[data-testid="stHeader"] * {
+    pointer-events: none !important;
+}
+
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: fixed !important;
+    top: 10px !important;
+    left: 10px !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    z-index: 2147483647 !important;
+    pointer-events: auto !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+[data-testid="stSidebarCollapsedControl"] *,
+[data-testid="collapsedControl"] * {
+    pointer-events: auto !important;
 }
 
 section[data-testid="stSidebar"] {
