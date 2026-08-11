@@ -53,7 +53,7 @@ st.set_page_config(
     page_title="Trading Desk",
     page_icon="▸",
     layout="wide",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="expanded",
 )
 
 # Persistent store lives in the user's home folder, NOT in the app folder.
