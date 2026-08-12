@@ -319,6 +319,107 @@ TICKER_RESEARCH_CONTEXT = {
 RESEARCH_CONTEXT_TICKERS = set(TICKER_RESEARCH_CONTEXT)
 
 
+PM_IDENTITY_PROFILES = {
+    "RDW": {
+        "name": "Redwire Corporation",
+        "description": "space infrastructure, spacecraft components, mission systems, and national-security space technology",
+        "required": (
+            "Redwire",
+            "space infrastructure",
+            "spacecraft",
+            "mission systems",
+            "national-security space",
+            "microgravity",
+            "in-space",
+        ),
+        "forbidden": (
+            "nuclear instrumentation",
+            "uranium",
+            "small modular reactor",
+            "small modular reactors",
+            "smr buildout",
+            "smr deployment",
+            "radiation detection",
+            "nuclear measurement",
+            "nuclear security systems",
+            "reactor deployment",
+        ),
+    },
+    "RKLB": {
+        "name": "Rocket Lab USA",
+        "description": "space launch, spacecraft systems, Neutron, and space infrastructure",
+        "required": ("Rocket Lab", "launch", "Neutron", "spacecraft", "space systems", "space infrastructure"),
+        "forbidden": ("Rocket Mortgage", "mortgage lender", "home loan", "refinancing", "consumer mortgage"),
+    },
+    "DASH": {
+        "name": "DoorDash, Inc.",
+        "description": "local commerce, logistics marketplace, food/grocery delivery, ads, and international expansion",
+        "required": ("DoorDash", "local commerce", "delivery", "marketplace", "grocery", "advertising"),
+        "forbidden": ("privacy coin", "masternode", "Dash cryptocurrency", "digital cash protocol", "proof-of-work coin"),
+    },
+    "SATS": {
+        "name": "EchoStar Corporation",
+        "description": "satellite communications, spectrum monetization, DISH/Hughes assets, and SpaceX/Starlink optionality",
+        "required": ("EchoStar", "DISH", "Hughes", "spectrum", "SpaceX", "Starlink", "satellite communications"),
+        "forbidden": ("SATS Ltd", "Singapore airport", "ground handling", "air cargo", "aviation catering", "airport services"),
+    },
+    "NVO": {
+        "name": "Novo Nordisk",
+        "description": "GLP-1 obesity and diabetes medicines, Wegovy/Ozempic, and Lilly competition",
+        "required": ("Novo Nordisk", "GLP-1", "Wegovy", "Ozempic", "obesity", "diabetes"),
+        "forbidden": ("Novo Integrated Sciences", "medical devices distributor", "healthcare services roll-up"),
+    },
+    "ASTS": {
+        "name": "AST SpaceMobile",
+        "description": "direct-to-device cellular satellite broadband, MNO partnerships, and constellation execution",
+        "required": ("AST SpaceMobile", "direct-to-device", "cellular satellite", "MNO", "constellation", "BlueBird"),
+        "forbidden": ("AST Spacemobile is a telecom tower REIT", "asteroid mining", "space tourism operator"),
+    },
+    "COIN": {
+        "name": "Coinbase Global",
+        "description": "crypto exchange, custody, staking, stablecoin economics, and regulatory exposure",
+        "required": ("Coinbase", "exchange", "custody", "staking", "stablecoin", "crypto"),
+        "forbidden": ("coin-operated", "Coinstar", "numismatic", "minting collectibles"),
+    },
+    "PLTR": {
+        "name": "Palantir Technologies",
+        "description": "ontology/AIP enterprise software, government analytics, and commercial AI adoption",
+        "required": ("Palantir", "AIP", "ontology", "government", "commercial AI", "software"),
+        "forbidden": ("Paltalk", "video chat platform", "consumer messaging app"),
+    },
+    "SKM": {
+        "name": "SK Telecom",
+        "description": "Korean telecom cash flows, AI data centers, and Anthropic hidden-asset optionality",
+        "required": ("SK Telecom", "Korea", "telecom", "Anthropic", "AI data center"),
+        "forbidden": ("SK Materials", "specialty gas manufacturer", "semiconductor materials pure-play"),
+    },
+    "ICOP": {
+        "name": "iShares Copper and Metals Mining ETF",
+        "description": "ETF exposure to copper, mining equities, and critical metals",
+        "required": ("ETF", "copper", "metals", "miners", "holdings"),
+        "forbidden": ("software company", "single-company revenue", "CEO execution"),
+    },
+    "CQQQ": {
+        "name": "Invesco China Technology ETF",
+        "description": "ETF exposure to China technology equities, policy risk, and holdings concentration",
+        "required": ("ETF", "China", "technology", "holdings", "policy"),
+        "forbidden": ("single-company revenue", "CEO execution"),
+    },
+    "EWY": {
+        "name": "iShares MSCI South Korea ETF",
+        "description": "ETF exposure to South Korean equities, memory cycle, FX, and holdings concentration",
+        "required": ("ETF", "South Korea", "Korea", "Samsung", "SK Hynix", "holdings"),
+        "forbidden": ("single-company revenue", "CEO execution"),
+    },
+    "BTC-USD": {
+        "name": "Bitcoin",
+        "description": "crypto asset driven by liquidity, ETF flows, real rates, custody, and risk appetite",
+        "required": ("Bitcoin", "BTC", "ETF flows", "liquidity", "real rates"),
+        "forbidden": ("quarterly revenue growth", "earnings growth", "management guidance"),
+    },
+}
+
+
 def _collect_pm_text(payload):
     """Flatten generated PM payload text so identity guards can inspect it."""
     parts = []
@@ -346,24 +447,19 @@ def pm_identity_mismatch(ticker, payload, company_name=None):
     tkr = str(ticker or "").upper().strip()
     if not tkr:
         return False
+    if isinstance(payload, dict):
+        saved_ticker = payload.get("_ticker") or payload.get("ticker") or payload.get("symbol")
+        if saved_ticker and str(saved_ticker).upper().strip() != tkr:
+            return True
     text = _collect_pm_text(payload).lower()
     if not text:
         return False
 
-    if tkr == "RDW":
-        wrong_company_terms = (
-            "nuclear instrumentation",
-            "uranium",
-            "small modular reactor",
-            "small modular reactors",
-            "smr buildout",
-            "smr deployment",
-            "radiation detection",
-            "nuclear measurement",
-            "nuclear security systems",
-            "reactor deployment",
-        )
-        return any(term in text for term in wrong_company_terms)
+    profile = PM_IDENTITY_PROFILES.get(tkr)
+    if profile:
+        forbidden_terms = tuple(str(term).lower() for term in profile.get("forbidden", ()))
+        if any(term in text for term in forbidden_terms):
+            return True
 
     return False
 
@@ -371,16 +467,17 @@ def pm_identity_mismatch(ticker, payload, company_name=None):
 def _identity_guard_for(ticker, company_name=None):
     tkr = str(ticker or "").upper().strip()
     name = str(company_name or tkr).strip()
+    profile = PM_IDENTITY_PROFILES.get(tkr)
     lines = [
         f"The ticker is {tkr} ({name}). Anchor the memo to this exact company/security.",
         "Do not infer the business from ticker letters alone or reuse a thesis from a different company.",
         "If company identity conflicts with a stale cached thesis, trust the ticker/company identity and rewrite the memo.",
     ]
-    if tkr == "RDW":
+    if profile:
         lines.extend([
-            "RDW is Redwire Corporation, a space infrastructure and defense/aerospace technology company.",
-            "Forbidden RDW themes: nuclear instrumentation, uranium, SMRs, reactor deployment, radiation detection, or nuclear measurement as the core thesis.",
-            "Required RDW themes: space infrastructure, spacecraft components/mission systems, national-security space, microgravity/in-space manufacturing optionality, funding and contract-lumpiness risk.",
+            f"{tkr} is {profile['name']}: {profile['description']}.",
+            "Required anchor themes: " + ", ".join(profile.get("required", ())) + ".",
+            "Forbidden wrong-company themes: " + ", ".join(profile.get("forbidden", ())) + ".",
         ])
     return "\n".join(f"- {line}" for line in lines)
 

@@ -1287,6 +1287,7 @@ def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
     if _is_placeholder_pm_text(thesis_text, ticker):
         return None
     payload = {k: v for k, v in payload.items() if k != "source"}
+    payload["_ticker"] = ticker
     payload["_source"] = source or pm.get("_source") or payload.get("_source") or "claude"
     payload["_worker_generated_at"] = datetime.now(timezone.utc).isoformat()
     if market_price is not None:
