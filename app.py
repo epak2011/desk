@@ -132,7 +132,17 @@ FALLBACK_PROFILE_META = {
     "PLTR": {"name": "Palantir Technologies", "sector": "Technology", "industry": "Software"},
     "DASH": {"name": "DoorDash", "sector": "Consumer Cyclical", "industry": "Internet content & information"},
     "COIN": {"name": "Coinbase Global", "sector": "Financial Services", "industry": "Capital markets"},
-    "RKLB": {"name": "Rocket Lab", "sector": "Industrials", "industry": "Aerospace & defense"},
+    "RKLB": {
+        "name": "Rocket Lab",
+        "sector": "Industrials",
+        "industry": "Aerospace & defense",
+        "summary": (
+            "Rocket Lab builds and operates space systems, including Electron launch services, "
+            "satellite components, mission software, and the planned Neutron medium-lift rocket. "
+            "The company is a vertically integrated space infrastructure platform rather than "
+            "only a launch provider."
+        ),
+    },
     "VRT": {"name": "Vertiv", "sector": "Industrials", "industry": "Electrical equipment"},
     "ICOP": {"name": "iShares Copper and Metals Mining ETF", "sector": "ETF", "category": "Copper and metals mining"},
     "BTC-USD": {"name": "Bitcoin", "sector": "Crypto", "industry": "Digital asset"},
@@ -2199,12 +2209,11 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     line-height: 1.4; max-width: 680px; font-weight: 400;
 }
 .desk-company-overview {
-    margin: -12px 0 24px;
-    padding: 15px 18px;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    background: var(--color-surface);
-    box-shadow: var(--shadow-soft);
+    margin: -8px 0 30px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
 }
 .desk-company-overview .label {
     font-family: var(--font-mono);
@@ -2217,15 +2226,12 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
 .desk-company-overview .copy {
     margin-top: 8px;
     font-size: var(--fs-base);
-    line-height: 1.55;
+    line-height: 1.58;
     color: var(--color-body);
-    max-width: 920px;
+    max-width: 860px;
 }
 .desk-company-overview .meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-    margin-top: 11px;
+    display: none;
 }
 .desk-company-overview .meta span {
     display: inline-flex;
@@ -3170,8 +3176,8 @@ div.streamlit-expanderHeader {
     border: 1px solid var(--color-border);
     border-radius: 8px;
     background: #FFFFFF;
-    padding: 12px 13px;
-    margin: 0 0 12px;
+    padding: 13px 14px;
+    margin: 0 0 14px;
 }
 .desk-freshness-title {
     font-family: var(--font-mono);
@@ -3227,11 +3233,12 @@ div.streamlit-expanderHeader {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    border: 1px solid var(--color-border);
-    border-radius: 7px;
-    background: #FFFFFF;
-    padding: 10px 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0 0 10px;
     margin: 0 0 8px;
+    border-bottom: 1px dashed var(--color-border-soft);
 }
 .desk-data-quality-main {
     display: flex;
@@ -3263,20 +3270,34 @@ div.streamlit-expanderHeader {
     overflow-wrap: anywhere;
 }
 .desk-data-quality-summary.warn {
-    border-color: rgba(197, 124, 0, 0.28);
-    background: rgba(197, 124, 0, 0.04);
+    background: transparent;
 }
 .desk-data-quality-summary.stale {
-    border-color: rgba(220, 70, 70, 0.22);
-    background: rgba(220, 70, 70, 0.04);
+    background: transparent;
 }
 .desk-data-quality-summary.fresh {
-    border-color: rgba(20, 160, 84, 0.24);
-    background: rgba(20, 160, 84, 0.04);
+    background: transparent;
 }
 .data-quality-detail,
 .background-job-detail {
     margin-top: 8px;
+}
+.data-quality-detail summary,
+.background-job-detail summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+.data-quality-detail summary span:last-child,
+.background-job-detail summary span:last-child {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: 0.02em;
+    text-align: right;
+    text-transform: none;
 }
 .background-job-detail .desk-job-status {
     margin-top: 10px;
@@ -5652,6 +5673,12 @@ def fetch_quote_meta(ticker, include_slow_fallbacks=False):
         out["exchange"] = _first_present(info.get("exchange"), price_summary.get("exchangeName"), _safe_fast_info_get(fast_info, "exchange"))
         out["sector"] = _first_present(info.get("sector"), profile_summary.get("sector"))
         out["industry"] = _first_present(info.get("industry"), profile_summary.get("industry"))
+        out["long_business_summary"] = _first_present(
+            info.get("longBusinessSummary"),
+            info.get("businessSummary"),
+            profile_summary.get("longBusinessSummary"),
+            profile_summary.get("businessSummary"),
+        )
         out["category"] = _first_present(info.get("category"), fund_summary.get("categoryName"))
         out["fund_family"] = _first_present(info.get("fundFamily"), fund_summary.get("family"))
         out["market_cap"] = _first_present(
@@ -6222,13 +6249,10 @@ def company_overview_html(ticker, meta=None, fallback_profile=None, name=None):
         if mcap:
             meta_bits.append(f"{mcap} market cap")
 
-    meta_html = "".join(f"<span>{html.escape(str(bit))}</span>" for bit in meta_bits[:5])
-    meta_block = f'<div class="meta">{meta_html}</div>' if meta_html else ""
     return (
         '<div class="desk-company-overview">'
         '<div class="label">Company overview</div>'
         f'<div class="copy">{html.escape(summary)}</div>'
-        f'{meta_block}'
         '</div>'
     )
 
@@ -7292,7 +7316,7 @@ def canonical_freshness_html(items, refresh_event=None):
         f'{data_quality_summary_html(items)}'
         f'{receipt}'
         '<details class="rules-guide-expander data-quality-detail">'
-        '<summary><span>Data quality details</span><span>price, PM memo, report, sidebar</span></summary>'
+        '<summary><span>Data quality details</span><span>Price · PM memo · report · sidebar</span></summary>'
         f'{data_status_html(items)}'
         '</details>'
         '</div>'
@@ -7395,7 +7419,7 @@ def backend_job_status_details_html(ticker=None, *, limit=3):
         return ""
     return (
         '<details class="rules-guide-expander background-job-detail">'
-        '<summary><span>Background refresh details</span><span>latest saved jobs</span></summary>'
+        '<summary><span>Background refresh details</span><span>Latest saved jobs</span></summary>'
         f'{body}'
         '</details>'
     )
@@ -12908,21 +12932,11 @@ div[data-testid="stExpander"] > details[open] > summary {
 }
 
 .desk-pm-utility {
-    border: 1px solid var(--desk-border);
-    border-radius: 6px;
-    background: #FFFFFF;
-    padding: 8px 10px;
     margin: 0 0 14px;
 }
 
 .desk-pm-utility-label {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 10px;
-    font-weight: 850;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    color: var(--desk-muted);
-    margin-bottom: 6px;
+    display: none;
 }
 
 .desk-pm-memo {
@@ -16492,7 +16506,6 @@ if view == "analyze":
             unsafe_allow_html=True,
         )
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
-        st.markdown(backend_job_status_details_html(ticker, limit=3), unsafe_allow_html=True)
         if st.button(
             f"🧠 Refresh PM memo",
             key=f"refresh_current_pm_{ticker.upper()}",
