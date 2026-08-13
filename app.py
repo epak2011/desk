@@ -1133,9 +1133,14 @@ if "nav_counter" not in st.session_state:
     st.session_state.nav_counter = 0
 
 
-@st.cache_data(ttl=2, show_spinner=False)
 def backend_pm_payload(ticker):
-    """Read one worker-written PM memo row without touching market APIs."""
+    """Read the durable PM memo row directly.
+
+    PM memo persistence depends on this read being fresh. The visible session
+    cache is intentionally transient, and PM rows can be written by another
+    process, so Streamlit-caching this function can preserve an old empty read
+    after the database has a saved memo.
+    """
     tkr = str(ticker or "").upper().strip()
     if not tkr or not backend_layer.has_database():
         return {}
@@ -1307,6 +1312,47 @@ def _pm_from_cache_entry(entry, *, suffix=""):
     return pm
 
 
+def _pm_source_is_fallback_or_failed(pm, ticker=""):
+    """True when the visible PM is a temporary fallback, not a durable memo."""
+    if not isinstance(pm, dict):
+        return True
+    if _is_placeholder_pm_text(pm.get("thesis"), ticker):
+        return True
+    source = str(pm.get("_source") or "").lower()
+    if not source:
+        return False
+    fallback_markers = (
+        "static",
+        "fast mode",
+        "refresh failed",
+        "refresh not saved",
+        "refresh to update",
+        "cached only",
+        "cached/static",
+        "api key unavailable",
+        "unavailable",
+        "error:",
+        "not generated",
+    )
+    return any(marker in source for marker in fallback_markers)
+
+
+def restore_durable_pm_for_render(ticker, pm, *, force_refresh=False):
+    """Make the saved PM memo the rendering authority.
+
+    On a normal page load, the durable database memo should win over any
+    transient/static fallback. On a manual refresh, a newly generated PM can win
+    only if it is clean; otherwise the last saved memo remains visible.
+    """
+    durable_entry = newest_pm_cache_entry(ticker)
+    durable_pm = _pm_from_cache_entry(durable_entry)
+    if not durable_pm:
+        return pm
+    if force_refresh and not _pm_source_is_fallback_or_failed(pm, ticker):
+        return pm
+    return durable_pm
+
+
 def newest_pm_cache_entry(ticker):
     """Return the durable backend memo, with confirmed session data as fallback."""
     ticker = str(ticker or "").upper().strip()
@@ -1368,10 +1414,6 @@ def persist_pm_entry_to_backend(ticker, pm, source=None, market_price=None):
             "source": confirmed_payload.get("_source"),
             "revision_id": confirmed_payload.get("_revision_id"),
         }
-        try:
-            backend_pm_payload.clear()
-        except Exception:
-            pass
         return confirmed_payload
     except Exception as exc:
         st.session_state["_last_pm_persist_error"] = str(exc)[:300]
@@ -1496,16 +1538,13 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
 
 
 def clear_pm_cache(ticker):
-    """Invalidate the read cache without deleting the last durable PM memo.
+    """Compatibility no-op for callers that mean "do not delete durable PM".
 
-    A credential change may affect the next generation request, but it must
-    never erase the last confirmed database revision while the new request is
-    still pending or fails.
+    PM memo reads are intentionally uncached now. Keeping this function as a
+    no-op prevents older refresh paths from erasing the last confirmed database
+    revision while a new request is pending or fails.
     """
-    try:
-        backend_pm_payload.clear()
-    except Exception:
-        pass
+    return None
 
 
 def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, company_name, allow_generate=True, force_generate=False, fast_generate=False):
@@ -7544,10 +7583,6 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
         pending_pm[refresh_ticker] = datetime.now().isoformat(timespec="seconds")
         try:
             fetch_quote_meta.clear(refresh_ticker)
-        except Exception:
-            pass
-        try:
-            backend_pm_payload.clear(refresh_ticker)
         except Exception:
             pass
         # Keep the last confirmed memo visible until the worker has durably
@@ -14975,6 +15010,7 @@ if view == "analyze":
                 else:
                     pm = get_pm_view(ticker, t, api_key=None, company_name=name)
                     pm["_source"] = "refresh not saved"
+    pm = restore_durable_pm_for_render(ticker_key, pm, force_refresh=force_pm_refresh)
     research_items = research_health_items(pm, dossier_result, api_key)
     pm_status_item = research_items[0] if research_items else ("PM memo", "not generated", "warn")
     dossier_status_item = (
