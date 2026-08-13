@@ -15,6 +15,7 @@ import html
 import hashlib
 import math
 import os
+import re
 import time
 import threading
 import urllib.parse
@@ -6173,14 +6174,26 @@ def company_overview_html(ticker, meta=None, fallback_profile=None, name=None):
             return ""
         return " ".join(str(value).replace("\n", " ").split())
 
-    def _shorten(text, max_chars=430):
+    def _overview_text(text, max_chars=760, max_sentences=3):
         text = _clean_text(text)
-        if len(text) <= max_chars:
+        if not text:
+            return ""
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+        if not sentences:
             return text
-        cut = text[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:")
-        return f"{cut}..."
+        selected = []
+        total = 0
+        for sentence in sentences:
+            proposed = total + len(sentence) + (1 if selected else 0)
+            if selected and (len(selected) >= max_sentences or proposed > max_chars):
+                break
+            selected.append(sentence)
+            total = proposed
+            if total >= max_chars:
+                break
+        return " ".join(selected) if selected else sentences[0]
 
-    summary = _shorten(meta_first_present(
+    summary = _overview_text(meta_first_present(
         meta.get("long_business_summary"),
         meta.get("longBusinessSummary"),
         meta.get("business_summary"),
@@ -6189,11 +6202,16 @@ def company_overview_html(ticker, meta=None, fallback_profile=None, name=None):
         meta.get("description"),
         meta.get("long_description"),
         fallback_profile.get("summary"),
-        fallback_profile.get("description"),
     ))
 
     if not summary:
-        if is_crypto:
+        profile_description = _clean_text(fallback_profile.get("description"))
+        if profile_description:
+            summary = (
+                f"{display_name} is tied to {profile_description.rstrip('.')}. "
+                "This view separates the business exposure from the current trade setup, so the action still depends on price, trend, relative strength, and risk/reward today."
+            )
+        elif is_crypto:
             summary = (
                 f"{display_name} is tracked here as a crypto asset, so the decision read "
                 "leans on price trend, relative strength, liquidity, and risk levels rather "
@@ -6208,13 +6226,13 @@ def company_overview_html(ticker, meta=None, fallback_profile=None, name=None):
             )
         elif industry and sector and str(industry).lower() != str(sector).lower():
             summary = (
-                f"{display_name} operates in {industry} within {sector}. "
-                "The Trading Desk read combines this business context with the current technical setup."
+                f"{display_name} operates in the {industry} industry within the {sector} sector. "
+                "This page treats that business profile as context, then asks whether the current chart offers a clean tactical entry, hold, or exit."
             )
         elif sector or industry:
             summary = (
                 f"{display_name} operates in {sector or industry}. "
-                "The Trading Desk read combines this business context with the current technical setup."
+                "This page treats that business profile as context, then asks whether the current chart offers a clean tactical entry, hold, or exit."
             )
         else:
             summary = (
@@ -14032,7 +14050,11 @@ details summary:hover {
     max-width: 760px !important;
 }
 .desk-company-overview {
-    margin: -6px 0 28px !important;
+    margin: 16px 0 34px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 .desk-company-overview .label,
 .desk-section-label,
@@ -14049,9 +14071,10 @@ details summary:hover {
     letter-spacing: 0.13em !important;
 }
 .desk-company-overview .copy {
-    font-size: 14px !important;
-    line-height: 1.55 !important;
+    font-size: 15px !important;
+    line-height: 1.58 !important;
     color: var(--desk-text) !important;
+    max-width: 900px !important;
 }
 .desk-snapshot-v,
 .desk-stack-value,
@@ -14097,18 +14120,39 @@ details summary:hover {
     padding-top: 12px !important;
 }
 .desk-pm-memo .desk-pm-block {
-    padding: 10px 0 !important;
+    padding: 12px 0 !important;
 }
 .desk-pm-block .body,
 .desk-pm-item,
 .desk-pm-thesis p {
     font-family: var(--font-sans) !important;
     font-size: 14px !important;
-    line-height: 1.52 !important;
+    line-height: 1.5 !important;
+    color: var(--desk-text) !important;
+}
+.desk-freshness-panel {
+    margin: 0 0 16px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 .desk-data-quality-summary {
-    padding: 11px 12px !important;
-    gap: 12px !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 5px 10px !important;
+    padding: 10px 0 12px !important;
+    border: 0 !important;
+    border-bottom: 1px dashed var(--color-border-soft) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+.desk-data-quality-main {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
 }
 .desk-data-quality-icon {
     font-size: 15px !important;
@@ -14117,8 +14161,26 @@ details summary:hover {
     font-size: 13px !important;
 }
 .desk-data-quality-note {
+    grid-column: 2 !important;
+    text-align: left !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    max-width: 100% !important;
+}
+.data-quality-detail {
+    margin-top: 8px !important;
+}
+.data-quality-detail summary {
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 12px !important;
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+}
+.data-quality-detail summary span:last-child {
     font-size: 11px !important;
-    line-height: 1.35 !important;
+    color: var(--desk-muted) !important;
 }
 
 @media (max-width: 1180px) {
