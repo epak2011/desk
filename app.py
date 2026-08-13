@@ -33,7 +33,18 @@ import yfinance as yf
 
 import backend_layer
 import tactical
-from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS, pm_identity_mismatch
+from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
+
+try:
+    from pm_view import pm_identity_mismatch
+except ImportError:
+    def pm_identity_mismatch(ticker, payload, company_name=None):
+        """Conservative fallback so a deploy cannot fail from a missing PM guard export."""
+        ticker = str(ticker or "").upper().strip()
+        if not ticker or not isinstance(payload, dict):
+            return False
+        saved_ticker = payload.get("_ticker") or payload.get("ticker") or payload.get("symbol")
+        return bool(saved_ticker and str(saved_ticker).upper().strip() != ticker)
 
 try:
     from pm_view import _messages_create as anthropic_messages_create
