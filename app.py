@@ -160,6 +160,20 @@ FALLBACK_PROFILE_META = {
         "total_assets": 15_736_000_000,
         "expense_ratio": 0.0059,
     },
+    "DRAM": {
+        "name": "Roundhill Memory ETF",
+        "sector": "ETF",
+        "category": "Memory semiconductor equities",
+        "fund_family": "Roundhill Investments",
+        "expense_ratio": 0.0065,
+        "summary": (
+            "Roundhill Memory ETF is a thematic ETF focused on global memory semiconductor "
+            "companies, including businesses tied to DRAM, high-bandwidth memory, NAND flash, "
+            "and solid-state storage. Because it is a fund rather than an operating company, "
+            "the read should emphasize mandate, issuer, AUM, expense, liquidity, holdings "
+            "exposure, and price structure rather than company-level market cap."
+        ),
+    },
 }
 
 
@@ -214,6 +228,8 @@ def _infer_fund_category_from_name(name, is_etf=True):
     remove_terms = [
         "iShares", "Vanguard", "Invesco", "SPDR", "Global X", "ARK", "VanEck",
         "WisdomTree", "ProShares", "Direxion", "First Trust", "Schwab",
+        "Roundhill", "Bitwise", "Grayscale", "Amplify", "Defiance", "Tema",
+        "YieldMax", "REX", "GraniteShares", "Tuttle",
         "ETF", "Trust", "Fund", "Index", "Shares",
     ]
     for term in remove_terms:
@@ -5393,6 +5409,16 @@ def _first_present(*values):
     return None
 
 
+def _number_or_none(value):
+    value = _raw_yahoo_value(value)
+    if value is None or value == "":
+        return None
+    try:
+        return float(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def _safe_fast_info_get(fast_info, key):
     try:
         if fast_info is None:
@@ -5688,6 +5714,24 @@ def fetch_quote_meta(ticker, include_slow_fallbacks=False):
             _safe_fast_info_get(fast_info, "marketCap"),
             _safe_fast_info_get(fast_info, "market_cap"),
         )
+        out["shares_outstanding"] = _first_present(
+            info.get("sharesOutstanding"),
+            _raw_yahoo_value(stats_summary.get("sharesOutstanding")),
+            _safe_fast_info_get(fast_info, "shares"),
+            _safe_fast_info_get(fast_info, "sharesOutstanding"),
+        )
+        if out.get("market_cap") is None:
+            current_px = _first_present(
+                info.get("currentPrice"),
+                info.get("regularMarketPrice"),
+                _raw_yahoo_value(price_summary.get("regularMarketPrice")),
+                _safe_fast_info_get(fast_info, "lastPrice"),
+                _safe_fast_info_get(fast_info, "last_price"),
+            )
+            current_px = _number_or_none(current_px)
+            shares_out = _number_or_none(out.get("shares_outstanding"))
+            if current_px is not None and shares_out is not None and current_px > 0 and shares_out > 0:
+                out["market_cap"] = current_px * shares_out
         out["total_assets"] = _first_present(info.get("totalAssets"), _raw_yahoo_value(fund_summary.get("totalAssets")))
         out["net_assets"] = _first_present(info.get("netAssets"), _raw_yahoo_value(fund_summary.get("netAssets")))
         out["enterprise_value"] = info.get("enterpriseValue")
@@ -6219,10 +6263,11 @@ def company_overview_html(ticker, meta=None, fallback_profile=None, name=None):
             )
         elif is_fund:
             fund_focus = category or industry or sector or "its stated investment mandate"
+            issuer_text = f" from {family}" if family else ""
             summary = (
-                f"{display_name} is a listed fund/ETF tracked for exposure to {fund_focus}. "
-                "The Trading Desk read focuses on price behavior, trend quality, and ETF-specific "
-                "risk/reward rather than single-company operating fundamentals."
+                f"{display_name} is an ETF{issuer_text} that provides diversified exposure to {fund_focus}. "
+                "Because it is a fund rather than a single operating company, this page evaluates mandate fit, "
+                "liquidity, holdings exposure, trend quality, and risk/reward instead of company-level fundamentals."
             )
         elif industry and sector and str(industry).lower() != str(sector).lower():
             summary = (
