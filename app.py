@@ -13655,7 +13655,7 @@ details summary:hover {
     }
 
     .desk-decision .word {
-        font-size: clamp(58px, 8vw, 88px) !important;
+        font-size: 60px !important;
     }
 
     .position-decision-stats {
@@ -13848,7 +13848,7 @@ details summary:hover {
     }
 
     .desk-decision .word {
-        font-size: clamp(44px, 15vw, 64px) !important;
+        font-size: 48px !important;
         letter-spacing: -0.03em !important;
         line-height: 0.98 !important;
     }
@@ -13994,7 +13994,7 @@ details summary:hover {
     }
 
     .desk-decision .word {
-        font-size: clamp(38px, 14vw, 54px) !important;
+        font-size: 42px !important;
     }
 
     .desk-decision .emoji {
@@ -14008,6 +14008,149 @@ details summary:hover {
 
     .main [class*="st-key-decision_compare_user_pick_"] [role="radiogroup"] label {
         flex-basis: 100% !important;
+    }
+}
+
+/* Analyze page type-scale normalization.
+   Keep the recommendation dominant, then step everything else down into a
+   readable memo scale so the page does not feel assembled from separate apps. */
+.desk-decision .word {
+    font-family: var(--font-sans) !important;
+    font-size: 64px !important;
+    font-weight: 780 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.025em !important;
+}
+.desk-decision .emoji {
+    font-size: 30px !important;
+    margin-left: 7px !important;
+    vertical-align: 6px !important;
+}
+.desk-decision .context {
+    font-size: 16px !important;
+    line-height: 1.42 !important;
+    max-width: 760px !important;
+}
+.desk-company-overview {
+    margin: -6px 0 28px !important;
+}
+.desk-company-overview .label,
+.desk-section-label,
+.desk-decision-memo-title,
+.desk-execution-plan-title,
+.desk-technical-thesis-k,
+.desk-memo-card h4,
+.desk-pm-block .lb,
+.desk-snapshot-k,
+.desk-stack-label,
+.desk-data-quality-label {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    letter-spacing: 0.13em !important;
+}
+.desk-company-overview .copy {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+    color: var(--desk-text) !important;
+}
+.desk-snapshot-v,
+.desk-stack-value,
+.desk-memo-card li {
+    font-size: 14px !important;
+    line-height: 1.42 !important;
+}
+.desk-snapshot-v strong,
+.desk-snapshot-v b,
+.desk-stack-value strong,
+.desk-stack-value b {
+    font-size: inherit !important;
+}
+.desk-technical-thesis p {
+    font-size: 15px !important;
+    line-height: 1.5 !important;
+}
+.desk-pm-header {
+    min-height: 68px !important;
+    height: 68px !important;
+    font-size: 11px !important;
+}
+.desk-pm-header .em {
+    font-size: 13px !important;
+}
+.desk-pm-header .src {
+    font-size: 10px !important;
+}
+.desk-quality-card {
+    margin: 0 0 18px !important;
+    padding: 10px 12px !important;
+}
+.desk-quality-card div {
+    font-size: 12px !important;
+    line-height: 1.42 !important;
+}
+.desk-quality-card div:first-child {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+}
+.desk-pm-memo {
+    margin-top: 12px !important;
+    padding-top: 12px !important;
+}
+.desk-pm-memo .desk-pm-block {
+    padding: 10px 0 !important;
+}
+.desk-pm-block .body,
+.desk-pm-item,
+.desk-pm-thesis p {
+    font-family: var(--font-sans) !important;
+    font-size: 14px !important;
+    line-height: 1.52 !important;
+}
+.desk-data-quality-summary {
+    padding: 11px 12px !important;
+    gap: 12px !important;
+}
+.desk-data-quality-icon {
+    font-size: 15px !important;
+}
+.desk-data-quality-value {
+    font-size: 13px !important;
+}
+.desk-data-quality-note {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+}
+
+@media (max-width: 1180px) {
+    .desk-decision .word {
+        font-size: 60px !important;
+    }
+    .desk-decision .emoji {
+        font-size: 29px !important;
+    }
+}
+
+@media (max-width: 760px) {
+    .desk-decision .word {
+        font-size: 48px !important;
+    }
+    .desk-decision .emoji {
+        font-size: 26px !important;
+        vertical-align: 4px !important;
+    }
+    .desk-decision .context {
+        font-size: 15px !important;
+    }
+    .desk-pm-block .body,
+    .desk-pm-item,
+    .desk-company-overview .copy {
+        font-size: 14px !important;
+    }
+}
+
+@media (max-width: 430px) {
+    .desk-decision .word {
+        font-size: 42px !important;
     }
 }
 </style>
