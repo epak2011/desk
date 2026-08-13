@@ -61,4 +61,4 @@ jobs:
 
       - name: Drain queued refresh jobs
         if: steps.database.outputs.configured == 'true'
-        run: python worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 240 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan,pm_memo
+        run: python worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 240 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan

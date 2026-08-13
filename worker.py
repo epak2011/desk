@@ -29,6 +29,7 @@ import tactical
 
 SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan"]
 SCHEDULED_SAFE_RUNTIME_SECONDS = 240
+LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
 
 
 def _download_history(ticker: str):
@@ -385,6 +386,11 @@ def process_job(job: dict) -> dict:
     job_type = job.get("job_type")
     ticker = job.get("ticker")
     payload = job.get("payload") or {}
+    if job_type in LEGACY_IGNORED_JOB_TYPES:
+        return {
+            "retired": True,
+            "message": f"Legacy {job_type} job ignored. PM memos refresh inline from the Analyze page.",
+        }
     if job_type == "market_snapshot":
         return refresh_market_snapshot(ticker)
     if job_type == "watchlist_market_scan":
@@ -402,6 +408,10 @@ def _parse_job_types(raw: str | None) -> list[str] | None:
     if not raw:
         return None
     job_types = [piece.strip() for piece in raw.split(",") if piece.strip()]
+    legacy = [job_type for job_type in job_types if job_type in LEGACY_IGNORED_JOB_TYPES]
+    if legacy:
+        print(f"::warning::Ignoring legacy job type(s): {', '.join(legacy)}")
+        job_types = [job_type for job_type in job_types if job_type not in LEGACY_IGNORED_JOB_TYPES]
     unknown = [job_type for job_type in job_types if job_type not in backend.JOB_TYPES]
     if unknown:
         raise ValueError(f"Unknown job type(s): {', '.join(unknown)}")
