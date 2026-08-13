@@ -25,7 +25,6 @@ except Exception:  # pragma: no cover - lets local imports survive without deps
 JOB_TYPES = {
     "market_snapshot",
     "watchlist_market_scan",
-    "pm_memo",
     "full_report",
     "market_regime_daily",
     "repair_missing_data",
@@ -538,6 +537,41 @@ def retry_failed_jobs(
                     updated_at = NOW()
                 FROM retry
                 WHERE j.id = retry.id
+                """,
+                tuple(params),
+            )
+            return int(cur.rowcount or 0)
+
+
+def retire_job_type(job_type: str, *, statuses: Iterable[str] = ("queued", "failed"), limit: int = 500) -> int:
+    """Delete obsolete queued/failed jobs for a job type the worker no longer supports."""
+    if not has_database():
+        return 0
+    clean_job_type = str(job_type or "").strip()
+    if not clean_job_type:
+        return 0
+    clean_statuses = [str(status or "").strip() for status in statuses]
+    clean_statuses = [status for status in dict.fromkeys(clean_statuses) if status]
+    if not clean_statuses:
+        return 0
+    ensure_backend_schema()
+    placeholders = ", ".join(["%s"] * len(clean_statuses))
+    params: list[Any] = [clean_job_type, *clean_statuses, max(1, int(limit))]
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                WITH retired AS (
+                    SELECT id
+                    FROM refresh_jobs
+                    WHERE job_type = %s
+                      AND status IN ({placeholders})
+                    ORDER BY updated_at DESC
+                    LIMIT %s
+                )
+                DELETE FROM refresh_jobs j
+                USING retired
+                WHERE j.id = retired.id
                 """,
                 tuple(params),
             )

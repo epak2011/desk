@@ -1244,6 +1244,31 @@ def _pm_entry_ts(entry):
         return None
 
 
+def _pm_entry_age(entry):
+    """Return a timezone-safe PM memo age, or None when the timestamp is missing."""
+    parsed = _pm_entry_ts(entry)
+    if not parsed:
+        return None
+    return datetime.utcnow() - parsed
+
+
+def _pm_from_cache_entry(entry, *, suffix=""):
+    """Build a visible PM memo from the durable cache without mutating storage."""
+    if not isinstance(entry, dict):
+        return None
+    view = entry.get("view") if isinstance(entry.get("view"), dict) else {}
+    if not view:
+        return None
+    pm = dict(view)
+    age = _pm_entry_age(entry)
+    if age is None:
+        source_label = (entry.get("source") or "saved memo") + " · saved"
+    else:
+        source_label = (entry.get("source") or "saved memo") + f" · {age.days}d old"
+    pm["_source"] = source_label + suffix
+    return pm
+
+
 def newest_pm_cache_entry(ticker):
     """Return the durable backend memo, with confirmed session data as fallback."""
     ticker = str(ticker or "").upper().strip()
@@ -1391,35 +1416,23 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
     cache = st.session_state.store["pm_cache"]
     entry = newest_pm_cache_entry(ticker)
     if entry and not force_generate:
-        ts = entry.get("ts")
-        try:
-            age = datetime.now() - datetime.fromisoformat(ts)
-            if age < timedelta(days=PM_CACHE_TTL_DAYS):
-                pm = entry["view"]
-                pm["_source"] = (entry.get("source") or "cached") + f" · {age.days}d old"
+        age = _pm_entry_age(entry)
+        if age is None or age < timedelta(days=PM_CACHE_TTL_DAYS):
+            pm = _pm_from_cache_entry(entry)
+            if pm:
                 return pm
-        except Exception:
-            pass
         if not allow_generate:
-            try:
-                age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
-                pm = entry["view"]
-                pm["_source"] = (entry.get("source") or "cached") + f" · {age.days}d old · refresh to update"
+            pm = _pm_from_cache_entry(entry, suffix=" · refresh to update")
+            if pm:
                 return pm
-            except Exception:
-                pass
     if not allow_generate:
         pm = get_pm_view(ticker, tactical_output, api_key=None, company_name=company_name)
         pm["_source"] = "static · fast mode"
         return pm
     if not api_key and entry:
-        try:
-            age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
-            pm = dict(entry["view"])
-            pm["_source"] = (entry.get("source") or "cached") + f" · {age.days}d old · API key unavailable"
+        pm = _pm_from_cache_entry(entry, suffix=" · API key unavailable")
+        if pm:
             return pm
-        except Exception:
-            pass
 
     pm = get_pm_view(ticker, tactical_output, api_key=api_key, company_name=company_name)
     # Count this fresh Claude call if it actually hit the API. The fast path
@@ -1437,17 +1450,10 @@ def get_cached_pm(ticker, tactical_output, api_key, company_name, allow_generate
     )
     source_is_current_pm = pm_source.startswith("claude") or pm_source.startswith("rules fallback")
     if (is_placeholder_pm or not source_is_current_pm) and entry:
-        try:
-            age = datetime.now() - datetime.fromisoformat(entry.get("ts"))
-            fallback = dict(entry["view"])
-            reason = pm_source or "refresh failed"
-            fallback["_source"] = (
-                (entry.get("source") or "cached")
-                + f" · {age.days}d old · refresh failed ({reason})"
-            )
+        reason = pm_source or "refresh failed"
+        fallback = _pm_from_cache_entry(entry, suffix=f" · refresh failed ({reason})")
+        if fallback:
             return fallback
-        except Exception:
-            pass
     return pm
 
 
@@ -3161,6 +3167,65 @@ div.streamlit-expanderHeader {
 }
 .desk-refresh-receipt.warn {
     color: var(--color-warning-text);
+}
+.desk-data-quality-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 7px;
+    background: #FFFFFF;
+    padding: 10px 12px;
+    margin: 0 0 8px;
+}
+.desk-data-quality-main {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+.desk-data-quality-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+.desk-data-quality-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: var(--ls-caps-lg);
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+.desk-data-quality-value {
+    font-size: 13px;
+    font-weight: 850;
+    color: var(--color-text);
+}
+.desk-data-quality-note {
+    color: var(--color-muted);
+    font-size: 11px;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+.desk-data-quality-summary.warn {
+    border-color: rgba(197, 124, 0, 0.28);
+    background: rgba(197, 124, 0, 0.04);
+}
+.desk-data-quality-summary.stale {
+    border-color: rgba(220, 70, 70, 0.22);
+    background: rgba(220, 70, 70, 0.04);
+}
+.desk-data-quality-summary.fresh {
+    border-color: rgba(20, 160, 84, 0.24);
+    background: rgba(20, 160, 84, 0.04);
+}
+.data-quality-detail,
+.background-job-detail {
+    margin-top: 8px;
+}
+.background-job-detail .desk-job-status {
+    margin-top: 10px;
 }
 .desk-job-status {
     display: flex;
@@ -6931,6 +6996,38 @@ def data_status_html(items):
     return f'<div class="desk-data-strip">{chips}</div>'
 
 
+def data_quality_summary_html(items):
+    """Paid-user friendly summary of the same freshness/detail items."""
+    rows = [(str(label), str(value), str(kind)) for label, value, kind in (items or [])]
+    bad = [(label, value) for label, value, kind in rows if kind == "stale"]
+    warn = [(label, value) for label, value, kind in rows if kind == "warn"]
+    if bad:
+        klass = "stale"
+        icon = "👎"
+        value = "Needs attention"
+        note = " · ".join(f"{label}: {text}" for label, text in bad[:2])
+    elif warn:
+        klass = "warn"
+        icon = "⚠️"
+        value = "Partially updated"
+        note = " · ".join(f"{label}: {text}" for label, text in warn[:2])
+    else:
+        klass = "fresh"
+        icon = "👍"
+        value = "Good"
+        note = "Price, fundamentals, memo, and sidebar data look current."
+    return (
+        f'<div class="desk-data-quality-summary {klass}">'
+        '<div class="desk-data-quality-main">'
+        f'<span class="desk-data-quality-icon">{icon}</span>'
+        '<span class="desk-data-quality-label">Data quality</span>'
+        f'<span class="desk-data-quality-value">{html.escape(value)}</span>'
+        '</div>'
+        f'<div class="desk-data-quality-note">{html.escape(note)}</div>'
+        '</div>'
+    )
+
+
 def canonical_freshness_html(items, refresh_event=None):
     """One canonical freshness panel so status language stays consistent."""
     receipt = ""
@@ -7028,9 +7125,12 @@ def canonical_freshness_html(items, refresh_event=None):
             )
     return (
         '<div class="desk-freshness-panel">'
-        '<div class="desk-freshness-title">Freshness</div>'
-        f'{data_status_html(items)}'
+        f'{data_quality_summary_html(items)}'
         f'{receipt}'
+        '<details class="rules-guide-expander data-quality-detail">'
+        '<summary><span>Data quality details</span><span>price, PM memo, report, sidebar</span></summary>'
+        f'{data_status_html(items)}'
+        '</details>'
         '</div>'
     )
 
@@ -7082,6 +7182,20 @@ def backend_job_status_html(ticker=None, *, limit=3):
     # exist in the queue history; showing them here makes the user-facing PM
     # state look failed even when the durable memo is fine.
     jobs = [job for job in jobs if str(job.get("job_type") or "") != "pm_memo"]
+    deduped_jobs = []
+    seen_job_states = set()
+    for job in jobs:
+        key = (
+            str(job.get("job_type") or ""),
+            str(job.get("ticker") or ""),
+            str(job.get("status") or ""),
+            str(job.get("error") or "")[:120],
+        )
+        if key in seen_job_states:
+            continue
+        seen_job_states.add(key)
+        deduped_jobs.append(job)
+    jobs = deduped_jobs
     if not jobs:
         return ""
     pieces = []
@@ -7110,6 +7224,19 @@ def backend_job_status_html(ticker=None, *, limit=3):
     return '<div class="desk-job-status">' + "".join(pieces) + "</div>"
 
 
+def backend_job_status_details_html(ticker=None, *, limit=3):
+    """Collapse background worker noise behind one paid-user friendly row."""
+    body = backend_job_status_html(ticker=ticker, limit=limit)
+    if not body:
+        return ""
+    return (
+        '<details class="rules-guide-expander background-job-detail">'
+        '<summary><span>Background refresh details</span><span>latest saved jobs</span></summary>'
+        f'{body}'
+        '</details>'
+    )
+
+
 def sidebar_cache_status(ticker):
     """Freshness label for the active ticker row in the sidebar cache."""
     entry = ticker_snapshot(ticker).get("market") or {}
@@ -7133,14 +7260,14 @@ def refresh_current_ticker_state(ticker, *, refresh_research=False, refresh_full
     refresh_ticker = str(ticker or "").upper().strip()
     if not refresh_ticker:
         return
-    job_type = "full_report" if refresh_full_report else ("pm_memo" if refresh_research else "market_snapshot")
+    job_type = "full_report" if refresh_full_report else ("inline_pm_refresh" if refresh_research else "market_snapshot")
     queued_job_id = None
     # Manual PM memo refresh must have one source of truth: the Analyze page
     # generates the memo and only publishes it after `pm_memos` reads back the
     # same revision. Queueing a separate worker PM job created a race where the
     # visible memo could look fresh in session but vanish on browser refresh if
     # the worker timed out or lacked ANTHROPIC_API_KEY.
-    if job_type != "pm_memo":
+    if job_type != "inline_pm_refresh":
         queued_job_id = enqueue_refresh_job(
             job_type,
             ticker=refresh_ticker,
@@ -13940,7 +14067,7 @@ if view == "today":
             'The background worker updates the saved rows; PM memo and full-report refreshes stay in their own lanes.</div>',
             unsafe_allow_html=True,
         )
-        st.markdown(backend_job_status_html(limit=4), unsafe_allow_html=True)
+        st.markdown(backend_job_status_details_html(limit=4), unsafe_allow_html=True)
 
     if not watchlist_tickers:
         st.info("Add tickers to your watchlist to populate Today.")
@@ -15028,7 +15155,7 @@ if view == "analyze":
                     'Narrative refreshes live on the PM memo / full-report controls.</div>',
                     unsafe_allow_html=True,
                 )
-            st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
+            st.markdown(backend_job_status_details_html(ticker, limit=3), unsafe_allow_html=True)
 
         if position_read:
             stat_html = "".join(
@@ -16196,7 +16323,7 @@ if view == "analyze":
             unsafe_allow_html=True,
         )
         st.markdown(freshness_panel_html, unsafe_allow_html=True)
-        st.markdown(backend_job_status_html(ticker, limit=3), unsafe_allow_html=True)
+        st.markdown(backend_job_status_details_html(ticker, limit=3), unsafe_allow_html=True)
         if st.button(
             f"🧠 Refresh PM memo",
             key=f"refresh_current_pm_{ticker.upper()}",
@@ -20151,7 +20278,7 @@ if view == "watchlist":
                 'Fast market layer. This page loads from saved data first; Queue market scan refreshes prices/rules in the background. PM memos and full reports update separately from their own controls.</div>',
                 unsafe_allow_html=True,
             )
-            st.markdown(backend_job_status_html(limit=4), unsafe_allow_html=True)
+            st.markdown(backend_job_status_details_html(limit=4), unsafe_allow_html=True)
         try:
             hydrate_backend_ticker_snapshots(st.session_state.store["watchlist"])
         except Exception:

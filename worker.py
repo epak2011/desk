@@ -27,7 +27,7 @@ from pm_view import get_decision_dossier, get_pm_view
 import tactical
 
 
-SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan", "pm_memo"]
+SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan"]
 SCHEDULED_SAFE_RUNTIME_SECONDS = 240
 
 
@@ -296,29 +296,6 @@ def _fresh_tactical_state(ticker: str) -> tuple[dict, dict]:
     return t_state, _quote_meta(ticker)
 
 
-def refresh_pm_memo(ticker: str) -> dict:
-    ticker = str(ticker or "").upper().strip()
-    api_key = _api_key()
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not configured for the worker")
-    t_state, meta = _fresh_tactical_state(ticker)
-    company_name = meta.get("company_name") or ticker
-    pm = get_pm_view(ticker, t_state, api_key=api_key, company_name=company_name)
-    pm_payload = {
-        **(pm or {}),
-        "_worker_generated_at": datetime.now(timezone.utc).isoformat(),
-        "_market_price": t_state.get("price"),
-    }
-    stored_pm = backend.upsert_pm_memo(ticker, pm_payload, source=pm_payload.get("_source") or "claude")
-    return {
-        "ticker": ticker,
-        "source": pm_payload.get("_source"),
-        "quality": (pm_payload.get("quality") or {}).get("tier") if isinstance(pm_payload.get("quality"), dict) else None,
-        "updated_at": pm_payload.get("_worker_generated_at"),
-        "revision_id": stored_pm.get("_revision_id"),
-    }
-
-
 def refresh_full_report(ticker: str) -> dict:
     ticker = str(ticker or "").upper().strip()
     api_key = _api_key()
@@ -412,8 +389,6 @@ def process_job(job: dict) -> dict:
         return refresh_market_snapshot(ticker)
     if job_type == "watchlist_market_scan":
         return refresh_watchlist_market_scan(payload)
-    if job_type == "pm_memo":
-        return refresh_pm_memo(ticker)
     if job_type == "full_report":
         return refresh_full_report(ticker)
     if job_type in {"market_regime_daily", "repair_missing_data"}:
@@ -486,21 +461,22 @@ def main():
             print(f"recovered {recovered} stale running job(s)")
     except Exception as exc:
         print(f"stale job recovery skipped: {exc}")
+    try:
+        retired_pm_jobs = backend.retire_job_type("pm_memo", statuses=("queued", "failed"), limit=500)
+        if retired_pm_jobs:
+            print(f"retired {retired_pm_jobs} obsolete PM memo job(s)")
+    except Exception as exc:
+        print(f"obsolete PM memo job retirement skipped: {exc}")
     if args.maintenance:
         if _api_key():
             try:
-                retried_pm = backend.retry_failed_jobs(
-                    job_type="pm_memo",
-                    error_contains="ANTHROPIC_API_KEY is not configured",
-                    limit=50,
-                )
                 retried_reports = backend.retry_failed_jobs(
                     job_type="full_report",
                     error_contains="ANTHROPIC_API_KEY is not configured",
                     limit=20,
                 )
-                if retried_pm or retried_reports:
-                    print(f"requeued {retried_pm} PM memo and {retried_reports} full report key-missing job(s)")
+                if retried_reports:
+                    print(f"requeued {retried_reports} full report key-missing job(s)")
             except Exception as exc:
                 print(f"key-missing job retry skipped: {exc}")
         try:

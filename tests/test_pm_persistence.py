@@ -154,7 +154,8 @@ class PmPersistenceTests(unittest.TestCase):
         )[0]
 
         self.assertIn('queued_job_id = None', refresh_body)
-        self.assertIn('if job_type != "pm_memo":', refresh_body)
+        self.assertIn('"inline_pm_refresh" if refresh_research else "market_snapshot"', refresh_body)
+        self.assertIn('if job_type != "inline_pm_refresh":', refresh_body)
         self.assertIn('enqueue_refresh_job(', refresh_body)
         self.assertNotIn('("pm_memo" if refresh_research else "market_snapshot")\n    queued_job_id = enqueue_refresh_job', refresh_body)
 
@@ -166,6 +167,28 @@ class PmPersistenceTests(unittest.TestCase):
 
         self.assertIn('job.get("job_type")', status_body)
         self.assertIn('!= "pm_memo"', status_body)
+
+    def test_worker_cannot_process_or_resurrect_pm_memo_jobs(self):
+        backend_source = (Path(__file__).resolve().parents[1] / "backend_layer.py").read_text()
+        worker_source = (Path(__file__).resolve().parents[1] / "worker.py").read_text()
+
+        self.assertNotIn('"pm_memo"', backend_layer.JOB_TYPES)
+        self.assertIn("def retire_job_type", backend_source)
+        self.assertIn('backend.retire_job_type("pm_memo", statuses=("queued", "failed")', worker_source)
+        self.assertNotIn("def refresh_pm_memo", worker_source)
+        self.assertNotIn('if job_type == "pm_memo"', worker_source)
+        self.assertNotIn('job_type="pm_memo"', worker_source)
+        self.assertNotIn("upsert_pm_memo", worker_source)
+
+    def test_pm_memo_hydration_uses_timezone_safe_age(self):
+        app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+        pm_body = app_source.split("def get_cached_pm", 1)[1].split(
+            "def clear_pm_cache", 1
+        )[0]
+
+        self.assertIn("def _pm_entry_age", app_source)
+        self.assertIn("_pm_from_cache_entry(entry", pm_body)
+        self.assertNotIn("datetime.now() - datetime.fromisoformat", pm_body)
 
 
 if __name__ == "__main__":
