@@ -8400,8 +8400,12 @@ def suggested_size_label(t_state):
         return "—"
     action = normalize_action_key(t_state.get("action"))
     size = str(t_state.get("entry_size") or "").strip().lower()
-    if action in {"avoid", "hold_off", "watch"}:
-        return "0% now"
+    if action == "avoid":
+        return "0% — avoid"
+    if action == "hold_off":
+        return "0% until repair"
+    if action == "watch":
+        return "0% until trigger"
     if action == "accumulate":
         return "25% max"
     if action == "enter_now":
@@ -10205,13 +10209,20 @@ def setup_stage_items(t):
 def setup_stage_html(t):
     checks = setup_stage_items(t)
     complete = sum(1 for _, ok in checks if ok)
+    missing = [label for label, ok in checks if not ok]
+    missing_html = (
+        f'<div class="desk-stage-missing">Needs: {html.escape(", ".join(missing))}</div>'
+        if missing
+        else '<div class="desk-stage-missing ok">All checks passed</div>'
+    )
     chips = "".join(
         f'<span class="desk-stage-chip {"ok" if ok else "wait"}">'
         f'{"✓" if ok else "□"} {html.escape(label)}</span>'
         for label, ok in checks
     )
     return (
-        f'<div class="desk-stage-count">Stage {complete} of {len(checks)}</div>'
+        f'<div class="desk-stage-count">{complete}/{len(checks)} checks passed</div>'
+        f'{missing_html}'
         f'<div class="desk-stage-chips">{chips}</div>'
     )
 
@@ -12855,7 +12866,18 @@ div[data-testid="element-container"]:has(.desk-bar) {
 
 .desk-stage-count {
     font-weight: 850;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
+}
+
+.desk-stage-missing {
+    color: var(--desk-muted);
+    font-size: 12px;
+    line-height: 1.25;
+    margin-bottom: 7px;
+}
+
+.desk-stage-missing.ok {
+    color: #16864C;
 }
 
 .desk-stage-chips {
