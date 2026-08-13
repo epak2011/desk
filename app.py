@@ -2187,6 +2187,49 @@ section[data-testid="stSidebar"] div.stButton > button:hover {
     font-size: var(--fs-lg); color: var(--color-text); margin-top: 14px;
     line-height: 1.4; max-width: 680px; font-weight: 400;
 }
+.desk-company-overview {
+    margin: -12px 0 24px;
+    padding: 15px 18px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-soft);
+}
+.desk-company-overview .label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    font-weight: 800;
+    letter-spacing: var(--ls-caps-sm);
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+.desk-company-overview .copy {
+    margin-top: 8px;
+    font-size: var(--fs-base);
+    line-height: 1.55;
+    color: var(--color-body);
+    max-width: 920px;
+}
+.desk-company-overview .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 11px;
+}
+.desk-company-overview .meta span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 5px;
+    background: var(--color-bg);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    letter-spacing: 0;
+}
 
 /* Info icon — corner of the decision card. Hover reveals the criteria
    tooltip without taking real estate from the trigger block below. */
@@ -6067,6 +6110,116 @@ def build_security_meta_bits(ticker, meta=None, fallback_profile=None):
     if dy_pct:
         bits.append(f"{dy_pct} yield")
     return bits
+
+
+def company_overview_html(ticker, meta=None, fallback_profile=None, name=None):
+    """Render a compact company/fund overview below the action headline."""
+    meta = meta or {}
+    fallback_profile = fallback_profile or {}
+    ticker = (ticker or "").upper().strip()
+    display_name = display_security_name(ticker, name, meta, fallback_profile) or ticker
+    quote_type = str(meta.get("quote_type") or meta.get("quoteType") or "").upper()
+    sector = meta_first_present(meta.get("sector"), fallback_profile.get("sector"))
+    industry = meta_first_present(meta.get("industry"), fallback_profile.get("industry"))
+    category = meta_first_present(meta.get("category"), fallback_profile.get("category"))
+    family = meta_first_present(meta.get("fund_family"), fallback_profile.get("fund_family"))
+    is_crypto = ticker.endswith("-USD") or str(sector or "").lower() == "crypto"
+    is_fund = quote_type in {"ETF", "MUTUALFUND", "FUND"} or bool(
+        category or family or meta.get("total_assets") or meta.get("net_assets") or
+        fallback_profile.get("total_assets") or fallback_profile.get("net_assets") or
+        sector in {"ETF", "Fund"}
+    )
+
+    def _clean_text(value):
+        if not meta_value_present(value):
+            return ""
+        return " ".join(str(value).replace("\n", " ").split())
+
+    def _shorten(text, max_chars=430):
+        text = _clean_text(text)
+        if len(text) <= max_chars:
+            return text
+        cut = text[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:")
+        return f"{cut}..."
+
+    summary = _shorten(meta_first_present(
+        meta.get("long_business_summary"),
+        meta.get("longBusinessSummary"),
+        meta.get("business_summary"),
+        meta.get("businessSummary"),
+        meta.get("summary"),
+        meta.get("description"),
+        meta.get("long_description"),
+        fallback_profile.get("summary"),
+        fallback_profile.get("description"),
+    ))
+
+    if not summary:
+        if is_crypto:
+            summary = (
+                f"{display_name} is tracked here as a crypto asset, so the decision read "
+                "leans on price trend, relative strength, liquidity, and risk levels rather "
+                "than company fundamentals."
+            )
+        elif is_fund:
+            fund_focus = category or industry or sector or "its stated investment mandate"
+            summary = (
+                f"{display_name} is a listed fund/ETF tracked for exposure to {fund_focus}. "
+                "The Trading Desk read focuses on price behavior, trend quality, and ETF-specific "
+                "risk/reward rather than single-company operating fundamentals."
+            )
+        elif industry and sector and str(industry).lower() != str(sector).lower():
+            summary = (
+                f"{display_name} operates in {industry} within {sector}. "
+                "The Trading Desk read combines this business context with the current technical setup."
+            )
+        elif sector or industry:
+            summary = (
+                f"{display_name} operates in {sector or industry}. "
+                "The Trading Desk read combines this business context with the current technical setup."
+            )
+        else:
+            summary = (
+                f"{display_name} is being evaluated from available market data. "
+                "Company profile details are sparse, so the read leans more heavily on price, trend, and risk."
+            )
+
+    meta_bits = []
+    if is_crypto:
+        meta_bits.append("Crypto asset")
+    elif is_fund:
+        meta_bits.append("ETF/Fund")
+        if category:
+            meta_bits.append(str(category).title())
+        assets = format_market_cap(
+            meta.get("total_assets") or meta.get("net_assets") or
+            fallback_profile.get("total_assets") or fallback_profile.get("net_assets")
+        )
+        if assets:
+            meta_bits.append(f"{assets} AUM")
+        er = format_expense_pct(meta.get("expense_ratio") or fallback_profile.get("expense_ratio"))
+        if er:
+            meta_bits.append(f"{er} expense")
+        if family:
+            meta_bits.append(str(family))
+    else:
+        if sector:
+            meta_bits.append(str(sector))
+        if industry and str(industry).lower() != str(sector or "").lower():
+            meta_bits.append(str(industry))
+        mcap = format_market_cap(meta.get("market_cap") or fallback_profile.get("market_cap"))
+        if mcap:
+            meta_bits.append(f"{mcap} market cap")
+
+    meta_html = "".join(f"<span>{html.escape(str(bit))}</span>" for bit in meta_bits[:5])
+    meta_block = f'<div class="meta">{meta_html}</div>' if meta_html else ""
+    return (
+        '<div class="desk-company-overview">'
+        '<div class="label">Company overview</div>'
+        f'<div class="copy">{html.escape(summary)}</div>'
+        f'{meta_block}'
+        '</div>'
+    )
 
 
 def format_earnings(meta):
@@ -14754,6 +14907,11 @@ if view == "analyze":
   </div>
 </div>
 """, unsafe_allow_html=True)
+
+        st.markdown(
+            company_overview_html(ticker, meta, fallback_profile, name),
+            unsafe_allow_html=True,
+        )
 
         analyze_dissent = t.get("_claude_dissent") or {}
         if analyze_dissent.get("flag"):
