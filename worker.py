@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import traceback
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -30,6 +31,12 @@ import tactical
 SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan"]
 SCHEDULED_SAFE_RUNTIME_SECONDS = 240
 LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
+
+
+def _gha_warning(message: str) -> None:
+    """Emit a GitHub Actions warning without turning the run red."""
+    clean = str(message or "").replace("\n", " ")[:900]
+    print(f"::warning::{clean}")
 
 
 def _download_history(ticker: str):
@@ -422,8 +429,8 @@ def run_once(worker_name: str = "worker", job_types: list[str] | None = None) ->
     try:
         job = backend.claim_next_job(worker_name=worker_name, job_types=job_types)
     except Exception as exc:
-        print(f"::warning::worker could not claim a queued job: {exc}")
-        return False, False
+        _gha_warning(f"Worker could not claim a queued job: {exc}")
+        return False, True
     if not job:
         return False, True
     try:
@@ -435,8 +442,8 @@ def run_once(worker_name: str = "worker", job_types: list[str] | None = None) ->
         try:
             backend.fail_job(job["id"], str(exc))
         except Exception as fail_exc:
-            print(f"::warning::could not mark failed job {job.get('id')}: {fail_exc}")
-        print(f"failed {job['job_type']} {job.get('ticker') or ''} {job['id']}: {exc}")
+            _gha_warning(f"Could not mark failed job {job.get('id')}: {fail_exc}")
+        _gha_warning(f"Queued job failed but worker will continue: {job['job_type']} {job.get('ticker') or ''} {job['id']}: {exc}")
         return True, False
 
 
@@ -464,7 +471,14 @@ def main():
               "Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs.")
         return
 
-    backend.ensure_backend_schema()
+    try:
+        backend.ensure_backend_schema()
+    except Exception as exc:
+        _gha_warning(
+            "Worker could not connect to the database or prepare backend tables. "
+            f"Queued refreshes will try again on the next run. Detail: {exc}"
+        )
+        return
     try:
         recovered = backend.recover_stale_running_jobs(max_age_minutes=30, limit=100)
         if recovered:
@@ -527,4 +541,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        _gha_warning(f"Worker run degraded instead of failing the workflow: {exc}")
+        print(traceback.format_exc())
