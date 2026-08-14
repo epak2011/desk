@@ -12,6 +12,7 @@ concurrency:
 jobs:
   drain-refresh-queue:
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 8
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
