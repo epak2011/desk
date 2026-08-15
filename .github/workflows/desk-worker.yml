@@ -12,11 +12,10 @@ concurrency:
 jobs:
   drain-refresh-queue:
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 8
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.NTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       NTHROPIC_API_KEY: ${{ secrets.NTHROPIC_API_KEY }}
       CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
       WORKER_NAME: github-actions-worker
@@ -25,44 +24,29 @@ jobs:
         continue-on-error: true
         uses: actions/checkout@v4
 
-      - name: Check database secret
-        id: database
-        run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::warning::DATABASE_URL is not configured. Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs."
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check Claude secret
-        if: steps.database.outputs.configured == 'true'
-        run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::warning::Claude API key is not configured. Add ANTHROPIC_API_KEY to repository secrets. The worker will still refresh market data, but PM memos and reports will fail."
-          else
-            echo "Claude API key is available to the worker."
-          fi
-
-      - name: Set up Python
-        if: steps.database.outputs.configured == 'true'
-        continue-on-error: true
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      - name: Worker disabled until DATABASE_URL is added
-        if: steps.database.outputs.configured != 'true'
-        run: |
-          echo "Worker disabled: DATABASE_URL is not configured in GitHub Actions secrets."
-          echo "Add DATABASE_URL to repository secrets to enable background refresh jobs."
-
       - name: Drain queued refresh jobs safely
-        if: steps.database.outputs.configured == 'true'
         shell: bash
         run: |
           set +e
+          echo "Starting Trading Desk background worker."
+
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            export ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+          elif [ -n "$NTHROPIC_API_KEY" ]; then
+            export ANTHROPIC_API_KEY="$NTHROPIC_API_KEY"
+          elif [ -n "$CLAUDE_API_KEY" ]; then
+            export ANTHROPIC_API_KEY="$CLAUDE_API_KEY"
+          fi
+
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::warning::DATABASE_URL is not configured. Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs."
+            echo "Worker skipped successfully."
+            exit 0
+          fi
+
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::Claude API key is not configured. Market data jobs can run, but PM memo/report jobs will be skipped or fail softly."
+          fi
 
           if [ ! -f "worker.py" ]; then
             echo "::warning::Repository checkout did not provide worker.py; scheduled worker skipped."
@@ -89,4 +73,5 @@ jobs:
             echo "::warning::Worker exited with status ${worker_status}; scheduled maintenance is treated as a soft failure to avoid notification spam."
           fi
 
+          echo "Trading Desk worker finished."
           exit 0
