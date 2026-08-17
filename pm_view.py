@@ -490,6 +490,9 @@ GENERAL PM CONTEXT DISCIPLINE - mandatory:
 - Before writing, identify the actual reason this ticker matters now: product cycle, capital structure, regulatory/event path, asset value, category leadership, hidden optionality, or ETF/factor exposure.
 - Do not write a generic company summary. Name the dominant debate and the variant view in plain English.
 - If a ticker has an obvious non-financial thesis hook that would matter to a real PM, include it even if it is not present in the tactical data.
+- Quantify the memo when supplied data allows it: valuation multiples, growth rates, margins, backlog/book-to-bill, ownership, short interest, peer/history comparison, or event dates. If a multiple is not available, say so and use the best numeric anchor that is available.
+- Include a 1-8 week timing hook: next earnings/guidance, investor day, customer/product/regulatory milestone, or the specific technical checkpoint that resolves the call. If no near-term catalyst is visible, say that.
+- Drivers and risks must be ticker-specific. A bullet that could apply to the whole sector is not specific enough.
 """
     bullets = "\n".join(f"- {line}" for line in lines)
     return f"""
@@ -508,6 +511,9 @@ def _empty_deep_dive(ticker):
         "catalysts": [],
         "risk_scenarios": [],
         "valuation_context": None,
+        "timing_watchpoint": None,
+        "proof_points": [],
+        "valuation_metrics": [],
         "must_be_true": [],
         "would_change_mind": [],
     }
@@ -737,12 +743,14 @@ def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
 
     Shape:
       {
-        thesis, drivers[], risks[], valuation,      # snapshot (layer 1)
+        thesis, drivers[], risks[], valuation, timing_watchpoint,
+        proof_points[], valuation_metrics[],        # snapshot (layer 1)
         deep_dive: {                                 # layer 2
           expanded_thesis, business,
           variant_bull, variant_bear, variant_needs,
           catalysts[], risk_scenarios[],
-          valuation_context,
+          valuation_context, timing_watchpoint,
+          proof_points[], valuation_metrics[],
           must_be_true[], would_change_mind[],
         },
         _source: "claude" | "static" | ...
@@ -792,9 +800,12 @@ JSON shape:
     "rationale": "One sentence on long-term ownership quality, separate from entry timing."
   }},
   "thesis": "Two specific sentences. State the actual business/variant debate and the tactical implication.",
-  "drivers": ["three short concrete drivers"],
-  "risks": ["three short concrete risks"],
-  "valuation": "One sentence on valuation / what is priced in.",
+  "drivers": ["three short concrete company-specific drivers with numeric anchors when available"],
+  "risks": ["three short concrete company-specific risks with numeric anchors when available"],
+  "valuation": "One sentence with an actual valuation/growth/margin/cash-flow/peer-history anchor when available.",
+  "timing_watchpoint": "One sentence on the next 1-8 week catalyst/checkpoint.",
+  "proof_points": ["three ticker-specific proof points or explicit metric-unavailable notes"],
+  "valuation_metrics": ["two to four valuation/growth/margin/backlog/peer-history anchors"],
   "deep_dive": {{
     "expanded_thesis": null,
     "business": null,
@@ -804,6 +815,9 @@ JSON shape:
     "catalysts": [],
     "risk_scenarios": [],
     "valuation_context": null,
+    "timing_watchpoint": null,
+    "proof_points": [],
+    "valuation_metrics": [],
     "must_be_true": [],
     "would_change_mind": []
   }}
@@ -868,6 +882,12 @@ PM MEMO QUALITY BAR:
 - Never stop at "partnership" if ownership economics matter. For proxy trades, the PM note must answer: how big is the stake/exposure, what is it worth, what percent of the public company's market cap does that represent, what can dilute or trap the value, and what catalyst unlocks it.
 - If you cannot verify a suspected critical fact from live research, say the thesis depends on an unverified market narrative rather than treating it as fact.
 
+QUANTIFICATION + TIMING STANDARD:
+- Valuation must include an actual supplied multiple, growth rate, margin, cash-flow, backlog/book-to-bill, peer, or history anchor when available. Never write only "priced for good news" without the number behind that claim.
+- Drivers and risks must include company-specific proof points: segment, product, customer, geography, backlog, margin, growth, ownership, short interest, capital structure, or dated event.
+- Include a 1-8 week timing hook. Use the next earnings/guidance date, investor day, product/customer/regulatory milestone, or decisive technical checkpoint. If no clear near-term catalyst exists, state that plainly.
+- Keep the memo concise; improve specificity with numbers and dates, not extra prose.
+
 Return ONLY JSON in exactly this shape. No preamble, no code fences.
 
 {{
@@ -876,9 +896,12 @@ Return ONLY JSON in exactly this shape. No preamble, no code fences.
     "rationale": "1 sentence. Long-term ownership quality, independent of the tactical entry."
   }},
   "thesis": "1-2 sentences. State the actual underwriting view and what the market may be mispricing.",
-  "drivers": ["3 short items, no period at end"],
-  "risks": ["3 short items, no period at end"],
-  "valuation": "1 sentence on valuation context",
+  "drivers": ["3 short items, no period at end; each tied to a ticker-specific mechanism or metric"],
+  "risks": ["3 short items, no period at end; each tied to a ticker-specific failure mode or metric"],
+  "valuation": "1 sentence with an actual valuation/growth/margin/cash-flow or peer/history anchor when available",
+  "timing_watchpoint": "1 sentence: what to watch over the next 1-8 weeks and why it matters",
+  "proof_points": ["3 ticker-specific numeric proof points or explicit metric-unavailable items"],
+  "valuation_metrics": ["2-4 valuation/growth/margin/backlog/peer-history anchors; include 'metric unavailable' only if missing"],
   "deep_dive": {{
     "expanded_thesis": "4-6 sentences. Frame consensus, your variant view, what is priced in, timing, and what would prove the view wrong.",
     "business": "2-3 sentences on revenue model, key segments, margin structure, and durability of the franchise",
@@ -888,6 +911,9 @@ Return ONLY JSON in exactly this shape. No preamble, no code fences.
     "catalysts": ["3 time-bound catalysts over the next 1-2 quarters, each one line, concrete and dated when possible"],
     "risk_scenarios": ["3 specific failure modes, not generic risks. Each one line."],
     "valuation_context": "2-3 sentences comparing multiple to growth durability, peer/history context if known, and the earnings/cash-flow path required to defend today's price",
+    "timing_watchpoint": "2-3 sentences on nearest 1-8 week event/checkpoint and how it changes the call",
+    "proof_points": ["4 ticker-specific facts/metrics that anchor the memo"],
+    "valuation_metrics": ["2-4 valuation/growth/margin/backlog/peer-history anchors; include 'metric unavailable' only if missing"],
     "must_be_true": ["3 things that must hold for the thesis to work. Each phrased as a specific measurable condition."],
     "would_change_mind": ["3 things that would invalidate the thesis. Each phrased as a specific observable trigger."]
   }}
@@ -1034,12 +1060,13 @@ JSON shape:
 {{
   "dossier": "3-4 sentence decision memo. Mention the rule action and what changes it.",
   "technical_narrative": "1-2 concise paragraphs on trend, momentum, RS, volume, and trigger.",
-  "pm_narrative": "2 concise paragraphs on business thesis, variant view, valuation, and what would change your mind.",
+  "pm_narrative": "2 concise paragraphs on business thesis, variant view, valuation math, 1-8 week timing hook, and what would change your mind.",
   "bullets": {{
     "thesis": "1-2 sentences",
-    "drivers": ["exactly 3 short specific drivers"],
-    "risks": ["exactly 3 short specific risks"],
-    "valuation": "1 sentence"
+    "drivers": ["exactly 3 short company-specific drivers with numeric anchors or explicit metric-unavailable notes"],
+    "risks": ["exactly 3 short company-specific risks with numeric anchors or explicit metric-unavailable notes"],
+    "valuation": "1 sentence with actual valuation/growth/margin/cash-flow or peer/history anchor when available",
+    "timing_watchpoint": "1 sentence on the next 1-8 week catalyst/checkpoint"
   }},
   "quality": {{
     "tier": "A | B | Speculative | Avoid",
@@ -1224,16 +1251,17 @@ technical_narrative: 2-4 paragraphs (4 only if needed). Senior-trader voice. Use
 - Para 4 (optional, if useful): historical pattern context, 20-day range, realized volatility, or how the broader regime ({regime} SPY) changes the risk/reward.
 
 pm_narrative: 3-4 paragraphs. Senior PM voice. Do NOT recap MA50/MA200/RS/RSI unless directly tied to sizing or timing. Walk through:
-- Para 1: business underwriting — what the business actually does, how it makes money, and why the moat/margin structure is or is not durable.
-- Para 2: variant view — "The debate is whether ___ or ___." Explain consensus, the bull case requirement, the bear case requirement, and which side currently has better evidence.
-- Para 3: valuation context — what's priced in at current multiples, how the math compares to growth/cash conversion, and the earnings path required to defend the stock from here.
-- Para 4: portfolio implementation — fresh-entry posture, owned-position posture if different, sizing posture, dominant catalyst, dominant risk, and the concrete evidence that would change your mind.
+- Para 1: business underwriting — what the business actually does, how it makes money, and why the moat/margin structure is or is not durable. Include one company-specific operating metric if supplied.
+- Para 2: variant view — "The debate is whether ___ or ___." Explain consensus, the bull case requirement, the bear case requirement, which side currently has better evidence, and the ticker-specific proof point that would decide it.
+- Para 3: valuation context — what's priced in at current multiples or the best available valuation/growth/margin/cash-flow anchor, how the math compares to growth/cash conversion, and the earnings path required to defend the stock from here. If multiples are unavailable, say that briefly.
+- Para 4: portfolio implementation — fresh-entry posture, owned-position posture if different, sizing posture, dominant 1-8 week catalyst/checkpoint, dominant risk, and the concrete evidence that would change your mind.
 
 bullets: compact summary that powers the right-hand snapshot panel. Used when the static template doesn't have a thesis for this ticker (DASH, PLTR, COIN, etc.). Rules:
 - thesis: 1-2 sentences. Core investment rationale. Specific to this name, no boilerplate.
-- drivers: exactly 3 items, each 4-8 words, no trailing period. The structural reasons this works.
-- risks: exactly 3 items, each 4-8 words, no trailing period. Specific failure modes, not generic market risk.
-- valuation: 1 sentence. What's priced in vs what the math implies.
+- drivers: exactly 3 items, each 4-10 words, no trailing period. Company-specific structural reasons this works; include a metric, customer, product, segment, margin, backlog, or adoption proof point when supplied.
+- risks: exactly 3 items, each 4-10 words, no trailing period. Specific failure modes with a measurable signpost when supplied, not generic market risk.
+- valuation: 1 sentence. Include an actual valuation/growth/margin/cash-flow or peer/history anchor when available; never say only "priced for good news."
+- timing_watchpoint: 1 sentence. The next 1-8 week catalyst/checkpoint: earnings date, guidance print, investor day, customer/regulatory milestone, or decisive technical/fundamental proof point.
 - Generate REAL content for any ticker — never placeholder text like "Not yet analyzed".
 
 quality: Long-term ownership tier. INDEPENDENT of the tactical action and INDEPENDENT of current financial metrics. Quality is informational only; it does NOT change the tactical decision. Assess based on long-term industry leadership, moat durability, and structural opportunity — NOT on whether current revenue is positive, current P/E is reasonable, or current chart is clean.
