@@ -7286,8 +7286,8 @@ def data_status_html(items):
     return f'<div class="desk-data-strip">{chips}</div>'
 
 
-def data_quality_summary_html(items):
-    """Paid-user friendly summary of the same freshness/detail items."""
+def data_quality_summary_parts(items):
+    """Return the compact paid-user data-quality status."""
     rows = [(str(label), str(value), str(kind)) for label, value, kind in (items or [])]
     bad = [(label, value) for label, value, kind in rows if kind == "stale"]
     warn = [(label, value) for label, value, kind in rows if kind == "warn"]
@@ -7298,14 +7298,20 @@ def data_quality_summary_html(items):
         note = " · ".join(f"{label}: {text}" for label, text in bad[:2])
     elif warn:
         klass = "warn"
-        icon = "⚠️"
-        value = "Partially updated"
+        icon = "👎"
+        value = "Check data"
         note = " · ".join(f"{label}: {text}" for label, text in warn[:2])
     else:
         klass = "fresh"
         icon = "👍"
         value = "Good"
         note = "Price, fundamentals, memo, and sidebar data look current."
+    return klass, icon, value, note
+
+
+def data_quality_summary_html(items):
+    """Render only the compact status; details live inside the popover."""
+    klass, icon, value, _ = data_quality_summary_parts(items)
     return (
         f'<div class="desk-data-quality-summary {klass}">'
         '<div class="desk-data-quality-main">'
@@ -7313,7 +7319,6 @@ def data_quality_summary_html(items):
         '<span class="desk-data-quality-label">Data quality</span>'
         f'<span class="desk-data-quality-value">{html.escape(value)}</span>'
         '</div>'
-        f'<div class="desk-data-quality-note">{html.escape(note)}</div>'
         '</div>'
     )
 
@@ -7413,12 +7418,16 @@ def canonical_freshness_html(items, refresh_event=None):
                 f'<div class="desk-refresh-receipt">Updated price, fundamentals, '
                 f'and sidebar row at {html.escape(refreshed_at)}.</div>'
             )
+    quality_class, _, _, quality_note = data_quality_summary_parts(items)
     return (
         '<div class="desk-freshness-panel">'
+        f'<details class="desk-data-quality-popover {quality_class}">'
+        '<summary aria-label="Open data quality details">'
         f'{data_quality_summary_html(items)}'
-        '<details class="desk-data-quality-popover">'
-        '<summary aria-label="Open data quality details"><span class="desk-data-quality-info">i</span></summary>'
+        '<span class="desk-data-quality-chevron" aria-hidden="true">+</span>'
+        '</summary>'
         '<div class="desk-data-quality-popover-body">'
+        f'<div class="desk-data-quality-note">{html.escape(quality_note)}</div>'
         f'{receipt}'
         '<div class="desk-data-quality-detail-title">Data quality details</div>'
         f'{data_status_html(items)}'
@@ -14312,16 +14321,14 @@ details summary:hover {
 .desk-freshness-panel {
     position: relative !important;
     display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 8px !important;
-    width: fit-content !important;
-    max-width: 245px !important;
-    margin: 0 0 10px auto !important;
-    padding: 7px 9px !important;
-    border: 1px solid var(--color-border) !important;
-    border-radius: 8px !important;
-    background: #FFFFFF !important;
+    align-items: flex-start !important;
+    justify-content: flex-end !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 0 10px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
     box-shadow: none !important;
 }
 .desk-data-quality-summary {
@@ -14355,35 +14362,43 @@ details summary:hover {
     display: none !important;
 }
 .desk-data-quality-popover {
-    position: static !important;
-    margin: 0 !important;
+    position: relative !important;
+    width: max-content !important;
+    max-width: 100% !important;
+    margin: 0 0 0 auto !important;
+    z-index: 25 !important;
 }
 .desk-data-quality-popover summary {
     display: flex !important;
-    justify-content: center !important;
     align-items: center !important;
-    width: 20px !important;
-    height: 20px !important;
+    gap: 8px !important;
+    width: max-content !important;
+    max-width: 100% !important;
+    padding: 7px 10px !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 6px !important;
+    background: #FFFFFF !important;
     cursor: pointer !important;
     list-style: none !important;
 }
 .desk-data-quality-popover summary::-webkit-details-marker {
     display: none !important;
 }
-.desk-data-quality-info {
+.desk-data-quality-chevron {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 18px !important;
-    height: 18px !important;
-    border: 1px solid var(--color-border) !important;
-    border-radius: 6px !important;
-    background: #F8FAFC !important;
+    width: 14px !important;
+    height: 14px !important;
     color: var(--desk-muted) !important;
     font-family: var(--font-mono) !important;
-    font-size: 10px !important;
+    font-size: 13px !important;
     font-weight: 850 !important;
     line-height: 1 !important;
+    transition: transform 120ms ease !important;
+}
+.desk-data-quality-popover[open] .desk-data-quality-chevron {
+    transform: rotate(45deg) !important;
 }
 .desk-data-quality-popover-body {
     position: absolute !important;
@@ -14396,6 +14411,13 @@ details summary:hover {
     border-radius: 8px !important;
     background: #FFFFFF !important;
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14) !important;
+}
+.desk-data-quality-popover-body .desk-data-quality-note {
+    display: block !important;
+    margin: 0 0 8px !important;
+    color: var(--desk-muted) !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
 }
 .desk-data-quality-popover:not([open]) .desk-data-quality-popover-body {
     display: none !important;
@@ -14430,15 +14452,14 @@ details summary:hover {
 
 @media (max-width: 760px) {
     .desk-freshness-panel {
-        display: flex !important;
         width: 100% !important;
         max-width: none !important;
         margin: 0 0 12px !important;
     }
     .desk-data-quality-popover-body {
-        left: 0 !important;
-        right: auto !important;
-        width: min(420px, calc(100vw - 32px)) !important;
+        left: auto !important;
+        right: 0 !important;
+        width: min(360px, calc(100vw - 32px)) !important;
     }
     .desk-decision .word {
         font-size: 48px !important;
