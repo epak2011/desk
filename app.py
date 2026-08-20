@@ -7416,10 +7416,13 @@ def canonical_freshness_html(items, refresh_event=None):
     return (
         '<div class="desk-freshness-panel">'
         f'{data_quality_summary_html(items)}'
+        '<details class="desk-data-quality-popover">'
+        '<summary aria-label="Open data quality details"><span class="desk-data-quality-info">i</span></summary>'
+        '<div class="desk-data-quality-popover-body">'
         f'{receipt}'
-        '<details class="rules-guide-expander data-quality-detail">'
-        '<summary><span>Data quality details</span><span>Price · PM memo · report · sidebar</span></summary>'
+        '<div class="desk-data-quality-detail-title">Data quality details</div>'
         f'{data_status_html(items)}'
+        '</div>'
         '</details>'
         '</div>'
     )
@@ -12356,7 +12359,12 @@ header[data-testid="stHeader"] * {
 }
 
 [data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"] {
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+button[aria-label="Open sidebar"],
+button[aria-label="Expand sidebar"],
+button[title="Open sidebar"],
+button[title="Expand sidebar"] {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
@@ -12374,8 +12382,50 @@ header[data-testid="stHeader"] * {
 }
 
 [data-testid="stSidebarCollapsedControl"] *,
-[data-testid="collapsedControl"] * {
+[data-testid="collapsedControl"] *,
+[data-testid="stSidebarCollapseButton"] *,
+button[aria-label="Open sidebar"] *,
+button[aria-label="Expand sidebar"] *,
+button[title="Open sidebar"] *,
+button[title="Expand sidebar"] * {
     pointer-events: auto !important;
+}
+
+@media (max-width: 899px) {
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"],
+    button[aria-label="Open sidebar"],
+    button[aria-label="Expand sidebar"],
+    button[title="Open sidebar"],
+    button[title="Expand sidebar"] {
+        top: max(10px, env(safe-area-inset-top)) !important;
+        left: max(10px, env(safe-area-inset-left)) !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        padding: 0 !important;
+        color: #172033 !important;
+        background: #ffffff !important;
+        border: 1px solid #cfd8e6 !important;
+        border-radius: 6px !important;
+        box-shadow: 0 2px 10px rgba(23, 32, 51, 0.12) !important;
+    }
+
+    [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapseButton"] svg,
+    button[aria-label="Open sidebar"] svg,
+    button[aria-label="Expand sidebar"] svg,
+    button[title="Open sidebar"] svg,
+    button[title="Expand sidebar"] svg {
+        width: 20px !important;
+        height: 20px !important;
+        color: currentColor !important;
+        stroke: currentColor !important;
+        fill: none !important;
+    }
 }
 
 section[data-testid="stSidebar"] {
@@ -14194,16 +14244,43 @@ details summary:hover {
     font-size: 15px !important;
     line-height: 1.5 !important;
 }
+.desk-ticker-row,
 .desk-pm-header {
-    min-height: 68px !important;
-    height: 68px !important;
-    font-size: 11px !important;
+    min-height: 98px !important;
+    height: 98px !important;
+    margin-bottom: 16px !important;
+    padding-bottom: 14px !important;
+    box-sizing: border-box !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+.desk-ticker-row {
+    align-items: flex-start !important;
+}
+.desk-pm-header {
+    align-items: flex-start !important;
+    padding-top: 0 !important;
+}
+.desk-pm-title {
+    font-size: 17px !important;
+    line-height: 1.25 !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    color: var(--color-muted) !important;
 }
 .desk-pm-header .em {
-    font-size: 13px !important;
+    font-size: 19px !important;
+    margin-right: 8px !important;
 }
 .desk-pm-header .src {
     font-size: 10px !important;
+}
+@media (max-width: 760px) {
+    .desk-ticker-row,
+    .desk-pm-header {
+        height: auto !important;
+        min-height: 0 !important;
+    }
 }
 .desk-quality-card {
     margin: 0 0 18px !important;
@@ -14233,20 +14310,27 @@ details summary:hover {
     color: var(--desk-text) !important;
 }
 .desk-freshness-panel {
-    margin: 0 0 16px !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: fit-content !important;
+    max-width: 245px !important;
+    margin: 0 0 10px auto !important;
+    padding: 7px 9px !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 8px !important;
+    background: #FFFFFF !important;
     box-shadow: none !important;
 }
 .desk-data-quality-summary {
-    display: grid !important;
-    grid-template-columns: auto minmax(0, 1fr) !important;
-    align-items: start !important;
-    gap: 5px 10px !important;
-    padding: 10px 0 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 0 !important;
+    margin: 0 !important;
     border: 0 !important;
-    border-bottom: 1px dashed var(--color-border-soft) !important;
     border-radius: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
@@ -14254,35 +14338,85 @@ details summary:hover {
 .desk-data-quality-main {
     display: flex !important;
     align-items: center !important;
-    gap: 8px !important;
+    gap: 7px !important;
+    white-space: nowrap !important;
 }
 .desk-data-quality-icon {
     font-size: 15px !important;
 }
+.desk-data-quality-label {
+    font-size: 10px !important;
+    letter-spacing: 0.12em !important;
+}
 .desk-data-quality-value {
-    font-size: 13px !important;
+    font-size: 12px !important;
 }
 .desk-data-quality-note {
-    grid-column: 2 !important;
-    text-align: left !important;
-    font-size: 12px !important;
-    line-height: 1.4 !important;
-    max-width: 100% !important;
+    display: none !important;
 }
-.data-quality-detail {
-    margin-top: 8px !important;
+.desk-data-quality-popover {
+    position: static !important;
+    margin: 0 !important;
 }
-.data-quality-detail summary {
+.desk-data-quality-popover summary {
     display: flex !important;
-    justify-content: flex-start !important;
+    justify-content: center !important;
     align-items: center !important;
-    gap: 12px !important;
-    font-size: 13px !important;
-    line-height: 1.25 !important;
+    width: 20px !important;
+    height: 20px !important;
+    cursor: pointer !important;
+    list-style: none !important;
 }
-.data-quality-detail summary span:last-child {
-    font-size: 11px !important;
+.desk-data-quality-popover summary::-webkit-details-marker {
+    display: none !important;
+}
+.desk-data-quality-info {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 18px !important;
+    height: 18px !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 6px !important;
+    background: #F8FAFC !important;
     color: var(--desk-muted) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 10px !important;
+    font-weight: 850 !important;
+    line-height: 1 !important;
+}
+.desk-data-quality-popover-body {
+    position: absolute !important;
+    right: 0 !important;
+    top: calc(100% + 8px) !important;
+    z-index: 5000 !important;
+    width: min(420px, calc(100vw - 44px)) !important;
+    padding: 12px !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 8px !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14) !important;
+}
+.desk-data-quality-popover:not([open]) .desk-data-quality-popover-body {
+    display: none !important;
+}
+.desk-data-quality-popover[open] .desk-data-quality-popover-body {
+    display: block !important;
+}
+.desk-data-quality-detail-title {
+    margin: 0 0 8px !important;
+    font-family: var(--font-mono) !important;
+    font-size: 10px !important;
+    font-weight: 850 !important;
+    letter-spacing: 0.13em !important;
+    text-transform: uppercase !important;
+    color: var(--desk-muted) !important;
+}
+.desk-data-quality-popover-body .desk-refresh-receipt {
+    margin: 0 0 10px !important;
+    padding: 0 0 10px !important;
+    border-top: 0 !important;
+    border-bottom: 1px dashed var(--color-border-soft) !important;
 }
 
 @media (max-width: 1180px) {
@@ -14295,6 +14429,17 @@ details summary:hover {
 }
 
 @media (max-width: 760px) {
+    .desk-freshness-panel {
+        display: flex !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 0 12px !important;
+    }
+    .desk-data-quality-popover-body {
+        left: 0 !important;
+        right: auto !important;
+        width: min(420px, calc(100vw - 32px)) !important;
+    }
     .desk-decision .word {
         font-size: 48px !important;
     }
@@ -15646,7 +15791,6 @@ if view == "analyze":
                     'Narrative refreshes live on the PM memo / full-report controls.</div>',
                     unsafe_allow_html=True,
                 )
-            st.markdown(backend_job_status_details_html(ticker, limit=3), unsafe_allow_html=True)
 
         if position_read:
             stat_html = "".join(
@@ -16804,7 +16948,7 @@ if view == "analyze":
         st.markdown(f"""
 <div class="desk-pm-header">
   <div>
-    <div><span class="em">🧠</span>Portfolio manager</div>
+    <div class="desk-pm-title"><span class="em">🧠</span>Portfolio manager</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -19265,8 +19409,6 @@ Return ONLY this JSON shape:
         '</div>'
         '<div class="risk-brief-card">'
         '<div class="risk-brief-pad">'
-        '<div class="risk-brief-label">Today\'s Market</div>'
-        f'<div class="risk-market-grid">{highlight_html}</div>'
         '<div class="risk-market-context">'
         '<div class="risk-card-head" style="padding:0 0 14px;background:transparent;border-bottom:1px solid #D7DFEA;">'
         f'<div><span class="risk-card-title">Today\'s Context</span><span class="risk-card-sub">Event → Market impact → Portfolio implication</span></div><span class="risk-badge">{html.escape(str(change_status).upper())}</span></div>'
