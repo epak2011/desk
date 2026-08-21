@@ -6257,26 +6257,11 @@ def company_overview_html(ticker, meta=None, fallback_profile=None, name=None):
             return ""
         return " ".join(str(value).replace("\n", " ").split())
 
-    def _overview_text(text, max_chars=760, max_sentences=3):
-        text = _clean_text(text)
-        if not text:
-            return ""
-        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
-        if not sentences:
-            return text
-        selected = []
-        total = 0
-        for sentence in sentences:
-            proposed = total + len(sentence) + (1 if selected else 0)
-            if selected and (len(selected) >= max_sentences or proposed > max_chars):
-                break
-            selected.append(sentence)
-            total = proposed
-            if total >= max_chars:
-                break
-        return " ".join(selected) if selected else sentences[0]
-
-    summary = _overview_text(meta_first_present(
+    # Business summaries are already editorial paragraphs from the quote
+    # provider. Keep the complete paragraph: character/sentence caps made the
+    # overview read like a clipped search result and could omit the business
+    # model or customer context the section exists to explain.
+    summary = _clean_text(meta_first_present(
         meta.get("long_business_summary"),
         meta.get("longBusinessSummary"),
         meta.get("business_summary"),
@@ -6323,33 +6308,6 @@ def company_overview_html(ticker, meta=None, fallback_profile=None, name=None):
                 f"{display_name} is being evaluated from available market data. "
                 "Company profile details are sparse, so the read leans more heavily on price, trend, and risk."
             )
-
-    meta_bits = []
-    if is_crypto:
-        meta_bits.append("Crypto asset")
-    elif is_fund:
-        meta_bits.append("ETF/Fund")
-        if category:
-            meta_bits.append(str(category).title())
-        assets = format_market_cap(
-            meta.get("total_assets") or meta.get("net_assets") or
-            fallback_profile.get("total_assets") or fallback_profile.get("net_assets")
-        )
-        if assets:
-            meta_bits.append(f"{assets} AUM")
-        er = format_expense_pct(meta.get("expense_ratio") or fallback_profile.get("expense_ratio"))
-        if er:
-            meta_bits.append(f"{er} expense")
-        if family:
-            meta_bits.append(str(family))
-    else:
-        if sector:
-            meta_bits.append(str(sector))
-        if industry and str(industry).lower() != str(sector or "").lower():
-            meta_bits.append(str(industry))
-        mcap = format_market_cap(meta.get("market_cap") or fallback_profile.get("market_cap"))
-        if mcap:
-            meta_bits.append(f"{mcap} market cap")
 
     return (
         '<div class="desk-company-overview">'
@@ -14267,7 +14225,14 @@ details summary:hover {
 }
 .desk-pm-header {
     align-items: flex-start !important;
+    justify-content: flex-end !important;
     padding-top: 0 !important;
+    position: relative !important;
+}
+.desk-pm-header .desk-pm-title {
+    position: absolute !important;
+    left: 0 !important;
+    bottom: 14px !important;
 }
 .desk-pm-title {
     font-size: 17px !important;
@@ -14284,11 +14249,29 @@ details summary:hover {
 .desk-pm-header .src {
     font-size: 10px !important;
 }
+[class*="st-key-refresh_current_pm_"] {
+    width: fit-content !important;
+    max-width: 100% !important;
+}
+[class*="st-key-refresh_current_pm_"] button {
+    width: auto !important;
+    min-height: 34px !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+}
 @media (max-width: 760px) {
     .desk-ticker-row,
     .desk-pm-header {
         height: auto !important;
         min-height: 0 !important;
+    }
+    .desk-pm-header {
+        justify-content: flex-start !important;
+    }
+    .desk-pm-header .desk-pm-title {
+        position: static !important;
     }
 }
 .desk-quality-card {
@@ -16983,7 +16966,7 @@ if view == "analyze":
             f"🧠 Refresh PM memo",
             key=f"refresh_current_pm_{ticker.upper()}",
             help="Refreshes and saves the visible PM thesis, quality box, drivers, risks, and valuation. The long full report refresh lives on the full report page.",
-            use_container_width=True,
+            use_container_width=False,
         ):
             refresh_current_ticker_state(ticker, refresh_research=True)
             st.rerun()
