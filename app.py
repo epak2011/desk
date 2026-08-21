@@ -1166,6 +1166,17 @@ def backend_report_payload(ticker):
         return {}
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def backend_engine_review_status():
+    """Read the worker-generated logic alert without loading decision history."""
+    if not backend_layer.has_database():
+        return {}
+    try:
+        return backend_layer.read_engine_review_status() or {}
+    except Exception:
+        return {}
+
+
 def _is_placeholder_pm_text(text, ticker=""):
     """True for generated fallback copy that should never replace a real PM memo."""
     clean = str(text or "").strip()
@@ -14667,6 +14678,34 @@ details summary:hover {
 
 
 view = st.session_state.view
+
+
+# ── Evidence-based logic alert — durable worker output, cheap on every page ──
+engine_review_status = backend_engine_review_status()
+engine_review_alerts = engine_review_status.get("alerting") or []
+if engine_review_alerts and view != "backtest":
+    alert_parts = []
+    review_due = False
+    for flag in engine_review_alerts:
+        status = str(flag.get("status") or "watch")
+        review_due = review_due or status == "review_logic"
+        label = str(flag.get("label") or "Rules family")
+        count = int(flag.get("count") or 0)
+        success = flag.get("success_rate_pct")
+        edge = flag.get("avg_decision_return_pct")
+        success_text = f"{float(success):.0f}% success" if success is not None else "success pending"
+        edge_text = f"{float(edge):+.1f}% decision return" if edge is not None else "return pending"
+        alert_parts.append(f"{label}: {success_text}, {edge_text}, n={count}")
+    alert_heading = "Logic review recommended" if review_due else "Rules evidence needs attention"
+    st.markdown(
+        '<div style="border:1px solid var(--color-border);border-left:3px solid '
+        + ('var(--color-negative)' if review_due else 'var(--color-warning)')
+        + ';border-radius:6px;background:#fff;padding:10px 13px;margin:4px 0 14px;">'
+        f'<div style="font-weight:800;color:var(--color-text);">{html.escape(alert_heading)}</div>'
+        f'<div style="font-size:12px;color:var(--color-muted);margin-top:3px;">{html.escape(" · ".join(alert_parts))} '
+        '<a href="?view=backtest" target="_self">Review the cases →</a></div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ── Database error banner — shown on every page if DB is unreachable ──

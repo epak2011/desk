@@ -252,6 +252,15 @@ def ensure_backend_schema() -> None:
             )
             cur.execute(
                 """
+                CREATE TABLE IF NOT EXISTS engine_review_status (
+                    key TEXT PRIMARY KEY,
+                    payload JSONB NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS market_regime_daily (
                     day DATE PRIMARY KEY,
                     payload JSONB NOT NULL,
@@ -387,6 +396,47 @@ def upsert_decision_log(entry: dict[str, Any]) -> None:
                 """,
                 (entry_id, json_dumps(entry), str(entry_ts or "")),
             )
+
+
+def read_decision_logs(*, limit: int | None = None) -> list[dict[str, Any]]:
+    """Read durable decision entries for background evaluation."""
+    ensure_backend_schema()
+    query = "SELECT entry FROM decisions_log ORDER BY COALESCE(entry_ts, updated_at) ASC"
+    params: tuple[Any, ...] = ()
+    if limit is not None:
+        query += " LIMIT %s"
+        params = (max(1, int(limit)),)
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            return [row[0] for row in cur.fetchall() if row and isinstance(row[0], dict)]
+
+
+def write_engine_review_status(payload: dict[str, Any]) -> None:
+    """Persist the latest calibration alert snapshot for cheap UI reads."""
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO engine_review_status (key, payload, updated_at)
+                VALUES ('current', %s::jsonb, NOW())
+                ON CONFLICT (key) DO UPDATE
+                    SET payload = EXCLUDED.payload,
+                        updated_at = NOW()
+                """,
+                (json_dumps(payload or {}),),
+            )
+
+
+def read_engine_review_status() -> dict[str, Any]:
+    """Read the worker-generated calibration alert snapshot."""
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT payload FROM engine_review_status WHERE key = 'current'")
+            row = cur.fetchone()
+    return row[0] if row and isinstance(row[0], dict) else {}
 
 
 def enqueue_job(

@@ -19,11 +19,12 @@ import os
 import traceback
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import yfinance as yf
 
 import backend_layer as backend
+import engine_evaluation
 from pm_view import get_decision_dossier, get_pm_view
 import tactical
 
@@ -31,6 +32,8 @@ import tactical
 SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan"]
 SCHEDULED_SAFE_RUNTIME_SECONDS = 240
 LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
+OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
+OUTCOME_MIN_AGE_DAYS = 7
 
 
 def _gha_warning(message: str) -> None:
@@ -389,6 +392,94 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
     return {"queued": True, "job_id": job_id, "tickers": tickers}
 
 
+def score_due_rule_outcomes(max_entries: int = 12) -> dict:
+    """Refresh due outcome paths once daily and persist the current review gate."""
+    all_entries = backend.read_decision_logs()
+    cohorts = engine_evaluation.independent_cohorts(all_entries, spacing_days=7)
+    today = date.today()
+    due = []
+    for entry in cohorts:
+        try:
+            logged = datetime.fromisoformat(str(entry.get("ts")).replace("Z", "+00:00")).date()
+        except (TypeError, ValueError):
+            continue
+        if (today - logged).days < OUTCOME_MIN_AGE_DAYS:
+            continue
+        outcome = entry.get("outcome") or {}
+        if outcome.get("evaluation_complete") and outcome.get("score_version") == OUTCOME_SCORE_VERSION:
+            continue
+        try:
+            scored_today = datetime.fromisoformat(str(outcome.get("ts")).replace("Z", "+00:00")).date() == today
+        except (TypeError, ValueError):
+            scored_today = False
+        if not scored_today:
+            due.append(entry)
+    total_due = len(due)
+    due = due[:max(1, int(max_entries))]
+
+    benchmark = None
+    if due:
+        benchmark = _flatten_yfinance(_download_benchmark(), "SPY")
+    updated = 0
+    errors = {}
+    for entry in due:
+        ticker = str(entry.get("ticker") or "").upper().strip()
+        if not ticker:
+            continue
+        try:
+            hist = _flatten_yfinance(_download_history(ticker), ticker)
+            if hist is None or hist.empty:
+                raise RuntimeError("No market history returned")
+            scored = engine_evaluation.score_forward_outcome(
+                entry,
+                hist,
+                benchmark_history=(None if ticker.endswith("-USD") else benchmark),
+                as_of=today,
+            )
+            if not scored:
+                continue
+            primary = (scored.get("horizons") or {}).get("14") or {}
+            if scored.get("rule_family") == "wait":
+                note = f"Patience outcome: {str(scored.get('patience_status') or 'waiting').replace('_', ' ')}."
+            elif primary:
+                note = f"14-session outcome: {primary.get('return_pct', 0):+.1f}%."
+            else:
+                note = "Evaluation started; the 14-session directional outcome is still pending."
+            entry["outcome"] = {
+                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "result": "auto_scored",
+                "right_sources": ["rules"] if scored.get("credited") is True else [],
+                "result_pct": scored.get("forward_return_pct"),
+                "note": note,
+                "auto_scored": True,
+                "score_version": OUTCOME_SCORE_VERSION,
+                **scored,
+            }
+            backend.upsert_decision_log(entry)
+            updated += 1
+        except Exception as exc:
+            errors[ticker] = str(exc)[:180]
+
+    refreshed = backend.read_decision_logs()
+    refreshed_cohorts = engine_evaluation.independent_cohorts(refreshed, spacing_days=7)
+    directional = [
+        entry for entry in refreshed_cohorts
+        if engine_evaluation.decision_family(entry.get("rule_action")) in {"long", "avoid"}
+    ]
+    flags = engine_evaluation.logic_review_flags(directional)
+    alerting = [row for row in flags if row.get("status") in {"watch", "review_logic"}]
+    status = {
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "score_version": OUTCOME_SCORE_VERSION,
+        "scored_now": updated,
+        "remaining_due": max(0, total_due - updated),
+        "flags": flags,
+        "alerting": alerting,
+    }
+    backend.write_engine_review_status(status)
+    return {"scored": updated, "errors": errors, "alerts": len(alerting), "remaining_due": status["remaining_due"]}
+
+
 def process_job(job: dict) -> dict:
     job_type = job.get("job_type")
     ticker = job.get("ticker")
@@ -514,6 +605,15 @@ def main():
                 print("scheduled maintenance: market snapshots fresh")
         except Exception as exc:
             print(f"scheduled maintenance skipped: {exc}")
+        try:
+            outcome_result = score_due_rule_outcomes(max_entries=12)
+            print(
+                "scheduled outcome scoring: "
+                f"{outcome_result.get('scored', 0)} updated, "
+                f"{outcome_result.get('alerts', 0)} review alert(s)"
+            )
+        except Exception as exc:
+            _gha_warning(f"Scheduled outcome scoring skipped: {exc}")
     if args.drain:
         processed = 0
         failed = 0
