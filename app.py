@@ -9289,7 +9289,6 @@ def rules_performance_snapshot():
     directional_cohorts = [
         entry for entry in evaluated_cohorts
         if engine_evaluation.decision_family(entry.get("rule_action")) in {"long", "avoid"}
-        and entry.get("outcome", {}).get("forward_return_pct") is not None
     ]
     patience_cohorts = [
         entry for entry in evaluated_cohorts
@@ -9380,8 +9379,8 @@ def render_rules_performance_dashboard():
         f'<div class="watch-queue-count">{len(directional_cohorts)}</div><div class="watch-queue-preview">Enter / Accumulate / Avoid</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Patience observed</div>'
         f'<div class="watch-queue-count">{patience["count"]}</div><div class="watch-queue-preview">Watch / Hold Off lifecycle</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Mature pending</div>'
-        f'<div class="watch-queue-count">{len(mature_open)}</div><div class="watch-queue-preview">eligible to score now</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Path updates due</div>'
+        f'<div class="watch-queue-count">{len(mature_open)}</div><div class="watch-queue-preview">not yet complete through 30 sessions</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Engine version</div>'
         f'<div class="watch-queue-count" style="font-size:17px;">{RULE_ENGINE_VERSION}</div><div class="watch-queue-preview">new logs are immutable by version</div></div>'
         '</div>',
@@ -9987,7 +9986,15 @@ def auto_close_tracker_outcomes(force_all=False):
             "score_version": AUTO_SCORE_VERSION,
             **scored,
         }
-        if entry.get("outcome") != new_outcome:
+        existing_comparable = {
+            key: value for key, value in (entry.get("outcome") or {}).items()
+            if key != "ts"
+        }
+        new_comparable = {
+            key: value for key, value in new_outcome.items()
+            if key != "ts"
+        }
+        if existing_comparable != new_comparable:
             entry["outcome"] = new_outcome
             changed += 1
 

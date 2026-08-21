@@ -233,7 +233,10 @@ def summarize_outcomes(entries):
         entry.get("outcome") or {}
         for entry in entries or []
         if isinstance(entry.get("outcome"), dict)
-        and entry.get("outcome", {}).get("forward_return_pct") is not None
+        and (
+            entry.get("outcome", {}).get("forward_return_pct") is not None
+            or bool(entry.get("outcome", {}).get("horizons"))
+        )
     ]
     if not outcomes:
         return {
