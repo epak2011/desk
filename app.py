@@ -9297,12 +9297,18 @@ def rules_performance_snapshot():
     ]
     today = datetime.now().date()
     mature_open = []
-    for entry in open_rows:
+    for entry in cohorts:
         try:
             logged = datetime.fromisoformat(str(entry.get("ts")).replace("Z", "+00:00")).date()
         except (TypeError, ValueError):
             continue
-        if (today - logged).days >= EVALUATION_MIN_AGE_DAYS:
+        outcome = entry.get("outcome") or {}
+        needs_evaluation = (
+            not outcome
+            or outcome.get("evaluation_version") != AUTO_SCORE_VERSION
+            or not outcome.get("evaluation_complete")
+        )
+        if needs_evaluation and (today - logged).days >= EVALUATION_MIN_AGE_DAYS:
             mature_open.append(entry)
     action_counts = {}
     right_by_action = {}
@@ -9908,7 +9914,10 @@ def _tracker_first_hit(hist, start_date, level, direction):
 
 def auto_close_tracker_outcomes(force_all=False):
     """Score mature rules calls at one fixed horizon with benchmark context."""
-    decisions = st.session_state.store.get("decisions_log", [])
+    decisions = engine_evaluation.independent_cohorts(
+        st.session_state.store.get("decisions_log", []),
+        spacing_days=7,
+    )
     changed = 0
     today = datetime.now().date()
     history_cache = {}
