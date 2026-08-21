@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 
-EVALUATION_VERSION = 3
+EVALUATION_VERSION = 4
 DEFAULT_HORIZON_DAYS = 14
 
 
@@ -139,6 +139,14 @@ def score_forward_outcome(
         family == winning_family
         or (family == "avoid" and winning_family == "wait")
     )
+    decision_return = (
+        forward_return if family == "long"
+        else (-forward_return if family == "avoid" else None)
+    )
+    decision_excess = (
+        excess_return if family == "long"
+        else (-excess_return if family == "avoid" and excess_return is not None else None)
+    )
     return {
         "evaluation_version": EVALUATION_VERSION,
         "horizon_days": int(horizon_days),
@@ -155,6 +163,14 @@ def score_forward_outcome(
         "excess_return_pct": (
             round(excess_return * 100, 4)
             if excess_return is not None else None
+        ),
+        "decision_return_pct": (
+            round(decision_return * 100, 4)
+            if decision_return is not None else None
+        ),
+        "decision_excess_pct": (
+            round(decision_excess * 100, 4)
+            if decision_excess is not None else None
         ),
         "mfe_pct": round(mfe * 100, 4) if mfe is not None else None,
         "mae_pct": round(mae * 100, 4) if mae is not None else None,
@@ -177,6 +193,8 @@ def summarize_outcomes(entries):
             "hit_rate_pct": None,
             "avg_return_pct": None,
             "avg_excess_return_pct": None,
+            "avg_decision_return_pct": None,
+            "avg_decision_excess_pct": None,
             "avg_mfe_pct": None,
             "avg_mae_pct": None,
         }
@@ -194,6 +212,8 @@ def summarize_outcomes(entries):
         ),
         "avg_return_pct": average("forward_return_pct"),
         "avg_excess_return_pct": average("excess_return_pct"),
+        "avg_decision_return_pct": average("decision_return_pct"),
+        "avg_decision_excess_pct": average("decision_excess_pct"),
         "avg_mfe_pct": average("mfe_pct"),
         "avg_mae_pct": average("mae_pct"),
     }

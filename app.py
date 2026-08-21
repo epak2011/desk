@@ -9343,10 +9343,10 @@ def render_rules_performance_dashboard():
         f'<div class="watch-queue-count">{len(mature_open)}</div><div class="watch-queue-preview">eligible to score now</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Hit rate</div>'
         f'<div class="watch-queue-count">{hit_rate_value}</div><div class="watch-queue-preview">{hit_rate_note}</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Avg 14d return</div>'
-        f'<div class="watch-queue-count">{_metric(performance.get("avg_return_pct"))}</div><div class="watch-queue-preview">all scored rules calls</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Avg vs SPY</div>'
-        f'<div class="watch-queue-count">{_metric(performance.get("avg_excess_return_pct"))}</div><div class="watch-queue-preview">equity calls with benchmark</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Decision return</div>'
+        f'<div class="watch-queue-count">{_metric(performance.get("avg_decision_return_pct"))}</div><div class="watch-queue-preview">long return; inverse for Avoid</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Decision vs SPY</div>'
+        f'<div class="watch-queue-count">{_metric(performance.get("avg_decision_excess_pct"))}</div><div class="watch-queue-preview">direction-adjusted benchmark edge</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Avg excursion</div>'
         f'<div class="watch-queue-count">{_metric(performance.get("avg_mfe_pct"))} / {_metric(performance.get("avg_mae_pct"))}</div><div class="watch-queue-preview">favorable / adverse</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Open longs</div>'
@@ -9373,7 +9373,7 @@ def render_rules_performance_dashboard():
             f'<div class="watch-queue-label">{html.escape(label)}</div>'
             f'<div class="watch-queue-count">{family_summary["count"]}</div>'
             f'<div class="watch-queue-preview">hit {(_metric(family_summary.get("hit_rate_pct")) if family_summary["count"] else "—")} · '
-            f'return {_metric(family_summary.get("avg_return_pct"))} · vs SPY {_metric(family_summary.get("avg_excess_return_pct"))}</div>'
+            f'underlying {_metric(family_summary.get("avg_return_pct"))} · vs SPY {_metric(family_summary.get("avg_excess_return_pct"))}</div>'
             '</div>'
         )
     st.markdown(

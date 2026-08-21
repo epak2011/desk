@@ -48,9 +48,24 @@ class EngineEvaluationTests(unittest.TestCase):
         self.assertEqual(outcome["forward_return_pct"], 10.0)
         self.assertEqual(outcome["benchmark_return_pct"], 5.0)
         self.assertEqual(outcome["excess_return_pct"], 5.0)
+        self.assertEqual(outcome["decision_return_pct"], 10.0)
+        self.assertEqual(outcome["decision_excess_pct"], 5.0)
         self.assertEqual(outcome["mfe_pct"], 12.0)
         self.assertEqual(outcome["mae_pct"], -4.0)
         self.assertTrue(outcome["credited"])
+
+    def test_avoid_decision_edge_inverts_underlying_return(self):
+        bars = history([
+            {"date": "2026-01-02", "Close": 100, "High": 101, "Low": 99},
+            {"date": "2026-01-16", "Close": 110, "High": 112, "Low": 98},
+        ])
+        entry = {"ts": "2026-01-02T10:00:00", "price": 100, "rule_action": "avoid"}
+        outcome = engine_evaluation.score_forward_outcome(
+            entry, bars, as_of=date(2026, 1, 16)
+        )
+        self.assertEqual(outcome["forward_return_pct"], 10.0)
+        self.assertEqual(outcome["decision_return_pct"], -10.0)
+        self.assertFalse(outcome["credited"])
 
     def test_summarizes_only_forward_scored_rows(self):
         rows = [
