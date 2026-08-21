@@ -114,6 +114,45 @@ class EngineEvaluationTests(unittest.TestCase):
         cohorts = engine_evaluation.independent_cohorts(rows, spacing_days=7)
         self.assertEqual(cohorts, [rows[0], rows[4], rows[2], rows[3]])
 
+    def test_logic_review_requires_sample_and_two_weak_signals(self):
+        weak_avoid = [
+            {
+                "rule_action": "avoid",
+                "outcome": {"directional_success": index < 4, "decision_return_pct": -3},
+            }
+            for index in range(20)
+        ]
+        flags = engine_evaluation.logic_review_flags(weak_avoid)
+        avoid = next(row for row in flags if row["family"] == "avoid")
+        self.assertEqual(avoid["status"], "review_logic")
+        self.assertEqual(avoid["success_rate_pct"], 20.0)
+
+        weak_avoid[0]["outcome"]["decision_return_pct"] = 100
+        avoid = next(
+            row for row in engine_evaluation.logic_review_flags(weak_avoid)
+            if row["family"] == "avoid"
+        )
+        self.assertEqual(avoid["status"], "stable")
+
+    def test_logic_review_uses_only_mature_directional_results(self):
+        rows = [
+            {"rule_action": "enter_now", "outcome": {"directional_success": False, "decision_return_pct": -5}},
+            {"rule_action": "enter_now", "outcome": {"directional_success": None, "decision_return_pct": None}},
+            {"rule_action": "watch", "outcome": {"directional_success": False, "decision_return_pct": -10}},
+        ]
+        long_flag = engine_evaluation.logic_review_flags(rows)[0]
+        self.assertEqual(long_flag["count"], 1)
+        self.assertEqual(long_flag["status"], "collecting")
+
+    def test_weakest_cases_rank_failed_calls_by_decision_return(self):
+        rows = [
+            {"ticker": "A", "rule_action": "enter_now", "outcome": {"directional_success": False, "decision_return_pct": -2}},
+            {"ticker": "B", "rule_action": "avoid", "outcome": {"directional_success": False, "decision_return_pct": -8}},
+            {"ticker": "C", "rule_action": "avoid", "outcome": {"directional_success": True, "decision_return_pct": 4}},
+        ]
+        cases = engine_evaluation.weakest_directional_cases(rows)
+        self.assertEqual([row["ticker"] for row in cases], ["B", "A"])
+
 
 if __name__ == "__main__":
     unittest.main()

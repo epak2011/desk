@@ -374,3 +374,92 @@ def failure_patterns(entries, minimum_count=3):
             "avg_decision_return_pct": round(sum(ret for ret, _success in rows) / len(rows), 2),
         })
     return sorted(patterns, key=lambda row: (row["avg_decision_return_pct"], -row["count"]))
+
+
+def logic_review_flags(
+    entries,
+    *,
+    watch_minimum=10,
+    review_minimum=20,
+    watch_success_rate=40,
+    review_success_rate=35,
+    poor_edge_pct=-2,
+):
+    """Return evidence gates for future logic review without changing live rules.
+
+    Only independent directional cohorts with a resolved 14-session result belong
+    here. A low hit rate alone is not enough: the review gate also requires
+    negative direction-adjusted return, which avoids reacting to harmless misses.
+    """
+    flags = []
+    for family, label in (("long", "Enter / Accumulate"), ("avoid", "Avoid")):
+        family_entries = [
+            entry for entry in entries or []
+            if decision_family(entry.get("rule_action")) == family
+            and isinstance(entry.get("outcome"), dict)
+            and entry.get("outcome", {}).get("directional_success") is not None
+            and number_or_none(entry.get("outcome", {}).get("decision_return_pct")) is not None
+        ]
+        count = len(family_entries)
+        successes = sum(bool(entry["outcome"]["directional_success"]) for entry in family_entries)
+        success_rate = round(100 * successes / count, 1) if count else None
+        edge = (
+            round(sum(number_or_none(entry["outcome"]["decision_return_pct"]) for entry in family_entries) / count, 2)
+            if count else None
+        )
+        weak_watch = bool(
+            count >= int(watch_minimum)
+            and success_rate < float(watch_success_rate)
+            and edge <= float(poor_edge_pct)
+        )
+        weak_review = bool(
+            count >= int(review_minimum)
+            and success_rate < float(review_success_rate)
+            and edge <= float(poor_edge_pct)
+        )
+        if weak_review:
+            status = "review_logic"
+            reason = "Both success rate and decision return crossed the review threshold."
+        elif weak_watch:
+            status = "watch"
+            reason = "Early weakness is persistent enough to watch, but the sample is not yet sufficient for a rule change."
+        else:
+            status = "collecting" if count < int(review_minimum) else "stable"
+            reason = (
+                f"Collecting mature outcomes; review requires at least {int(review_minimum)}."
+                if status == "collecting"
+                else "The family has not crossed both weakness thresholds."
+            )
+        flags.append({
+            "family": family,
+            "label": label,
+            "status": status,
+            "count": count,
+            "successes": successes,
+            "success_rate_pct": success_rate,
+            "avg_decision_return_pct": edge,
+            "reason": reason,
+        })
+    return flags
+
+
+def weakest_directional_cases(entries, limit=8):
+    """Return the worst mature independent calls for human case review."""
+    cases = []
+    for entry in entries or []:
+        outcome = entry.get("outcome") or {}
+        decision_return = number_or_none(outcome.get("decision_return_pct"))
+        if outcome.get("directional_success") is not False or decision_return is None:
+            continue
+        cases.append({
+            "ticker": str(entry.get("ticker") or "").upper(),
+            "logged_date": outcome.get("logged_date") or (_entry_date(entry).isoformat() if _entry_date(entry) else None),
+            "action": str(entry.get("rule_action") or "").replace("_", " ").title(),
+            "rule_state": str(entry.get("rule_state") or "").replace("_", " ").title(),
+            "decision_return_pct": round(decision_return, 2),
+            "forward_return_pct": number_or_none(outcome.get("forward_return_pct")),
+            "excess_return_pct": number_or_none(outcome.get("excess_return_pct")),
+            "trigger_summary": str(entry.get("trigger_summary") or ""),
+        })
+    cases.sort(key=lambda row: row["decision_return_pct"])
+    return cases[:max(0, int(limit))]

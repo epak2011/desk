@@ -9334,6 +9334,8 @@ def rules_performance_snapshot():
         "summary": engine_evaluation.summarize_outcomes(directional_cohorts),
         "patience_summary": engine_evaluation.summarize_patience(patience_cohorts),
         "failure_patterns": engine_evaluation.failure_patterns(directional_cohorts),
+        "logic_review_flags": engine_evaluation.logic_review_flags(directional_cohorts),
+        "weakest_cases": engine_evaluation.weakest_directional_cases(directional_cohorts),
         "action_counts": action_counts,
         "right_by_action": right_by_action,
         "total_by_action": total_by_action,
@@ -9364,6 +9366,8 @@ def render_rules_performance_dashboard():
     performance = snap["summary"]
     patience = snap["patience_summary"]
     failure_patterns = snap["failure_patterns"]
+    logic_review_flags = snap["logic_review_flags"]
+    weakest_cases = snap["weakest_cases"]
 
     def _metric(value, suffix="%"):
         return f"{float(value):+.1f}{suffix}" if value is not None else "—"
@@ -9384,6 +9388,38 @@ def render_rules_performance_dashboard():
         f'<div class="watch-queue-card"><div class="watch-queue-label">Engine version</div>'
         f'<div class="watch-queue-count" style="font-size:17px;">{RULE_ENGINE_VERSION}</div><div class="watch-queue-preview">new logs are immutable by version</div></div>'
         '</div>',
+        unsafe_allow_html=True,
+    )
+
+    flag_cards = []
+    flag_styles = {
+        "review_logic": ("Review logic", "health-bad"),
+        "watch": ("Watch closely", "health-warn"),
+        "stable": ("No review flag", "health-ok"),
+        "collecting": ("Collecting evidence", "health-warn"),
+    }
+    for flag in logic_review_flags:
+        status_label, status_class = flag_styles[flag["status"]]
+        observed = (
+            f'{flag["successes"]} / {flag["count"]} successful · '
+            f'{_metric(flag["avg_decision_return_pct"])} decision return'
+            if flag["count"] else "No mature 14-session outcomes yet"
+        )
+        flag_cards.append(
+            '<div class="watch-queue-card" style="padding:12px 14px;">'
+            f'<div class="watch-queue-label">{html.escape(flag["label"])}</div>'
+            f'<div class="{status_class}" style="font-weight:800;margin:5px 0 3px;">{status_label}</div>'
+            f'<div style="font-size:12px;color:var(--color-muted);">{html.escape(observed)}</div>'
+            f'<div style="font-size:11px;color:var(--color-muted);margin-top:5px;line-height:1.4;">{html.escape(flag["reason"])}</div>'
+            '</div>'
+        )
+    st.markdown(
+        '<div class="watch-queue-label" style="margin:18px 0 7px;">Logic review gate</div>'
+        '<div style="font-size:12px;color:var(--color-muted);margin-bottom:8px;">'
+        'A flag requires independent, mature 14-session evidence. Watch: ≥10 observations, &lt;40% success, and ≤−2% average decision return. '
+        'Review logic: ≥20 observations, &lt;35% success, and the same poor return. No rule changes automatically.</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px;">'
+        + ''.join(flag_cards) + '</div>',
         unsafe_allow_html=True,
     )
 
@@ -9449,6 +9485,25 @@ def render_rules_performance_dashboard():
             'border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;text-transform:uppercase;color:var(--color-muted);">'
             '<span>Dimension</span><span>Condition</span><span>n</span><span>Success</span><span>Decision return</span></div>'
             + pattern_rows,
+            unsafe_allow_html=True,
+        )
+
+    if weakest_cases:
+        case_rows = "".join(
+            '<div style="display:grid;grid-template-columns:.55fr .7fr .8fr .7fr .7fr 1.8fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px dashed var(--color-border-soft);font-family:var(--font-mono);font-size:12px;">'
+            f'<strong>{html.escape(row["ticker"])}</strong><span>{html.escape(str(row["logged_date"] or "—"))}</span>'
+            f'<span>{html.escape(row["action"])}</span><span>{_metric(row["forward_return_pct"])}</span>'
+            f'<span>{_metric(row["decision_return_pct"])}</span><span style="font-family:var(--font-sans);">{html.escape(row["trigger_summary"] or row["rule_state"] or "—")}</span></div>'
+            for row in weakest_cases
+        )
+        st.markdown(
+            '<div class="watch-queue-label" style="margin:18px 0 7px;">Cases to review</div>'
+            '<div style="font-size:12px;color:var(--color-muted);margin-bottom:8px;">Worst mature failed calls. Review these inputs before proposing any rule adjustment.</div>'
+            '<div style="display:grid;grid-template-columns:.55fr .7fr .8fr .7fr .7fr 1.8fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;text-transform:uppercase;color:var(--color-muted);">'
+            '<span>Ticker</span><span>Logged</span><span>Action</span><span>Actual</span><span>Decision</span><span>Decision context</span></div>'
+            + case_rows,
             unsafe_allow_html=True,
         )
 
