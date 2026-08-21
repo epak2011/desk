@@ -33,6 +33,7 @@ import streamlit as st
 import yfinance as yf
 
 import backend_layer
+import engine_evaluation
 import tactical
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
@@ -9101,7 +9102,7 @@ def active_position_tickers():
 
 TRIAL_DAYS = 14
 TARGET_COMPARISONS = 15
-AUTO_SCORE_VERSION = 2
+AUTO_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
 RULE_AUTOLOG_VERSION = 1
 RULE_AUTOLOG_ACTIONS = {"enter_now", "watch", "hold_off", "avoid", "accumulate"}
 
@@ -9257,6 +9258,21 @@ def rules_performance_snapshot():
         and d.get("outcome", {}).get("auto_scored")
     ]
     open_rows = [d for d in decisions if d.get("outcome") is None]
+    cohorts = engine_evaluation.independent_cohorts(decisions, spacing_days=7)
+    scored_cohorts = [
+        entry for entry in cohorts
+        if isinstance(entry.get("outcome"), dict)
+        and entry.get("outcome", {}).get("forward_return_pct") is not None
+    ]
+    today = datetime.now().date()
+    mature_open = []
+    for entry in open_rows:
+        try:
+            logged = datetime.fromisoformat(str(entry.get("ts")).replace("Z", "+00:00")).date()
+        except (TypeError, ValueError):
+            continue
+        if (today - logged).days >= TRIAL_DAYS:
+            mature_open.append(entry)
     action_counts = {}
     right_by_action = {}
     total_by_action = {}
@@ -9273,6 +9289,10 @@ def rules_performance_snapshot():
         "decisions": decisions,
         "scored": scored,
         "open": open_rows,
+        "cohorts": cohorts,
+        "scored_cohorts": scored_cohorts,
+        "mature_open": mature_open,
+        "summary": engine_evaluation.summarize_outcomes(scored_cohorts),
         "action_counts": action_counts,
         "right_by_action": right_by_action,
         "total_by_action": total_by_action,
@@ -9295,11 +9315,11 @@ def render_rules_performance_dashboard():
     decisions = snap["decisions"]
     scored = snap["scored"]
     open_rows = snap["open"]
-    rules_right = sum(
-        1 for d in scored
-        if "rules" in ((d.get("outcome") or {}).get("right_sources") or [])
-    )
-    hit_rate = (rules_right / len(scored) * 100) if scored else None
+    mature_open = snap["mature_open"]
+    cohorts = snap["cohorts"]
+    scored_cohorts = snap["scored_cohorts"]
+    performance = snap["summary"]
+    hit_rate = performance.get("hit_rate_pct")
     long_open = [
         d for d in open_rows
         if _tracker_action_family(d.get("rule_action")) == "long"
@@ -9307,18 +9327,66 @@ def render_rules_performance_dashboard():
     hit_rate_value = f"{hit_rate:.0f}%" if hit_rate is not None else "—"
     hit_rate_note = "rules credited" if hit_rate is not None else "needs scored rows"
 
+    def _metric(value, suffix="%"):
+        return f"{float(value):+.1f}{suffix}" if value is not None else "—"
+
     st.markdown(
         '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));'
         'gap:10px;margin:8px 0 14px;">'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Rules logged</div>'
         f'<div class="watch-queue-count">{len(decisions)}</div><div class="watch-queue-preview">auto decision history</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Independent cohorts</div>'
+        f'<div class="watch-queue-count">{len(cohorts)}</div><div class="watch-queue-preview">7-day ticker/action spacing</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Scored</div>'
-        f'<div class="watch-queue-count">{len(scored)}</div><div class="watch-queue-preview">14d+ outcomes</div></div>'
+        f'<div class="watch-queue-count">{len(scored_cohorts)}</div><div class="watch-queue-preview">independent 14-day outcomes</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Mature pending</div>'
+        f'<div class="watch-queue-count">{len(mature_open)}</div><div class="watch-queue-preview">eligible to score now</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Hit rate</div>'
         f'<div class="watch-queue-count">{hit_rate_value}</div><div class="watch-queue-preview">{hit_rate_note}</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Avg 14d return</div>'
+        f'<div class="watch-queue-count">{_metric(performance.get("avg_return_pct"))}</div><div class="watch-queue-preview">all scored rules calls</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Avg vs SPY</div>'
+        f'<div class="watch-queue-count">{_metric(performance.get("avg_excess_return_pct"))}</div><div class="watch-queue-preview">equity calls with benchmark</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Avg excursion</div>'
+        f'<div class="watch-queue-count">{_metric(performance.get("avg_mfe_pct"))} / {_metric(performance.get("avg_mae_pct"))}</div><div class="watch-queue-preview">favorable / adverse</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Open longs</div>'
         f'<div class="watch-queue-count">{len(long_open)}</div><div class="watch-queue-preview">enter / accumulate</div></div>'
         '</div>',
+        unsafe_allow_html=True,
+    )
+
+    evidence_label = (
+        "Not enough matured evidence"
+        if len(scored_cohorts) < 30
+        else ("Early evidence only" if len(scored_cohorts) < 100 else "Evaluation sample established")
+    )
+    evidence_class = "health-bad" if len(scored_cohorts) < 30 else "health-warn" if len(scored_cohorts) < 100 else "health-ok"
+    family_rows = []
+    for family, label in (("long", "Enter / Accumulate"), ("wait", "Watch / Hold off"), ("avoid", "Avoid")):
+        family_entries = [
+            entry for entry in scored_cohorts
+            if engine_evaluation.decision_family(entry.get("rule_action")) == family
+        ]
+        family_summary = engine_evaluation.summarize_outcomes(family_entries)
+        family_rows.append(
+            '<div class="watch-queue-card">'
+            f'<div class="watch-queue-label">{html.escape(label)}</div>'
+            f'<div class="watch-queue-count">{family_summary["count"]}</div>'
+            f'<div class="watch-queue-preview">hit {(_metric(family_summary.get("hit_rate_pct")) if family_summary["count"] else "—")} · '
+            f'return {_metric(family_summary.get("avg_return_pct"))} · vs SPY {_metric(family_summary.get("avg_excess_return_pct"))}</div>'
+            '</div>'
+        )
+    st.markdown(
+        '<div style="padding:12px 14px;margin:0 0 12px;border:1px solid var(--color-border);'
+        'border-left:3px solid var(--color-warning);border-radius:6px;background:#fff;">'
+        f'<div class="watch-queue-label {evidence_class}">{html.escape(evidence_label)}</div>'
+        '<div style="font-size:13px;line-height:1.45;color:var(--color-muted);margin-top:5px;">'
+        'Performance uses independent seven-day ticker/action cohorts and a fixed 14-calendar-day exit. '
+        'Treat results below 100 scored cohorts as calibration evidence, not proof of an investable edge.'
+        '</div></div>'
+        '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px;">'
+        + "".join(family_rows)
+        + '</div>',
         unsafe_allow_html=True,
     )
 
@@ -9341,6 +9409,10 @@ def render_rules_performance_dashboard():
             else:
                 outcome_label = "Missed"
                 outcome_color = "var(--color-negative)"
+            if outcome.get("forward_return_pct") is not None:
+                outcome_label += f' · {float(outcome["forward_return_pct"]):+.1f}%'
+                if outcome.get("excess_return_pct") is not None:
+                    outcome_label += f' ({float(outcome["excess_return_pct"]):+.1f}% vs SPY)'
         try:
             logged = datetime.fromisoformat(str(entry.get("ts"))).strftime("%b %-d")
         except Exception:
@@ -9769,15 +9841,28 @@ def _tracker_first_hit(hist, start_date, level, direction):
 
 
 def auto_close_tracker_outcomes(force_all=False):
-    """Auto-score stale calibration rows so the trial produces decisions."""
+    """Score mature rules calls at one fixed horizon with benchmark context."""
     decisions = st.session_state.store.get("decisions_log", [])
     changed = 0
     today = datetime.now().date()
+    history_cache = {}
+    benchmark_history = None
+    benchmark_loaded = False
+
+    def _history_for(ticker):
+        nonlocal benchmark_history, benchmark_loaded
+        if ticker not in history_cache:
+            hist, _, _ = fetch_history(ticker)
+            history_cache[ticker] = hist
+        if not benchmark_loaded:
+            benchmark_loaded = True
+            benchmark_history, _, _ = fetch_history("SPY")
+        return history_cache[ticker]
+
     for entry in decisions:
         existing_outcome = entry.get("outcome") or {}
         if entry.get("outcome") is not None and not (
-            force_all
-            and existing_outcome.get("auto_scored")
+            existing_outcome.get("auto_scored")
             and existing_outcome.get("score_version", 0) < AUTO_SCORE_VERSION
         ):
             continue
@@ -9792,43 +9877,19 @@ def auto_close_tracker_outcomes(force_all=False):
         ticker = str(entry.get("ticker") or "").upper().strip()
         if not ticker:
             continue
-        hist, _, _ = fetch_history(ticker)
+        hist = _history_for(ticker)
         if hist is None or len(hist) == 0:
             continue
-
-        try:
-            after = hist[hist.index.date >= logged_dt] if hasattr(hist.index, "date") else hist
-            if after is None or len(after) == 0:
-                after = hist
-            current_price = float(after["Close"].iloc[-1])
-        except Exception:
+        scored = engine_evaluation.score_forward_outcome(
+            entry,
+            hist,
+            benchmark_history=(None if ticker.endswith("-USD") else benchmark_history),
+            as_of=today,
+            horizon_days=TRIAL_DAYS,
+        )
+        if not scored:
             continue
-
-        def _num(value):
-            try:
-                if value is None:
-                    return None
-                return float(value)
-            except (TypeError, ValueError):
-                return None
-
-        ref_price = _num(entry.get("price")) or current_price
-        entry_px = _num(entry.get("entry_hit_price")) or _num(entry.get("entry_price")) or ref_price
-        ref_return = (current_price - ref_price) / ref_price if ref_price else 0
-        entry_return = (current_price - entry_px) / entry_px if entry_px else ref_return
-        score_return = ref_return
-        if entry.get("position_status") == "entered" and entry_px:
-            score_return = entry_return
-
-        if score_return >= 0.03:
-            winning_family = "long"
-            reason = f"today's price is {score_return * 100:.1f}% above the logged reference"
-        elif score_return <= -0.03:
-            winning_family = "avoid"
-            reason = f"today's price is {score_return * 100:.1f}% below the logged reference"
-        else:
-            winning_family = "wait"
-            reason = f"today's price is only {score_return * 100:.1f}% from the logged reference"
+        winning_family = scored["winning_family"]
 
         source_actions = {
             "rules": entry.get("rule_action"),
@@ -9849,15 +9910,15 @@ def auto_close_tracker_outcomes(force_all=False):
             "ts": datetime.now().isoformat(timespec="seconds"),
             "result": "auto_scored",
             "right_sources": right_sources,
-            "result_pct": None,
+            "result_pct": scored["forward_return_pct"],
             "note": (
-                f"Auto-scored from today's price: {reason}. "
-                f"Current {current_price:.2f}; logged/ref {ref_price:.2f}."
+                f"Fixed {TRIAL_DAYS}-day outcome: {scored['forward_return_pct']:+.1f}% "
+                f"from {scored['reference_price']:.2f} to {scored['scored_price']:.2f}."
             ),
             "auto_scored": True,
-            "winning_family": winning_family,
             "credit_families": sorted(credit_families),
             "score_version": AUTO_SCORE_VERSION,
+            **scored,
         }
         if entry.get("outcome") != new_outcome:
             entry["outcome"] = new_outcome
