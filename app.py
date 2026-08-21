@@ -9375,7 +9375,7 @@ def render_rules_performance_dashboard():
         f'<div class="watch-queue-count">{len(decisions)}</div><div class="watch-queue-preview">auto decision history</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Independent cohorts</div>'
         f'<div class="watch-queue-count">{len(cohorts)}</div><div class="watch-queue-preview">7-day ticker/action spacing</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Directional scored</div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Directional observed</div>'
         f'<div class="watch-queue-count">{len(directional_cohorts)}</div><div class="watch-queue-preview">Enter / Accumulate / Avoid</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Patience observed</div>'
         f'<div class="watch-queue-count">{patience["count"]}</div><div class="watch-queue-preview">Watch / Hold Off lifecycle</div></div>'
