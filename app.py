@@ -78,7 +78,7 @@ HISTORY_CACHE_DIR = Path.home() / ".desk_history_cache"
 MARKET_TZ = ZoneInfo("America/New_York") if ZoneInfo else timezone(timedelta(hours=-4), "ET")
 REGIME_DAILY_REFRESH_HOUR = 9
 REGIME_DAILY_REFRESH_MINUTE = 10
-REGIME_DAILY_MEMO_SCHEMA_VERSION = 3
+REGIME_DAILY_MEMO_SCHEMA_VERSION = 4
 REGIME_CLAUDE_TIMEOUT_SECONDS = max(30, int(os.environ.get("REGIME_CLAUDE_TIMEOUT_SECONDS", "55")))
 
 
@@ -18659,6 +18659,41 @@ if view == "regime":
         drivers = s.get("opportunity_drivers") or []
         risks = s.get("opportunity_risks") or []
         impact_headline = s.get("opportunity_takeaway") or _why_today_text(d, s)
+        spx_20 = _signed_regime(d.get("spx_vs20"))
+        spx_50 = _signed_regime(d.get("spx_vs50"))
+        vix_text = _fmt_regime(d.get("vix"), "", 1)
+        hy_text = _fmt_regime(d.get("hy_bps"), "bps", 0)
+        cross_asset_bits = []
+        if d.get("vix") is not None:
+            cross_asset_bits.append(f"VIX is {vix_text}")
+        if d.get("hy_bps") is not None:
+            cross_asset_bits.append(f"high-yield spreads are {hy_text}")
+        cross_asset_context = " and ".join(cross_asset_bits)
+        window = s.get("opportunity_window", "Mixed")
+        execution = s.get("execution_window", "Neutral")
+        action = s.get("action_guidance", "Hold Off")
+        if window == "Favorable":
+            why_today = (
+                f"SPX is {spx_20} versus its 20-day average and {spx_50} versus its 50-day average, "
+                f"while {cross_asset_context or 'cross-asset confirmation is limited'}. That combination keeps the "
+                f"2-12 week window favorable, with {action.lower()} as the broad call. Today's execution read is "
+                f"{str(execution).lower()}: add only where stock-level triggers are clean, and do not turn a constructive backdrop into permission to chase."
+            )
+        elif window == "Unfavorable":
+            primary_risk = risks[0] if risks else "weak market confirmation"
+            why_today = (
+                f"The immediate constraint is {primary_risk}, with SPX {spx_20} versus the 20-day and "
+                f"{spx_50} versus the 50-day average. {cross_asset_context.capitalize() if cross_asset_context else 'Cross-asset confirmation remains limited'}. "
+                f"The combined trend and cross-asset read leaves the 2-12 week window unfavorable. Preserve capital and wait for trend or credit to repair before adding broad exposure."
+            )
+        else:
+            strongest = drivers[0] if drivers else "one part of the tape holding up"
+            drag = risks[0] if risks else "incomplete confirmation across trend, volatility, and credit"
+            why_today = (
+                f"Today's tape is split: {strongest}, but {drag} keeps the broader signal from confirming. "
+                f"SPX is {spx_20} versus the 20-day and {spx_50} versus the 50-day average"
+                f"{'; ' + cross_asset_context if cross_asset_context else ''}. Keep current exposure selective and wait for the conflicting inputs to resolve before making broad adds."
+            )
         impact_bullets = [
             f"Opportunity window is {s.get('opportunity_window', 'mixed')} with score {s.get('opportunity_score', '—')} → {s.get('action_guidance', 'Hold Off')} is the broad action",
             f"SPX versus trend: 20d {_signed_regime(d.get('spx_vs20'))}, 50d {_signed_regime(d.get('spx_vs50'))} → price trend drives entry timing",
@@ -18687,7 +18722,7 @@ if view == "regime":
         ]
         return {
             "schema_version": REGIME_DAILY_MEMO_SCHEMA_VERSION,
-            "why_today": _why_today_text(d, s),
+            "why_today": why_today,
             "daily_context": {
                 "headline": impact_headline,
                 "bullets": impact_bullets,
@@ -18952,6 +18987,10 @@ The app renders this in the exact dashboard sections:
 
 Style:
 - Specific, direct, PM-memo tone.
+- Make Why Today sound newly written for this snapshot, not like a standing template.
+- Lead with the most decision-relevant change, tension, or unusual reading in today's data. Vary sentence structure from day to day.
+- Use current values and relationships where they sharpen the call; do not merely restate the Opportunity Window label.
+- Avoid stock phrases such as "Support comes from," "Execution is acceptable," and generic warnings that volatility, breadth, or credit could reverse.
 - Use arrows (→) inside the Today's Context bullets.
 - Keep bullets concise but information-rich.
 - Respect the rules engine's regime/action. Do not override it.
@@ -18969,7 +19008,7 @@ Return ONLY this JSON shape:
     "action": "{s.get("action_guidance")}",
     "short_term": "{s.get("short_term_cond")}"
   }},
-  "why_today": "one paragraph, 60-95 words. Explain the opportunity window first, then the key risk.",
+  "why_today": "one paragraph, 60-95 words. Explain what is distinctive in the latest snapshot, why it changes or confirms today's positioning, and the most relevant risk or execution constraint.",
   "daily_context": {{
     "headline": "one sentence summarizing today's macro/market context",
     "bullets": [
@@ -19366,9 +19405,7 @@ Return ONLY this JSON shape:
         "REGIME SHIFT WARNING": "Regime Shift Warning",
     }.get(str(change_status).upper(), str(change_status).title())
     change_note = daily_context.get("change_note") or daily_context.get("summary") or impact_headline
-    opportunity_takeaway = s.get("opportunity_takeaway") or daily_memo.get("why_today") or _why_today_text(d, s)
-    opportunity_explanation = s.get("opportunity_explanation") or ""
-    key_risk = s.get("key_risk") or "A reversal in volatility, breadth, or credit could weaken the window."
+    why_today_commentary = str(daily_memo.get("why_today") or _why_today_text(d, s)).strip()
     dark_highlight_html = "".join(
         f'<div class="risk-op-highlight-row"><span>{html.escape(k)}</span><strong>{html.escape(v)}{extra}</strong></div>'
         for k, v, extra in highlights
@@ -19406,7 +19443,7 @@ Return ONLY this JSON shape:
         '<div class="risk-op-bottom">'
         '<div>'
         '<div class="risk-op-label">Why Today</div>'
-        f'<div class="risk-op-why"><strong>{html.escape(str(opportunity_takeaway))}</strong> {html.escape(str(opportunity_explanation))} <span style="color:var(--color-muted);">Key risk: {html.escape(str(key_risk))}</span></div>'
+        f'<div class="risk-op-why">{html.escape(why_today_commentary)}</div>'
         '</div>'
         f'<div class="risk-op-highlights"><div class="risk-op-label">Market Highlights</div>{dark_highlight_html}</div>'
         '</div>'
