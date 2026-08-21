@@ -13,6 +13,7 @@ Hierarchy (strict, top-down):
 import json
 import html
 import hashlib
+import importlib
 import math
 import os
 import re
@@ -36,6 +37,11 @@ import backend_layer
 import engine_evaluation
 import tactical
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
+
+# Streamlit Cloud can hot-reload this file before refreshing an already imported
+# helper module during deployment. Reload only across that temporary version gap.
+if not hasattr(engine_evaluation, "logic_review_flags"):
+    engine_evaluation = importlib.reload(engine_evaluation)
 
 try:
     from pm_view import pm_identity_mismatch
