@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 
-EVALUATION_VERSION = 4
-DEFAULT_HORIZON_DAYS = 14
+EVALUATION_VERSION = 5
+DEFAULT_HORIZONS = (5, 14, 30)
 
 
 def number_or_none(value):
@@ -74,110 +74,158 @@ def score_forward_outcome(
     *,
     benchmark_history=None,
     as_of=None,
-    horizon_days=DEFAULT_HORIZON_DAYS,
+    horizons=DEFAULT_HORIZONS,
 ):
-    """Score one decision at a fixed calendar horizon without look-ahead drift.
-
-    The exit is the first available close on or after ``logged + horizon``.
-    MFE/MAE use only bars available through that exit. Returns are decimals.
-    """
+    """Evaluate the price path, trigger lifecycle, and fixed trading-session returns."""
     logged = _entry_date(entry)
     if logged is None:
         return None
     as_of = as_of or date.today()
     if isinstance(as_of, datetime):
         as_of = as_of.date()
-    target = logged + timedelta(days=int(horizon_days))
-    if as_of < target:
-        return None
-
     history = _dated_frame(history)
     if history is None:
         return None
     try:
-        eligible = history[history.index.date >= target]
+        future = history[(history.index.date > logged) & (history.index.date <= as_of)]
     except Exception:
         return None
-    if len(eligible) == 0:
-        return None
-    exit_row = eligible.iloc[0]
-    exit_index = eligible.index[0]
-    exit_date = exit_index.date() if hasattr(exit_index, "date") else target
-    if exit_date > as_of:
+    if len(future) == 0:
         return None
 
     ref_price = number_or_none(entry.get("price"))
     if not ref_price or ref_price <= 0:
         return None
-    exit_price = number_or_none(exit_row.get("Close"))
-    if exit_price is None:
-        return None
-    forward_return = (exit_price - ref_price) / ref_price
-
-    window = _rows_between(history, logged, exit_date)
-    if window is None or len(window) == 0:
-        return None
-    high = number_or_none(window["High"].max()) if "High" in window else None
-    low = number_or_none(window["Low"].min()) if "Low" in window else None
-    mfe = (high - ref_price) / ref_price if high is not None else None
-    mae = (low - ref_price) / ref_price if low is not None else None
-
-    benchmark_return = _benchmark_return(benchmark_history, logged, exit_date)
-    excess_return = (
-        forward_return - benchmark_return
-        if benchmark_return is not None
-        else None
-    )
     family = decision_family(entry.get("rule_action"))
-    if forward_return >= 0.03:
-        winning_family = "long"
-    elif forward_return <= -0.03:
-        winning_family = "avoid"
-    else:
-        winning_family = "wait"
-    credited = (
-        family == winning_family
-        or (family == "avoid" and winning_family == "wait")
+    horizon_results = {}
+    for horizon in sorted({int(value) for value in horizons if int(value) > 0}):
+        if len(future) < horizon:
+            continue
+        exit_row = future.iloc[horizon - 1]
+        exit_index = future.index[horizon - 1]
+        exit_date = exit_index.date()
+        exit_price = number_or_none(exit_row.get("Close"))
+        if exit_price is None:
+            continue
+        forward_return = (exit_price - ref_price) / ref_price
+        window = future.iloc[:horizon]
+        high = number_or_none(window["High"].max()) if "High" in window else None
+        low = number_or_none(window["Low"].min()) if "Low" in window else None
+        benchmark_return = _benchmark_return(benchmark_history, logged, exit_date)
+        excess_return = forward_return - benchmark_return if benchmark_return is not None else None
+        horizon_results[str(horizon)] = {
+            "sessions": horizon,
+            "scored_date": exit_date.isoformat(),
+            "scored_price": round(exit_price, 4),
+            "return_pct": round(forward_return * 100, 4),
+            "benchmark_return_pct": round(benchmark_return * 100, 4) if benchmark_return is not None else None,
+            "excess_return_pct": round(excess_return * 100, 4) if excess_return is not None else None,
+            "mfe_pct": round((high - ref_price) / ref_price * 100, 4) if high is not None else None,
+            "mae_pct": round((low - ref_price) / ref_price * 100, 4) if low is not None else None,
+        }
+
+    trigger_price = number_or_none(entry.get("trigger_price"))
+    invalidation_price = number_or_none(entry.get("invalidation_price") or entry.get("stop_price"))
+
+    def first_close_event(level, direction):
+        if level is None:
+            return None
+        for idx, row in future.iterrows():
+            close = number_or_none(row.get("Close"))
+            if close is None:
+                continue
+            if (direction == "up" and close >= level) or (direction == "down" and close <= level):
+                return {"date": idx.date().isoformat(), "price": round(close, 4), "index": idx}
+        return None
+
+    trigger_event = first_close_event(trigger_price, "up")
+    invalidation_event = first_close_event(invalidation_price, "down")
+    trigger_first = bool(
+        trigger_event and (
+            not invalidation_event or trigger_event["date"] <= invalidation_event["date"]
+        )
     )
-    decision_return = (
-        forward_return if family == "long"
-        else (-forward_return if family == "avoid" else None)
-    )
-    decision_excess = (
-        excess_return if family == "long"
-        else (-excess_return if family == "avoid" and excess_return is not None else None)
-    )
-    return {
+    invalidation_first = bool(invalidation_event and not trigger_first)
+
+    post_trigger = {}
+    if trigger_event:
+        after_trigger = future[future.index > trigger_event["index"]]
+        trigger_ref = trigger_price or trigger_event["price"]
+        for horizon in (5, 14):
+            if len(after_trigger) < horizon or not trigger_ref:
+                continue
+            row = after_trigger.iloc[horizon - 1]
+            value = number_or_none(row.get("Close"))
+            if value is not None:
+                post_trigger[str(horizon)] = round((value - trigger_ref) / trigger_ref * 100, 4)
+
+    primary = horizon_results.get("14") or {}
+    forward_return_pct = primary.get("return_pct")
+    excess_return_pct = primary.get("excess_return_pct")
+    directional_success = None
+    success_definition = None
+    if family == "long" and forward_return_pct is not None:
+        directional_success = bool(
+            forward_return_pct > 0
+            and (excess_return_pct is None or excess_return_pct > 0)
+        )
+        success_definition = "positive 14-session return and SPY outperformance when benchmarked"
+    elif family == "avoid" and forward_return_pct is not None:
+        directional_success = bool(
+            forward_return_pct < 0
+            or (excess_return_pct is not None and excess_return_pct <= -2)
+        )
+        success_definition = "negative 14-session return or at least 2 points of SPY underperformance"
+
+    patience_status = None
+    patience_success = None
+    if family == "wait":
+        if invalidation_first:
+            patience_status, patience_success = "invalidation_before_trigger", True
+        elif trigger_first:
+            trigger_14 = post_trigger.get("14")
+            patience_status = "triggered_then_matured" if trigger_14 is not None else "triggered_pending"
+            patience_success = (trigger_14 > 0) if trigger_14 is not None else None
+        elif "30" in horizon_results:
+            patience_status, patience_success = "expired_without_trigger", None
+        else:
+            patience_status, patience_success = "waiting"
+
+    decision_return_pct = None
+    decision_excess_pct = None
+    if forward_return_pct is not None and family in {"long", "avoid"}:
+        direction = 1 if family == "long" else -1
+        decision_return_pct = round(direction * forward_return_pct, 4)
+        decision_excess_pct = round(direction * excess_return_pct, 4) if excess_return_pct is not None else None
+
+    result = {
         "evaluation_version": EVALUATION_VERSION,
-        "horizon_days": int(horizon_days),
+        "horizon_unit": "trading_sessions",
         "logged_date": logged.isoformat(),
-        "target_date": target.isoformat(),
-        "scored_date": exit_date.isoformat(),
         "reference_price": round(ref_price, 4),
-        "scored_price": round(exit_price, 4),
-        "forward_return_pct": round(forward_return * 100, 4),
-        "benchmark_return_pct": (
-            round(benchmark_return * 100, 4)
-            if benchmark_return is not None else None
-        ),
-        "excess_return_pct": (
-            round(excess_return * 100, 4)
-            if excess_return is not None else None
-        ),
-        "decision_return_pct": (
-            round(decision_return * 100, 4)
-            if decision_return is not None else None
-        ),
-        "decision_excess_pct": (
-            round(decision_excess * 100, 4)
-            if decision_excess is not None else None
-        ),
-        "mfe_pct": round(mfe * 100, 4) if mfe is not None else None,
-        "mae_pct": round(mae * 100, 4) if mae is not None else None,
+        "horizons": horizon_results,
+        "forward_return_pct": forward_return_pct,
+        "benchmark_return_pct": primary.get("benchmark_return_pct"),
+        "excess_return_pct": excess_return_pct,
+        "decision_return_pct": decision_return_pct,
+        "decision_excess_pct": decision_excess_pct,
+        "mfe_pct": primary.get("mfe_pct"),
+        "mae_pct": primary.get("mae_pct"),
         "rule_family": family,
-        "winning_family": winning_family,
-        "credited": credited,
+        "directional_success": directional_success,
+        "success_definition": success_definition,
+        "patience_status": patience_status,
+        "patience_success": patience_success,
+        "trigger_fired": bool(trigger_event),
+        "trigger_date": trigger_event.get("date") if trigger_event else None,
+        "invalidation_fired": bool(invalidation_event),
+        "invalidation_date": invalidation_event.get("date") if invalidation_event else None,
+        "event_order": "trigger_first" if trigger_first else "invalidation_first" if invalidation_first else "unresolved",
+        "post_trigger_returns_pct": post_trigger,
+        "evaluation_complete": "30" in horizon_results,
     }
+    result["credited"] = directional_success if family in {"long", "avoid"} else patience_success
+    return result
 
 
 def summarize_outcomes(entries):
@@ -190,6 +238,8 @@ def summarize_outcomes(entries):
     if not outcomes:
         return {
             "count": 0,
+            "resolved_count": 0,
+            "successful_count": 0,
             "hit_rate_pct": None,
             "avg_return_pct": None,
             "avg_excess_return_pct": None,
@@ -197,6 +247,8 @@ def summarize_outcomes(entries):
             "avg_decision_excess_pct": None,
             "avg_mfe_pct": None,
             "avg_mae_pct": None,
+            "avg_5d_return_pct": None,
+            "avg_30d_return_pct": None,
         }
 
     def average(key):
@@ -204,11 +256,23 @@ def summarize_outcomes(entries):
         values = [value for value in values if value is not None]
         return round(sum(values) / len(values), 2) if values else None
 
+    resolved = [row for row in outcomes if row.get("credited") is not None]
+
+    def horizon_average(horizon):
+        values = [
+            number_or_none(((row.get("horizons") or {}).get(str(horizon)) or {}).get("return_pct"))
+            for row in outcomes
+        ]
+        values = [value for value in values if value is not None]
+        return round(sum(values) / len(values), 2) if values else None
+
     return {
         "count": len(outcomes),
-        "hit_rate_pct": round(
-            100 * sum(bool(row.get("credited")) for row in outcomes) / len(outcomes),
-            1,
+        "resolved_count": len(resolved),
+        "successful_count": sum(bool(row.get("credited")) for row in resolved),
+        "hit_rate_pct": (
+            round(100 * sum(bool(row.get("credited")) for row in resolved) / len(resolved), 1)
+            if resolved else None
         ),
         "avg_return_pct": average("forward_return_pct"),
         "avg_excess_return_pct": average("excess_return_pct"),
@@ -216,6 +280,8 @@ def summarize_outcomes(entries):
         "avg_decision_excess_pct": average("decision_excess_pct"),
         "avg_mfe_pct": average("mfe_pct"),
         "avg_mae_pct": average("mae_pct"),
+        "avg_5d_return_pct": horizon_average(5),
+        "avg_30d_return_pct": horizon_average(30),
     }
 
 
@@ -238,3 +304,70 @@ def independent_cohorts(entries, spacing_days=7):
         selected.append(entry)
         last_by_key[key] = logged
     return selected
+
+
+def summarize_patience(entries):
+    outcomes = [
+        entry.get("outcome") or {}
+        for entry in entries or []
+        if isinstance(entry.get("outcome"), dict)
+        and entry.get("outcome", {}).get("rule_family") == "wait"
+    ]
+    statuses = {}
+    for outcome in outcomes:
+        status = str(outcome.get("patience_status") or "waiting")
+        statuses[status] = statuses.get(status, 0) + 1
+    resolved = [row for row in outcomes if row.get("patience_success") is not None]
+    successful = sum(bool(row.get("patience_success")) for row in resolved)
+    return {
+        "count": len(outcomes),
+        "resolved_count": len(resolved),
+        "successful_count": successful,
+        "success_rate_pct": round(100 * successful / len(resolved), 1) if resolved else None,
+        "triggered": sum(bool(row.get("trigger_fired")) for row in outcomes),
+        "invalidation_first": statuses.get("invalidation_before_trigger", 0),
+        "triggered_pending": statuses.get("triggered_pending", 0),
+        "triggered_matured": statuses.get("triggered_then_matured", 0),
+        "expired": statuses.get("expired_without_trigger", 0),
+        "waiting": statuses.get("waiting", 0),
+    }
+
+
+def failure_patterns(entries, minimum_count=3):
+    """Rank sufficiently populated decision-time attributes by decision return."""
+    groups = {}
+    for entry in entries or []:
+        outcome = entry.get("outcome") or {}
+        decision_return = number_or_none(outcome.get("decision_return_pct"))
+        if decision_return is None:
+            continue
+        context = entry.get("decision_context") or {}
+        setup = number_or_none(entry.get("setup_score"))
+        reward_risk = number_or_none(entry.get("reward_risk"))
+        attributes = [
+            ("Action", str(entry.get("rule_action") or "unknown").replace("_", " ").title()),
+            ("Structure", str(entry.get("rule_state") or "unknown").title()),
+        ]
+        regime = context.get("market_regime")
+        if regime:
+            attributes.append(("Regime", str(regime).title()))
+        if setup is not None:
+            bucket = "Setup ≥ 8" if setup >= 8 else "Setup 6-8" if setup >= 6 else "Setup < 6"
+            attributes.append(("Setup", bucket))
+        if reward_risk is not None:
+            bucket = "R/R ≥ 2" if reward_risk >= 2 else "R/R 1-2" if reward_risk >= 1 else "R/R < 1"
+            attributes.append(("Reward/risk", bucket))
+        for dimension, value in attributes:
+            groups.setdefault((dimension, value), []).append((decision_return, bool(outcome.get("directional_success"))))
+    patterns = []
+    for (dimension, value), rows in groups.items():
+        if len(rows) < int(minimum_count):
+            continue
+        patterns.append({
+            "dimension": dimension,
+            "value": value,
+            "count": len(rows),
+            "successes": sum(success for _ret, success in rows),
+            "avg_decision_return_pct": round(sum(ret for ret, _success in rows) / len(rows), 2),
+        })
+    return sorted(patterns, key=lambda row: (row["avg_decision_return_pct"], -row["count"]))

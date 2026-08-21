@@ -13,6 +13,15 @@ def history(rows):
     )
 
 
+def path_history(start="2026-01-02", sessions=30, start_price=100, step=1):
+    dates = pd.bdate_range(start=start, periods=sessions + 1)
+    rows = []
+    for index, day in enumerate(dates):
+        close = start_price + index * step
+        rows.append({"date": str(day.date()), "Close": close, "High": close + 2, "Low": close - 2})
+    return history(rows)
+
+
 class EngineEvaluationTests(unittest.TestCase):
     def test_waits_until_fixed_horizon_matures(self):
         bars = history([
@@ -26,46 +35,48 @@ class EngineEvaluationTests(unittest.TestCase):
             )
         )
 
-    def test_scores_first_close_at_or_after_target_date(self):
-        bars = history([
-            {"date": "2026-01-02", "Close": 100, "High": 101, "Low": 99},
-            {"date": "2026-01-15", "Close": 105, "High": 108, "Low": 97},
-            {"date": "2026-01-16", "Close": 110, "High": 112, "Low": 96},
-            {"date": "2026-01-20", "Close": 150, "High": 151, "Low": 109},
-        ])
-        spy = history([
-            {"date": "2026-01-02", "Close": 500, "High": 501, "Low": 499},
-            {"date": "2026-01-16", "Close": 525, "High": 526, "Low": 498},
-        ])
+    def test_scores_fixed_trading_session_paths(self):
+        bars = path_history(step=1)
+        spy = path_history(start_price=500, step=1)
         entry = {"ts": "2026-01-02T10:00:00", "price": 100, "rule_action": "enter_now"}
         outcome = engine_evaluation.score_forward_outcome(
             entry,
             bars,
             benchmark_history=spy,
-            as_of=date(2026, 1, 20),
+            as_of=date(2026, 3, 1),
         )
-        self.assertEqual(outcome["scored_date"], "2026-01-16")
-        self.assertEqual(outcome["forward_return_pct"], 10.0)
-        self.assertEqual(outcome["benchmark_return_pct"], 5.0)
-        self.assertEqual(outcome["excess_return_pct"], 5.0)
-        self.assertEqual(outcome["decision_return_pct"], 10.0)
-        self.assertEqual(outcome["decision_excess_pct"], 5.0)
-        self.assertEqual(outcome["mfe_pct"], 12.0)
-        self.assertEqual(outcome["mae_pct"], -4.0)
+        self.assertEqual(outcome["horizons"]["5"]["return_pct"], 5.0)
+        self.assertEqual(outcome["forward_return_pct"], 14.0)
+        self.assertEqual(outcome["horizons"]["30"]["return_pct"], 30.0)
+        self.assertEqual(outcome["decision_return_pct"], 14.0)
+        self.assertTrue(outcome["evaluation_complete"])
         self.assertTrue(outcome["credited"])
 
     def test_avoid_decision_edge_inverts_underlying_return(self):
-        bars = history([
-            {"date": "2026-01-02", "Close": 100, "High": 101, "Low": 99},
-            {"date": "2026-01-16", "Close": 110, "High": 112, "Low": 98},
-        ])
+        bars = path_history(sessions=14, step=1)
         entry = {"ts": "2026-01-02T10:00:00", "price": 100, "rule_action": "avoid"}
         outcome = engine_evaluation.score_forward_outcome(
-            entry, bars, as_of=date(2026, 1, 16)
+            entry, bars, as_of=date(2026, 2, 1)
         )
-        self.assertEqual(outcome["forward_return_pct"], 10.0)
-        self.assertEqual(outcome["decision_return_pct"], -10.0)
+        self.assertEqual(outcome["forward_return_pct"], 14.0)
+        self.assertEqual(outcome["decision_return_pct"], -14.0)
         self.assertFalse(outcome["credited"])
+
+    def test_watch_scores_trigger_lifecycle_not_direction(self):
+        bars = path_history(sessions=30, step=1)
+        entry = {
+            "ts": "2026-01-02T10:00:00",
+            "price": 100,
+            "rule_action": "watch",
+            "trigger_price": 104,
+            "invalidation_price": 95,
+        }
+        outcome = engine_evaluation.score_forward_outcome(entry, bars, as_of=date(2026, 3, 1))
+        self.assertTrue(outcome["trigger_fired"])
+        self.assertEqual(outcome["event_order"], "trigger_first")
+        self.assertEqual(outcome["patience_status"], "triggered_then_matured")
+        self.assertTrue(outcome["patience_success"])
+        self.assertIsNone(outcome["directional_success"])
 
     def test_summarizes_only_forward_scored_rows(self):
         rows = [

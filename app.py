@@ -9101,9 +9101,11 @@ def active_position_tickers():
 
 
 TRIAL_DAYS = 14
+EVALUATION_MIN_AGE_DAYS = 7
 TARGET_COMPARISONS = 15
 AUTO_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
-RULE_AUTOLOG_VERSION = 1
+RULE_AUTOLOG_VERSION = 2
+RULE_ENGINE_VERSION = "rules-2026.08-b"
 RULE_AUTOLOG_ACTIONS = {"enter_now", "watch", "hold_off", "avoid", "accumulate"}
 
 
@@ -9198,11 +9200,26 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
         "rule_signature": signature,
         "rule_source": source,
         "rule_autolog_version": RULE_AUTOLOG_VERSION,
+        "rule_engine_version": RULE_ENGINE_VERSION,
         "rule_trace": t_state.get("_rule_trace") or [],
         "setup_score": t_state.get("setup_score"),
         "reward_risk": t_state.get("reward_risk"),
         "rs": t_state.get("rs"),
         "vol_ratio": t_state.get("vol_ratio"),
+        "decision_context": {
+            "market_regime": t_state.get("market_regime"),
+            "tape_class": t_state.get("tape_class"),
+            "reward_risk_tier": t_state.get("reward_risk_tier"),
+            "rsi14": t_state.get("rsi14"),
+            "ma20": t_state.get("ma20"),
+            "ma50": t_state.get("ma50"),
+            "ma200": t_state.get("ma200"),
+            "price_vs_20_pct": t_state.get("price_vs_20_pct"),
+            "price_vs_50_pct": t_state.get("price_vs_50_pct"),
+            "price_vs_200_pct": t_state.get("price_vs_200_pct"),
+            "event_risk_hold": bool(t_state.get("event_risk_hold")),
+            "event_risk_watch": bool(t_state.get("event_risk_watch")),
+        },
         "trigger_kind": trigger.get("kind"),
         "trigger_summary": trigger_monitor.get("detail") or trigger.get("summary") or trigger_text(t_state),
         "trigger_status": trigger_monitor.get("status"),
@@ -9264,6 +9281,20 @@ def rules_performance_snapshot():
         if isinstance(entry.get("outcome"), dict)
         and entry.get("outcome", {}).get("forward_return_pct") is not None
     ]
+    evaluated_cohorts = [
+        entry for entry in cohorts
+        if isinstance(entry.get("outcome"), dict)
+        and entry.get("outcome", {}).get("evaluation_version") == AUTO_SCORE_VERSION
+    ]
+    directional_cohorts = [
+        entry for entry in evaluated_cohorts
+        if engine_evaluation.decision_family(entry.get("rule_action")) in {"long", "avoid"}
+        and entry.get("outcome", {}).get("forward_return_pct") is not None
+    ]
+    patience_cohorts = [
+        entry for entry in evaluated_cohorts
+        if engine_evaluation.decision_family(entry.get("rule_action")) == "wait"
+    ]
     today = datetime.now().date()
     mature_open = []
     for entry in open_rows:
@@ -9271,7 +9302,7 @@ def rules_performance_snapshot():
             logged = datetime.fromisoformat(str(entry.get("ts")).replace("Z", "+00:00")).date()
         except (TypeError, ValueError):
             continue
-        if (today - logged).days >= TRIAL_DAYS:
+        if (today - logged).days >= EVALUATION_MIN_AGE_DAYS:
             mature_open.append(entry)
     action_counts = {}
     right_by_action = {}
@@ -9291,8 +9322,13 @@ def rules_performance_snapshot():
         "open": open_rows,
         "cohorts": cohorts,
         "scored_cohorts": scored_cohorts,
+        "evaluated_cohorts": evaluated_cohorts,
+        "directional_cohorts": directional_cohorts,
+        "patience_cohorts": patience_cohorts,
         "mature_open": mature_open,
-        "summary": engine_evaluation.summarize_outcomes(scored_cohorts),
+        "summary": engine_evaluation.summarize_outcomes(directional_cohorts),
+        "patience_summary": engine_evaluation.summarize_patience(patience_cohorts),
+        "failure_patterns": engine_evaluation.failure_patterns(directional_cohorts),
         "action_counts": action_counts,
         "right_by_action": right_by_action,
         "total_by_action": total_by_action,
@@ -9304,7 +9340,7 @@ def render_rules_performance_dashboard():
     if st.button(
         "Score due outcomes",
         key="score_due_rules_outcomes",
-        help="Scores auto-logged rules calls that are at least 14 days old using current market data.",
+        help="Updates 5-, 14-, and 30-session paths plus trigger/invalidation outcomes for eligible rules calls.",
     ):
         scored_now = auto_close_tracker_outcomes(force_all=False)
         st.success(
@@ -9318,14 +9354,11 @@ def render_rules_performance_dashboard():
     mature_open = snap["mature_open"]
     cohorts = snap["cohorts"]
     scored_cohorts = snap["scored_cohorts"]
+    directional_cohorts = snap["directional_cohorts"]
+    patience_cohorts = snap["patience_cohorts"]
     performance = snap["summary"]
-    hit_rate = performance.get("hit_rate_pct")
-    long_open = [
-        d for d in open_rows
-        if _tracker_action_family(d.get("rule_action")) == "long"
-    ]
-    hit_rate_value = f"{hit_rate:.0f}%" if hit_rate is not None else "—"
-    hit_rate_note = "rules credited" if hit_rate is not None else "needs scored rows"
+    patience = snap["patience_summary"]
+    failure_patterns = snap["failure_patterns"]
 
     def _metric(value, suffix="%"):
         return f"{float(value):+.1f}{suffix}" if value is not None else "—"
@@ -9337,58 +9370,82 @@ def render_rules_performance_dashboard():
         f'<div class="watch-queue-count">{len(decisions)}</div><div class="watch-queue-preview">auto decision history</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Independent cohorts</div>'
         f'<div class="watch-queue-count">{len(cohorts)}</div><div class="watch-queue-preview">7-day ticker/action spacing</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Scored</div>'
-        f'<div class="watch-queue-count">{len(scored_cohorts)}</div><div class="watch-queue-preview">independent 14-day outcomes</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Directional scored</div>'
+        f'<div class="watch-queue-count">{len(directional_cohorts)}</div><div class="watch-queue-preview">Enter / Accumulate / Avoid</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Patience observed</div>'
+        f'<div class="watch-queue-count">{patience["count"]}</div><div class="watch-queue-preview">Watch / Hold Off lifecycle</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Mature pending</div>'
         f'<div class="watch-queue-count">{len(mature_open)}</div><div class="watch-queue-preview">eligible to score now</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Hit rate</div>'
-        f'<div class="watch-queue-count">{hit_rate_value}</div><div class="watch-queue-preview">{hit_rate_note}</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Decision return</div>'
-        f'<div class="watch-queue-count">{_metric(performance.get("avg_decision_return_pct"))}</div><div class="watch-queue-preview">long return; inverse for Avoid</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Decision vs SPY</div>'
-        f'<div class="watch-queue-count">{_metric(performance.get("avg_decision_excess_pct"))}</div><div class="watch-queue-preview">direction-adjusted benchmark edge</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Avg excursion</div>'
-        f'<div class="watch-queue-count">{_metric(performance.get("avg_mfe_pct"))} / {_metric(performance.get("avg_mae_pct"))}</div><div class="watch-queue-preview">favorable / adverse</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Open longs</div>'
-        f'<div class="watch-queue-count">{len(long_open)}</div><div class="watch-queue-preview">enter / accumulate</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Engine version</div>'
+        f'<div class="watch-queue-count" style="font-size:17px;">{RULE_ENGINE_VERSION}</div><div class="watch-queue-preview">new logs are immutable by version</div></div>'
         '</div>',
         unsafe_allow_html=True,
     )
 
     evidence_label = (
         "Not enough matured evidence"
-        if len(scored_cohorts) < 30
-        else ("Early evidence only" if len(scored_cohorts) < 100 else "Evaluation sample established")
+        if len(directional_cohorts) < 30
+        else ("Early evidence only" if len(directional_cohorts) < 100 else "Evaluation sample established")
     )
-    evidence_class = "health-bad" if len(scored_cohorts) < 30 else "health-warn" if len(scored_cohorts) < 100 else "health-ok"
-    family_rows = []
-    for family, label in (("long", "Enter / Accumulate"), ("wait", "Watch / Hold off"), ("avoid", "Avoid")):
+    evidence_class = "health-bad" if len(directional_cohorts) < 30 else "health-warn" if len(directional_cohorts) < 100 else "health-ok"
+    action_rows = []
+    for family, label in (("long", "Enter / Accumulate"), ("avoid", "Avoid")):
         family_entries = [
-            entry for entry in scored_cohorts
+            entry for entry in directional_cohorts
             if engine_evaluation.decision_family(entry.get("rule_action")) == family
         ]
         family_summary = engine_evaluation.summarize_outcomes(family_entries)
-        family_rows.append(
-            '<div class="watch-queue-card">'
-            f'<div class="watch-queue-label">{html.escape(label)}</div>'
-            f'<div class="watch-queue-count">{family_summary["count"]}</div>'
-            f'<div class="watch-queue-preview">hit {(_metric(family_summary.get("hit_rate_pct")) if family_summary["count"] else "—")} · '
-            f'underlying {_metric(family_summary.get("avg_return_pct"))} · vs SPY {_metric(family_summary.get("avg_excess_return_pct"))}</div>'
-            '</div>'
+        success_text = f'{family_summary["successful_count"]} / {family_summary["resolved_count"]}' if family_summary["resolved_count"] else "—"
+        action_rows.append(
+            '<div style="display:grid;grid-template-columns:1.5fr .45fr .7fr .7fr .7fr .7fr .7fr .7fr;gap:8px;'
+            'padding:9px 6px;border-bottom:1px dashed var(--color-border-soft);font-family:var(--font-mono);font-size:12px;">'
+            f'<strong>{html.escape(label)}</strong><span>{family_summary["count"]}</span><span>{success_text}</span>'
+            f'<span>{_metric(family_summary.get("avg_5d_return_pct"))}</span><span>{_metric(family_summary.get("avg_return_pct"))}</span>'
+            f'<span>{_metric(family_summary.get("avg_30d_return_pct"))}</span><span>{_metric(family_summary.get("avg_excess_return_pct"))}</span>'
+            f'<span>{_metric(family_summary.get("avg_mfe_pct"))} / {_metric(family_summary.get("avg_mae_pct"))}</span></div>'
         )
     st.markdown(
         '<div style="padding:12px 14px;margin:0 0 12px;border:1px solid var(--color-border);'
         'border-left:3px solid var(--color-warning);border-radius:6px;background:#fff;">'
         f'<div class="watch-queue-label {evidence_class}">{html.escape(evidence_label)}</div>'
         '<div style="font-size:13px;line-height:1.45;color:var(--color-muted);margin-top:5px;">'
-        'Performance uses independent seven-day ticker/action cohorts and a fixed 14-calendar-day exit. '
-        'Treat results below 100 scored cohorts as calibration evidence, not proof of an investable edge.'
+        'Directional success is evaluated only for Enter, Accumulate, and Avoid. Returns use 5, 14, and 30 trading sessions; '
+        'Watch and Hold Off are evaluated separately by trigger and invalidation behavior. Treat fewer than 100 directional cohorts as calibration evidence.'
         '</div></div>'
-        '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px;">'
-        + "".join(family_rows)
-        + '</div>',
+        '<div class="watch-queue-label" style="margin:16px 0 7px;">Directional decisions</div>'
+        '<div style="display:grid;grid-template-columns:1.5fr .45fr .7fr .7fr .7fr .7fr .7fr .7fr;gap:8px;'
+        'padding:8px 6px;border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--color-muted);">'
+        '<span>Action</span><span>n</span><span>Success</span><span>5d</span><span>14d</span><span>30d</span><span>vs SPY</span><span>MFE / MAE</span></div>'
+        + "".join(action_rows)
+        + '<div style="font-size:11px;color:var(--color-muted);margin:7px 0 16px;">Enter success = positive 14-session return and SPY outperformance when benchmarked. Avoid success = negative return or ≥2-point SPY underperformance.</div>'
+        '<div class="watch-queue-label" style="margin:16px 0 7px;">Patience system · Watch / Hold Off</div>'
+        '<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px;">'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Observed</div><div class="watch-queue-count">{patience["count"]}</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Trigger fired</div><div class="watch-queue-count">{patience["triggered"]}</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Invalidated first</div><div class="watch-queue-count">{patience["invalidation_first"]}</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Expired</div><div class="watch-queue-count">{patience["expired"]}</div></div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Resolved success</div><div class="watch-queue-count">{patience["successful_count"]} / {patience["resolved_count"]}</div></div>'
+        '</div>',
         unsafe_allow_html=True,
     )
+
+    if failure_patterns:
+        pattern_rows = "".join(
+            '<div style="display:grid;grid-template-columns:.8fr 1.4fr .45fr .55fr .7fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px dashed var(--color-border-soft);font-family:var(--font-mono);font-size:12px;">'
+            f'<span>{html.escape(row["dimension"])}</span><strong>{html.escape(row["value"])}</strong><span>{row["count"]}</span>'
+            f'<span>{row["successes"]} / {row["count"]}</span><span>{_metric(row["avg_decision_return_pct"])}</span></div>'
+            for row in failure_patterns[:6]
+        )
+        st.markdown(
+            '<div class="watch-queue-label" style="margin:18px 0 7px;">Where the system is wrong</div>'
+            '<div style="font-size:12px;color:var(--color-muted);margin-bottom:8px;">Worst direction-adjusted attributes with at least three independent observations. These are hypotheses to investigate, not automatic rule changes.</div>'
+            '<div style="display:grid;grid-template-columns:.8fr 1.4fr .45fr .55fr .7fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;text-transform:uppercase;color:var(--color-muted);">'
+            '<span>Dimension</span><span>Condition</span><span>n</span><span>Success</span><span>Decision return</span></div>'
+            + pattern_rows,
+            unsafe_allow_html=True,
+        )
 
     if not decisions:
         st.caption("No auto-logged rules decisions yet. The app will begin logging as Analyze and Watchlist compute fresh rules calls.")
@@ -9403,16 +9460,25 @@ def render_rules_performance_dashboard():
         outcome_label = "Open"
         outcome_color = "var(--color-faint)"
         if isinstance(outcome, dict) and outcome:
-            if "rules" in (outcome.get("right_sources") or []):
-                outcome_label = "Credited"
-                outcome_color = "var(--color-positive)"
+            if engine_evaluation.decision_family(entry.get("rule_action")) == "wait":
+                outcome_label = str(outcome.get("patience_status") or "waiting").replace("_", " ").title()
+                if outcome.get("patience_success") is True:
+                    outcome_color = "var(--color-positive)"
+                elif outcome.get("patience_success") is False:
+                    outcome_color = "var(--color-negative)"
+                else:
+                    outcome_color = "var(--color-warning-text)"
             else:
-                outcome_label = "Missed"
-                outcome_color = "var(--color-negative)"
-            if outcome.get("forward_return_pct") is not None:
-                outcome_label += f' · {float(outcome["forward_return_pct"]):+.1f}%'
-                if outcome.get("excess_return_pct") is not None:
-                    outcome_label += f' ({float(outcome["excess_return_pct"]):+.1f}% vs SPY)'
+                if outcome.get("directional_success") is True:
+                    outcome_label = "Successful"
+                    outcome_color = "var(--color-positive)"
+                elif outcome.get("directional_success") is False:
+                    outcome_label = "Failed"
+                    outcome_color = "var(--color-negative)"
+                else:
+                    outcome_label = "Directional result pending"
+                if outcome.get("forward_return_pct") is not None:
+                    outcome_label += f' · {float(outcome["forward_return_pct"]):+.1f}% at 14 sessions'
         try:
             logged = datetime.fromisoformat(str(entry.get("ts"))).strftime("%b %-d")
         except Exception:
@@ -9863,7 +9929,10 @@ def auto_close_tracker_outcomes(force_all=False):
         existing_outcome = entry.get("outcome") or {}
         if entry.get("outcome") is not None and not (
             existing_outcome.get("auto_scored")
-            and existing_outcome.get("score_version", 0) < AUTO_SCORE_VERSION
+            and (
+                existing_outcome.get("score_version", 0) < AUTO_SCORE_VERSION
+                or not existing_outcome.get("evaluation_complete")
+            )
         ):
             continue
         try:
@@ -9871,7 +9940,7 @@ def auto_close_tracker_outcomes(force_all=False):
         except Exception:
             logged_dt = today
         age_days = (today - logged_dt).days
-        if not force_all and age_days < TRIAL_DAYS:
+        if not force_all and age_days < EVALUATION_MIN_AGE_DAYS:
             continue
 
         ticker = str(entry.get("ticker") or "").upper().strip()
@@ -9885,38 +9954,27 @@ def auto_close_tracker_outcomes(force_all=False):
             hist,
             benchmark_history=(None if ticker.endswith("-USD") else benchmark_history),
             as_of=today,
-            horizon_days=TRIAL_DAYS,
         )
         if not scored:
             continue
-        winning_family = scored["winning_family"]
-
-        source_actions = {
-            "rules": entry.get("rule_action"),
-            "claude": entry.get("claude_action"),
-            "user": entry.get("user_action"),
-        }
-        credit_families = {
-            "long": {"long"},
-            "avoid": {"avoid", "wait"},
-            "wait": {"wait"},
-        }.get(winning_family, {winning_family})
-        right_sources = [
-            source
-            for source, action in source_actions.items()
-            if _tracker_action_family(action) in credit_families
-        ]
+        right_sources = ["rules"] if scored.get("credited") is True else []
+        primary = (scored.get("horizons") or {}).get("14") or {}
+        if scored.get("rule_family") == "wait":
+            note = f"Patience outcome: {str(scored.get('patience_status') or 'waiting').replace('_', ' ')}."
+        elif primary:
+            note = (
+                f"14-session outcome: {primary.get('return_pct', 0):+.1f}% "
+                f"from {scored['reference_price']:.2f} to {primary.get('scored_price', 0):.2f}."
+            )
+        else:
+            note = "Evaluation started; the 14-session directional outcome is still pending."
         new_outcome = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "result": "auto_scored",
             "right_sources": right_sources,
-            "result_pct": scored["forward_return_pct"],
-            "note": (
-                f"Fixed {TRIAL_DAYS}-day outcome: {scored['forward_return_pct']:+.1f}% "
-                f"from {scored['reference_price']:.2f} to {scored['scored_price']:.2f}."
-            ),
+            "result_pct": scored.get("forward_return_pct"),
+            "note": note,
             "auto_scored": True,
-            "credit_families": sorted(credit_families),
             "score_version": AUTO_SCORE_VERSION,
             **scored,
         }
