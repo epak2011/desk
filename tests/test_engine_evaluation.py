@@ -78,6 +78,19 @@ class EngineEvaluationTests(unittest.TestCase):
         self.assertTrue(outcome["patience_success"])
         self.assertIsNone(outcome["directional_success"])
 
+    def test_unresolved_watch_remains_waiting(self):
+        bars = path_history(sessions=8, step=0)
+        entry = {
+            "ts": "2026-01-02T10:00:00",
+            "price": 100,
+            "rule_action": "hold_off",
+            "trigger_price": 110,
+            "invalidation_price": 90,
+        }
+        outcome = engine_evaluation.score_forward_outcome(entry, bars, as_of=date(2026, 2, 1))
+        self.assertEqual(outcome["patience_status"], "waiting")
+        self.assertIsNone(outcome["patience_success"])
+
     def test_summarizes_only_forward_scored_rows(self):
         rows = [
             {"outcome": {"forward_return_pct": 6, "excess_return_pct": 2, "mfe_pct": 8, "mae_pct": -2, "credited": True}},

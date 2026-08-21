@@ -189,7 +189,7 @@ def score_forward_outcome(
         elif "30" in horizon_results:
             patience_status, patience_success = "expired_without_trigger", None
         else:
-            patience_status, patience_success = "waiting"
+            patience_status, patience_success = "waiting", None
 
     decision_return_pct = None
     decision_excess_pct = None
