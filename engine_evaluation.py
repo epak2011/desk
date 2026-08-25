@@ -463,3 +463,65 @@ def weakest_directional_cases(entries, limit=8):
         })
     cases.sort(key=lambda row: row["decision_return_pct"])
     return cases[:max(0, int(limit))]
+
+
+def performance_slices(entries, minimum_count=3):
+    """Summarize mature directional edge by version and decision environment."""
+    groups = {}
+    for entry in entries or []:
+        outcome = entry.get("outcome") or {}
+        if outcome.get("directional_success") is None:
+            continue
+        decision_return = number_or_none(outcome.get("decision_return_pct"))
+        if decision_return is None:
+            continue
+        context = entry.get("decision_context") or {}
+        receipt = entry.get("decision_receipt") or {}
+        confidence = str(receipt.get("confidence") or "").split("·", 1)[0].strip()
+        setup = number_or_none(entry.get("setup_score"))
+        dimensions = [
+            ("Engine", entry.get("rule_engine_version") or receipt.get("engine_version")),
+            ("Regime", context.get("market_regime")),
+            ("Tape", context.get("tape_class")),
+            ("Confidence", confidence or None),
+            ("Setup", "≥8" if setup is not None and setup >= 8 else "6–8" if setup is not None and setup >= 6 else "<6" if setup is not None else None),
+        ]
+        for dimension, value in dimensions:
+            if value in (None, ""):
+                continue
+            groups.setdefault((dimension, str(value)), []).append((bool(outcome["directional_success"]), decision_return))
+    rows = []
+    for (dimension, value), observations in groups.items():
+        if len(observations) < int(minimum_count):
+            continue
+        successes = sum(success for success, _return in observations)
+        rows.append({
+            "dimension": dimension,
+            "value": value,
+            "count": len(observations),
+            "successes": successes,
+            "success_rate_pct": round(100 * successes / len(observations), 1),
+            "avg_decision_return_pct": round(sum(ret for _success, ret in observations) / len(observations), 2),
+        })
+    return sorted(rows, key=lambda row: (row["dimension"], -row["count"], row["value"]))
+
+
+def confidence_calibration(entries, minimum_count=5):
+    """Measure whether higher displayed confidence corresponds to better outcomes."""
+    rows = [row for row in performance_slices(entries, minimum_count=minimum_count) if row["dimension"] == "Confidence"]
+    by_label = {str(row["value"]).lower(): row for row in rows}
+    high = by_label.get("high")
+    low = by_label.get("low")
+    calibrated = None
+    note = "Need mature outcomes in at least two confidence buckets."
+    if high and low:
+        calibrated = bool(
+            high["success_rate_pct"] > low["success_rate_pct"]
+            and high["avg_decision_return_pct"] > low["avg_decision_return_pct"]
+        )
+        note = (
+            "Higher confidence is producing better success and decision return."
+            if calibrated
+            else "Displayed confidence is not ranking outcomes correctly; recalibration should be reviewed."
+        )
+    return {"rows": rows, "calibrated": calibrated, "note": note}

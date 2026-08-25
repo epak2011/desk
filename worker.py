@@ -24,6 +24,8 @@ from datetime import date, datetime, timezone
 import yfinance as yf
 
 import backend_layer as backend
+import decision_contract
+import data_trust
 import engine_evaluation
 from pm_view import get_decision_dossier, get_pm_view
 import tactical
@@ -34,6 +36,7 @@ SCHEDULED_SAFE_RUNTIME_SECONDS = 240
 LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
 OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
 OUTCOME_MIN_AGE_DAYS = 7
+RULE_ENGINE_VERSION = "rules-2026.08-b"
 
 
 def _gha_warning(message: str) -> None:
@@ -214,6 +217,16 @@ def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker"
         "auto_logged": True,
         "source": "rules_engine",
         "source_label": f"{emoji} {label}",
+        "rule_engine_version": RULE_ENGINE_VERSION,
+        "decision_receipt": decision_contract.build_decision_receipt(
+            tkr,
+            {
+                **t_state,
+                "trigger_summary": _trigger_summary(t_state),
+                "data_trust": data_trust.assess_decision_data(t_state),
+            },
+            engine_version=RULE_ENGINE_VERSION,
+        ),
         "outcome": None,
         **_rule_log_level_snapshot(t_state),
     }

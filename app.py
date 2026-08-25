@@ -34,9 +34,31 @@ import streamlit as st
 import yfinance as yf
 
 import backend_layer
+import attention_engine
+import decision_contract
+import data_trust
 import engine_evaluation
+import portfolio_context
 import tactical
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
+
+
+def _configured_bool(name, default=False):
+    raw = os.environ.get(name)
+    if raw is None:
+        try:
+            raw = st.secrets.get(name)
+        except Exception:
+            raw = None
+    if raw is None:
+        return bool(default)
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+# When enabled in hosting configuration, private portfolio/notes stay session-only
+# and app-state writes are disabled. Owner mode remains the current default until
+# authentication is configured and tested end to end.
+PUBLIC_DEMO_MODE = _configured_bool("TRADING_DESK_PUBLIC_DEMO", False)
 
 # Streamlit Cloud can hot-reload this file before refreshing an already imported
 # helper module during deployment. Reload only across that temporary version gap.
@@ -642,6 +664,24 @@ def _store_default():
     }
 
 
+def _public_demo_store(store):
+    """Strip private owner state while retaining shared research/evaluation data."""
+    if not PUBLIC_DEMO_MODE:
+        return store
+    clean = dict(store or {})
+    clean.update({
+        "holdings": {},
+        "chat_history": {},
+        "manual_levels": {},
+        "hidden_levels": {},
+        "account_size": 100000,
+        "risk_per_trade": 0.01,
+        "max_position_pct": 0.25,
+    })
+    clean["public_demo"] = True
+    return clean
+
+
 _DERIVED_TICKER_CACHE_KEYS = {
     "pm_cache",
     "dossier_cache",
@@ -937,7 +977,7 @@ def load_store():
                         except Exception:
                             pass
                         record_perf_metric("load_store", _perf_t0)
-                        return loaded_store
+                        return _public_demo_store(loaded_store)
                     # No row yet — return defaults; first save creates the row.
                     try:
                         st.session_state["_db_loaded_ok"] = True
@@ -946,7 +986,7 @@ def load_store():
                     except Exception:
                         pass
                     record_perf_metric("load_store", _perf_t0)
-                    return _store_default()
+                    return _public_demo_store(_store_default())
         except Exception as e:
             # CRITICAL: When DATABASE_URL is set but unreachable, do NOT fall
             # through to the local file. On Streamlit Cloud the container
@@ -960,17 +1000,17 @@ def load_store():
             except Exception:
                 pass
             record_perf_metric("load_store", _perf_t0)
-            return _store_default()
+            return _public_demo_store(_store_default())
     # File fallback — only reached when DATABASE_URL is unset (local dev)
     if STORE_PATH.exists():
         try:
             store = json.loads(STORE_PATH.read_text())
             record_perf_metric("load_store", _perf_t0)
-            return store
+            return _public_demo_store(store)
         except Exception:
             pass
     record_perf_metric("load_store", _perf_t0)
-    return _store_default()
+    return _public_demo_store(_store_default())
 
 
 def _json_safe(value):
@@ -1002,6 +1042,9 @@ def _json_safe(value):
 
 def save_store(store):
     _perf_t0 = time.perf_counter()
+    if PUBLIC_DEMO_MODE:
+        record_perf_metric("save_store", _perf_t0)
+        return
     safe_store = _json_safe(store)
     if USE_POSTGRES:
         try:
@@ -1050,7 +1093,7 @@ def save_store(store):
     record_perf_metric("save_store", _perf_t0)
 
 
-ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "backtest", "triggers", "health", "holdings", "ideas"}
+ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "alerts", "backtest", "triggers", "health", "holdings", "ideas", "trust"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -4905,6 +4948,8 @@ def _market_snapshot_from_t_state(t_state, hist=None):
             "trigger": trigger_monitor,
         },
         "rule_trace": t_state.get("_rule_trace") or [],
+        "engine_version": RULE_ENGINE_VERSION if "RULE_ENGINE_VERSION" in globals() else "rules-2026.08-b",
+        "data_trust": t_state.get("data_trust") or {},
         "price_age": price_age_label,
         "price_age_kind": price_age_kind,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
@@ -5080,7 +5125,7 @@ def hydrate_backend_ticker_snapshots(tickers):
     return {"updated": len(updated), "tickers": updated}
 
 
-def merge_ticker_snapshot(ticker, *, market=None, meta=None, pm_entry=None, final_action=None):
+def merge_ticker_snapshot(ticker, *, market=None, meta=None, pm_entry=None, final_action=None, decision_receipt=None):
     """Merge one or more layers into the canonical per-ticker snapshot."""
     tkr = _ticker_key(ticker)
     if not tkr:
@@ -5120,6 +5165,9 @@ def merge_ticker_snapshot(ticker, *, market=None, meta=None, pm_entry=None, fina
     if isinstance(final_action, dict) and final_action:
         updated["final_action"] = _slim_dict(final_action)
         updated["final_action_updated_at"] = now
+    if isinstance(decision_receipt, dict) and decision_receipt:
+        updated["decision_receipt"] = _slim_dict(decision_receipt)
+        updated["decision_receipt_updated_at"] = now
     updated["updated_at"] = now
     snapshots[tkr] = updated
     return updated
@@ -5170,6 +5218,7 @@ def ticker_snapshot(ticker):
         "meta": meta,
         "pm": pm,
         "final_action": final_action,
+        "decision_receipt": dict(snap.get("decision_receipt") or {}),
     }
 
 
@@ -5230,7 +5279,18 @@ def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None, *, persist=Fals
     tkr = str(ticker or "").upper().strip()
     if not tkr or not isinstance(t_state, dict):
         return
-    market_payload = _market_snapshot_from_t_state(t_state, hist)
+    _price_age_label, price_age_kind = format_market_data_age(hist)
+    market_source = str((getattr(hist, "attrs", {}) or {}).get("source") or "live") if hist is not None else "unavailable"
+    trusted_state = {
+        **t_state,
+        "data_trust": data_trust.assess_decision_data(
+            t_state,
+            price_age_kind=price_age_kind,
+            market_source=market_source,
+            benchmark_source="live",
+        ),
+    }
+    market_payload = _market_snapshot_from_t_state(trusted_state, hist)
     if not market_payload:
         return
     action = normalize_action_key(t_state.get("action"))
@@ -5240,7 +5300,15 @@ def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None, *, persist=Fals
             "action": action,
             "source": t_state.get("_primary_source") or "rule",
             "rule_trace": t_state.get("_rule_trace") or [],
+            "engine_version": RULE_ENGINE_VERSION,
         }
+    prior_receipt = (ticker_snapshot(tkr).get("decision_receipt") or {})
+    receipt = decision_contract.build_decision_receipt(
+        tkr,
+        trusted_state,
+        engine_version=RULE_ENGINE_VERSION,
+        previous=prior_receipt,
+    )
     cache = st.session_state.store.setdefault("watchlist_sidebar_cache", {})
     cache[tkr] = market_payload
     if final_payload:
@@ -5249,6 +5317,7 @@ def remember_sidebar_ticker_snapshot(ticker, t_state, hist=None, *, persist=Fals
         tkr,
         market=market_payload,
         final_action=final_payload if final_payload else None,
+        decision_receipt=receipt,
     )
     if persist:
         save_store(st.session_state.store)
@@ -8421,7 +8490,7 @@ def suggested_size_label(t_state):
     """Convert rules sizing into an easy portfolio-size hint."""
     if not isinstance(t_state, dict):
         return "—"
-    action = normalize_action_key(t_state.get("action"))
+    action = normalize_action_key(trusted_state.get("action"))
     size = str(t_state.get("entry_size") or "").strip().lower()
     if action == "avoid":
         return "0% — avoid"
@@ -8440,6 +8509,34 @@ def suggested_size_label(t_state):
             return "25% of target"
         return "25-50% of target"
     return "Manual review"
+
+
+def portfolio_context_for_ticker(ticker, t_state, meta=None):
+    """Portfolio-aware overlay from explicit holdings and saved canonical prices."""
+    store = st.session_state.store
+    holdings = store.get("holdings") if isinstance(store.get("holdings"), dict) else {}
+    prices = {}
+    sectors = {}
+    for held_ticker in holdings:
+        key = str(held_ticker).upper()
+        snapshot = ticker_snapshot(key)
+        market = snapshot.get("market") or {}
+        held_meta = snapshot.get("meta") or {}
+        prices[key] = market.get("last") or market.get("price")
+        sectors[key] = held_meta.get("sector") or "Unknown"
+    key = str(ticker or "").upper()
+    prices[key] = t_state.get("price") or prices.get(key)
+    sectors[key] = (meta or {}).get("sector") or sectors.get(key) or "Unknown"
+    return portfolio_context.portfolio_recommendation(
+        key,
+        t_state,
+        holdings,
+        prices,
+        sectors,
+        account_size=store.get("account_size", 100000),
+        risk_per_trade=store.get("risk_per_trade", 0.01),
+        max_position_pct=store.get("max_position_pct", 0.25),
+    )
 
 
 def decision_confidence_label(t_state):
@@ -8764,6 +8861,32 @@ def rule_audit_panel_html(t_state, meta=None, quality_tier="", rule_trace=None):
         f'<div class="desk-rule-audit-note">{html.escape(note)}</div>'
         '</div>'
         '</details>'
+    )
+
+
+def decision_receipt_html(receipt):
+    """Compact audit receipt for the advanced Analyze diagnostics."""
+    if not isinstance(receipt, dict) or not receipt.get("receipt_id"):
+        return ""
+    factors = "".join(
+        f'<li>{html.escape(str(item))}</li>'
+        for item in (receipt.get("top_factors") or [])
+    ) or '<li>No supporting factors captured.</li>'
+    changes = " ".join(str(item) for item in (receipt.get("change_summary") or [])) or "First receipt for this ticker."
+    trigger = receipt.get("trigger") or {}
+    invalidation = receipt.get("invalidation") or {}
+    return (
+        '<div style="margin:12px 0 4px;padding:12px 14px;border:1px solid var(--color-border);border-radius:6px;background:#fff;">'
+        '<div class="watch-queue-label">Decision receipt</div>'
+        '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:8px 0;font-family:var(--font-mono);font-size:11px;">'
+        f'<span><b>ID</b><br>{html.escape(str(receipt.get("receipt_id")))}</span>'
+        f'<span><b>Engine</b><br>{html.escape(str(receipt.get("engine_version") or "—"))}</span>'
+        f'<span><b>Captured</b><br>{html.escape(str(receipt.get("captured_at") or "—"))}</span>'
+        f'<span><b>Price</b><br>{_fmt_rule_price(receipt.get("price"))}</span></div>'
+        f'<ul style="margin:6px 0 8px;padding-left:18px;font-size:12px;color:var(--color-body);">{factors}</ul>'
+        f'<div style="font-size:12px;color:var(--color-muted);"><b>Trigger:</b> {html.escape(str(trigger.get("text") or "—"))}<br>'
+        f'<b>Invalidation:</b> {html.escape(str(invalidation.get("text") or receipt.get("primary_risk") or "—"))}<br>'
+        f'<b>Since prior receipt:</b> {html.escape(changes)}</div></div>'
     )
 
 
@@ -9207,9 +9330,31 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
     trigger_monitor = build_trigger_monitor(t_state)
     style = STATE_STYLES.get(action, STATE_STYLES["watch"])
     signature_hash = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:10]
+    previous_receipt = next(
+        (
+            item.get("decision_receipt") for item in decisions
+            if str(item.get("ticker") or "").upper() == tkr
+            and isinstance(item.get("decision_receipt"), dict)
+        ),
+        None,
+    )
+    captured_at = datetime.now().isoformat(timespec="seconds")
+    receipt_state = {
+        **t_state,
+        "trigger_summary": trigger_monitor.get("detail") or trigger.get("summary") or trigger_text(t_state),
+        "invalidation_text": invalidation_text(t_state) or "",
+        "decision_confidence": decision_confidence_label(t_state),
+    }
+    receipt = decision_contract.build_decision_receipt(
+        tkr,
+        receipt_state,
+        engine_version=RULE_ENGINE_VERSION,
+        captured_at=captured_at,
+        previous=previous_receipt,
+    )
     entry = {
         "id": f"rules-auto-{tkr}-{today_key}-{action}-{signature_hash}",
-        "ts": datetime.now().isoformat(timespec="seconds"),
+        "ts": captured_at,
         "ticker": tkr,
         "price": round(price, 2),
         "rule_action": action,
@@ -9244,6 +9389,7 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
         "auto_logged": True,
         "source": "rules_engine",
         "source_label": f"{style.get('emoji', '')} {style.get('label', action)}",
+        "decision_receipt": receipt,
         "outcome": None,
         **levels,
     }
@@ -9353,6 +9499,8 @@ def rules_performance_snapshot():
         "failure_patterns": engine_evaluation.failure_patterns(directional_cohorts),
         "logic_review_flags": engine_evaluation.logic_review_flags(directional_cohorts),
         "weakest_cases": engine_evaluation.weakest_directional_cases(directional_cohorts),
+        "performance_slices": engine_evaluation.performance_slices(directional_cohorts),
+        "confidence_calibration": engine_evaluation.confidence_calibration(directional_cohorts),
         "action_counts": action_counts,
         "right_by_action": right_by_action,
         "total_by_action": total_by_action,
@@ -9385,6 +9533,8 @@ def render_rules_performance_dashboard():
     failure_patterns = snap["failure_patterns"]
     logic_review_flags = snap["logic_review_flags"]
     weakest_cases = snap["weakest_cases"]
+    performance_slices = snap["performance_slices"]
+    confidence_calibration = snap["confidence_calibration"]
 
     def _metric(value, suffix="%"):
         return f"{float(value):+.1f}{suffix}" if value is not None else "—"
@@ -9407,6 +9557,35 @@ def render_rules_performance_dashboard():
         '</div>',
         unsafe_allow_html=True,
     )
+
+    calibration_state = confidence_calibration.get("calibrated")
+    calibration_label = "Calibrated" if calibration_state is True else "Needs review" if calibration_state is False else "Collecting evidence"
+    calibration_class = "health-ok" if calibration_state is True else "health-bad" if calibration_state is False else "health-warn"
+    st.markdown(
+        '<div class="watch-queue-label" style="margin:18px 0 7px;">Confidence calibration</div>'
+        '<div class="watch-queue-card" style="padding:12px 14px;margin-bottom:14px;">'
+        f'<div class="{calibration_class}" style="font-weight:800;">{html.escape(calibration_label)}</div>'
+        f'<div style="font-size:12px;color:var(--color-muted);margin-top:4px;">{html.escape(str(confidence_calibration.get("note") or ""))}</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    if performance_slices:
+        slice_rows = "".join(
+            '<div style="display:grid;grid-template-columns:.8fr 1.2fr .45fr .65fr .75fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px dashed var(--color-border-soft);font-family:var(--font-mono);font-size:12px;">'
+            f'<span>{html.escape(row["dimension"])}</span><strong>{html.escape(row["value"])}</strong><span>{row["count"]}</span>'
+            f'<span>{row["successes"]} / {row["count"]}</span><span>{_metric(row["avg_decision_return_pct"])}</span></div>'
+            for row in performance_slices
+        )
+        st.markdown(
+            '<div class="watch-queue-label" style="margin:18px 0 7px;">Edge by environment</div>'
+            '<div style="font-size:12px;color:var(--color-muted);margin-bottom:8px;">Mature directional outcomes split by engine version, regime, tape, setup score, and displayed confidence.</div>'
+            '<div style="display:grid;grid-template-columns:.8fr 1.2fr .45fr .65fr .75fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;text-transform:uppercase;color:var(--color-muted);">'
+            '<span>Dimension</span><span>Condition</span><span>n</span><span>Success</span><span>Decision return</span></div>'
+            + slice_rows,
+            unsafe_allow_html=True,
+        )
 
     flag_cards = []
     flag_styles = {
@@ -9767,6 +9946,43 @@ def build_trigger_monitor_rows(tickers):
     return rows
 
 
+def current_attention_events(logic_alerts=None):
+    """Build the daily inbox from canonical saved state without network calls."""
+    store = st.session_state.store
+    tickers = [str(t).upper().strip() for t in store.get("watchlist", []) if str(t or "").strip()]
+    trigger_rows = build_trigger_monitor_rows(tickers)
+    contract_mismatches = []
+    enriched = []
+    for row in trigger_rows:
+        ticker = row["ticker"]
+        snapshot = ticker_snapshot(ticker)
+        market = snapshot.get("market") or {}
+        meta = snapshot.get("meta") or {}
+        receipt = snapshot.get("decision_receipt") or {}
+        invalidation = (receipt.get("invalidation") or {}).get("price")
+        if invalidation is None:
+            invalidation = market.get("stop")
+        enriched.append({
+            **row,
+            "receipt": receipt,
+            "invalidation_price": invalidation,
+            "earnings_days": meta.get("earnings_days"),
+        })
+        contract_mismatches.extend(decision_contract.receipt_consistency(ticker, {
+            "receipt": receipt,
+            "sidebar": (store.get("watchlist_sidebar_cache", {}) or {}).get(ticker, {}),
+            "market": market,
+            "canonical": current_final_action(snapshot) or {},
+        }))
+    holdings = (store.get("holdings") or {}).keys() if isinstance(store.get("holdings"), dict) else []
+    return attention_engine.build_attention_events(
+        enriched,
+        holdings=holdings,
+        logic_alerts=logic_alerts or [],
+        contract_mismatches=contract_mismatches,
+    )
+
+
 def _parse_iso_dt(value):
     """Best-effort datetime parser for persisted ISO-ish timestamps."""
     if not value:
@@ -9827,6 +10043,7 @@ def build_health_audit():
     stale_dossier = []
     missing_dossier = []
     mismatches = []
+    contract_mismatches = []
 
     for tkr in watchlist:
         snapshot = ticker_snapshot(tkr)
@@ -9868,6 +10085,12 @@ def build_health_audit():
         canonical_action = normalize_action_key((current_final_action(snapshot) or {}).get("action"))
         if sidebar_action and canonical_action and sidebar_action != canonical_action:
             mismatches.append((tkr, sidebar_action, canonical_action))
+        contract_mismatches.extend(decision_contract.receipt_consistency(tkr, {
+            "receipt": snapshot.get("decision_receipt") or {},
+            "sidebar": sidebar_cache.get(tkr, {}) or {},
+            "market": market,
+            "canonical": current_final_action(snapshot) or {},
+        }))
 
     trigger_counts = {
         "Actionable now": 0,
@@ -9886,6 +10109,7 @@ def build_health_audit():
         + len(missing_dossier)
         + len(stale_dossier)
         + len(mismatches)
+        + len(contract_mismatches)
     )
     return {
         "watchlist": watchlist,
@@ -9899,6 +10123,7 @@ def build_health_audit():
         "missing_dossier": missing_dossier,
         "stale_dossier": stale_dossier,
         "mismatches": mismatches,
+        "contract_mismatches": contract_mismatches,
         "issues": issues,
         "last_checked": now_market_time().strftime("%-I:%M %p"),
         "perf": st.session_state.get("_perf_metrics", {}),
@@ -11287,17 +11512,25 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    view_labels = {
+    primary_view_labels = {
         "regime": "Market Regime",
         "analyze": "Analyze",
         "watchlist": "Watchlist",
-        "backtest": "Backtest",
+        "alerts": "Alerts",
         "holdings": "Holdings",
         "ideas": "Ideas",
-        "health": "System Health",
     }
+    operator_view_labels = {
+        "backtest": "Calibration Lab",
+        "health": "System Health",
+        "trust": "Trust & Methodology",
+    }
+    if PUBLIC_DEMO_MODE:
+        primary_view_labels.pop("holdings", None)
+        operator_view_labels.pop("health", None)
     if SHOW_ARCHIVED_TRACKER:
-        view_labels["tracker"] = "Tracker"
+        operator_view_labels["tracker"] = "Tracker"
+    view_labels = {**primary_view_labels, **operator_view_labels}
     if st.session_state.view not in view_labels:
         st.session_state.view = "regime"
     st.markdown(
@@ -11375,7 +11608,7 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-    for view_key, view_label in view_labels.items():
+    for view_key, view_label in primary_view_labels.items():
         is_active = view_key == st.session_state.view
         if st.button(
             view_label,
@@ -11390,6 +11623,22 @@ with st.sidebar:
                 sync_widget=False,
                 rerun=False,
             )
+    with st.expander("Advanced & methodology", expanded=st.session_state.view in operator_view_labels):
+        for view_key, view_label in operator_view_labels.items():
+            is_active = view_key == st.session_state.view
+            if st.button(
+                view_label,
+                key=f"sidebar_nav_{view_key}",
+                type="primary" if is_active else "secondary",
+                use_container_width=False,
+            ):
+                route_to(
+                    view=view_key,
+                    reason="sidebar advanced nav",
+                    sync_url=True,
+                    sync_widget=False,
+                    rerun=False,
+                )
     st.markdown(
         '<div style="height:18px;"></div>',
         unsafe_allow_html=True,
@@ -12533,6 +12782,7 @@ header[data-testid="stHeader"] * {
 }
 
 [data-testid="stSidebarCollapsedControl"],
+[data-testid="stExpandSidebarButton"],
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapseButton"],
 button[aria-label="Open sidebar"],
@@ -12556,6 +12806,7 @@ button[title="Expand sidebar"] {
 }
 
 [data-testid="stSidebarCollapsedControl"] *,
+[data-testid="stExpandSidebarButton"] *,
 [data-testid="collapsedControl"] *,
 [data-testid="stSidebarCollapseButton"] *,
 button[aria-label="Open sidebar"] *,
@@ -12565,8 +12816,18 @@ button[title="Expand sidebar"] * {
     pointer-events: auto !important;
 }
 
+/* Current Streamlit mounts the reopen control inside the header.  These
+   higher-specificity rules override the header's intentionally inert chrome. */
+header [data-testid="stExpandSidebarButton"],
+header [data-testid="stExpandSidebarButton"] *,
+[data-testid="stHeader"] [data-testid="stExpandSidebarButton"],
+[data-testid="stHeader"] [data-testid="stExpandSidebarButton"] * {
+    pointer-events: auto !important;
+}
+
 @media (max-width: 899px) {
     [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stExpandSidebarButton"],
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
     button[aria-label="Open sidebar"],
@@ -12588,6 +12849,7 @@ button[title="Expand sidebar"] * {
     }
 
     [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid="stExpandSidebarButton"] svg,
     [data-testid="collapsedControl"] svg,
     [data-testid="stSidebarCollapseButton"] svg,
     button[aria-label="Open sidebar"] svg,
@@ -14678,11 +14940,15 @@ details summary:hover {
 
 
 view = st.session_state.view
+if PUBLIC_DEMO_MODE and view in {"holdings", "health"}:
+    view = "trust"
+    st.session_state.view = "trust"
 
 
 # ── Evidence-based logic alert — durable worker output, cheap on every page ──
 engine_review_status = backend_engine_review_status()
 engine_review_alerts = engine_review_status.get("alerting") or []
+daily_attention_events = current_attention_events(engine_review_alerts)
 if engine_review_alerts and view != "backtest":
     alert_parts = []
     review_due = False
@@ -14707,15 +14973,27 @@ if engine_review_alerts and view != "backtest":
         unsafe_allow_html=True,
     )
 
+important_attention = [event for event in daily_attention_events if event.get("priority") in {"critical", "high"}]
+if important_attention and view not in {"alerts", "backtest", "health"}:
+    top_attention = important_attention[:3]
+    attention_text = " · ".join(
+        f'{event.get("ticker")}: {event.get("title")}' for event in top_attention
+    )
+    st.markdown(
+        '<div style="border-bottom:1px solid var(--color-border);padding:7px 2px 10px;margin:0 0 12px;font-size:12px;">'
+        f'<b>{len(important_attention)} item{"s" if len(important_attention) != 1 else ""} need attention</b> '
+        f'<span style="color:var(--color-muted);">{html.escape(attention_text)}</span> '
+        '<a href="?view=alerts" target="_self">Open inbox →</a></div>',
+        unsafe_allow_html=True,
+    )
+
 
 # ── Database error banner — shown on every page if DB is unreachable ──
 if st.session_state.get("_db_error"):
     st.error(
         "🚨 **Database connection failed — your watchlist and tracker are NOT being saved this session.**\n\n"
         "Fix: Refresh once. If this persists, go to Streamlit Cloud → Settings → Secrets and check your `DATABASE_URL`. "
-        "Use the plain Supabase pooler URL, wrapped in double quotes, with no markdown brackets or link text: "
-        '`DATABASE_URL = "postgresql://...?...sslmode=require"`\n\n'
-        f"Error detail: `{st.session_state['_db_error']}`"
+        "The owner can inspect technical detail from System Health. No temporary state will be saved until storage reconnects."
     )
 
 # ─────────────────────────────────────────────────────────────────────
@@ -15270,6 +15548,18 @@ if view == "analyze":
 
     earnings_days = meta.get("earnings_days") if meta else None
     t = apply_earnings_event_gate(t, earnings_days)
+    _decision_price_age, _decision_price_age_kind = format_market_data_age(hist)
+    _market_source = str((getattr(hist, "attrs", {}) or {}).get("source") or "live")
+    _benchmark_source = str((getattr(bench, "attrs", {}) or {}).get("source") or "live") if bench is not None else "unavailable"
+    t = {
+        **t,
+        "data_trust": data_trust.assess_decision_data(
+            t,
+            price_age_kind=_decision_price_age_kind,
+            market_source=_market_source,
+            benchmark_source=_benchmark_source,
+        ),
+    }
     st.session_state["_current_tactical"] = {**t, "ticker": ticker.upper()}
 
     # Compute decision modifiers — earnings proximity, market regime, RS
@@ -15509,17 +15799,34 @@ if view == "analyze":
         "reward_risk_tier": t.get("reward_risk_tier"),
         "matrix_reason": t.get("matrix_reason"),
         "rule_trace": t.get("_rule_trace") or [],
+        "engine_version": RULE_ENGINE_VERSION,
     }
     snapshots = st.session_state.store.setdefault("ticker_snapshots", {})
     snapshot_entry = snapshots.get(ticker.upper(), {})
+    prior_receipt = (snapshot_entry.get("decision_receipt") if isinstance(snapshot_entry, dict) else {}) or {}
+    current_receipt = decision_contract.build_decision_receipt(
+        ticker,
+        {
+            **t,
+            "trigger_summary": trigger_text(t),
+            "invalidation_text": invalidation_text(t) or "",
+            "decision_confidence": decision_confidence_label(t),
+        },
+        engine_version=RULE_ENGINE_VERSION,
+        previous=prior_receipt,
+    )
     snapshot_final = (
         snapshot_entry.get("final_action")
         if isinstance(snapshot_entry, dict)
         else {}
     ) or {}
-    if cached_final != final_payload or snapshot_final != final_payload:
+    if (
+        cached_final != final_payload
+        or snapshot_final != final_payload
+        or prior_receipt.get("receipt_id") != current_receipt.get("receipt_id")
+    ):
         final_action_cache[ticker.upper()] = final_payload
-        merge_ticker_snapshot(ticker, final_action=final_payload)
+        merge_ticker_snapshot(ticker, final_action=final_payload, decision_receipt=current_receipt)
         save_store(st.session_state.store)
     auto_log_rule_decision(ticker, t, source="analyze")
     rendered_sidebar_action = st.session_state.get("_active_sidebar_action_rendered")
@@ -15871,13 +16178,23 @@ if view == "analyze":
                 f'</div>'
             )
 
+        portfolio_overlay = portfolio_context_for_ticker(ticker, t, meta)
+        trust = t.get("data_trust") or {}
+        trust_status = str(trust.get("status") or "degraded").title()
+        trust_color = {
+            "Trusted": "var(--color-positive)",
+            "Degraded": "var(--color-warning-text)",
+            "Blocked": "var(--color-negative)",
+        }.get(trust_status, "var(--color-muted)")
         snapshot_items = [
             ("Current action", f'<span style="color:{sty["color"]};font-weight:900;">{html.escape(sty["emoji"])} {html.escape(action_label)}</span>'),
-            ("Suggested size", html.escape(suggested_size_label(t))),
+            ("Suggested size", html.escape(portfolio_overlay.get("label") or suggested_size_label(t))),
             ("Setup quality", setup_score_breakdown_hover_html(t)),
             ("Confidence", html.escape(decision_confidence_label(t))),
             ("Risk / reward", html.escape(rr_value)),
             ("Setup stage", setup_stage_html(t)),
+            ("Data trust", f'<span style="color:{trust_color};font-weight:800;">{html.escape(trust_status)}</span>'),
+            ("Sector exposure", html.escape(f'{portfolio_overlay.get("sector")}: {float(portfolio_overlay.get("sector_weight_pct") or 0):.1f}%')),
         ]
         snapshot_html = "".join(
             f'<div class="desk-snapshot-item">'
@@ -15886,6 +16203,12 @@ if view == "analyze":
             f'</div>'
             for label, value in snapshot_items
         )
+        if trust_status == "Blocked":
+            blocked_reason = " ".join(trust.get("blocked_reasons") or [])
+            st.error(f"Execution blocked until market data is refreshed. {blocked_reason}")
+        elif trust_status == "Degraded":
+            degraded_reason = " ".join(trust.get("degraded_reasons") or [])
+            st.caption(f"Decision uses degraded context: {degraded_reason}")
         st.markdown(f"""
 <div class="desk-section-label">Decision snapshot</div>
 <div class="desk-decision-memo">
@@ -15894,6 +16217,7 @@ if view == "analyze":
     <div class="desk-decision-memo-call" style="color:{sty['color']};">{html.escape(action_label)}</div>
   </div>
   <div class="desk-snapshot-grid">{snapshot_html}</div>
+  <div style="font-size:11px;color:var(--color-muted);margin-top:8px;">Portfolio context · {html.escape(str(portfolio_overlay.get("reason") or ""))}</div>
 </div>
 <div class="desk-technical-thesis">
   <div class="desk-technical-thesis-k">{html.escape(reason_title)}</div>
@@ -16013,6 +16337,7 @@ if view == "analyze":
                 rule_audit_panel_html(t, meta, quality_tier, rule_trace),
                 unsafe_allow_html=True,
             )
+            st.markdown(decision_receipt_html(current_receipt), unsafe_allow_html=True)
             st.markdown(rules_engine_guide_html(), unsafe_allow_html=True)
             refresh_data_col, refresh_data_note_col = st.columns([1, 2])
             with refresh_data_col:
@@ -20533,6 +20858,71 @@ if view == "holdings":
                         st.rerun()
 
 
+if view == "trust":
+    st.markdown(
+        '<div style="max-width:900px;margin:8px 0 20px;">'
+        '<div class="watch-queue-label">Trust center</div>'
+        '<h1 style="font-family:var(--font-sans);font-size:var(--fs-3xl);margin:6px 0 8px;">How Trading Desk works</h1>'
+        '<p style="font-size:15px;color:var(--color-muted);line-height:1.55;">Trading Desk is a research and decision-support tool. It does not provide personalized investment advice, execute trades, or guarantee outcomes.</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    trust_sections = [
+        ("Decision methodology", "Deterministic rules produce Enter, Accumulate, Watch, Hold Off, and Avoid. Claude supplies research and dissent but cannot silently replace the rules action. Every new signal records an engine version and auditable decision receipt."),
+        ("Market data", "Prices and technical indicators primarily use Yahoo Finance data and may be delayed, incomplete, adjusted, or temporarily unavailable. Each decision now carries a Trusted, Degraded, or Blocked data status. Blocked decisions should not be executed."),
+        ("Performance evidence", "Backtest results use independent ticker/action cohorts and 5-, 14-, and 30-session paths. Watch and Hold Off are evaluated as patience systems. Small samples are calibration evidence, not proof of future performance."),
+        ("Privacy", "Owner mode can store watchlists, holdings, notes, and research in the configured private database. Public Demo mode strips holdings, notes, chat, manual levels, and account settings and disables app-state writes. Do not enter sensitive information in a public demonstration."),
+        ("Risk disclosure", "Investing involves loss of principal. Technical signals can fail, gaps can bypass stops, data can be stale, and historical results do not predict future returns. Verify important information independently before acting."),
+        ("Operational controls", "System Health audits storage, freshness, worker jobs, action consistency, and receipt consistency. Background failures are isolated so one bad refresh does not silently replace prior saved research."),
+    ]
+    for title, body in trust_sections:
+        st.markdown(
+            '<div style="padding:14px 0;border-top:1px solid var(--color-border-soft);max-width:900px;">'
+            f'<h3 style="font-size:15px;margin:0 0 5px;">{html.escape(title)}</h3>'
+            f'<p style="font-size:13px;line-height:1.55;color:var(--color-muted);margin:0;">{html.escape(body)}</p></div>',
+            unsafe_allow_html=True,
+        )
+    st.caption(f'Mode: {"Public Demo — private writes disabled" if PUBLIC_DEMO_MODE else "Owner — private storage enabled"}')
+
+
+if view == "alerts":
+    st.markdown(
+        '<div style="margin:8px 0 18px;padding-bottom:14px;border-bottom:1px solid var(--color-border);">'
+        '<div class="watch-queue-label">Daily decision workflow</div>'
+        '<h1 style="font-family:var(--font-sans);font-size:var(--fs-3xl);margin:6px 0 0;">Attention Inbox</h1>'
+        '<div style="font-size:14px;color:var(--color-muted);margin-top:7px;max-width:760px;">'
+        'Only material decision events appear here: action changes, fired or nearby triggers, invalidations, earnings risk, owned-position conflicts, engine review flags, and decision-contract mismatches.'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+    if not daily_attention_events:
+        st.markdown(
+            '<div style="padding:18px;border:1px solid var(--color-border);border-radius:6px;background:#fff;">'
+            '<b>No decision events need attention.</b><div style="color:var(--color-muted);font-size:13px;margin-top:4px;">'
+            'Unchanged Watch and Hold Off calls stay out of the inbox.</div></div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        priority_colors = {
+            "critical": "var(--color-negative)",
+            "high": "var(--color-warning-text)",
+            "medium": "var(--color-accent)",
+            "low": "var(--color-muted)",
+        }
+        for event in daily_attention_events:
+            ticker = str(event.get("ticker") or "")
+            link = "?view=backtest" if ticker == "ENGINE" else f"?ticker={urllib.parse.quote(ticker)}&view=analyze"
+            st.markdown(
+                '<div style="display:grid;grid-template-columns:90px 110px minmax(0,1fr) 90px;gap:12px;align-items:start;'
+                'padding:12px 8px;border-bottom:1px solid var(--color-border-soft);">'
+                f'<div style="font-family:var(--font-mono);font-weight:800;">{html.escape(ticker or "SYSTEM")}</div>'
+                f'<div style="font-family:var(--font-mono);font-size:10px;font-weight:800;text-transform:uppercase;color:{priority_colors.get(event.get("priority"), "var(--color-muted)")};">{html.escape(str(event.get("priority") or ""))}</div>'
+                f'<div><b>{html.escape(str(event.get("title") or ""))}</b><div style="font-size:12px;color:var(--color-muted);margin-top:3px;line-height:1.4;">{html.escape(str(event.get("detail") or ""))}</div></div>'
+                f'<a href="{html.escape(link)}" target="_self" style="font-size:12px;">Review →</a></div>',
+                unsafe_allow_html=True,
+            )
+
+
 if view == "backtest":
     st.markdown(
         """
@@ -20824,6 +21214,7 @@ if view == "health":
     pm_issues = len(audit["missing_pm"]) + len(audit["stale_pm"])
     report_issues = len(audit["missing_dossier"]) + len(audit["stale_dossier"])
     mismatch_count = len(audit["mismatches"])
+    contract_mismatch_count = len(audit.get("contract_mismatches") or [])
     action_now = audit["trigger_counts"].get("Actionable now", 0)
     near_trigger = audit["trigger_counts"].get("Near trigger", 0)
     perf_metrics = audit.get("perf") if isinstance(audit.get("perf"), dict) else {}
@@ -20841,6 +21232,7 @@ if view == "health":
         ("PM memos", str(pm_issues), "missing or older than 14 days", "health-ok" if pm_issues == 0 else "health-warn"),
         ("Full reports", str(report_issues), "missing or older than 30 days", "health-ok" if report_issues == 0 else "health-warn"),
         ("Action mismatches", str(mismatch_count), "sidebar/watchlist vs canonical action", "health-ok" if mismatch_count == 0 else "health-bad"),
+        ("Receipt mismatches", str(contract_mismatch_count), "action/version contract across surfaces", "health-ok" if contract_mismatch_count == 0 else "health-bad"),
         ("Actionable now", str(action_now), "from Trigger Monitor", "health-ok" if action_now == 0 else "health-warn"),
         ("Near trigger", str(near_trigger), "within the monitor threshold", "health-ok" if near_trigger == 0 else "health-warn"),
         ("App state speed", perf_value, perf_note, "health-ok"),
@@ -20883,6 +21275,13 @@ if view == "health":
             tkr,
             "Action mismatch",
             f"sidebar {sidebar_action.replace('_', ' ')} vs canonical {canonical_action.replace('_', ' ')}",
+            "health-bad",
+        ))
+    for row in audit.get("contract_mismatches") or []:
+        issues.append((
+            row.get("ticker") or "—",
+            "Decision contract mismatch",
+            f'{row.get("surface")}: {row.get("kind")} {row.get("observed")} vs receipt {row.get("expected")}',
             "health-bad",
         ))
 

@@ -153,6 +153,26 @@ class EngineEvaluationTests(unittest.TestCase):
         cases = engine_evaluation.weakest_directional_cases(rows)
         self.assertEqual([row["ticker"] for row in cases], ["B", "A"])
 
+    def test_performance_slices_and_confidence_calibration(self):
+        rows = []
+        for confidence, successes, decision_return in (("High", 4, 3), ("Low", 1, -2)):
+            for index in range(5):
+                rows.append({
+                    "rule_action": "enter_now",
+                    "rule_engine_version": "v1",
+                    "decision_receipt": {"confidence": f"{confidence} · base case"},
+                    "decision_context": {"market_regime": "bullish"},
+                    "setup_score": 8,
+                    "outcome": {
+                        "directional_success": index < successes,
+                        "decision_return_pct": decision_return,
+                    },
+                })
+        slices = engine_evaluation.performance_slices(rows)
+        self.assertTrue(any(row["dimension"] == "Engine" for row in slices))
+        calibration = engine_evaluation.confidence_calibration(rows)
+        self.assertTrue(calibration["calibrated"])
+
 
 if __name__ == "__main__":
     unittest.main()
