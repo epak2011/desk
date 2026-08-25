@@ -62,7 +62,10 @@ PUBLIC_DEMO_MODE = _configured_bool("TRADING_DESK_PUBLIC_DEMO", False)
 
 # Streamlit Cloud can hot-reload this file before refreshing an already imported
 # helper module during deployment. Reload only across that temporary version gap.
-if not hasattr(engine_evaluation, "logic_review_flags"):
+if any(
+    not hasattr(engine_evaluation, export)
+    for export in ("logic_review_flags", "performance_slices", "confidence_calibration")
+):
     engine_evaluation = importlib.reload(engine_evaluation)
 
 try:
