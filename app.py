@@ -42,6 +42,8 @@ import engine_evaluation
 import portfolio_context
 import tactical
 import user_state_store
+import onboarding
+import notification_engine
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
 
@@ -687,6 +689,13 @@ def _store_default():
         # Mirrors the Google Apps Script pattern: generate once per day,
         # render cached text fast on every page load.
         "regime_daily_cache": {},
+        "onboarding_complete": False,
+        "notification_preferences": {
+            "email": "",
+            "daily_digest": True,
+            "high_priority": True,
+            "delivery_enabled": False,
+        },
     }
 
 
@@ -1266,6 +1275,78 @@ if "store" not in st.session_state:
         _needs_save = True
     if _needs_save:
         save_store(st.session_state.store)
+
+
+def _render_first_run_onboarding():
+    if (
+        not _current_user_id()
+        or PUBLIC_DEMO_MODE
+        or st.session_state.store.get("onboarding_complete")
+    ):
+        return
+    identity = st.session_state.get("_auth_identity") or {}
+    existing = onboarding.parse_tickers(st.session_state.store.get("watchlist") or [])
+    st.markdown(
+        '<div style="max-width:820px;margin:5vh auto 22px;">'
+        '<div class="watch-queue-label">Set up your desk</div>'
+        '<h1 style="font-size:38px;margin:7px 0 10px;">Your first useful decision in two minutes</h1>'
+        '<p style="font-size:15px;line-height:1.55;color:var(--color-muted);max-width:720px;">'
+        'Trading Desk separates an actionable entry from patience. Enter and Accumulate are directional calls; '
+        'Watch and Hold Off mean the evidence or trigger is not ready; Avoid means the risk/reward does not justify exposure.'
+        '</p></div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div style="max-width:820px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px;">'
+        '<div style="border-top:3px solid var(--color-positive);padding:10px 2px;"><b>Enter / Accumulate</b><br><span style="font-size:12px;color:var(--color-muted);">Enough upside and evidence to own more.</span></div>'
+        '<div style="border-top:3px solid var(--color-warning);padding:10px 2px;"><b>Watch / Hold Off</b><br><span style="font-size:12px;color:var(--color-muted);">Wait for the named trigger or better evidence.</span></div>'
+        '<div style="border-top:3px solid var(--color-negative);padding:10px 2px;"><b>Avoid</b><br><span style="font-size:12px;color:var(--color-muted);">Current risk/reward does not justify exposure.</span></div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    with st.form("first_run_onboarding"):
+        ticker_text = st.text_input(
+            "Tickers to follow",
+            value=", ".join(existing or ["SPY", "NVDA", "MSFT"]),
+            help="Enter up to 20 US symbols separated by commas or spaces.",
+        )
+        account_size = st.number_input(
+            "Portfolio size ($)",
+            min_value=1000,
+            max_value=100000000,
+            value=int(st.session_state.store.get("account_size") or 100000),
+            step=5000,
+            help="Used only for position sizing. It remains in your private user record.",
+        )
+        st.markdown("**Notifications to prepare**")
+        daily_digest = st.checkbox("Daily attention digest", value=True)
+        high_priority = st.checkbox("Immediate high-priority alerts", value=True)
+        st.caption("Preferences will be saved, but delivery stays off until the email service is configured and verified.")
+        finish = st.form_submit_button("Open my Trading Desk", use_container_width=True)
+    if finish:
+        tickers = onboarding.parse_tickers(ticker_text)
+        if not tickers:
+            st.error("Add at least one valid ticker.")
+            st.stop()
+        st.session_state.store["watchlist"] = tickers
+        st.session_state.store["account_size"] = float(account_size)
+        st.session_state.store["notification_preferences"] = onboarding.notification_preferences(
+            str(identity.get("email") or ""),
+            daily_digest=daily_digest,
+            high_priority=high_priority,
+        )
+        st.session_state.store["onboarding_complete"] = True
+        st.session_state.store["last_ticker"] = tickers[0]
+        st.session_state.store["last_view"] = "alerts"
+        save_store(st.session_state.store)
+        st.session_state.current_ticker = tickers[0]
+        st.session_state.view = "alerts"
+        st.rerun()
+    st.stop()
+
+
+_render_first_run_onboarding()
+
 if "current_ticker" not in st.session_state:
     try:
         _qp_ticker = (
@@ -21013,6 +21094,38 @@ if view == "trust":
             f'<p style="font-size:13px;line-height:1.55;color:var(--color-muted);margin:0;">{html.escape(body)}</p></div>',
             unsafe_allow_html=True,
         )
+    if _current_user_id():
+        preferences = st.session_state.store.get("notification_preferences") or {}
+        digest_preview = notification_engine.build_digest(
+            _current_user_id(), daily_attention_events
+        )
+        st.markdown("### Notification preferences")
+        st.caption(
+            f"Today’s high-priority digest would contain {digest_preview['count']} item"
+            f"{'' if digest_preview['count'] == 1 else 's'}. Delivery remains disabled until the email provider is verified."
+        )
+        with st.form("notification_preferences"):
+            preference_email = st.text_input(
+                "Delivery email",
+                value=str(preferences.get("email") or (st.session_state.get("_auth_identity") or {}).get("email") or ""),
+                autocomplete="email",
+            )
+            preference_daily = st.checkbox(
+                "Daily attention digest",
+                value=bool(preferences.get("daily_digest", True)),
+            )
+            preference_priority = st.checkbox(
+                "Immediate high-priority alerts",
+                value=bool(preferences.get("high_priority", True)),
+            )
+            if st.form_submit_button("Save notification preferences"):
+                st.session_state.store["notification_preferences"] = onboarding.notification_preferences(
+                    preference_email,
+                    daily_digest=preference_daily,
+                    high_priority=preference_priority,
+                )
+                save_store(st.session_state.store)
+                st.success("Preferences saved. Email delivery is not active yet.")
     st.caption(f'Mode: {"Public Demo — private writes disabled" if PUBLIC_DEMO_MODE else "Owner — private storage enabled"}')
 
 
