@@ -302,6 +302,33 @@ def ensure_backend_schema() -> None:
                 ON refresh_jobs (ticker, created_at DESC)
                 """
             )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS notification_outbox (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+                    digest_key TEXT NOT NULL UNIQUE,
+                    recipient TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    html TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    provider_id TEXT,
+                    error TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    started_at TIMESTAMPTZ,
+                    completed_at TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute("ALTER TABLE notification_outbox ENABLE ROW LEVEL SECURITY")
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS notification_outbox_status_idx
+                ON notification_outbox (status, created_at)
+                """
+            )
 
 
 def sync_watchlist_assets(tickers: Iterable[str]) -> None:
@@ -322,6 +349,113 @@ def sync_watchlist_assets(tickers: Iterable[str]) -> None:
                     """,
                     (ticker,),
                 )
+
+
+def enqueue_notification(
+    *,
+    user_id: str,
+    digest_key: str,
+    recipient: str,
+    subject: str,
+    html: str,
+) -> str | None:
+    """Queue one idempotent email. Existing digest keys are never duplicated."""
+    row_id = str(uuid.uuid4())
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO notification_outbox
+                    (id, user_id, digest_key, recipient, subject, html, status, updated_at)
+                VALUES (%s::uuid, %s::uuid, %s, %s, %s, %s, 'queued', NOW())
+                ON CONFLICT (digest_key) DO NOTHING
+                RETURNING id::text
+                """,
+                (row_id, str(user_id), str(digest_key), str(recipient), str(subject), str(html)),
+            )
+            row = cur.fetchone()
+            return str(row[0]) if row else None
+
+
+def claim_notifications(*, limit: int = 10, max_attempts: int = 3) -> list[dict[str, Any]]:
+    """Atomically claim queued delivery rows without returning data to logs."""
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH claimed AS (
+                    SELECT id
+                    FROM notification_outbox
+                    WHERE status IN ('queued', 'retry')
+                      AND attempts < %s
+                    ORDER BY created_at
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT %s
+                )
+                UPDATE notification_outbox n
+                SET status = 'sending', attempts = attempts + 1,
+                    started_at = NOW(), updated_at = NOW(), error = NULL
+                FROM claimed
+                WHERE n.id = claimed.id
+                RETURNING n.id::text, n.recipient, n.subject, n.html, n.attempts
+                """,
+                (max(1, int(max_attempts)), max(1, int(limit))),
+            )
+            return [
+                {"id": row[0], "recipient": row[1], "subject": row[2], "html": row[3], "attempts": row[4]}
+                for row in cur.fetchall()
+            ]
+
+
+def complete_notification(row_id: str, provider_id: str) -> None:
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE notification_outbox
+                SET status = 'sent', provider_id = %s, completed_at = NOW(), updated_at = NOW(), error = NULL
+                WHERE id = %s::uuid
+                """,
+                (str(provider_id), str(row_id)),
+            )
+
+
+def fail_notification(row_id: str, error: str, *, retry: bool = True) -> None:
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE notification_outbox
+                SET status = %s, error = %s, updated_at = NOW()
+                WHERE id = %s::uuid
+                """,
+                ("retry" if retry else "failed", str(error or "Delivery failed")[:300], str(row_id)),
+            )
+
+
+def notification_outbox_health() -> dict[str, int]:
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT status, COUNT(*)
+                FROM notification_outbox
+                WHERE created_at >= NOW() - INTERVAL '7 days'
+                GROUP BY status
+                """
+            )
+            counts = {str(status): int(count) for status, count in cur.fetchall()}
+    return {
+        "queued": counts.get("queued", 0) + counts.get("retry", 0),
+        "sending": counts.get("sending", 0),
+        "sent": counts.get("sent", 0),
+        "failed": counts.get("failed", 0),
+    }
 
 
 def stale_watchlist_market_tickers(*, max_age_minutes: int = 10, limit: int = 100) -> list[str]:

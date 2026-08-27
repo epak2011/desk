@@ -27,6 +27,7 @@ import backend_layer as backend
 import decision_contract
 import data_trust
 import engine_evaluation
+import email_delivery
 from pm_view import get_decision_dossier, get_pm_view
 import tactical
 
@@ -37,6 +38,31 @@ LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
 OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
 OUTCOME_MIN_AGE_DAYS = 7
 RULE_ENGINE_VERSION = "rules-2026.08-b"
+
+
+def drain_notification_outbox(limit: int = 10) -> dict:
+    """Deliver prebuilt messages only when the provider is explicitly enabled."""
+    config = email_delivery.config_from_env()
+    if not config.ready:
+        return {"enabled": False, "claimed": 0, "sent": 0, "failed": 0}
+    rows = backend.claim_notifications(limit=limit, max_attempts=3)
+    sent = 0
+    failed = 0
+    for row in rows:
+        try:
+            provider_id = email_delivery.send_email(
+                recipient=row["recipient"],
+                subject=row["subject"],
+                html=row["html"],
+                config=config,
+            )
+            backend.complete_notification(row["id"], provider_id)
+            sent += 1
+        except Exception as exc:
+            retry = int(row.get("attempts") or 1) < 3
+            backend.fail_notification(row["id"], str(exc), retry=retry)
+            failed += 1
+    return {"enabled": True, "claimed": len(rows), "sent": sent, "failed": failed}
 
 
 def _gha_warning(message: str) -> None:
@@ -596,6 +622,17 @@ def main():
     except Exception as exc:
         print(f"obsolete PM memo job retirement skipped: {exc}")
     if args.maintenance:
+        try:
+            delivery = drain_notification_outbox(limit=10)
+            if delivery.get("enabled"):
+                print(
+                    "notification delivery: "
+                    f"claimed={delivery['claimed']} sent={delivery['sent']} failed={delivery['failed']}"
+                )
+            else:
+                print("notification delivery disabled")
+        except Exception as exc:
+            _gha_warning(f"Notification outbox drain skipped: {exc}")
         if _api_key():
             try:
                 retried_reports = backend.retry_failed_jobs(

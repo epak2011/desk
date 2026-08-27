@@ -21470,6 +21470,13 @@ if view == "health":
             perf_parts.append(f"{label} {metric.get('ms')}ms")
     perf_value = " · ".join(perf_parts) if perf_parts else "—"
     perf_note = "last app-state load/save; excludes Yahoo and Claude"
+    notification_health = {"queued": 0, "sending": 0, "sent": 0, "failed": 0}
+    if backend_layer.has_database():
+        try:
+            notification_health = backend_layer.notification_outbox_health()
+        except Exception:
+            notification_health = {"queued": 0, "sending": 0, "sent": 0, "failed": 0}
+    notification_problem_count = notification_health.get("failed", 0) + notification_health.get("sending", 0)
     summary_cards = [
         ("Storage", "OK" if db_ok else "Needs attention", (audit.get("db") or {}).get("message", ""), "health-ok" if db_ok else "health-bad"),
         ("Market rows", str(market_issues), "missing or older than 20 minutes", "health-ok" if market_issues == 0 else "health-warn"),
@@ -21480,6 +21487,12 @@ if view == "health":
         ("Actionable now", str(action_now), "from Trigger Monitor", "health-ok" if action_now == 0 else "health-warn"),
         ("Near trigger", str(near_trigger), "within the monitor threshold", "health-ok" if near_trigger == 0 else "health-warn"),
         ("App state speed", perf_value, perf_note, "health-ok"),
+        (
+            "Email outbox",
+            str(notification_health.get("queued", 0)),
+            f"queued · {notification_health.get('sent', 0)} sent / {notification_health.get('failed', 0)} failed in 7d",
+            "health-bad" if notification_problem_count else "health-ok",
+        ),
         ("Checked", str(checked_at), "health audit only; no slow refresh", "health-ok"),
     ]
     st.markdown(

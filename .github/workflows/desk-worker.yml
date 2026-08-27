@@ -19,6 +19,9 @@ jobs:
       NTHROPIC_API_KEY: ${{ secrets.NTHROPIC_API_KEY }}
       CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
       WORKER_NAME: github-actions-worker
+      NOTIFICATIONS_ENABLED: ${{ secrets.NOTIFICATIONS_ENABLED }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      NOTIFICATION_FROM_EMAIL: ${{ secrets.NOTIFICATION_FROM_EMAIL }}
     steps:
       - name: Check out repository
         continue-on-error: true

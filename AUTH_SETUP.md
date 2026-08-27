@@ -41,6 +41,22 @@ production React frontend should store Supabase sessions in secure browser stora
 and refresh tokens through the Supabase SDK. Do not advertise persistent login
 until that frontend/session layer is implemented and tested.
 
+## Email delivery activation
+
+Run `migrations/002_notification_outbox.sql`, verify a sender domain with Resend,
+then add these GitHub Actions secrets:
+
+```text
+RESEND_API_KEY
+NOTIFICATION_FROM_EMAIL
+NOTIFICATIONS_ENABLED=true
+```
+
+Keep `NOTIFICATIONS_ENABLED` unset until test recipients, unsubscribe handling,
+and the sender domain have been verified. The worker will not claim or transmit
+any outbox row unless all three values are present. Recipient addresses are never
+printed in worker logs, and each digest key can be inserted only once.
+
 ## Data model boundary
 
 Private user state is stored only in `user_app_state`, keyed by the verified
