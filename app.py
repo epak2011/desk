@@ -35,11 +35,13 @@ import yfinance as yf
 
 import backend_layer
 import attention_engine
+import auth_layer
 import decision_contract
 import data_trust
 import engine_evaluation
 import portfolio_context
 import tactical
+import user_state_store
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
 
@@ -55,10 +57,31 @@ def _configured_bool(name, default=False):
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _configured_text(name):
+    raw = os.environ.get(name)
+    if raw is None:
+        try:
+            raw = st.secrets.get(name)
+        except Exception:
+            raw = None
+    return str(raw or "").strip()
+
+
 # When enabled in hosting configuration, private portfolio/notes stay session-only
 # and app-state writes are disabled. Owner mode remains the current default until
 # authentication is configured and tested end to end.
-PUBLIC_DEMO_MODE = _configured_bool("TRADING_DESK_PUBLIC_DEMO", False)
+AUTH_REQUIRED = _configured_bool("AUTH_REQUIRED", False)
+SUPABASE_URL = _configured_text("SUPABASE_URL")
+SUPABASE_ANON_KEY = _configured_text("SUPABASE_ANON_KEY")
+AUTH_READY = auth_layer.configured(SUPABASE_URL, SUPABASE_ANON_KEY)
+PUBLIC_DEMO_MODE = _configured_bool("TRADING_DESK_PUBLIC_DEMO", False) or bool(
+    st.session_state.get("_public_demo_session", False)
+)
+
+
+def _current_user_id():
+    identity = st.session_state.get("_auth_identity") or {}
+    return str(identity.get("user_id") or "").strip()
 
 # Streamlit Cloud can hot-reload this file before refreshing an already imported
 # helper module during deployment. Reload only across that temporary version gap.
@@ -668,19 +691,24 @@ def _store_default():
 
 
 def _public_demo_store(store):
-    """Strip private owner state while retaining shared research/evaluation data."""
+    """Build public state from an allowlist; unknown fields stay private."""
     if not PUBLIC_DEMO_MODE:
         return store
-    clean = dict(store or {})
-    clean.update({
-        "holdings": {},
-        "chat_history": {},
-        "manual_levels": {},
-        "hidden_levels": {},
-        "account_size": 100000,
-        "risk_per_trade": 0.01,
-        "max_position_pct": 0.25,
-    })
+    source = store if isinstance(store, dict) else {}
+    clean = _store_default()
+    # These are shared market/research caches, never personal inputs. Everything
+    # else—including watchlists and decision history—is denied by default.
+    for key in (
+        "pm_cache",
+        "dossier_cache",
+        "watchlist_sidebar_cache",
+        "final_action_cache",
+        "quote_meta_cache",
+        "ticker_snapshots",
+        "regime_daily_cache",
+    ):
+        if key in source:
+            clean[key] = source[key]
     clean["public_demo"] = True
     return clean
 
@@ -959,11 +987,24 @@ def _save_split_sections(cur, chat, decisions, regime_cache, ticker_caches):
 
 def load_store():
     _perf_t0 = time.perf_counter()
+    scoped_user_id = _current_user_id()
     if USE_POSTGRES:
         try:
             _pg_init()
             with _pg_connect() as conn:
                 with conn.cursor() as cur:
+                    if scoped_user_id:
+                        user_state_store.ensure_schema(cur)
+                        store = user_state_store.load(cur, scoped_user_id) or _store_default()
+                        defaults = _store_default()
+                        for key, value in defaults.items():
+                            store.setdefault(key, value)
+                        _seed_persist_fingerprints(store)
+                        st.session_state["_db_loaded_ok"] = True
+                        st.session_state["_db_load_failed"] = False
+                        st.session_state.pop("_db_error", None)
+                        record_perf_metric("load_store", _perf_t0)
+                        return store
                     cur.execute("SELECT value FROM kv_store WHERE key = 'default'")
                     row = cur.fetchone()
                     if row:
@@ -1048,6 +1089,7 @@ def save_store(store):
     if PUBLIC_DEMO_MODE:
         record_perf_metric("save_store", _perf_t0)
         return
+    scoped_user_id = _current_user_id()
     safe_store = _json_safe(store)
     if USE_POSTGRES:
         try:
@@ -1063,6 +1105,11 @@ def save_store(store):
         try:
             with _pg_connect() as conn:
                 with conn.cursor() as cur:
+                    if scoped_user_id:
+                        user_state_store.ensure_schema(cur)
+                        user_state_store.save(cur, scoped_user_id, safe_store)
+                        record_perf_metric("save_store", _perf_t0)
+                        return
                     core_store, chat, decisions, regime_cache, ticker_caches = _split_store_sections(safe_store)
                     fingerprints = _persist_cache()
                     fingerprints.setdefault("ticker_caches", {})
@@ -1099,6 +1146,74 @@ def save_store(store):
 ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "alerts", "backtest", "triggers", "health", "holdings", "ideas", "trust"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
+
+
+def _render_auth_gate():
+    """Require a Supabase identity or an explicit read-only public demo."""
+    if not AUTH_REQUIRED or _current_user_id() or PUBLIC_DEMO_MODE:
+        return
+    if not AUTH_READY:
+        st.error("Trading Desk sign-in is not configured. The app is closed to protect private data.")
+        st.stop()
+
+    st.markdown(
+        '<div style="max-width:520px;margin:8vh auto 22px;text-align:center;">'
+        '<div class="watch-queue-label">Private beta</div>'
+        '<h1 style="font-size:38px;margin:8px 0 10px;">Trading Desk</h1>'
+        '<p style="color:var(--color-muted);line-height:1.55;">Sign in to access your private watchlist, holdings, notes, and decision history.</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    sign_in_tab, create_tab = st.tabs(["Sign in", "Create account"])
+    with sign_in_tab:
+        with st.form("auth_sign_in"):
+            email = st.text_input("Email", key="auth_email", autocomplete="email")
+            password = st.text_input("Password", type="password", key="auth_password", autocomplete="current-password")
+            submitted = st.form_submit_button("Sign in", use_container_width=True)
+        if submitted:
+            try:
+                session = auth_layer.sign_in(SUPABASE_URL, SUPABASE_ANON_KEY, email, password)
+                st.session_state["_auth_identity"] = auth_layer.public_identity(session)
+                st.session_state["_auth_tokens"] = {
+                    "access_token": session.access_token,
+                    "refresh_token": session.refresh_token,
+                    "expires_in": session.expires_in,
+                }
+                st.session_state.pop("store", None)
+                st.rerun()
+            except auth_layer.AuthError as exc:
+                st.error(str(exc))
+    with create_tab:
+        with st.form("auth_sign_up"):
+            new_email = st.text_input("Email", key="signup_email", autocomplete="email")
+            new_password = st.text_input("Password", type="password", key="signup_password", autocomplete="new-password")
+            created = st.form_submit_button("Create account", use_container_width=True)
+        if created:
+            if len(new_password) < 8:
+                st.error("Use a password with at least eight characters.")
+            else:
+                try:
+                    session = auth_layer.sign_up(SUPABASE_URL, SUPABASE_ANON_KEY, new_email, new_password)
+                    if session:
+                        st.session_state["_auth_identity"] = auth_layer.public_identity(session)
+                        st.session_state["_auth_tokens"] = {
+                            "access_token": session.access_token,
+                            "refresh_token": session.refresh_token,
+                            "expires_in": session.expires_in,
+                        }
+                        st.rerun()
+                    st.success("Account created. Check your email to confirm it, then sign in.")
+                except auth_layer.AuthError as exc:
+                    st.error(str(exc))
+    if st.button("Explore the public demo", use_container_width=True):
+        st.session_state["_public_demo_session"] = True
+        st.session_state.pop("store", None)
+        st.rerun()
+    st.caption("Public Demo does not save holdings, notes, account settings, or chat history.")
+    st.stop()
+
+
+_render_auth_gate()
 
 
 if "store" not in st.session_state:
@@ -11514,6 +11629,19 @@ with st.sidebar:
         '</div>',
         unsafe_allow_html=True,
     )
+    if _current_user_id():
+        identity = st.session_state.get("_auth_identity") or {}
+        st.caption(str(identity.get("email") or "Signed in"))
+        if st.button("Sign out", key="auth_sign_out", use_container_width=False):
+            for auth_key in ("_auth_identity", "_auth_tokens", "store", "_persist_fingerprints"):
+                st.session_state.pop(auth_key, None)
+            st.rerun()
+    elif PUBLIC_DEMO_MODE and AUTH_REQUIRED:
+        st.caption("Public Demo · private saving disabled")
+        if st.button("Sign in", key="leave_public_demo", use_container_width=False):
+            st.session_state.pop("_public_demo_session", None)
+            st.session_state.pop("store", None)
+            st.rerun()
 
     primary_view_labels = {
         "regime": "Market Regime",
