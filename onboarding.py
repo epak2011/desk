@@ -26,10 +26,11 @@ def notification_preferences(
     *,
     daily_digest: bool,
     high_priority: bool,
+    delivery_enabled: bool = False,
 ) -> dict:
     return {
         "email": str(email or "").strip().lower(),
         "daily_digest": bool(daily_digest),
         "high_priority": bool(high_priority),
-        "delivery_enabled": False,
+        "delivery_enabled": bool(delivery_enabled),
     }

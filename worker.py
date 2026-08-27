@@ -18,16 +18,21 @@ import hashlib
 import os
 import traceback
 import time
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import yfinance as yf
 
 import backend_layer as backend
+import attention_engine
 import decision_contract
 import data_trust
 import engine_evaluation
 import email_delivery
+import notification_engine
+import unsubscribe
 from pm_view import get_decision_dossier, get_pm_view
 import tactical
 
@@ -50,6 +55,8 @@ def drain_notification_outbox(limit: int = 10) -> dict:
     failed = 0
     for row in rows:
         try:
+            if "unsubscribe" not in str(row.get("html") or "").lower():
+                raise email_delivery.DeliveryError("Message has no unsubscribe control.")
             provider_id = email_delivery.send_email(
                 recipient=row["recipient"],
                 subject=row["subject"],
@@ -63,6 +70,74 @@ def drain_notification_outbox(limit: int = 10) -> dict:
             backend.fail_notification(row["id"], str(exc), retry=retry)
             failed += 1
     return {"enabled": True, "claimed": len(rows), "sent": sent, "failed": failed}
+
+
+def queue_daily_user_digests(*, now: datetime | None = None) -> dict:
+    """Build one privacy-scoped digest per opted-in user after the ET send hour."""
+    config = email_delivery.config_from_env()
+    base_url = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
+    secret = os.environ.get("UNSUBSCRIBE_SECRET", "").strip()
+    if not config.ready or not base_url or not secret:
+        return {"enabled": False, "users": 0, "queued": 0, "empty": 0}
+    current = now or datetime.now(timezone.utc)
+    eastern = current.astimezone(ZoneInfo("America/New_York"))
+    send_hour = max(0, min(23, int(os.environ.get("DIGEST_SEND_HOUR_ET", "17") or 17)))
+    if eastern.hour < send_hour:
+        return {"enabled": True, "users": 0, "queued": 0, "empty": 0, "waiting": True}
+
+    review = backend.read_engine_review_status() or {}
+    logic_alerts = review.get("alerting") or []
+    users = backend.notification_users()
+    queued = 0
+    empty = 0
+    for user in users:
+        user_id = str(user.get("user_id") or "")
+        state = user.get("state") if isinstance(user.get("state"), dict) else {}
+        preferences = state.get("notification_preferences") or {}
+        recipient = str(preferences.get("email") or "").strip().lower()
+        tickers = [str(t).upper().strip() for t in state.get("watchlist", []) if str(t or "").strip()]
+        holdings = (state.get("holdings") or {}).keys() if isinstance(state.get("holdings"), dict) else []
+        snapshots = state.get("ticker_snapshots") if isinstance(state.get("ticker_snapshots"), dict) else {}
+        rows = []
+        for ticker in tickers:
+            snapshot = snapshots.get(ticker) if isinstance(snapshots.get(ticker), dict) else {}
+            market = snapshot.get("market") if isinstance(snapshot.get("market"), dict) else {}
+            meta = snapshot.get("meta") if isinstance(snapshot.get("meta"), dict) else {}
+            receipt = snapshot.get("decision_receipt") if isinstance(snapshot.get("decision_receipt"), dict) else {}
+            trigger = market.get("trigger_monitor") if isinstance(market.get("trigger_monitor"), dict) else {}
+            invalidation = receipt.get("invalidation") if isinstance(receipt.get("invalidation"), dict) else {}
+            rows.append({
+                "ticker": ticker,
+                "action": _normalize_action_key(market.get("action") or receipt.get("action")),
+                "price": market.get("last") or market.get("price"),
+                "receipt": receipt,
+                "invalidation_price": invalidation.get("price") or market.get("stop"),
+                "trigger_status": trigger.get("status"),
+                "trigger_detail": trigger.get("detail") or trigger.get("label"),
+                "distance_pct": trigger.get("distance_pct"),
+                "earnings_days": meta.get("earnings_days"),
+            })
+        events = attention_engine.build_attention_events(
+            rows,
+            holdings=holdings,
+            logic_alerts=logic_alerts,
+        )
+        digest = notification_engine.build_digest(user_id, events, day=eastern.date())
+        if not digest["should_send"]:
+            empty += 1
+            continue
+        token = unsubscribe.create_token(user_id, recipient, secret)
+        unsubscribe_url = f"{base_url}/?unsubscribe={urllib.parse.quote(token)}"
+        message_html = notification_engine.render_digest_html(events, unsubscribe_url=unsubscribe_url)
+        inserted = backend.enqueue_notification(
+            user_id=user_id,
+            digest_key=digest["digest_key"],
+            recipient=recipient,
+            subject=f"Trading Desk: {digest['count']} item{'s' if digest['count'] != 1 else ''} need attention",
+            html=message_html,
+        )
+        queued += 1 if inserted else 0
+    return {"enabled": True, "users": len(users), "queued": queued, "empty": empty}
 
 
 def _gha_warning(message: str) -> None:
@@ -622,6 +697,17 @@ def main():
     except Exception as exc:
         print(f"obsolete PM memo job retirement skipped: {exc}")
     if args.maintenance:
+        try:
+            digest_queue = queue_daily_user_digests()
+            if digest_queue.get("enabled"):
+                print(
+                    "notification digest queue: "
+                    f"users={digest_queue['users']} queued={digest_queue['queued']} empty={digest_queue['empty']}"
+                )
+            else:
+                print("notification digest generation disabled")
+        except Exception as exc:
+            _gha_warning(f"Notification digest generation skipped: {exc}")
         try:
             delivery = drain_notification_outbox(limit=10)
             if delivery.get("enabled"):

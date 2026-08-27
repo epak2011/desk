@@ -50,12 +50,23 @@ then add these GitHub Actions secrets:
 RESEND_API_KEY
 NOTIFICATION_FROM_EMAIL
 NOTIFICATIONS_ENABLED=true
+UNSUBSCRIBE_SECRET
 ```
 
 Keep `NOTIFICATIONS_ENABLED` unset until test recipients, unsubscribe handling,
 and the sender domain have been verified. The worker will not claim or transmit
 any outbox row unless all three values are present. Recipient addresses are never
 printed in worker logs, and each digest key can be inserted only once.
+
+After verifying a test delivery and its unsubscribe link, add this Streamlit secret:
+
+```toml
+NOTIFICATIONS_AVAILABLE = true
+UNSUBSCRIBE_SECRET = "the same long random value used by the worker"
+```
+
+This makes the opt-in checkbox available to authenticated users. Keep it false
+until the sender domain and unsubscribe link have both passed end-to-end testing.
 
 ## Data model boundary
 

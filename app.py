@@ -44,6 +44,7 @@ import tactical
 import user_state_store
 import onboarding
 import notification_engine
+import unsubscribe
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
 
@@ -75,7 +76,9 @@ def _configured_text(name):
 AUTH_REQUIRED = _configured_bool("AUTH_REQUIRED", False)
 SUPABASE_URL = _configured_text("SUPABASE_URL")
 SUPABASE_ANON_KEY = _configured_text("SUPABASE_ANON_KEY")
+UNSUBSCRIBE_SECRET = _configured_text("UNSUBSCRIBE_SECRET")
 AUTH_READY = auth_layer.configured(SUPABASE_URL, SUPABASE_ANON_KEY)
+NOTIFICATIONS_AVAILABLE = _configured_bool("NOTIFICATIONS_AVAILABLE", False)
 PUBLIC_DEMO_MODE = _configured_bool("TRADING_DESK_PUBLIC_DEMO", False) or bool(
     st.session_state.get("_public_demo_session", False)
 )
@@ -1157,6 +1160,31 @@ ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
 
+def _handle_unsubscribe_link():
+    try:
+        token = str(st.query_params.get("unsubscribe") or "").strip()
+    except Exception:
+        token = ""
+    if not token:
+        return
+    st.markdown("## Trading Desk email preferences")
+    try:
+        payload = unsubscribe.verify_token(token, UNSUBSCRIBE_SECRET)
+        changed = backend_layer.unsubscribe_notifications(
+            payload["user_id"], payload["email"]
+        )
+        if changed:
+            st.success("You have been unsubscribed from Trading Desk email notifications.")
+        else:
+            st.info("Email notifications were already disabled for this account.")
+    except Exception:
+        st.error("This unsubscribe link is invalid or expired. Sign in to update notification preferences.")
+    st.stop()
+
+
+_handle_unsubscribe_link()
+
+
 def _render_auth_gate():
     """Require a Supabase identity or an explicit read-only public demo."""
     if not AUTH_REQUIRED or _current_user_id() or PUBLIC_DEMO_MODE:
@@ -1321,7 +1349,13 @@ def _render_first_run_onboarding():
         st.markdown("**Notifications to prepare**")
         daily_digest = st.checkbox("Daily attention digest", value=True)
         high_priority = st.checkbox("Immediate high-priority alerts", value=True)
-        st.caption("Preferences will be saved, but delivery stays off until the email service is configured and verified.")
+        enable_delivery = st.checkbox(
+            "Enable email delivery",
+            value=False,
+            disabled=not NOTIFICATIONS_AVAILABLE,
+            help="Available only after the sender domain and unsubscribe path are verified.",
+        )
+        st.caption("Delivery remains unavailable until the email service and unsubscribe path are verified.")
         finish = st.form_submit_button("Open my Trading Desk", use_container_width=True)
     if finish:
         tickers = onboarding.parse_tickers(ticker_text)
@@ -1334,6 +1368,7 @@ def _render_first_run_onboarding():
             str(identity.get("email") or ""),
             daily_digest=daily_digest,
             high_priority=high_priority,
+            delivery_enabled=enable_delivery and NOTIFICATIONS_AVAILABLE,
         )
         st.session_state.store["onboarding_complete"] = True
         st.session_state.store["last_ticker"] = tickers[0]
@@ -21118,11 +21153,17 @@ if view == "trust":
                 "Immediate high-priority alerts",
                 value=bool(preferences.get("high_priority", True)),
             )
+            preference_delivery = st.checkbox(
+                "Enable email delivery",
+                value=bool(preferences.get("delivery_enabled", False)),
+                disabled=not NOTIFICATIONS_AVAILABLE,
+            )
             if st.form_submit_button("Save notification preferences"):
                 st.session_state.store["notification_preferences"] = onboarding.notification_preferences(
                     preference_email,
                     daily_digest=preference_daily,
                     high_priority=preference_priority,
+                    delivery_enabled=preference_delivery and NOTIFICATIONS_AVAILABLE,
                 )
                 save_store(st.session_state.store)
                 st.success("Preferences saved. Email delivery is not active yet.")
@@ -21471,12 +21512,18 @@ if view == "health":
     perf_value = " · ".join(perf_parts) if perf_parts else "—"
     perf_note = "last app-state load/save; excludes Yahoo and Claude"
     notification_health = {"queued": 0, "sending": 0, "sent": 0, "failed": 0}
+    auth_storage_health = {"user_app_state": False, "notification_outbox": False}
     if backend_layer.has_database():
         try:
             notification_health = backend_layer.notification_outbox_health()
         except Exception:
             notification_health = {"queued": 0, "sending": 0, "sent": 0, "failed": 0}
+        try:
+            auth_storage_health = backend_layer.auth_schema_health()
+        except Exception:
+            auth_storage_health = {"user_app_state": False, "notification_outbox": False}
     notification_problem_count = notification_health.get("failed", 0) + notification_health.get("sending", 0)
+    user_isolation_ready = all(auth_storage_health.values())
     summary_cards = [
         ("Storage", "OK" if db_ok else "Needs attention", (audit.get("db") or {}).get("message", ""), "health-ok" if db_ok else "health-bad"),
         ("Market rows", str(market_issues), "missing or older than 20 minutes", "health-ok" if market_issues == 0 else "health-warn"),
@@ -21492,6 +21539,12 @@ if view == "health":
             str(notification_health.get("queued", 0)),
             f"queued · {notification_health.get('sent', 0)} sent / {notification_health.get('failed', 0)} failed in 7d",
             "health-bad" if notification_problem_count else "health-ok",
+        ),
+        (
+            "User isolation",
+            "Ready" if user_isolation_ready else "Needs migration",
+            "RLS enabled on private state and delivery tables",
+            "health-ok" if user_isolation_ready else "health-bad",
         ),
         ("Checked", str(checked_at), "health audit only; no slow refresh", "health-ok"),
     ]

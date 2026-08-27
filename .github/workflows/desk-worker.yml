@@ -22,6 +22,9 @@ jobs:
       NOTIFICATIONS_ENABLED: ${{ secrets.NOTIFICATIONS_ENABLED }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       NOTIFICATION_FROM_EMAIL: ${{ secrets.NOTIFICATION_FROM_EMAIL }}
+      UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+      APP_BASE_URL: https://tradingdesk.streamlit.app
+      DIGEST_SEND_HOUR_ET: "17"
     steps:
       - name: Check out repository
         continue-on-error: true

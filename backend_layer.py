@@ -169,6 +169,17 @@ def ensure_backend_schema() -> None:
         with conn.cursor() as cur:
             cur.execute(
                 """
+                CREATE TABLE IF NOT EXISTS user_app_state (
+                    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+                    value JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute("ALTER TABLE user_app_state ENABLE ROW LEVEL SECURITY")
+            cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS watchlist_assets (
                     ticker TEXT PRIMARY KEY,
                     asset_type TEXT DEFAULT 'stock',
@@ -455,6 +466,74 @@ def notification_outbox_health() -> dict[str, int]:
         "sending": counts.get("sending", 0),
         "sent": counts.get("sent", 0),
         "failed": counts.get("failed", 0),
+    }
+
+
+def notification_users() -> list[dict[str, Any]]:
+    """Return opted-in authenticated users for server-side digest generation."""
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id::text, value
+                FROM user_app_state
+                WHERE COALESCE((value->'notification_preferences'->>'daily_digest')::boolean, FALSE) = TRUE
+                  AND COALESCE(value->'notification_preferences'->>'delivery_enabled', 'false')::boolean = TRUE
+                  AND COALESCE(value->'notification_preferences'->>'email', '') <> ''
+                """
+            )
+            return [
+                {"user_id": str(user_id), "state": value or {}}
+                for user_id, value in cur.fetchall()
+                if isinstance(value, dict)
+            ]
+
+
+def unsubscribe_notifications(user_id: str, email: str) -> bool:
+    """Disable every email channel only when the signed identity and address match."""
+    ensure_backend_schema()
+    clean_email = str(email or "").strip().lower()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE user_app_state
+                SET value = jsonb_set(
+                        jsonb_set(
+                            jsonb_set(value, '{notification_preferences,daily_digest}', 'false'::jsonb, TRUE),
+                            '{notification_preferences,high_priority}', 'false'::jsonb, TRUE
+                        ),
+                        '{notification_preferences,delivery_enabled}', 'false'::jsonb, TRUE
+                    ),
+                    updated_at = NOW()
+                WHERE user_id = %s::uuid
+                  AND LOWER(COALESCE(value->'notification_preferences'->>'email', '')) = %s
+                RETURNING user_id
+                """,
+                (str(user_id), clean_email),
+            )
+            return cur.fetchone() is not None
+
+
+def auth_schema_health() -> dict[str, bool]:
+    """Cheap verification used after remote worker migrations."""
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.relname, c.relrowsecurity
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relname IN ('user_app_state', 'notification_outbox')
+                """
+            )
+            rows = {str(name): bool(rls) for name, rls in cur.fetchall()}
+    return {
+        "user_app_state": rows.get("user_app_state", False),
+        "notification_outbox": rows.get("notification_outbox", False),
     }
 
 
