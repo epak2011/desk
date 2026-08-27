@@ -517,8 +517,12 @@ def unsubscribe_notifications(user_id: str, email: str) -> bool:
 
 
 def auth_schema_health() -> dict[str, bool]:
-    """Cheap verification used after remote worker migrations."""
-    ensure_backend_schema()
+    """Read the private-table RLS state without mutating the schema.
+
+    Health checks must remain diagnostic. Running the full schema bootstrap here
+    allowed an unrelated DDL failure to turn a correctly migrated auth schema
+    into a false ``Needs migration`` result.
+    """
     with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
