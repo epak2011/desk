@@ -354,6 +354,9 @@ def failure_patterns(entries, minimum_count=3):
         regime = context.get("market_regime")
         if regime:
             attributes.append(("Regime", str(regime).title()))
+        if context.get("extension_warning"):
+            severity = str(context.get("extension_warning_severity") or "active").title()
+            attributes.append(("Entry warning", f"Stretched momentum · {severity}"))
         if setup is not None:
             bucket = "Setup ≥ 8" if setup >= 8 else "Setup 6-8" if setup >= 6 else "Setup < 6"
             attributes.append(("Setup", bucket))

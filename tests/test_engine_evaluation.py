@@ -153,6 +153,33 @@ class EngineEvaluationTests(unittest.TestCase):
         cases = engine_evaluation.weakest_directional_cases(rows)
         self.assertEqual([row["ticker"] for row in cases], ["B", "A"])
 
+    def test_failure_patterns_measure_stretched_momentum_warning(self):
+        rows = [
+            {
+                "rule_action": "enter_now",
+                "decision_context": {
+                    "extension_warning": True,
+                    "extension_warning_severity": "high",
+                },
+                "outcome": {
+                    "directional_success": False,
+                    "decision_return_pct": -6,
+                },
+            }
+            for _index in range(3)
+        ]
+
+        patterns = engine_evaluation.failure_patterns(rows)
+
+        self.assertTrue(
+            any(
+                row["dimension"] == "Entry warning"
+                and row["value"] == "Stretched momentum · High"
+                and row["count"] == 3
+                for row in patterns
+            )
+        )
+
     def test_performance_slices_and_confidence_calibration(self):
         rows = []
         for confidence, successes, decision_return in (("High", 4, 3), ("Low", 1, -2)):

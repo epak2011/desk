@@ -1164,11 +1164,60 @@ def ma_test_history(ticker_hist, ma_period=50, lookback_days=180,
     }
 
 
+def extension_momentum_warning(t_state):
+    """Describe unusually stretched momentum without changing the action.
+
+    The warning deliberately requires both price extension and a hot RSI so a
+    healthy trend is not mislabeled simply for trading above a moving average.
+    Keeping this separate from ``tactical_action`` lets calibration determine
+    whether it eventually deserves to become a hard entry gate.
+    """
+    try:
+        price = float(t_state.get("price"))
+        ma20 = float(t_state.get("ma20"))
+        ma50 = float(t_state.get("ma50"))
+        rsi = float(t_state.get("rsi14"))
+    except (TypeError, ValueError):
+        return None
+    if price <= 0 or ma20 <= 0 or ma50 <= 0:
+        return None
+
+    extension_20_pct = (price / ma20 - 1) * 100
+    extension_50_pct = (price / ma50 - 1) * 100
+    stretched = rsi >= 75 and (extension_20_pct >= 8 or extension_50_pct >= 12)
+    if not stretched:
+        return None
+
+    extreme = (
+        (rsi >= 80 and (extension_20_pct >= 10 or extension_50_pct >= 15))
+        or (rsi >= 75 and extension_20_pct >= 12 and extension_50_pct >= 18)
+    )
+    severity = "high" if extreme else "med"
+    label = "Extreme chase risk" if extreme else "Stretched momentum"
+    return {
+        "kind": "extension_momentum",
+        "severity": severity,
+        "label": label,
+        "rsi14": round(rsi, 1),
+        "extension_20_pct": round(extension_20_pct, 1),
+        "extension_50_pct": round(extension_50_pct, 1),
+        "text": (
+            f"{label}: RSI {rsi:.0f}, {extension_20_pct:+.1f}% vs 20-day and "
+            f"{extension_50_pct:+.1f}% vs 50-day. Avoid chasing full size; "
+            "prefer a staged entry or wait for a pullback/base."
+        ),
+    }
+
+
 def decision_modifiers(t_state, meta, market_reg):
     """Compute decision modifiers — earnings proximity, sector RS, market
     regime. These nudge the conviction up or down on the same nominal
     decision. Returns list of {kind, severity, text} dicts."""
     mods = []
+
+    extension_warning = extension_momentum_warning(t_state)
+    if extension_warning:
+        mods.append(extension_warning)
 
     # Earnings proximity
     days = meta.get("earnings_days") if meta else None
@@ -1568,7 +1617,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     # ── Market regime from the benchmark (SPY) ──
     market_reg = market_regime(bench_hist)
 
-    return {
+    result = {
         "bias": display_bias,
         "raw_bias": bias,
         "action": action,
@@ -1616,3 +1665,8 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "reward_risk_gate_reason": reward_risk_gate_reason,
         "change": change,
     }
+    result["price_vs_20_pct"] = round((price / ma20 - 1) * 100, 2) if ma20 > 0 else None
+    result["price_vs_50_pct"] = round((price / ma50 - 1) * 100, 2) if ma50 > 0 else None
+    result["price_vs_200_pct"] = round((price / ma200 - 1) * 100, 2) if ma200 > 0 else None
+    result["extension_warning"] = extension_momentum_warning(result)
+    return result

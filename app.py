@@ -9478,8 +9478,8 @@ TRIAL_DAYS = 14
 EVALUATION_MIN_AGE_DAYS = 7
 TARGET_COMPARISONS = 15
 AUTO_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
-RULE_AUTOLOG_VERSION = 2
-RULE_ENGINE_VERSION = "rules-2026.08-b"
+RULE_AUTOLOG_VERSION = 3
+RULE_ENGINE_VERSION = "rules-2026.08-c"
 RULE_AUTOLOG_ACTIONS = {"enter_now", "watch", "hold_off", "avoid", "accumulate"}
 
 
@@ -9613,6 +9613,12 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
             "price_vs_20_pct": t_state.get("price_vs_20_pct"),
             "price_vs_50_pct": t_state.get("price_vs_50_pct"),
             "price_vs_200_pct": t_state.get("price_vs_200_pct"),
+            "extension_warning": bool(t_state.get("extension_warning")),
+            "extension_warning_severity": (
+                (t_state.get("extension_warning") or {}).get("severity")
+                if isinstance(t_state.get("extension_warning"), dict)
+                else None
+            ),
             "event_risk_hold": bool(t_state.get("event_risk_hold")),
             "event_risk_watch": bool(t_state.get("event_risk_watch")),
         },
