@@ -1209,6 +1209,89 @@ def extension_momentum_warning(t_state):
     }
 
 
+def apply_extension_execution_overlay(t_state):
+    """Constrain entry timing and size when bullish momentum is stretched."""
+    if not isinstance(t_state, dict):
+        return t_state
+    warning = t_state.get("extension_warning")
+    if not isinstance(warning, dict):
+        warning = extension_momentum_warning(t_state)
+    if not warning:
+        return t_state
+
+    updated = dict(t_state)
+    action = str(updated.get("action") or "").strip().lower()
+    if action != "enter_now":
+        return updated
+
+    updated["extension_pre_overlay_action"] = action
+    updated["extension_overlay_applied"] = True
+    severity = str(warning.get("severity") or "med").lower()
+    if severity != "high":
+        reason = (
+            "Momentum is stretched, so the bullish call remains Enter but execution "
+            "is capped at starter size and should be staged."
+        )
+        updated.update({
+            "entry_size": "starter",
+            "entry_status": "Staged entry",
+            "extension_overlay_reason": reason,
+            "matrix_reason": reason,
+        })
+        return updated
+
+    def _number(value, default=None):
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    reward_risk = _number(updated.get("reward_risk"))
+    vol_ratio = _number(updated.get("vol_ratio"), 0) or 0
+    rs_delta = _number(updated.get("rs_delta"), 0) or 0
+    tech_delta = _number(updated.get("tech_delta"), 0) or 0
+    weak_confirmation = vol_ratio < 0.85 or rs_delta < 0 or tech_delta < 0
+    thin_trade_math = reward_risk is None or reward_risk < 1.5
+
+    if weak_confirmation or thin_trade_math:
+        reasons = []
+        if thin_trade_math:
+            reasons.append("reward/risk is below 1.5:1")
+        if vol_ratio < 0.85:
+            reasons.append("volume confirmation is weak")
+        if rs_delta < 0:
+            reasons.append("relative strength is fading")
+        if tech_delta < 0:
+            reasons.append("technical momentum is cooling")
+        reason = (
+            "Extreme chase risk plus " + ", ".join(reasons)
+            + "; wait for a pullback or base before adding exposure."
+        )
+        updated.update({
+            "action": "watch",
+            "matrix_action": "watch",
+            "matrix_changed_action": "watch",
+            "entry_size": "none",
+            "entry_status": "Waiting for pullback",
+        })
+    else:
+        reason = (
+            "The bullish thesis remains intact, but extreme extension makes a full "
+            "market entry inappropriate; accumulate only with a staged starter."
+        )
+        updated.update({
+            "action": "accumulate",
+            "matrix_action": "accumulate",
+            "matrix_changed_action": "accumulate",
+            "entry_size": "starter",
+            "entry_status": "Staged accumulation",
+        })
+
+    updated["extension_overlay_reason"] = reason
+    updated["matrix_reason"] = reason
+    return updated
+
+
 def decision_modifiers(t_state, meta, market_reg):
     """Compute decision modifiers — earnings proximity, sector RS, market
     regime. These nudge the conviction up or down on the same nominal

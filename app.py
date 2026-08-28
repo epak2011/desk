@@ -7186,6 +7186,18 @@ def finalize_rule_action_for_ticker(
             matrix_reason,
             updated.get("action"),
         )
+    before_extension_action = updated.get("action")
+    before_extension_size = updated.get("entry_size")
+    updated = tactical.apply_extension_execution_overlay(updated) or updated
+    if updated.get("extension_overlay_applied") and (
+        updated.get("action") != before_extension_action
+        or updated.get("entry_size") != before_extension_size
+    ):
+        _add_trace(
+            "Stretched-momentum execution gate",
+            updated.get("extension_overlay_reason") or "Extension constrained execution.",
+            updated.get("action"),
+        )
     updated["_rule_trace"] = rule_trace
     return updated, trigger_memory_changed
 
@@ -9478,8 +9490,8 @@ TRIAL_DAYS = 14
 EVALUATION_MIN_AGE_DAYS = 7
 TARGET_COMPARISONS = 15
 AUTO_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
-RULE_AUTOLOG_VERSION = 3
-RULE_ENGINE_VERSION = "rules-2026.08-c"
+RULE_AUTOLOG_VERSION = 4
+RULE_ENGINE_VERSION = "rules-2026.08-d"
 RULE_AUTOLOG_ACTIONS = {"enter_now", "watch", "hold_off", "avoid", "accumulate"}
 
 
@@ -9619,6 +9631,9 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
                 if isinstance(t_state.get("extension_warning"), dict)
                 else None
             ),
+            "extension_pre_overlay_action": t_state.get("extension_pre_overlay_action"),
+            "extension_overlay_applied": bool(t_state.get("extension_overlay_applied")),
+            "extension_overlay_reason": t_state.get("extension_overlay_reason"),
             "event_risk_hold": bool(t_state.get("event_risk_hold")),
             "event_risk_watch": bool(t_state.get("event_risk_watch")),
         },
@@ -16051,6 +16066,8 @@ if view == "analyze":
         "tape_class": t.get("tape_class"),
         "reward_risk_tier": t.get("reward_risk_tier"),
         "matrix_reason": t.get("matrix_reason"),
+        "extension_overlay_applied": bool(t.get("extension_overlay_applied")),
+        "extension_overlay_reason": t.get("extension_overlay_reason"),
         "rule_trace": t.get("_rule_trace") or [],
         "engine_version": RULE_ENGINE_VERSION,
     }
