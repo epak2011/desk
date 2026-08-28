@@ -14986,6 +14986,31 @@ details summary:hover {
 .desk-pm-header .src {
     font-size: 10px !important;
 }
+.desk-pm-header .desk-freshness-panel {
+    position: absolute !important;
+    top: 0 !important;
+    bottom: auto !important;
+    right: 0 !important;
+    width: auto !important;
+    max-width: calc(100% - 190px) !important;
+    margin: 0 !important;
+    z-index: 30 !important;
+}
+.desk-pm-header .desk-data-quality-popover summary {
+    min-height: 30px !important;
+    padding: 5px 8px !important;
+    border-radius: 7px !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+.desk-pm-header .desk-data-quality-label {
+    display: none !important;
+}
+.desk-pm-header .desk-data-quality-value {
+    font-size: 11px !important;
+}
+.desk-pm-header .desk-data-quality-icon {
+    font-size: 14px !important;
+}
 [class*="st-key-refresh_current_pm_"] {
     width: fit-content !important;
     max-width: 100% !important;
@@ -15009,6 +15034,13 @@ details summary:hover {
     }
     .desk-pm-header .desk-pm-title {
         position: static !important;
+    }
+    .desk-pm-header .desk-freshness-panel {
+        top: 0 !important;
+        bottom: auto !important;
+        right: 0 !important;
+        width: auto !important;
+        max-width: 54% !important;
     }
 }
 .desk-quality-card {
@@ -17784,6 +17816,7 @@ if view == "analyze":
   <div>
     <div class="desk-pm-title"><span class="em">🧠</span>Portfolio manager</div>
   </div>
+  {freshness_panel_html}
 </div>
 """, unsafe_allow_html=True)
         st.markdown(
@@ -17791,9 +17824,8 @@ if view == "analyze":
             '<div class="desk-pm-utility-label">PM memo</div>',
             unsafe_allow_html=True,
         )
-        st.markdown(freshness_panel_html, unsafe_allow_html=True)
         if st.button(
-            f"🧠 Refresh PM memo",
+            f"↻ Refresh memo",
             key=f"refresh_current_pm_{ticker.upper()}",
             help="Refreshes and saves the visible PM thesis, quality box, drivers, risks, and valuation. The long full report refresh lives on the full report page.",
             use_container_width=False,
