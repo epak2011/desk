@@ -8712,21 +8712,16 @@ def setup_opportunity_grade(t_state):
 
 
 def decision_action_label(t_state):
-    """Translate the rules output into the portfolio action language a user can act on."""
+    """Return the canonical action language used everywhere in the product."""
     action = normalize_action_key(t_state.get("action") if isinstance(t_state, dict) else None)
-    size = str((t_state or {}).get("entry_size") or "").strip().lower() if isinstance(t_state, dict) else ""
     if action == "enter_now":
-        if size == "starter":
-            return "Starter position"
-        if size in {"normal", "full"}:
-            return "Build position"
         return "Enter"
     if action == "accumulate":
-        return "Add gradually"
+        return "Accumulate"
     if action == "watch":
-        return "Observe"
+        return "Watch"
     if action == "hold_off":
-        return "Wait"
+        return "Hold Off"
     if action == "avoid":
         return "Avoid"
     return "Review"
@@ -8736,7 +8731,7 @@ def suggested_size_label(t_state):
     """Convert rules sizing into an easy portfolio-size hint."""
     if not isinstance(t_state, dict):
         return "—"
-    action = normalize_action_key(trusted_state.get("action"))
+    action = normalize_action_key(t_state.get("action"))
     size = str(t_state.get("entry_size") or "").strip().lower()
     if action == "avoid":
         return "0% — avoid"
@@ -8836,23 +8831,18 @@ def action_reason_title(t_state):
     if action == "enter_now":
         return "Why Enter"
     if action == "watch":
-        return "Why Observe"
+        return "Why Watch"
     if action == "hold_off":
-        return "Why Wait"
+        return "Why Hold Off"
     if action == "avoid":
         return "Why Avoid"
     if action == "accumulate":
-        return "Why Add Gradually"
+        return "Why Accumulate"
     return "Why This Action"
 
 
 def action_change_title(t_state):
-    action = normalize_action_key(t_state.get("action") if isinstance(t_state, dict) else None)
-    if action == "enter_now":
-        return "What Would Make Me Reduce"
-    if action == "accumulate":
-        return "What Would Make Me Add More"
-    return "What Would Make Me Buy"
+    return "What Changes the Call"
 
 
 def rules_engine_guide_html():
@@ -14905,6 +14895,37 @@ details summary:hover {
     line-height: 1.42 !important;
     max-width: 760px !important;
 }
+.desk-decision-brief {
+    display: grid !important;
+    grid-template-columns: minmax(105px, 0.7fr) minmax(120px, 0.8fr) minmax(180px, 1.25fr) minmax(180px, 1.25fr) !important;
+    gap: 0 !important;
+    margin-top: 18px !important;
+    border-top: 1px solid var(--color-border) !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+.desk-decision-brief-item {
+    min-width: 0 !important;
+    padding: 11px 14px 11px 0 !important;
+}
+.desk-decision-brief-item + .desk-decision-brief-item {
+    padding-left: 14px !important;
+    border-left: 1px solid var(--color-border-soft) !important;
+}
+.desk-decision-brief-k {
+    margin-bottom: 4px !important;
+    font-family: var(--font-mono) !important;
+    font-size: 9px !important;
+    font-weight: 850 !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    color: var(--color-faint) !important;
+}
+.desk-decision-brief-v {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    line-height: 1.38 !important;
+    color: var(--color-text) !important;
+}
 .desk-company-overview {
     margin: 16px 0 34px !important;
     padding: 0 !important;
@@ -15024,6 +15045,17 @@ details summary:hover {
     white-space: nowrap !important;
 }
 @media (max-width: 760px) {
+    .desk-decision-brief {
+        grid-template-columns: 1fr 1fr !important;
+    }
+    .desk-decision-brief-item:nth-child(3) {
+        padding-left: 0 !important;
+        border-left: 0 !important;
+        border-top: 1px solid var(--color-border-soft) !important;
+    }
+    .desk-decision-brief-item:nth-child(4) {
+        border-top: 1px solid var(--color-border-soft) !important;
+    }
     .desk-ticker-row,
     .desk-pm-header {
         height: auto !important;
@@ -15194,6 +15226,17 @@ details summary:hover {
 }
 
 @media (max-width: 1180px) {
+    .desk-decision-brief {
+        grid-template-columns: 1fr 1fr !important;
+    }
+    .desk-decision-brief-item:nth-child(3) {
+        padding-left: 0 !important;
+        border-left: 0 !important;
+        border-top: 1px solid var(--color-border-soft) !important;
+    }
+    .desk-decision-brief-item:nth-child(4) {
+        border-top: 1px solid var(--color-border-soft) !important;
+    }
     .desk-decision .word {
         font-size: 60px !important;
     }
@@ -16192,8 +16235,15 @@ if view == "analyze":
             ("accumulate", "TRANSITION"): "Quality name stabilizing after deep drawdown",
             ("accumulate", "BROKEN"):   "Quality name stabilizing after deep drawdown",
         }.get((t["action"], _state), "")
-        # Treat enter as "deploy" in the state copy per spec language
-        _state_action_label = "Deploy" if t["action"] == "enter_now" else sty["label"]
+        _state_action_label = decision_action_label(t)
+        _hero_portfolio = portfolio_context_for_ticker(ticker, t, meta)
+        _hero_size = _hero_portfolio.get("label") or suggested_size_label(t)
+        _hero_constraint = (
+            t.get("extension_overlay_reason")
+            or t.get("matrix_reason")
+            or "Follow the stated trigger and position-size discipline."
+        )
+        _hero_change = invalidation_text(t) or trigger_text(t) or "Reassess when the technical structure changes."
         _source_note = t.get("_source_note") or (
             "Rules primary"
             if t.get("_primary_source") == "rule"
@@ -16230,6 +16280,24 @@ if view == "analyze":
               letter-spacing: var(--ls-caps-sm); text-transform:uppercase; color:{sty['color']};
               margin-top:8px; opacity:0.85;">
     {_state_action_label} — {_state_copy}
+  </div>
+  <div class="desk-decision-brief">
+    <div class="desk-decision-brief-item">
+      <div class="desk-decision-brief-k">Size now</div>
+      <div class="desk-decision-brief-v">{html.escape(str(_hero_size))}</div>
+    </div>
+    <div class="desk-decision-brief-item">
+      <div class="desk-decision-brief-k">Execution</div>
+      <div class="desk-decision-brief-v">{html.escape(str(t.get('entry_status') or _state_copy or 'Follow the plan'))}</div>
+    </div>
+    <div class="desk-decision-brief-item">
+      <div class="desk-decision-brief-k">Active constraint</div>
+      <div class="desk-decision-brief-v">{html.escape(str(_hero_constraint))}</div>
+    </div>
+    <div class="desk-decision-brief-item">
+      <div class="desk-decision-brief-k">What changes the call</div>
+      <div class="desk-decision-brief-v">{html.escape(str(_hero_change))}</div>
+    </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -16480,7 +16548,7 @@ if view == "analyze":
                 f'</div>'
             )
 
-        portfolio_overlay = portfolio_context_for_ticker(ticker, t, meta)
+        portfolio_overlay = _hero_portfolio
         trust = t.get("data_trust") or {}
         trust_status = str(trust.get("status") or "degraded").title()
         trust_color = {
@@ -16489,8 +16557,6 @@ if view == "analyze":
             "Blocked": "var(--color-negative)",
         }.get(trust_status, "var(--color-muted)")
         snapshot_items = [
-            ("Current action", f'<span style="color:{sty["color"]};font-weight:900;">{html.escape(sty["emoji"])} {html.escape(action_label)}</span>'),
-            ("Suggested size", html.escape(portfolio_overlay.get("label") or suggested_size_label(t))),
             ("Setup quality", setup_score_breakdown_hover_html(t)),
             ("Confidence", html.escape(decision_confidence_label(t))),
             ("Risk / reward", html.escape(rr_value)),
@@ -16512,18 +16578,10 @@ if view == "analyze":
             degraded_reason = " ".join(trust.get("degraded_reasons") or [])
             st.caption(f"Decision uses degraded context: {degraded_reason}")
         st.markdown(f"""
-<div class="desk-section-label">Decision snapshot</div>
+<div class="desk-section-label">Decision evidence</div>
 <div class="desk-decision-memo">
-  <div class="desk-decision-memo-head">
-    <div class="desk-decision-memo-title">What to do now</div>
-    <div class="desk-decision-memo-call" style="color:{sty['color']};">{html.escape(action_label)}</div>
-  </div>
   <div class="desk-snapshot-grid">{snapshot_html}</div>
   <div style="font-size:11px;color:var(--color-muted);margin-top:8px;">Portfolio context · {html.escape(str(portfolio_overlay.get("reason") or ""))}</div>
-</div>
-<div class="desk-technical-thesis">
-  <div class="desk-technical-thesis-k">{html.escape(reason_title)}</div>
-  <p>{bold_numbers(html.escape(technical_thesis))}</p>
 </div>
 <div class="desk-memo-card-grid">
   <div class="desk-memo-card">
@@ -16539,7 +16597,7 @@ if view == "analyze":
 
         if action_key == "enter_now":
             st.markdown(
-                _entry_plan_block_html("Execution plan", "Enter now"),
+                _entry_plan_block_html("Execution plan", action_label),
                 unsafe_allow_html=True,
             )
 
