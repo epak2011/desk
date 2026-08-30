@@ -70,14 +70,14 @@ def _configured_text(name):
     return str(raw or "").strip()
 
 
-# When enabled in hosting configuration, private portfolio/notes stay session-only
-# and app-state writes are disabled. Owner mode remains the current default until
-# authentication is configured and tested end to end.
-AUTH_REQUIRED = _configured_bool("AUTH_REQUIRED", False)
 SUPABASE_URL = _configured_text("SUPABASE_URL")
 SUPABASE_ANON_KEY = _configured_text("SUPABASE_ANON_KEY")
 UNSUBSCRIBE_SECRET = _configured_text("UNSUBSCRIBE_SECRET")
 AUTH_READY = auth_layer.configured(SUPABASE_URL, SUPABASE_ANON_KEY)
+# A configured identity provider means the hosted app is private by default.
+# AUTH_REQUIRED can still explicitly close an unconfigured deployment, but a
+# missing setting can no longer expose owner data on a public Streamlit URL.
+AUTH_REQUIRED = _configured_bool("AUTH_REQUIRED", AUTH_READY)
 NOTIFICATIONS_AVAILABLE = _configured_bool("NOTIFICATIONS_AVAILABLE", False)
 PUBLIC_DEMO_MODE = _configured_bool("TRADING_DESK_PUBLIC_DEMO", False) or bool(
     st.session_state.get("_public_demo_session", False)
@@ -1194,10 +1194,27 @@ def _render_auth_gate():
         st.stop()
 
     st.markdown(
-        '<div style="max-width:520px;margin:8vh auto 22px;text-align:center;">'
-        '<div class="watch-queue-label">Private beta</div>'
-        '<h1 style="font-size:38px;margin:8px 0 10px;">Trading Desk</h1>'
-        '<p style="color:var(--color-muted);line-height:1.55;">Sign in to access your private watchlist, holdings, notes, and decision history.</p>'
+        '<style>'
+        '.desk-auth-value-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:24px;border-top:1px solid var(--color-border);border-bottom:1px solid var(--color-border);padding:15px 0;}'
+        '@media(max-width:700px){.desk-auth-value-grid{grid-template-columns:1fr;gap:0;}.desk-auth-value-grid>div{padding:10px 0;border-top:1px solid var(--color-border-soft);}.desk-auth-value-grid>div:first-child{border-top:0;}}'
+        '</style>'
+        '<div style="max-width:900px;margin:5vh auto 22px;">'
+        '<div class="watch-queue-label">Investment decision workstation</div>'
+        '<h1 style="font-size:42px;margin:8px 0 10px;">Know what to do—and what would change the call.</h1>'
+        '<p style="max-width:760px;color:var(--color-muted);font-size:16px;line-height:1.55;">'
+        'Trading Desk turns market regime, technical structure, risk/reward, and company research into one auditable action: Enter, Accumulate, Watch, Hold Off, or Avoid.'
+        '</p>'
+        '<div class="desk-auth-value-grid">'
+        '<div><b style="font-size:13px;">Decision first</b><div style="font-size:12px;line-height:1.45;color:var(--color-muted);margin-top:4px;">Action, sizing, trigger, and invalidation in one view.</div></div>'
+        '<div><b style="font-size:13px;">Rules stay primary</b><div style="font-size:12px;line-height:1.45;color:var(--color-muted);margin-top:4px;">AI adds research and dissent; it cannot silently replace the action.</div></div>'
+        '<div><b style="font-size:13px;">Evidence is visible</b><div style="font-size:12px;line-height:1.45;color:var(--color-muted);margin-top:4px;">Versioned signals, data quality, and maturing outcome cohorts.</div></div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div style="max-width:520px;margin:24px auto 10px;text-align:center;">'
+        '<div class="watch-queue-label">Private account</div>'
+        '<p style="font-size:13px;color:var(--color-muted);margin:6px 0 0;">Sign in to access your private watchlist, holdings, notes, settings, and decision history.</p>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -1242,11 +1259,14 @@ def _render_auth_gate():
                     st.success("Account created. Check your email to confirm it, then sign in.")
                 except auth_layer.AuthError as exc:
                     st.error(str(exc))
-    if st.button("Explore the public demo", use_container_width=True):
+    if st.button("Explore the read-only demo", use_container_width=True):
         st.session_state["_public_demo_session"] = True
         st.session_state.pop("store", None)
         st.rerun()
-    st.caption("Public Demo does not save holdings, notes, account settings, or chat history.")
+    st.caption(
+        "The demo uses sample state and does not save holdings, notes, account settings, or chat history. "
+        "Trading Desk is decision support—not personalized investment advice or a promise of performance."
+    )
     st.stop()
 
 
@@ -1372,10 +1392,10 @@ def _render_first_run_onboarding():
         )
         st.session_state.store["onboarding_complete"] = True
         st.session_state.store["last_ticker"] = tickers[0]
-        st.session_state.store["last_view"] = "alerts"
+        st.session_state.store["last_view"] = "analyze"
         save_store(st.session_state.store)
         st.session_state.current_ticker = tickers[0]
-        st.session_state.view = "alerts"
+        st.session_state.view = "analyze"
         st.rerun()
     st.stop()
 
@@ -21637,8 +21657,21 @@ if view == "health":
             auth_storage_health = {"user_app_state": False, "notification_outbox": False}
     notification_problem_count = notification_health.get("failed", 0) + notification_health.get("sending", 0)
     user_isolation_ready = all(auth_storage_health.values())
+    if AUTH_REQUIRED and AUTH_READY:
+        access_value = "Protected"
+        access_note = "sign-in required; read-only demo remains available"
+        access_class = "health-ok"
+    elif PUBLIC_DEMO_MODE:
+        access_value = "Read only"
+        access_note = "private writes and owner-only views disabled"
+        access_class = "health-ok"
+    else:
+        access_value = "Open owner mode"
+        access_note = "public visitors can reach private controls; configure Supabase authentication"
+        access_class = "health-bad"
     summary_cards = [
         ("Storage", "OK" if db_ok else "Needs attention", (audit.get("db") or {}).get("message", ""), "health-ok" if db_ok else "health-bad"),
+        ("Access control", access_value, access_note, access_class),
         ("Market rows", str(market_issues), "missing or older than 20 minutes", "health-ok" if market_issues == 0 else "health-warn"),
         ("PM memos", str(pm_issues), "missing or older than 14 days", "health-ok" if pm_issues == 0 else "health-warn"),
         ("Full reports", str(report_issues), "missing or older than 30 days", "health-ok" if report_issues == 0 else "health-warn"),
