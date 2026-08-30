@@ -44,6 +44,7 @@ import tactical
 import user_state_store
 import onboarding
 import notification_engine
+import market_freshness
 import unsubscribe
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
@@ -10315,11 +10316,16 @@ def build_health_audit():
         snapshot = ticker_snapshot(tkr)
         market = snapshot.get("market") or {}
         market_ts = market.get("updated_at") or market.get("ts") or market.get("market_updated_at")
-        market_age = _age_minutes_from_ts(market_ts)
+        market_stamp = market_freshness.parse_timestamp(market_ts)
+        market_status = market_freshness.snapshot_freshness(
+            tkr,
+            market_stamp,
+            now=now_market_time(),
+        )
         if not market:
             missing_market.append(tkr)
-        elif market_age is None or market_age > 20:
-            stale_market.append((tkr, market_age))
+        elif not market_status["fresh"]:
+            stale_market.append((tkr, market_status.get("age_minutes")))
 
         pm_entry = pm_cache.get(tkr) if isinstance(pm_cache, dict) else None
         pm_view = pm_entry.get("view") if isinstance(pm_entry, dict) else None
@@ -10370,10 +10376,6 @@ def build_health_audit():
     issues = (
         len(missing_market)
         + len(stale_market)
-        + len(missing_pm)
-        + len(stale_pm)
-        + len(missing_dossier)
-        + len(stale_dossier)
         + len(mismatches)
         + len(contract_mismatches)
     )
@@ -21673,9 +21675,9 @@ if view == "health":
     summary_cards = [
         ("Storage", "OK" if db_ok else "Needs attention", (audit.get("db") or {}).get("message", ""), "health-ok" if db_ok else "health-bad"),
         ("Access control", access_value, access_note, access_class),
-        ("Market rows", str(market_issues), "missing or older than 20 minutes", "health-ok" if market_issues == 0 else "health-warn"),
-        ("PM memos", str(pm_issues), "missing or older than 14 days", "health-ok" if pm_issues == 0 else "health-warn"),
-        ("Full reports", str(report_issues), "missing or older than 30 days", "health-ok" if report_issues == 0 else "health-warn"),
+        ("Market freshness", str(market_issues), "session-aware; intraday during open markets", "health-ok" if market_issues == 0 else "health-warn"),
+        ("PM coverage", str(pm_issues), "optional memos missing or older than 14 days", "health-ok" if pm_issues == 0 else "health-warn"),
+        ("Report coverage", str(report_issues), "optional reports missing or older than 30 days", "health-ok" if report_issues == 0 else "health-warn"),
         ("Action mismatches", str(mismatch_count), "sidebar/watchlist vs canonical action", "health-ok" if mismatch_count == 0 else "health-bad"),
         ("Receipt mismatches", str(contract_mismatch_count), "action/version contract across surfaces", "health-ok" if contract_mismatch_count == 0 else "health-bad"),
         ("Actionable now", str(action_now), "from Trigger Monitor", "health-ok" if action_now == 0 else "health-warn"),
@@ -21719,14 +21721,15 @@ if view == "health":
         issues.append((tkr, "Market missing", "Queue market scan from Morning Queue or Watchlist, or open Analyze.", "health-bad"))
     for tkr, age in audit["stale_market"]:
         issues.append((tkr, "Market stale", _age_note(age, "m"), "health-warn"))
+    research_gaps = []
     for tkr in audit["missing_pm"]:
-        issues.append((tkr, "PM memo missing", "Open Analyze and refresh PM memo if you need research.", "health-warn"))
+        research_gaps.append((tkr, "PM memo missing", "Generate from Analyze when deeper research is useful.", "health-warn"))
     for tkr, age in audit["stale_pm"]:
-        issues.append((tkr, "PM memo stale", _age_note(age, "d"), "health-warn"))
+        research_gaps.append((tkr, "PM memo old", _age_note(age, "d"), "health-warn"))
     for tkr in audit["missing_dossier"]:
-        issues.append((tkr, "Full report missing", "Refresh from the full report page.", "health-warn"))
+        research_gaps.append((tkr, "Full report missing", "Generate only when a full research review is needed.", "health-warn"))
     for tkr, age in audit["stale_dossier"]:
-        issues.append((tkr, "Full report stale", _age_note(age, "d"), "health-warn"))
+        research_gaps.append((tkr, "Full report old", _age_note(age, "d"), "health-warn"))
     for tkr, sidebar_action, canonical_action in audit["mismatches"]:
         issues.append((
             tkr,
@@ -21756,8 +21759,24 @@ if view == "health":
             '<div class="health-row">'
             '<div class="health-ticker">All clear</div>'
             '<div class="health-status health-ok">No obvious reliability issues</div>'
-            '<div class="health-detail">Stored watchlist rows, PM memos, reports, and actions look internally consistent.</div>'
+            '<div class="health-detail">Stored market rows and decision actions look internally consistent.</div>'
             '</div>'
+        )
+
+    research_html = []
+    for tkr, status, detail, klass in research_gaps[:24]:
+        research_html.append(
+            f'<div class="health-row">'
+            f'<div class="health-ticker">{html.escape(tkr)}</div>'
+            f'<div class="health-status {klass}">{html.escape(status)}</div>'
+            f'<div class="health-detail">{html.escape(detail)}</div>'
+            f'</div>'
+        )
+    if not research_html:
+        research_html.append(
+            '<div class="health-row"><div class="health-ticker">Covered</div>'
+            '<div class="health-status health-ok">Research current</div>'
+            '<div class="health-detail">Optional PM and full-report coverage is current.</div></div>'
         )
 
     trigger_rows = audit["trigger_rows"]
@@ -21786,6 +21805,11 @@ if view == "health":
         '<div class="health-panel">'
         '<div class="health-panel-title">Trigger snapshot</div>'
         '<div class="health-list">' + "".join(trigger_preview) + '</div>'
+        '</div>'
+        '<div class="health-panel">'
+        '<div class="health-panel-title">Optional research coverage</div>'
+        '<div class="health-note">Coverage gaps do not block rules decisions and do not trigger automatic Claude calls.</div>'
+        '<div class="health-list">' + "".join(research_html) + '</div>'
         '</div>'
         '</div>',
         unsafe_allow_html=True,

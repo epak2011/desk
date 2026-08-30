@@ -30,6 +30,7 @@ import attention_engine
 import decision_contract
 import data_trust
 import engine_evaluation
+import market_freshness
 import email_delivery
 import notification_engine
 import unsubscribe
@@ -491,8 +492,13 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
         max_age_minutes=max_age_minutes,
         limit=limit,
     )
+    tickers = [ticker for ticker in tickers if market_freshness.worker_should_refresh(ticker)]
     if not tickers:
-        return {"queued": False, "tickers": [], "reason": "market snapshots fresh"}
+        return {
+            "queued": False,
+            "tickers": [],
+            "reason": "snapshots current for the active or last completed market session",
+        }
     job_id = backend.enqueue_job(
         "watchlist_market_scan",
         payload={
