@@ -74,14 +74,15 @@ SUPABASE_URL = _configured_text("SUPABASE_URL")
 SUPABASE_ANON_KEY = _configured_text("SUPABASE_ANON_KEY")
 UNSUBSCRIBE_SECRET = _configured_text("UNSUBSCRIBE_SECRET")
 AUTH_READY = auth_layer.configured(SUPABASE_URL, SUPABASE_ANON_KEY)
-# A configured identity provider means the hosted app is private by default.
-# AUTH_REQUIRED can still explicitly close an unconfigured deployment, but a
-# missing setting can no longer expose owner data on a public Streamlit URL.
-AUTH_REQUIRED = _configured_bool("AUTH_REQUIRED", AUTH_READY)
+HOSTED_DATABASE_READY = bool(_configured_text("DATABASE_URL"))
+# Hosted data is never exposed through owner mode. A configured identity
+# provider enables sign-in; until then, the public URL is read-only demo mode.
+# Local development without hosted storage keeps the existing owner workflow.
+AUTH_REQUIRED = AUTH_READY
 NOTIFICATIONS_AVAILABLE = _configured_bool("NOTIFICATIONS_AVAILABLE", False)
 PUBLIC_DEMO_MODE = _configured_bool("TRADING_DESK_PUBLIC_DEMO", False) or bool(
     st.session_state.get("_public_demo_session", False)
-)
+) or bool(HOSTED_DATABASE_READY and not AUTH_READY)
 
 
 def _current_user_id():
