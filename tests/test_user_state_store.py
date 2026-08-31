@@ -16,6 +16,12 @@ class FakeCursor:
 
 
 class UserStateStoreTests(unittest.TestCase):
+    def test_legacy_claim_requires_exact_configured_owner_and_empty_state(self):
+        self.assertTrue(user_state_store.owner_claim_allowed("Owner@Example.com", "owner@example.com", None))
+        self.assertFalse(user_state_store.owner_claim_allowed("other@example.com", "owner@example.com", None))
+        self.assertFalse(user_state_store.owner_claim_allowed("owner@example.com", "", None))
+        self.assertFalse(user_state_store.owner_claim_allowed("owner@example.com", "owner@example.com", {}))
+
     def test_missing_user_fails_closed(self):
         with self.assertRaises(ValueError):
             user_state_store.load(FakeCursor(), "")

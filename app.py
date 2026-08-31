@@ -75,6 +75,7 @@ def _configured_text(name):
 SUPABASE_URL = _configured_text("SUPABASE_URL")
 SUPABASE_ANON_KEY = _configured_text("SUPABASE_ANON_KEY")
 UNSUBSCRIBE_SECRET = _configured_text("UNSUBSCRIBE_SECRET")
+OWNER_ACCOUNT_EMAIL = _configured_text("TRADING_DESK_OWNER_EMAIL")
 AUTH_READY = auth_layer.configured(SUPABASE_URL, SUPABASE_ANON_KEY)
 HOSTED_DATABASE_READY = bool(_configured_text("DATABASE_URL"))
 # Hosted data is never exposed through owner mode. A configured identity
@@ -1010,7 +1011,23 @@ def load_store():
                 with conn.cursor() as cur:
                     if scoped_user_id:
                         user_state_store.ensure_schema(cur)
-                        store = user_state_store.load(cur, scoped_user_id) or _store_default()
+                        existing_user_store = user_state_store.load(cur, scoped_user_id)
+                        identity = st.session_state.get("_auth_identity") or {}
+                        if user_state_store.owner_claim_allowed(
+                            identity.get("email"),
+                            OWNER_ACCOUNT_EMAIL,
+                            existing_user_store,
+                        ):
+                            cur.execute("SELECT value FROM kv_store WHERE key = 'default'")
+                            legacy_row = cur.fetchone()
+                            store = legacy_row[0] if legacy_row and isinstance(legacy_row[0], dict) else _store_default()
+                            store = _load_split_sections(cur, store)
+                            store["onboarding_complete"] = True
+                            store["legacy_owner_imported_at"] = now_market_time().isoformat(timespec="seconds")
+                            user_state_store.save(cur, scoped_user_id, _json_safe(store))
+                            st.session_state["_legacy_owner_claimed"] = True
+                        else:
+                            store = existing_user_store or _store_default()
                         defaults = _store_default()
                         for key, value in defaults.items():
                             store.setdefault(key, value)
@@ -1197,79 +1214,111 @@ def _render_auth_gate():
         st.stop()
 
     st.markdown(
-        '<style>'
-        '.desk-auth-value-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:24px;border-top:1px solid var(--color-border);border-bottom:1px solid var(--color-border);padding:15px 0;}'
-        '@media(max-width:700px){.desk-auth-value-grid{grid-template-columns:1fr;gap:0;}.desk-auth-value-grid>div{padding:10px 0;border-top:1px solid var(--color-border-soft);}.desk-auth-value-grid>div:first-child{border-top:0;}}'
-        '</style>'
-        '<div style="max-width:900px;margin:5vh auto 22px;">'
-        '<div class="watch-queue-label">Investment decision workstation</div>'
-        '<h1 style="font-size:42px;margin:8px 0 10px;">Know what to do—and what would change the call.</h1>'
-        '<p style="max-width:760px;color:var(--color-muted);font-size:16px;line-height:1.55;">'
-        'Trading Desk turns market regime, technical structure, risk/reward, and company research into one auditable action: Enter, Accumulate, Watch, Hold Off, or Avoid.'
-        '</p>'
-        '<div class="desk-auth-value-grid">'
-        '<div><b style="font-size:13px;">Decision first</b><div style="font-size:12px;line-height:1.45;color:var(--color-muted);margin-top:4px;">Action, sizing, trigger, and invalidation in one view.</div></div>'
-        '<div><b style="font-size:13px;">Rules stay primary</b><div style="font-size:12px;line-height:1.45;color:var(--color-muted);margin-top:4px;">AI adds research and dissent; it cannot silently replace the action.</div></div>'
-        '<div><b style="font-size:13px;">Evidence is visible</b><div style="font-size:12px;line-height:1.45;color:var(--color-muted);margin-top:4px;">Versioned signals, data quality, and maturing outcome cohorts.</div></div>'
-        '</div></div>',
+        """
+<style>
+:root{--color-bg:#F6F8FB;--color-surface:#FFFFFF;--color-text:#151A22;--color-muted:#64748B;--color-border:#D8E0E8;--color-accent:#2563EB}
+html,body,.stApp,[data-testid="stAppViewContainer"],.main,.block-container{background:#F6F8FB!important;color:#151A22!important}
+[data-testid="stMainBlockContainer"]{max-width:1120px!important;padding:clamp(24px,5vh,64px) 28px 42px!important}
+header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:none!important}
+.desk-auth-wordmark{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#64748B;margin-bottom:28px}
+.desk-auth-wordmark span{color:#2563EB;margin-right:7px}
+.desk-auth-hero h1{font-size:clamp(38px,4.4vw,64px);line-height:.98;letter-spacing:-.045em;margin:0 0 20px;max-width:620px;color:#151A22}
+.desk-auth-hero p{font-size:16px;line-height:1.65;color:#64748B;max-width:560px;margin:0}
+.desk-auth-proof{display:grid;gap:0;margin-top:34px;border-top:1px solid #D8E0E8;max-width:560px}
+.desk-auth-proof>div{padding:14px 0;border-bottom:1px solid #D8E0E8;display:grid;grid-template-columns:145px 1fr;gap:15px}
+.desk-auth-proof b{font-size:12px}.desk-auth-proof span{font-size:12px;line-height:1.45;color:#64748B}
+[class*="st-key-auth_panel"]{background:#FFF;border:1px solid #D8E0E8!important;border-top:4px solid #2563EB!important;border-radius:8px!important;padding:24px 24px 20px!important;box-shadow:0 16px 40px rgba(30,41,59,.08)}
+[class*="st-key-auth_panel"] h2{font-size:25px!important;margin:0!important;letter-spacing:-.02em}
+[class*="st-key-auth_panel"] [data-baseweb="tab-list"]{gap:18px;border-bottom:1px solid #D8E0E8}
+[class*="st-key-auth_panel"] [data-baseweb="tab"]{padding:11px 0!important;font-weight:800!important}
+[class*="st-key-auth_panel"] input{background:#F8FAFC!important;border:1px solid #CBD5E1!important;border-radius:5px!important;color:#151A22!important}
+[class*="st-key-auth_panel"] [data-testid="stTextInput"] button{background:transparent!important;border:0!important;color:#64748B!important}
+[class*="st-key-auth_panel"] button[kind="primaryFormSubmit"],[class*="st-key-auth_panel"] button[kind="secondaryFormSubmit"]{background:#151A22!important;color:#FFF!important;border:1px solid #151A22!important;border-radius:5px!important;font-weight:850!important}
+.desk-auth-private{font-size:12px;line-height:1.5;color:#64748B;margin:7px 0 14px}
+.desk-auth-foot{font-size:11px;line-height:1.5;color:#64748B;margin-top:12px}
+@media(max-width:760px){[data-testid="stMainBlockContainer"]{padding:24px 18px 32px!important}.desk-auth-wordmark{margin-bottom:18px}.desk-auth-hero h1{font-size:38px}.desk-auth-proof{margin:22px 0 24px}.desk-auth-proof>div{grid-template-columns:120px 1fr}[class*="st-key-auth_panel"]{padding:18px 16px 16px!important}}
+</style>
+        """,
         unsafe_allow_html=True,
     )
-    st.markdown(
-        '<div style="max-width:520px;margin:24px auto 10px;text-align:center;">'
-        '<div class="watch-queue-label">Private account</div>'
-        '<p style="font-size:13px;color:var(--color-muted);margin:6px 0 0;">Sign in to access your private watchlist, holdings, notes, settings, and decision history.</p>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-    sign_in_tab, create_tab = st.tabs(["Sign in", "Create account"])
-    with sign_in_tab:
-        with st.form("auth_sign_in"):
-            email = st.text_input("Email", key="auth_email", autocomplete="email")
-            password = st.text_input("Password", type="password", key="auth_password", autocomplete="current-password")
-            submitted = st.form_submit_button("Sign in", use_container_width=True)
-        if submitted:
-            try:
-                session = auth_layer.sign_in(SUPABASE_URL, SUPABASE_ANON_KEY, email, password)
-                st.session_state["_auth_identity"] = auth_layer.public_identity(session)
-                st.session_state["_auth_tokens"] = {
-                    "access_token": session.access_token,
-                    "refresh_token": session.refresh_token,
-                    "expires_in": session.expires_in,
-                }
-                st.session_state.pop("store", None)
-                st.rerun()
-            except auth_layer.AuthError as exc:
-                st.error(str(exc))
-    with create_tab:
-        with st.form("auth_sign_up"):
-            new_email = st.text_input("Email", key="signup_email", autocomplete="email")
-            new_password = st.text_input("Password", type="password", key="signup_password", autocomplete="new-password")
-            created = st.form_submit_button("Create account", use_container_width=True)
-        if created:
-            if len(new_password) < 8:
-                st.error("Use a password with at least eight characters.")
-            else:
-                try:
-                    session = auth_layer.sign_up(SUPABASE_URL, SUPABASE_ANON_KEY, new_email, new_password)
-                    if session:
+    hero_col, form_col = st.columns([1.08, .92], gap="large", vertical_alignment="center")
+    with hero_col:
+        st.markdown(
+            '<div class="desk-auth-hero">'
+            '<div class="desk-auth-wordmark"><span>▸</span>Trading Desk</div>'
+            '<h1>Know the call.<br>Know what changes it.</h1>'
+            '<p>A serious decision workstation for market context, stock-level action, sizing, triggers, and invalidation.</p>'
+            '<div class="desk-auth-proof">'
+            '<div><b>Decision first</b><span>Enter, Accumulate, Watch, Hold Off, or Avoid—with execution attached.</span></div>'
+            '<div><b>Rules primary</b><span>Research can challenge the call, but never silently replace it.</span></div>'
+            '<div><b>Evidence visible</b><span>Data confidence and maturing outcomes remain auditable.</span></div>'
+            '</div></div>',
+            unsafe_allow_html=True,
+        )
+    with form_col:
+        with st.container(key="auth_panel", border=True):
+            st.markdown("## Private workspace")
+            st.markdown(
+                '<div class="desk-auth-private">Sign in to restore your private watchlist, holdings, notes, settings, and decision history.</div>',
+                unsafe_allow_html=True,
+            )
+            sign_in_tab, create_tab = st.tabs(["Sign in", "Create account"])
+            with sign_in_tab:
+                with st.form("auth_sign_in"):
+                    email = st.text_input("Email", key="auth_email", autocomplete="email")
+                    password = st.text_input("Password", type="password", key="auth_password", autocomplete="current-password")
+                    submitted = st.form_submit_button("Sign in", use_container_width=True)
+                if submitted:
+                    try:
+                        session = auth_layer.sign_in(SUPABASE_URL, SUPABASE_ANON_KEY, email, password)
                         st.session_state["_auth_identity"] = auth_layer.public_identity(session)
                         st.session_state["_auth_tokens"] = {
                             "access_token": session.access_token,
                             "refresh_token": session.refresh_token,
                             "expires_in": session.expires_in,
                         }
+                        st.session_state.pop("store", None)
                         st.rerun()
-                    st.success("Account created. Check your email to confirm it, then sign in.")
-                except auth_layer.AuthError as exc:
-                    st.error(str(exc))
-    if st.button("Explore the read-only demo", use_container_width=True):
-        st.session_state["_public_demo_session"] = True
-        st.session_state.pop("store", None)
-        st.rerun()
-    st.caption(
-        "The demo uses sample state and does not save holdings, notes, account settings, or chat history. "
-        "Trading Desk is decision support—not personalized investment advice or a promise of performance."
-    )
+                    except auth_layer.AuthError as exc:
+                        st.error(str(exc))
+            with create_tab:
+                with st.form("auth_sign_up"):
+                    display_name = st.text_input("Display name", key="signup_display_name", autocomplete="name")
+                    new_email = st.text_input("Email", key="signup_email", autocomplete="email")
+                    new_password = st.text_input("Password", type="password", key="signup_password", autocomplete="new-password")
+                    created = st.form_submit_button("Create private account", use_container_width=True)
+                if created:
+                    if len(new_password) < 8:
+                        st.error("Use a password with at least eight characters.")
+                    else:
+                        try:
+                            session = auth_layer.sign_up(
+                                SUPABASE_URL,
+                                SUPABASE_ANON_KEY,
+                                new_email,
+                                new_password,
+                                display_name,
+                            )
+                            if session:
+                                st.session_state["_auth_identity"] = auth_layer.public_identity(session)
+                                st.session_state["_auth_tokens"] = {
+                                    "access_token": session.access_token,
+                                    "refresh_token": session.refresh_token,
+                                    "expires_in": session.expires_in,
+                                }
+                                st.rerun()
+                            st.success("Account created. Check your email to confirm it, then sign in.")
+                        except auth_layer.AuthError as exc:
+                            st.error(str(exc))
+            st.markdown("---")
+            if st.button("Explore read-only demo", use_container_width=True):
+                st.session_state["_public_demo_session"] = True
+                st.session_state.pop("store", None)
+                st.rerun()
+            st.markdown(
+                '<div class="desk-auth-foot">Demo activity is not saved. Trading Desk is decision support—not personalized investment advice or a promise of performance.</div>',
+                unsafe_allow_html=True,
+            )
     st.stop()
 
 
@@ -1404,6 +1453,9 @@ def _render_first_run_onboarding():
 
 
 _render_first_run_onboarding()
+
+if st.session_state.pop("_legacy_owner_claimed", False):
+    st.success("Your existing Trading Desk watchlist, holdings, settings, and history are now linked to this private account.")
 
 if "current_ticker" not in st.session_state:
     try:
@@ -11844,7 +11896,7 @@ with st.sidebar:
     )
     if _current_user_id():
         identity = st.session_state.get("_auth_identity") or {}
-        st.caption(str(identity.get("email") or "Signed in"))
+        st.caption(str(identity.get("display_name") or identity.get("email") or "Signed in"))
         if st.button("Sign out", key="auth_sign_out", use_container_width=False):
             for auth_key in ("_auth_identity", "_auth_tokens", "store", "_persist_fingerprints"):
                 st.session_state.pop(auth_key, None)

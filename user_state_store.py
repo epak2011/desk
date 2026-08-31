@@ -13,6 +13,13 @@ def normalize_user_id(user_id: str) -> str:
     return value
 
 
+def owner_claim_allowed(identity_email: str, configured_owner_email: str, existing_state) -> bool:
+    """Permit one-time legacy import only for an explicitly configured owner."""
+    identity = str(identity_email or "").strip().lower()
+    configured = str(configured_owner_email or "").strip().lower()
+    return existing_state is None and bool(identity and configured and identity == configured)
+
+
 def ensure_schema(cur) -> None:
     cur.execute(
         """

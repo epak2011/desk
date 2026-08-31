@@ -21,6 +21,7 @@ class AuthError(RuntimeError):
 class AuthSession:
     user_id: str
     email: str
+    display_name: str
     access_token: str
     refresh_token: str
     expires_in: int
@@ -61,6 +62,11 @@ def _session(payload: Mapping[str, Any]) -> AuthSession:
     return AuthSession(
         user_id=user_id,
         email=str(user.get("email") or "").strip(),
+        display_name=str(
+            (user.get("user_metadata") or {}).get("display_name")
+            if isinstance(user.get("user_metadata"), Mapping)
+            else ""
+        ).strip(),
         access_token=access_token,
         refresh_token=str(payload.get("refresh_token") or "").strip(),
         expires_in=int(payload.get("expires_in") or 3600),
@@ -76,11 +82,18 @@ def sign_in(supabase_url: str, anon_key: str, email: str, password: str) -> Auth
     return _session(payload)
 
 
-def sign_up(supabase_url: str, anon_key: str, email: str, password: str) -> AuthSession | None:
+def sign_up(
+    supabase_url: str,
+    anon_key: str,
+    email: str,
+    password: str,
+    display_name: str = "",
+) -> AuthSession | None:
+    user_data = {"display_name": str(display_name or "").strip()[:80]}
     payload = _request(
         f"{supabase_url.rstrip('/')}/auth/v1/signup",
         anon_key,
-        {"email": email.strip(), "password": password},
+        {"email": email.strip(), "password": password, "data": user_data},
     )
     if payload.get("access_token"):
         return _session(payload)
@@ -98,4 +111,8 @@ def refresh(supabase_url: str, anon_key: str, refresh_token: str) -> AuthSession
 
 def public_identity(session: AuthSession) -> dict[str, str]:
     """Return only identity fields safe to retain in Streamlit session state."""
-    return {"user_id": session.user_id, "email": session.email}
+    return {
+        "user_id": session.user_id,
+        "email": session.email,
+        "display_name": session.display_name,
+    }
