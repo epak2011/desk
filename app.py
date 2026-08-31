@@ -45,6 +45,7 @@ import user_state_store
 import onboarding
 import notification_engine
 import market_freshness
+import public_recovery
 import unsubscribe
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
@@ -18671,6 +18672,15 @@ if view == "regime":
         .crypto-narrative-row .h{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:var(--ls-caps-lg);text-transform:uppercase;color:var(--color-muted);margin-bottom:8px}
         .crypto-narrative-row .b{font-size:19px;line-height:1.52;color:var(--color-text)}
         .risk-engine-page{width:100%;max-width:none;margin:0;padding:0 0 56px;color:var(--color-text);overflow-x:hidden}
+        .regime-confidence{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;border:1px solid #CCD6E3;border-left-width:4px;border-radius:7px;padding:13px 15px;margin:0 0 16px;background:var(--color-surface)}
+        .regime-confidence.trusted{border-left-color:var(--color-positive)}
+        .regime-confidence.degraded{border-left-color:var(--color-warning)}
+        .regime-confidence.blocked{border-left-color:var(--color-negative)}
+        .regime-confidence .confidence-label{font-family:var(--font-mono);font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--color-muted);margin-bottom:4px}
+        .regime-confidence .confidence-summary{font-size:14px;font-weight:750;line-height:1.45;color:var(--color-text)}
+        .regime-confidence details{flex:0 0 auto;font-family:var(--font-mono);font-size:11px;color:var(--color-muted)}
+        .regime-confidence summary{cursor:pointer;font-weight:850;white-space:nowrap}
+        .regime-confidence .missing-list{max-width:420px;margin-top:8px;line-height:1.55;text-align:right}
         .risk-engine-title{font-size:32px;line-height:1.05;font-weight:950;color:var(--color-text);margin:4px 0 6px;letter-spacing:0}
         .risk-engine-snapshot{font-size:13px;font-weight:760;color:var(--color-muted);margin-bottom:16px}
         .risk-brief-card{background:var(--color-surface);border:1px solid #CCD6E3;border-radius:10px;padding:0;overflow:hidden;margin-top:16px;box-shadow:none}
@@ -18766,7 +18776,7 @@ if view == "regime":
         @media(max-width:1280px){.risk-engine-title{font-size:30px}.risk-v{font-size:clamp(20px,2.7vw,26px)}.risk-why{max-width:none;font-size:19px;line-height:1.65}.risk-op-top{grid-template-columns:repeat(2,minmax(0,1fr))}.risk-op-cell:nth-child(2){border-right:0;padding-right:0}.risk-op-cell:nth-child(3),.risk-op-cell:nth-child(4){border-top:1px solid rgba(148,163,184,.24);padding-top:18px;margin-top:18px}.risk-op-bottom{grid-template-columns:1fr}.risk-op-highlights{border-left:0;padding-left:0}.market-imp-body{grid-template-columns:1fr}.market-imp-side{border-left:0;border-top:1px solid #D7DFEA}}
         @media(max-width:900px){.regime-top,.regime-two{grid-template-columns:1fr}.regime-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-action{font-size:54px}}
         @media(max-width:1100px){.regime-signal-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-forward-list{grid-template-columns:1fr}.framework-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:900px){.risk-engine-page{padding:0 0 40px;overflow-x:hidden}.risk-engine-title{font-size:28px!important;line-height:1.08}.risk-engine-snapshot{font-size:12px!important;line-height:1.35}.regime-brief,.regime-dark-bottom,.regime-action-box,.risk-brief-grid,.risk-market-grid,.risk-op-top{grid-template-columns:1fr}.risk-brief-pad{padding:20px}.risk-brief-cell,.risk-brief-cell:nth-child(2n){min-height:auto;border-right:0;border-top:1px solid #D7DFEA;padding:18px 0}.risk-brief-cell:first-child{border-top:0;padding-top:0}.risk-opportunity-card{padding:0;margin-top:12px}.risk-op-cell,.risk-op-cell:nth-child(2),.risk-op-cell:nth-child(3),.risk-op-cell:nth-child(4){border-right:0;border-top:1px solid rgba(148,163,184,.24);padding:16px 18px 0;margin-top:16px}.risk-op-cell:first-child{border-top:0;padding-top:16px;margin-top:0}.risk-op-main{font-size:22px!important}.risk-op-sub{font-size:12px!important}.risk-op-bottom{grid-template-columns:1fr!important}.risk-op-bottom>div:first-child{padding:16px 18px}.risk-op-why,.risk-why{font-size:15px!important;line-height:1.55!important;font-weight:560}.risk-op-highlights{border-left:0;border-top:1px solid #D7DFEA;padding:14px 18px}.risk-op-highlight-row,.risk-highlight-row{font-size:14px!important;gap:12px}.risk-op-highlight-row strong,.risk-highlight-row strong{font-size:17px!important}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
+        @media(max-width:900px){.risk-engine-page{padding:0 0 40px;overflow-x:hidden}.risk-engine-title{font-size:28px!important;line-height:1.08}.risk-engine-snapshot{font-size:12px!important;line-height:1.35}.regime-confidence{display:block}.regime-confidence details{margin-top:9px}.regime-confidence .missing-list{text-align:left}.regime-brief,.regime-dark-bottom,.regime-action-box,.risk-brief-grid,.risk-market-grid,.risk-op-top{grid-template-columns:1fr}.risk-brief-pad{padding:20px}.risk-brief-cell,.risk-brief-cell:nth-child(2n){min-height:auto;border-right:0;border-top:1px solid #D7DFEA;padding:18px 0}.risk-brief-cell:first-child{border-top:0;padding-top:0}.risk-opportunity-card{padding:0;margin-top:12px}.risk-op-cell,.risk-op-cell:nth-child(2),.risk-op-cell:nth-child(3),.risk-op-cell:nth-child(4){border-right:0;border-top:1px solid rgba(148,163,184,.24);padding:16px 18px 0;margin-top:16px}.risk-op-cell:first-child{border-top:0;padding-top:16px;margin-top:0}.risk-op-main{font-size:22px!important}.risk-op-sub{font-size:12px!important}.risk-op-bottom{grid-template-columns:1fr!important}.risk-op-bottom>div:first-child{padding:16px 18px}.risk-op-why,.risk-why{font-size:15px!important;line-height:1.55!important;font-weight:560}.risk-op-highlights{border-left:0;border-top:1px solid #D7DFEA;padding:14px 18px}.risk-op-highlight-row,.risk-highlight-row{font-size:14px!important;gap:12px}.risk-op-highlight-row strong,.risk-highlight-row strong{font-size:17px!important}.regime-dark-grid,.regime-signal-grid,.crypto-price-strip,.crypto-decisions,.crypto-cycle-grid,.market-imp-body,.metric-guide-grid{grid-template-columns:1fr}.regime-dark-cell,.regime-signal-box,.crypto-price-cell,.metric-guide-card{border-right:0;border-bottom:1px solid rgba(148,163,184,.26);padding:12px 0}.metric-guide-card{padding:16px}.risk-highlights{border-left:0;padding-left:0}.market-imp-side{border-left:0;border-top:1px solid var(--color-border)}.regime-forward-row .why{grid-column:2}}
         @media(max-width:560px){.regime-grid,.framework-grid{grid-template-columns:1fr}.regime-table .t{width:110px}.regime-table td{padding:12px 10px}.regime-implication{grid-template-columns:1fr;gap:6px}.regime-forward-row{grid-template-columns:1fr;gap:4px}.regime-forward-row .why{grid-column:auto}}
         </style>
         """,
@@ -20421,6 +20431,31 @@ Return ONLY this JSON shape:
     }.get(str(change_status).upper(), str(change_status).title())
     change_note = daily_context.get("change_note") or daily_context.get("summary") or impact_headline
     why_today_commentary = str(daily_memo.get("why_today") or _why_today_text(d, s)).strip()
+    confidence = public_recovery.regime_confidence(d)
+    missing_inputs = confidence.get("missing") or []
+    confidence_detail = (
+        '<details><summary>Missing inputs</summary>'
+        f'<div class="missing-list">{html.escape(" · ".join(missing_inputs))}</div></details>'
+        if missing_inputs
+        else '<details><summary>All required inputs available</summary></details>'
+    )
+    confidence_html = (
+        f'<div class="regime-confidence {html.escape(confidence["state"])}" role="status">'
+        '<div>'
+        f'<div class="confidence-label">{html.escape(confidence["label"])}</div>'
+        f'<div class="confidence-summary">{html.escape(confidence["summary"])}</div>'
+        '</div>'
+        f'{confidence_detail}</div>'
+    )
+    memo_recovery_html = ""
+    if regime_daily.get("error"):
+        memo_recovery_html = (
+            '<div class="regime-confidence degraded" role="status">'
+            '<div><div class="confidence-label">Daily commentary fallback active</div>'
+            '<div class="confidence-summary">The research refresh did not complete. Trading Desk kept the saved or rule-based brief; the underlying regime rules are still active.</div></div>'
+            '<details><summary>Technical detail</summary>'
+            f'<div class="missing-list">{html.escape(str(regime_daily.get("error"))[:160])}</div></details></div>'
+        )
     dark_highlight_html = "".join(
         f'<div class="risk-op-highlight-row"><span>{html.escape(k)}</span><strong>{html.escape(v)}{extra}</strong></div>'
         for k, v, extra in highlights
@@ -20429,6 +20464,8 @@ Return ONLY this JSON shape:
         '<div class="risk-engine-page">'
         f'<div class="risk-engine-title">Market Regime &amp; Risk Engine</div>'
         f'<div class="risk-engine-snapshot">Data snapshot: {html.escape(snapshot_label)} · Daily memo: {html.escape(regime_daily.get("source") or "cached")} · {html.escape(memo_label)}</div>'
+        f'{confidence_html}'
+        f'{memo_recovery_html}'
         '<div class="risk-opportunity-card">'
         '<div class="risk-op-top">'
         '<div class="risk-op-cell">'
