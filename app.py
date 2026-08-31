@@ -10284,6 +10284,68 @@ def _age_minutes_from_ts(value):
         return None
 
 
+def decision_loading_shell_html(ticker, snapshot=None):
+    """Immediate, non-blocking shell shown while Analyze resolves fresh inputs."""
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    market = snapshot.get("market") if isinstance(snapshot.get("market"), dict) else {}
+    final_action = current_final_action(snapshot) or {}
+    action = normalize_action_key(final_action.get("action") or market.get("action"))
+    style = STATE_STYLES.get(action, {})
+    action_label = style.get("label") or "Building decision"
+    action_emoji = style.get("emoji") or "◌"
+    price = market.get("last") or market.get("price")
+    try:
+        price_label = f"${float(price):,.2f}"
+    except (TypeError, ValueError):
+        price_label = "Saved market snapshot pending"
+    return f"""
+<style>
+.desk-loading-shell{{border-top:1px solid var(--color-border);border-bottom:1px solid var(--color-border);padding:22px 0 20px;margin:6px 0 18px}}
+.desk-loading-top{{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}}
+.desk-loading-ticker{{font-family:var(--font-mono);font-size:13px;font-weight:900;letter-spacing:.12em;color:var(--color-muted)}}
+.desk-loading-action{{font-size:28px;line-height:1.12;font-weight:900;margin-top:7px;color:var(--color-text)}}
+.desk-loading-price{{font-family:var(--font-mono);font-size:18px;font-weight:850;color:var(--color-text)}}
+.desk-loading-track{{height:3px;background:var(--color-border-soft);margin-top:18px;overflow:hidden}}
+.desk-loading-track:after{{content:"";display:block;width:38%;height:100%;background:var(--color-accent);animation:desk-load 1.25s ease-in-out infinite}}
+.desk-loading-note{{font-size:12px;line-height:1.45;color:var(--color-muted);margin-top:10px}}
+@keyframes desk-load{{0%{{transform:translateX(-110%)}}100%{{transform:translateX(290%)}}}}
+@media(prefers-reduced-motion:reduce){{.desk-loading-track:after{{animation:none;width:65%}}}}
+</style>
+<div class="desk-loading-shell" role="status" aria-live="polite">
+  <div class="desk-loading-top">
+    <div><div class="desk-loading-ticker">{html.escape(str(ticker).upper())} · ANALYZE</div>
+    <div class="desk-loading-action">{html.escape(action_emoji)} {html.escape(action_label)}</div></div>
+    <div class="desk-loading-price">{html.escape(price_label)}</div>
+  </div>
+  <div class="desk-loading-track"></div>
+  <div class="desk-loading-note">Confirming price history, benchmark context, decision rules, and saved research. The displayed action will update only after all required inputs agree.</div>
+</div>
+"""
+
+
+def regime_loading_shell_html():
+    """Structured first paint while the regime snapshot is being assembled."""
+    return """
+<style>
+.desk-loading-track{height:3px;background:var(--color-border-soft);overflow:hidden}
+.desk-loading-track:after{content:"";display:block;width:38%;height:100%;background:var(--color-accent);animation:desk-load 1.25s ease-in-out infinite}
+.desk-loading-note{font-size:12px;line-height:1.45;color:var(--color-muted);margin-top:10px}
+@keyframes desk-load{0%{transform:translateX(-110%)}100%{transform:translateX(290%)}}
+@media(prefers-reduced-motion:reduce){.desk-loading-track:after{animation:none;width:65%}}
+</style>
+<div class="risk-engine-page" role="status" aria-live="polite">
+  <div class="risk-engine-title">Market Regime &amp; Risk Engine</div>
+  <div class="risk-engine-snapshot">Loading the latest saved market context…</div>
+  <div class="risk-brief-card"><div class="risk-brief-pad">
+    <div class="risk-brief-label">Building today’s decision</div>
+    <div style="font-size:24px;font-weight:900;line-height:1.25;max-width:820px;">Checking trend, volatility, credit, liquidity, and the daily portfolio implication.</div>
+    <div class="desk-loading-track" style="margin-top:22px;"></div>
+    <div class="desk-loading-note">Saved worker data appears first; a manual refresh is never required for the page to open.</div>
+  </div></div>
+</div>
+"""
+
+
 def build_health_audit():
     """Fast reliability audit from persisted state; never calls market data or Claude."""
     store = st.session_state.store
@@ -15697,6 +15759,11 @@ if view == "analyze":
         st.stop()
 
     ticker_key = ticker.upper()
+    analyze_loading = st.empty()
+    analyze_loading.markdown(
+        decision_loading_shell_html(ticker, ticker_snapshot(ticker)),
+        unsafe_allow_html=True,
+    )
     pending_pm_refreshes = st.session_state.setdefault("_pending_pm_refreshes", {})
     pending_dossier_refreshes = st.session_state.setdefault("_pending_dossier_refreshes", {})
     force_meta_refresh = (
@@ -15729,6 +15796,7 @@ if view == "analyze":
             )
 
     if hist is None or len(hist) < 50:
+        analyze_loading.empty()
         rows_loaded = len(hist) if hist is not None else 0
         detail = str(err_reason or f"Only {rows_loaded} price rows were available.")
         st.markdown(
@@ -16004,6 +16072,7 @@ if view == "analyze":
         pending_pm_refreshes.pop(ticker_key, None)
     if force_dossier_refresh:
         pending_dossier_refreshes.pop(ticker_key, None)
+    analyze_loading.empty()
 
     # The PM panel has one source of truth: the durable `pm_memos` row.
     # Full-report/dossier output is intentionally kept separate so refreshing
@@ -19501,7 +19570,10 @@ if view == "regime":
         st.rerun()
 
     regime_refresh_key = regime_daily_key()
+    regime_loading = st.empty()
+    regime_loading.markdown(regime_loading_shell_html(), unsafe_allow_html=True)
     snap = _regime_snapshot(regime_refresh_key)
+    regime_loading.empty()
     d, s, crypto = snap["data"], snap["signals"], snap.get("crypto") or {}
     color_map = {
         "Risk Off": "var(--color-negative)",
