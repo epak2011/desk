@@ -45,6 +45,12 @@ class UserStateStoreTests(unittest.TestCase):
         user_state_store.save(cursor, second, {"watchlist": ["MSFT"]})
         self.assertNotEqual(cursor.calls[0][1][0], cursor.calls[1][1][0])
 
+    def test_oauth_flow_is_consumed_by_exact_state(self):
+        cursor = FakeCursor(("verifier", "https://desk.example/?oauth=google"))
+        flow = user_state_store.consume_oauth_flow(cursor, "state-123")
+        self.assertEqual(flow["code_verifier"], "verifier")
+        self.assertEqual(cursor.calls[0][1], ("state-123",))
+
 
 if __name__ == "__main__":
     unittest.main()

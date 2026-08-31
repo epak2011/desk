@@ -7,7 +7,11 @@ keys must never be sent to the browser or accepted by this module.
 from __future__ import annotations
 
 import json
+import base64
+import hashlib
+import secrets
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -105,6 +109,42 @@ def refresh(supabase_url: str, anon_key: str, refresh_token: str) -> AuthSession
         f"{supabase_url.rstrip('/')}/auth/v1/token?grant_type=refresh_token",
         anon_key,
         {"refresh_token": refresh_token},
+    )
+    return _session(payload)
+
+
+def new_google_oauth_flow(supabase_url: str, redirect_uri: str) -> dict[str, str]:
+    """Create a server-storable PKCE flow and Supabase Google authorization URL."""
+    verifier = secrets.token_urlsafe(48)
+    state = secrets.token_urlsafe(32)
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode("ascii")).digest()
+    ).decode("ascii").rstrip("=")
+    callback = f"{redirect_uri.rstrip('/')}/?{urllib.parse.urlencode({'oauth': 'google', 'oauth_state': state})}"
+    query = urllib.parse.urlencode({
+        "provider": "google",
+        "redirect_to": callback,
+        "code_challenge": challenge,
+        "code_challenge_method": "s256",
+    })
+    return {
+        "state": state,
+        "verifier": verifier,
+        "redirect_uri": callback,
+        "authorize_url": f"{supabase_url.rstrip('/')}/auth/v1/authorize?{query}",
+    }
+
+
+def exchange_pkce_code(
+    supabase_url: str,
+    anon_key: str,
+    auth_code: str,
+    code_verifier: str,
+) -> AuthSession:
+    payload = _request(
+        f"{supabase_url.rstrip('/')}/auth/v1/token?grant_type=pkce",
+        anon_key,
+        {"auth_code": str(auth_code), "code_verifier": str(code_verifier)},
     )
     return _session(payload)
 

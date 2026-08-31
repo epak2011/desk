@@ -32,6 +32,42 @@ def ensure_schema(cur) -> None:
         """
     )
     cur.execute("ALTER TABLE user_app_state ENABLE ROW LEVEL SECURITY")
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS auth_oauth_flows (
+            state TEXT PRIMARY KEY,
+            code_verifier TEXT NOT NULL,
+            redirect_uri TEXT NOT NULL,
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+    cur.execute("ALTER TABLE auth_oauth_flows ENABLE ROW LEVEL SECURITY")
+
+
+def save_oauth_flow(cur, state: str, code_verifier: str, redirect_uri: str) -> None:
+    cur.execute("DELETE FROM auth_oauth_flows WHERE expires_at <= NOW()")
+    cur.execute(
+        """
+        INSERT INTO auth_oauth_flows (state, code_verifier, redirect_uri, expires_at)
+        VALUES (%s, %s, %s, NOW() + INTERVAL '10 minutes')
+        """,
+        (str(state), str(code_verifier), str(redirect_uri)),
+    )
+
+
+def consume_oauth_flow(cur, state: str) -> dict[str, str] | None:
+    cur.execute(
+        """
+        DELETE FROM auth_oauth_flows
+        WHERE state = %s AND expires_at > NOW()
+        RETURNING code_verifier, redirect_uri
+        """,
+        (str(state),),
+    )
+    row = cur.fetchone()
+    return {"code_verifier": str(row[0]), "redirect_uri": str(row[1])} if row else None
 
 
 def load(cur, user_id: str) -> dict[str, Any] | None:

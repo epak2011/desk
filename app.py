@@ -76,6 +76,8 @@ SUPABASE_URL = _configured_text("SUPABASE_URL")
 SUPABASE_ANON_KEY = _configured_text("SUPABASE_ANON_KEY")
 UNSUBSCRIBE_SECRET = _configured_text("UNSUBSCRIBE_SECRET")
 OWNER_ACCOUNT_EMAIL = _configured_text("TRADING_DESK_OWNER_EMAIL")
+APP_PUBLIC_URL = _configured_text("TRADING_DESK_APP_URL") or "https://tradingdesk.streamlit.app"
+GOOGLE_OAUTH_ENABLED = _configured_bool("GOOGLE_OAUTH_ENABLED", False)
 AUTH_READY = auth_layer.configured(SUPABASE_URL, SUPABASE_ANON_KEY)
 HOSTED_DATABASE_READY = bool(_configured_text("DATABASE_URL"))
 # Hosted data is never exposed through owner mode. A configured identity
@@ -1205,6 +1207,60 @@ def _handle_unsubscribe_link():
 _handle_unsubscribe_link()
 
 
+def _remember_auth_session(session):
+    st.session_state["_auth_identity"] = auth_layer.public_identity(session)
+    st.session_state["_auth_tokens"] = {
+        "access_token": session.access_token,
+        "refresh_token": session.refresh_token,
+        "expires_in": session.expires_in,
+    }
+    st.session_state.pop("store", None)
+
+
+def _handle_oauth_callback():
+    try:
+        provider = str(st.query_params.get("oauth") or "").strip().lower()
+        state = str(st.query_params.get("oauth_state") or "").strip()
+        code = str(st.query_params.get("code") or "").strip()
+        oauth_error = str(st.query_params.get("error_description") or st.query_params.get("error") or "").strip()
+    except Exception:
+        return
+    if provider != "google":
+        return
+    for key in ("oauth", "oauth_state", "code", "error", "error_description"):
+        try:
+            st.query_params.pop(key, None)
+        except Exception:
+            pass
+    if oauth_error:
+        st.session_state["_oauth_error"] = oauth_error
+        st.rerun()
+    if not state or not code or not USE_POSTGRES:
+        st.session_state["_oauth_error"] = "Google sign-in could not be verified. Please try again."
+        st.rerun()
+    try:
+        with _pg_connect() as conn:
+            with conn.cursor() as cur:
+                user_state_store.ensure_schema(cur)
+                flow = user_state_store.consume_oauth_flow(cur, state)
+        if not flow:
+            raise auth_layer.AuthError("This Google sign-in attempt expired or was already used.")
+        session = auth_layer.exchange_pkce_code(
+            SUPABASE_URL,
+            SUPABASE_ANON_KEY,
+            code,
+            flow["code_verifier"],
+        )
+        _remember_auth_session(session)
+        st.rerun()
+    except Exception as exc:
+        st.session_state["_oauth_error"] = str(exc)[:180]
+        st.rerun()
+
+
+_handle_oauth_callback()
+
+
 def _render_auth_gate():
     """Require a Supabase identity or an explicit read-only public demo."""
     if not AUTH_REQUIRED or _current_user_id() or PUBLIC_DEMO_MODE:
@@ -1234,6 +1290,8 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
 [class*="st-key-auth_panel"] input{background:#F8FAFC!important;border:1px solid #CBD5E1!important;border-radius:5px!important;color:#151A22!important}
 [class*="st-key-auth_panel"] [data-testid="stTextInput"] button{background:transparent!important;border:0!important;color:#64748B!important}
 [class*="st-key-auth_panel"] button[kind="primaryFormSubmit"],[class*="st-key-auth_panel"] button[kind="secondaryFormSubmit"]{background:#151A22!important;color:#FFF!important;border:1px solid #151A22!important;border-radius:5px!important;font-weight:850!important}
+[class*="st-key-auth_google"] button{background:#FFF!important;color:#151A22!important;border:1px solid #CBD5E1!important;border-radius:5px!important;font-weight:850!important;min-height:42px!important}
+.desk-auth-or{display:flex;align-items:center;gap:10px;margin:14px 0 2px;color:#94A3B8;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase}.desk-auth-or:before,.desk-auth-or:after{content:"";height:1px;background:#D8E0E8;flex:1}
 .desk-auth-private{font-size:12px;line-height:1.5;color:#64748B;margin:7px 0 14px}
 .desk-auth-foot{font-size:11px;line-height:1.5;color:#64748B;margin-top:12px}
 @media(max-width:760px){[data-testid="stMainBlockContainer"]{padding:24px 18px 32px!important}.desk-auth-wordmark{margin-bottom:18px}.desk-auth-hero h1{font-size:38px}.desk-auth-proof{margin:22px 0 24px}.desk-auth-proof>div{grid-template-columns:120px 1fr}[class*="st-key-auth_panel"]{padding:18px 16px 16px!important}}
@@ -1262,6 +1320,32 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
                 '<div class="desk-auth-private">Sign in to restore your private watchlist, holdings, notes, settings, and decision history.</div>',
                 unsafe_allow_html=True,
             )
+            oauth_error = st.session_state.pop("_oauth_error", "")
+            if oauth_error:
+                st.error(oauth_error)
+            if GOOGLE_OAUTH_ENABLED:
+                if st.button("G  Continue with Google", key="auth_google", use_container_width=True):
+                    try:
+                        if not USE_POSTGRES:
+                            raise auth_layer.AuthError("Google sign-in requires the private database connection.")
+                        flow = auth_layer.new_google_oauth_flow(SUPABASE_URL, APP_PUBLIC_URL)
+                        with _pg_connect() as conn:
+                            with conn.cursor() as cur:
+                                user_state_store.ensure_schema(cur)
+                                user_state_store.save_oauth_flow(
+                                    cur,
+                                    flow["state"],
+                                    flow["verifier"],
+                                    flow["redirect_uri"],
+                                )
+                        st.components.v1.html(
+                            f'<script>window.parent.location.assign({json.dumps(flow["authorize_url"])});</script>',
+                            height=0,
+                        )
+                        st.stop()
+                    except Exception as exc:
+                        st.error(str(exc)[:180])
+                st.markdown('<div class="desk-auth-or">or use email</div>', unsafe_allow_html=True)
             sign_in_tab, create_tab = st.tabs(["Sign in", "Create account"])
             with sign_in_tab:
                 with st.form("auth_sign_in"):
@@ -1271,13 +1355,7 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
                 if submitted:
                     try:
                         session = auth_layer.sign_in(SUPABASE_URL, SUPABASE_ANON_KEY, email, password)
-                        st.session_state["_auth_identity"] = auth_layer.public_identity(session)
-                        st.session_state["_auth_tokens"] = {
-                            "access_token": session.access_token,
-                            "refresh_token": session.refresh_token,
-                            "expires_in": session.expires_in,
-                        }
-                        st.session_state.pop("store", None)
+                        _remember_auth_session(session)
                         st.rerun()
                     except auth_layer.AuthError as exc:
                         st.error(str(exc))
@@ -1300,12 +1378,7 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
                                 display_name,
                             )
                             if session:
-                                st.session_state["_auth_identity"] = auth_layer.public_identity(session)
-                                st.session_state["_auth_tokens"] = {
-                                    "access_token": session.access_token,
-                                    "refresh_token": session.refresh_token,
-                                    "expires_in": session.expires_in,
-                                }
+                                _remember_auth_session(session)
                                 st.rerun()
                             st.success("Account created. Check your email to confirm it, then sign in.")
                         except auth_layer.AuthError as exc:
