@@ -14,10 +14,31 @@ def normalize_user_id(user_id: str) -> str:
 
 
 def owner_claim_allowed(identity_email: str, configured_owner_email: str, existing_state) -> bool:
-    """Permit one-time legacy import only for an explicitly configured owner."""
+    """Permit legacy import only for the owner and only over a pristine profile.
+
+    Supabase can create the user row before the first successful legacy import.
+    That profile may already contain application defaults, so requiring a
+    completely missing row strands the owner's existing desk behind onboarding.
+    Never replace a profile that contains actual private activity.
+    """
     identity = str(identity_email or "").strip().lower()
     configured = str(configured_owner_email or "").strip().lower()
-    return existing_state is None and bool(identity and configured and identity == configured)
+    if not (identity and configured and identity == configured):
+        return False
+    if existing_state is None:
+        return True
+    if not isinstance(existing_state, dict) or existing_state.get("onboarding_complete"):
+        return False
+    private_activity_keys = (
+        "watchlist",
+        "holdings",
+        "decisions_log",
+        "pm_cache",
+        "notes",
+        "position_notes",
+        "chat_history",
+    )
+    return not any(existing_state.get(key) for key in private_activity_keys)
 
 
 def ensure_schema(cur) -> None:

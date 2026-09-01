@@ -20,7 +20,21 @@ class UserStateStoreTests(unittest.TestCase):
         self.assertTrue(user_state_store.owner_claim_allowed("Owner@Example.com", "owner@example.com", None))
         self.assertFalse(user_state_store.owner_claim_allowed("other@example.com", "owner@example.com", None))
         self.assertFalse(user_state_store.owner_claim_allowed("owner@example.com", "", None))
-        self.assertFalse(user_state_store.owner_claim_allowed("owner@example.com", "owner@example.com", {}))
+        self.assertTrue(user_state_store.owner_claim_allowed("owner@example.com", "owner@example.com", {}))
+
+    def test_owner_can_claim_profile_with_only_defaults(self):
+        pristine = {"onboarding_complete": False, "account_size": 100000, "holdings": {}}
+        self.assertTrue(user_state_store.owner_claim_allowed("owner@example.com", "owner@example.com", pristine))
+
+    def test_owner_cannot_overwrite_real_private_state(self):
+        for state in (
+            {"onboarding_complete": True},
+            {"watchlist": ["AAPL"]},
+            {"holdings": {"AAPL": {"shares": 1}}},
+            {"decisions_log": [{"ticker": "AAPL"}]},
+            {"pm_cache": {"AAPL": {"memo": "saved"}}},
+        ):
+            self.assertFalse(user_state_store.owner_claim_allowed("owner@example.com", "owner@example.com", state))
 
     def test_missing_user_fails_closed(self):
         with self.assertRaises(ValueError):
