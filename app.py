@@ -1022,11 +1022,12 @@ def load_store():
                         ):
                             cur.execute("SELECT value FROM kv_store WHERE key = 'default'")
                             legacy_row = cur.fetchone()
-                            store = legacy_row[0] if legacy_row and isinstance(legacy_row[0], dict) else _store_default()
+                            legacy_store = legacy_row[0] if legacy_row and isinstance(legacy_row[0], dict) else _store_default()
                             # Owner migration must be complete regardless of the
                             # page that happened to be open at first sign-in.
                             # Normal loads stay route-scoped for performance.
-                            store = _load_split_sections(cur, store, complete_legacy_import=True)
+                            legacy_store = _load_split_sections(cur, legacy_store, complete_legacy_import=True)
+                            store = user_state_store.merge_owner_legacy_state(legacy_store, existing_user_store)
                             store["onboarding_complete"] = True
                             store["legacy_owner_imported_at"] = now_market_time().isoformat(timespec="seconds")
                             user_state_store.save(cur, scoped_user_id, _json_safe(store))

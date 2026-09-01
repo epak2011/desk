@@ -16,25 +16,34 @@ class FakeCursor:
 
 
 class UserStateStoreTests(unittest.TestCase):
-    def test_legacy_claim_requires_exact_configured_owner_and_empty_state(self):
+    def test_legacy_claim_requires_exact_configured_owner_and_runs_once(self):
         self.assertTrue(user_state_store.owner_claim_allowed("Owner@Example.com", "owner@example.com", None))
         self.assertFalse(user_state_store.owner_claim_allowed("other@example.com", "owner@example.com", None))
         self.assertFalse(user_state_store.owner_claim_allowed("owner@example.com", "", None))
         self.assertTrue(user_state_store.owner_claim_allowed("owner@example.com", "owner@example.com", {}))
+        self.assertTrue(user_state_store.owner_claim_allowed(
+            "owner@example.com", "owner@example.com", {"onboarding_complete": True}
+        ))
+        self.assertFalse(user_state_store.owner_claim_allowed(
+            "owner@example.com", "owner@example.com", {"legacy_owner_imported_at": "2026-09-01T10:00:00"}
+        ))
 
-    def test_owner_can_claim_profile_with_only_defaults(self):
-        pristine = {"onboarding_complete": False, "account_size": 100000, "holdings": {}}
-        self.assertTrue(user_state_store.owner_claim_allowed("owner@example.com", "owner@example.com", pristine))
-
-    def test_owner_cannot_overwrite_real_private_state(self):
-        for state in (
-            {"onboarding_complete": True},
-            {"watchlist": ["AAPL"]},
-            {"holdings": {"AAPL": {"shares": 1}}},
-            {"decisions_log": [{"ticker": "AAPL"}]},
-            {"pm_cache": {"AAPL": {"memo": "saved"}}},
-        ):
-            self.assertFalse(user_state_store.owner_claim_allowed("owner@example.com", "owner@example.com", state))
+    def test_owner_merge_preserves_legacy_and_new_account_data(self):
+        legacy = {
+            "watchlist": ["AAPL", "MSFT"],
+            "holdings": {"AAPL": {"shares": 2}},
+            "decisions_log": [{"id": "old", "ticker": "AAPL"}],
+        }
+        existing = {
+            "watchlist": ["NVDA", "AAPL"],
+            "holdings": {"NVDA": {"shares": 1}},
+            "decisions_log": [{"id": "new", "ticker": "NVDA"}],
+            "onboarding_complete": True,
+        }
+        merged = user_state_store.merge_owner_legacy_state(legacy, existing)
+        self.assertEqual(merged["watchlist"], ["AAPL", "MSFT", "NVDA"])
+        self.assertEqual(set(merged["holdings"]), {"AAPL", "NVDA"})
+        self.assertEqual({row["id"] for row in merged["decisions_log"]}, {"old", "new"})
 
     def test_missing_user_fails_closed(self):
         with self.assertRaises(ValueError):

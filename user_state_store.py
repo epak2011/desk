@@ -14,31 +14,44 @@ def normalize_user_id(user_id: str) -> str:
 
 
 def owner_claim_allowed(identity_email: str, configured_owner_email: str, existing_state) -> bool:
-    """Permit legacy import only for the owner and only over a pristine profile.
-
-    Supabase can create the user row before the first successful legacy import.
-    That profile may already contain application defaults, so requiring a
-    completely missing row strands the owner's existing desk behind onboarding.
-    Never replace a profile that contains actual private activity.
-    """
+    """Permit one idempotent legacy import for the explicitly configured owner."""
     identity = str(identity_email or "").strip().lower()
     configured = str(configured_owner_email or "").strip().lower()
     if not (identity and configured and identity == configured):
         return False
-    if existing_state is None:
-        return True
-    if not isinstance(existing_state, dict) or existing_state.get("onboarding_complete"):
-        return False
-    private_activity_keys = (
-        "watchlist",
-        "holdings",
-        "decisions_log",
-        "pm_cache",
-        "notes",
-        "position_notes",
-        "chat_history",
-    )
-    return not any(existing_state.get(key) for key in private_activity_keys)
+    return not isinstance(existing_state, dict) or not existing_state.get("legacy_owner_imported_at")
+
+
+def merge_owner_legacy_state(legacy_state, existing_state) -> dict[str, Any]:
+    """Restore the legacy desk without discarding newer owner-account activity."""
+    legacy = dict(legacy_state or {})
+    existing = dict(existing_state or {})
+    merged = dict(legacy)
+    merged.update(existing)
+
+    for key in ("holdings", "pm_cache", "notes", "position_notes", "chat_history"):
+        legacy_section = legacy.get(key) if isinstance(legacy.get(key), dict) else {}
+        existing_section = existing.get(key) if isinstance(existing.get(key), dict) else {}
+        if legacy_section or existing_section:
+            merged[key] = {**legacy_section, **existing_section}
+
+    legacy_watchlist = legacy.get("watchlist") if isinstance(legacy.get("watchlist"), list) else []
+    existing_watchlist = existing.get("watchlist") if isinstance(existing.get("watchlist"), list) else []
+    merged["watchlist"] = list(dict.fromkeys(
+        str(ticker).upper().strip()
+        for ticker in [*legacy_watchlist, *existing_watchlist]
+        if str(ticker or "").strip()
+    ))
+
+    decisions_by_id = {}
+    for index, entry in enumerate([*(legacy.get("decisions_log") or []), *(existing.get("decisions_log") or [])]):
+        if not isinstance(entry, dict):
+            continue
+        entry_id = str(entry.get("id") or entry.get("ts") or entry.get("created_at") or f"legacy-{index}")
+        decisions_by_id[entry_id] = entry
+    if decisions_by_id:
+        merged["decisions_log"] = list(decisions_by_id.values())
+    return merged
 
 
 def ensure_schema(cur) -> None:
