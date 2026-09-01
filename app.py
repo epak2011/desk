@@ -831,7 +831,7 @@ def _initial_route_scope():
     return view, str(ticker or "").upper().strip()
 
 
-def _load_split_sections(cur, store):
+def _load_split_sections(cur, store, *, complete_legacy_import=False):
     """Merge normalized Postgres rows back into the legacy in-memory store."""
     view_hint, ticker_hint = _initial_route_scope()
     if view_hint == "today":
@@ -840,7 +840,7 @@ def _load_split_sections(cur, store):
     if view_hint == "today":
         view_hint = "watchlist"
     ticker_hint = ticker_hint or str((store or {}).get("last_ticker") or "").upper().strip()
-    load_all_chat = view_hint in {"tracker"}
+    load_all_chat = complete_legacy_import or view_hint in {"tracker"}
     if load_all_chat:
         cur.execute("SELECT ticker, messages FROM chat_history")
     elif ticker_hint:
@@ -858,7 +858,7 @@ def _load_split_sections(cur, store):
     if chat_rows:
         store["chat_history"] = {str(t).upper(): (m or []) for t, m in chat_rows}
 
-    load_all_decisions = view_hint in {"tracker", "backtest"}
+    load_all_decisions = complete_legacy_import or view_hint in {"tracker", "backtest"}
     if load_all_decisions:
         cur.execute("""
             SELECT entry
@@ -1023,7 +1023,10 @@ def load_store():
                             cur.execute("SELECT value FROM kv_store WHERE key = 'default'")
                             legacy_row = cur.fetchone()
                             store = legacy_row[0] if legacy_row and isinstance(legacy_row[0], dict) else _store_default()
-                            store = _load_split_sections(cur, store)
+                            # Owner migration must be complete regardless of the
+                            # page that happened to be open at first sign-in.
+                            # Normal loads stay route-scoped for performance.
+                            store = _load_split_sections(cur, store, complete_legacy_import=True)
                             store["onboarding_complete"] = True
                             store["legacy_owner_imported_at"] = now_market_time().isoformat(timespec="seconds")
                             user_state_store.save(cur, scoped_user_id, _json_safe(store))
