@@ -1284,10 +1284,10 @@ html,body,.stApp,[data-testid="stAppViewContainer"],.main,.block-container{backg
 header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:none!important}
 .desk-auth-wordmark{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#64748B;margin-bottom:28px}
 .desk-auth-wordmark span{color:#2563EB;margin-right:7px}
-.desk-auth-hero h1{font-size:clamp(38px,4.4vw,64px);line-height:.98;letter-spacing:-.045em;margin:0 0 20px;max-width:620px;color:#151A22}
-.desk-auth-hero p{font-size:16px;line-height:1.65;color:#64748B;max-width:560px;margin:0}
+.desk-auth-hero h1{font-size:clamp(38px,3.7vw,54px);line-height:1.02;letter-spacing:-.04em;margin:0 0 20px;max-width:650px;color:#151A22}
+.desk-auth-hero p{font-size:17px;line-height:1.6;color:#64748B;max-width:590px;margin:0}
 .desk-auth-proof{display:grid;gap:0;margin-top:34px;border-top:1px solid #D8E0E8;max-width:560px}
-.desk-auth-proof>div{padding:14px 0;border-bottom:1px solid #D8E0E8;display:grid;grid-template-columns:145px 1fr;gap:15px}
+.desk-auth-proof>div{padding:15px 0;border-bottom:1px solid #D8E0E8;display:grid;grid-template-columns:150px 1fr;gap:15px}
 .desk-auth-proof b{font-size:12px}.desk-auth-proof span{font-size:12px;line-height:1.45;color:#64748B}
 [class*="st-key-auth_panel"]{background:#FFF;border:1px solid #D8E0E8!important;border-top:4px solid #2563EB!important;border-radius:8px!important;padding:24px 24px 20px!important;box-shadow:0 16px 40px rgba(30,41,59,.08)}
 [class*="st-key-auth_panel"] h2{font-size:25px!important;margin:0!important;letter-spacing:-.02em}
@@ -1310,20 +1310,20 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
         st.markdown(
             '<div class="desk-auth-hero">'
             '<div class="desk-auth-wordmark"><span>▸</span>Trading Desk</div>'
-            '<h1>Know the call.<br>Know what changes it.</h1>'
-            '<p>A serious decision workstation for market context, stock-level action, sizing, triggers, and invalidation.</p>'
+            '<h1>Make clearer investing decisions.</h1>'
+            '<p>See what the market is doing, what each stock needs to do next, and which risks could change the outlook.</p>'
             '<div class="desk-auth-proof">'
-            '<div><b>Decision first</b><span>Enter, Accumulate, Watch, Hold Off, or Avoid—with execution attached.</span></div>'
-            '<div><b>Rules primary</b><span>Research can challenge the call, but never silently replace it.</span></div>'
-            '<div><b>Evidence visible</b><span>Data confidence and maturing outcomes remain auditable.</span></div>'
+            '<div><b>A clear next step</b><span>See whether the evidence supports buying, waiting, holding, or staying away.</span></div>'
+            '<div><b>The reason why</b><span>Understand the market and company signals behind each view in plain English.</span></div>'
+            '<div><b>What to watch</b><span>Know the price levels, events, and risks that would change the decision.</span></div>'
             '</div></div>',
             unsafe_allow_html=True,
         )
     with form_col:
         with st.container(key="auth_panel", border=True):
-            st.markdown("## Private workspace")
+            st.markdown("## Welcome back")
             st.markdown(
-                '<div class="desk-auth-private">Sign in to restore your private watchlist, holdings, notes, settings, and decision history.</div>',
+                '<div class="desk-auth-private">Sign in to open your watchlist, portfolio, notes, and saved decision history.</div>',
                 unsafe_allow_html=True,
             )
             oauth_error = st.session_state.pop("_oauth_error", "")
@@ -1390,12 +1390,12 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
                         except auth_layer.AuthError as exc:
                             st.error(str(exc))
             st.markdown("---")
-            if st.button("Explore read-only demo", use_container_width=True):
+            if st.button("Preview Trading Desk", use_container_width=True):
                 st.session_state["_public_demo_session"] = True
                 st.session_state.pop("store", None)
                 st.rerun()
             st.markdown(
-                '<div class="desk-auth-foot">Demo activity is not saved. Trading Desk is decision support—not personalized investment advice or a promise of performance.</div>',
+                '<div class="desk-auth-foot">The preview uses sample data and does not save changes. Trading Desk provides research and decision support, not personalized investment advice.</div>',
                 unsafe_allow_html=True,
             )
     st.stop()
