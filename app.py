@@ -1321,9 +1321,9 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
         )
     with form_col:
         with st.container(key="auth_panel", border=True):
-            st.markdown("## Welcome back")
+            st.markdown("## Welcome back.")
             st.markdown(
-                '<div class="desk-auth-private">Sign in to open your watchlist, portfolio, notes, and saved decision history.</div>',
+                '<div class="desk-auth-private">Sign in to get back to your personalized trading desk.</div>',
                 unsafe_allow_html=True,
             )
             oauth_error = st.session_state.pop("_oauth_error", "")
