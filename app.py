@@ -19359,7 +19359,10 @@ if view == "regime":
         btc = _quote("BTC-USD", "260d")
         eth = _quote("ETH-USD", "260d")
         ethbtc_hist = yf.Ticker("ETH-BTC").history(period="35d", interval="1d", auto_adjust=True)
-        btc_hist = yf.Ticker("BTC-USD").history(period="260d", interval="1d", auto_adjust=True)
+        # Two years keeps the prior cycle high in view. A 260-calendar-day
+        # window dropped the October 2025 ATH by September 2026 and made a
+        # deeply underwater rebound look like a fresh expansion.
+        btc_hist = yf.Ticker("BTC-USD").history(period="2y", interval="1d", auto_adjust=True)
         fg = _fear_greed()
         if btc_hist is None or btc_hist.empty:
             return {}
@@ -19371,8 +19374,8 @@ if view == "regime":
         ma20 = float(closes.tail(20).mean())
         btc_vs_200 = (btc_price / ma200 - 1) * 100 if ma200 else None
         btc_vs_20 = (btc_price / ma20 - 1) * 100 if ma20 else None
-        peak_260 = float(closes.max())
-        drawdown_260 = (btc_price / peak_260 - 1) * 100 if peak_260 else None
+        cycle_peak = float(closes.max())
+        drawdown_cycle = (btc_price / cycle_peak - 1) * 100 if cycle_peak else None
         return_90 = (btc_price / float(closes.iloc[-90]) - 1) * 100 if len(closes) >= 90 else None
         ethbtc_change = None
         ethbtc_now = None
@@ -19392,7 +19395,7 @@ if view == "regime":
             "eth_change": eth.get("change"),
             "btc_vs_200": btc_vs_200,
             "btc_vs_20": btc_vs_20,
-            "drawdown_260": drawdown_260,
+            "drawdown_cycle": drawdown_cycle,
             "return_90": return_90,
             "fg": fg,
             "ethbtc_change": ethbtc_change,
@@ -19469,9 +19472,9 @@ if view == "regime":
         extreme_fear = fg_value is not None and fg_value < 25
         deep_fear = fg_value is not None and fg_value < 35
         greed = fg_value is not None and fg_value >= 65
-        drawdown_260 = c.get("drawdown_260")
+        drawdown_cycle = c.get("drawdown_cycle")
         return_90 = c.get("return_90")
-        deep_drawdown = drawdown_260 is not None and drawdown_260 <= -30
+        deep_drawdown = drawdown_cycle is not None and drawdown_cycle <= -30
 
         if deep_drawdown and (above_200 or above_20):
             q1 = ("Recovery", "Deep drawdown; trend repair, not a bull cycle", "yellow")
@@ -19511,7 +19514,7 @@ if view == "regime":
         four = crypto_regime.classify_cycle(
             btc_vs_200=btc_vs_200,
             btc_vs_20=btc_vs_20,
-            drawdown_260=drawdown_260,
+            drawdown_cycle=drawdown_cycle,
             return_90=return_90,
             fear_greed=fg_value,
         )
@@ -19558,7 +19561,7 @@ if view == "regime":
         price_cells = [
             ("BTC", btc_price, _signed_regime(c.get("change")), _crypto_change_class(c.get("change"))),
             ("ETH", eth_price, _signed_regime(c.get("eth_change")), _crypto_change_class(c.get("eth_change"))),
-            ("Drawdown", _signed_regime(c.get("drawdown_260")), "from 260d high", _crypto_change_class(c.get("drawdown_260"))),
+            ("Cycle drawdown", _signed_regime(c.get("drawdown_cycle")), "from 2y high", _crypto_change_class(c.get("drawdown_cycle"))),
             ("BTC dominance", f'{c.get("btc_dom", 55):.1f}%', "approximation", _crypto_class(scored["q3"][2])),
             ("Fear & Greed", fg_txt, f'{c.get("months_since_halving", 0)} mo post-halving', _crypto_fear_class(fg.get("value"))),
         ]

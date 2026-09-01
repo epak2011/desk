@@ -1,13 +1,13 @@
 """Deterministic crypto cycle classification for the Market Regime page."""
 
 
-def classify_cycle(*, btc_vs_200, btc_vs_20, drawdown_260, return_90, fear_greed):
+def classify_cycle(*, btc_vs_200, btc_vs_20, drawdown_cycle, return_90, fear_greed):
     above_200 = btc_vs_200 is not None and btc_vs_200 > 0
     above_20 = btc_vs_20 is not None and btc_vs_20 > 0
-    deep_drawdown = drawdown_260 is not None and drawdown_260 <= -30
+    deep_drawdown = drawdown_cycle is not None and drawdown_cycle <= -30
     parabolic = (
         above_200
-        and drawdown_260 is not None and drawdown_260 >= -8
+        and drawdown_cycle is not None and drawdown_cycle >= -8
         and return_90 is not None and return_90 >= 25
         and (btc_vs_200 or 0) >= 20
         and (btc_vs_20 or 0) >= 8
