@@ -43,6 +43,7 @@ import portfolio_context
 import tactical
 import user_state_store
 import onboarding
+import crypto_regime
 import notification_engine
 import market_freshness
 import public_recovery
@@ -19370,6 +19371,9 @@ if view == "regime":
         ma20 = float(closes.tail(20).mean())
         btc_vs_200 = (btc_price / ma200 - 1) * 100 if ma200 else None
         btc_vs_20 = (btc_price / ma20 - 1) * 100 if ma20 else None
+        peak_260 = float(closes.max())
+        drawdown_260 = (btc_price / peak_260 - 1) * 100 if peak_260 else None
+        return_90 = (btc_price / float(closes.iloc[-90]) - 1) * 100 if len(closes) >= 90 else None
         ethbtc_change = None
         ethbtc_now = None
         if ethbtc_hist is not None and not ethbtc_hist.empty:
@@ -19388,6 +19392,8 @@ if view == "regime":
             "eth_change": eth.get("change"),
             "btc_vs_200": btc_vs_200,
             "btc_vs_20": btc_vs_20,
+            "drawdown_260": drawdown_260,
+            "return_90": return_90,
             "fg": fg,
             "ethbtc_change": ethbtc_change,
             "ethbtc_now": ethbtc_now,
@@ -19463,9 +19469,13 @@ if view == "regime":
         extreme_fear = fg_value is not None and fg_value < 25
         deep_fear = fg_value is not None and fg_value < 35
         greed = fg_value is not None and fg_value >= 65
-        euphoria = fg_value is not None and fg_value >= 80
+        drawdown_260 = c.get("drawdown_260")
+        return_90 = c.get("return_90")
+        deep_drawdown = drawdown_260 is not None and drawdown_260 <= -30
 
-        if above_200 and above_20:
+        if deep_drawdown and (above_200 or above_20):
+            q1 = ("Recovery", "Deep drawdown; trend repair, not a bull cycle", "yellow")
+        elif above_200 and above_20:
             q1 = ("Bull", "Above 200d and 20d MA", "green")
         elif above_200 and not above_20:
             q1 = ("Mixed", "Structure intact, momentum fading", "yellow")
@@ -19498,16 +19508,13 @@ if view == "regime":
         else:
             q3 = ("Neutral", "No clean BTC/alt rotation edge", "muted")
 
-        if above_200 and (btc_vs_200 or 0) > 15 or (above_200 and (btc_vs_200 or 0) > 5 and ((btc_vs_20 or 0) > 5 or euphoria)):
-            four = ("Phase 3", "Parabolic bull", "Trend is mature; manage greed and trailing risk.", 3)
-        elif above_200:
-            four = ("Phase 2", "Recovery / expansion", "Constructive cycle with room if macro stays supportive.", 2)
-        elif not above_200 and (btc_vs_200 or 0) < -35 and not above_20 and extreme_fear:
-            four = ("Phase 1", "Accumulation", "Deep-cycle stress; buys are long-duration and sized small.", 1)
-        elif not above_200 and above_20:
-            four = ("Phase 4", "Bear-market recovery attempt", "Repair attempt, but 200d is still the key line.", 4)
-        else:
-            four = ("Phase 4", "Bear market", "Defense until BTC reclaims the long-term trend.", 4)
+        four = crypto_regime.classify_cycle(
+            btc_vs_200=btc_vs_200,
+            btc_vs_20=btc_vs_20,
+            drawdown_260=drawdown_260,
+            return_90=return_90,
+            fear_greed=fg_value,
+        )
 
         if above_20 and ((btc_vs_20 or 0) < 2 or greed):
             medium = ("Late", "Short-term risk/reward is less attractive.", "yellow")
@@ -19518,7 +19525,7 @@ if view == "regime":
         else:
             medium = ("Rolling over", "Short-term trend is losing support.", "red")
 
-        alignment = "Aligned" if q1[0] == "Bull" and medium[0] == "Expansion" else ("Mixed" if q1[0] in {"Bull", "Mixed", "Reclaim attempt"} else "Defensive")
+        alignment = "Aligned" if q1[0] == "Bull" and medium[0] == "Expansion" else ("Mixed" if q1[0] in {"Bull", "Mixed", "Reclaim attempt", "Recovery"} else "Defensive")
         return {"q1": q1, "q2": q2, "q3": q3, "four": four, "medium": medium, "alignment": alignment}
 
     def _crypto_narrative(c, scored, d, s):
@@ -19551,6 +19558,7 @@ if view == "regime":
         price_cells = [
             ("BTC", btc_price, _signed_regime(c.get("change")), _crypto_change_class(c.get("change"))),
             ("ETH", eth_price, _signed_regime(c.get("eth_change")), _crypto_change_class(c.get("eth_change"))),
+            ("Drawdown", _signed_regime(c.get("drawdown_260")), "from 260d high", _crypto_change_class(c.get("drawdown_260"))),
             ("BTC dominance", f'{c.get("btc_dom", 55):.1f}%', "approximation", _crypto_class(scored["q3"][2])),
             ("Fear & Greed", fg_txt, f'{c.get("months_since_halving", 0)} mo post-halving', _crypto_fear_class(fg.get("value"))),
         ]
@@ -19582,18 +19590,10 @@ if view == "regime":
             f'<div class="meta">Signal</div><div class="meta-text"><em>{html.escape(signal)}</em></div></div>'
             for num, label, name, desc, historical, signal in phase_defs
         )
-        memo_rows = (memo_crypto or {}).get("narrative") if isinstance(memo_crypto, dict) else None
-        if isinstance(memo_rows, list) and len(memo_rows) >= 3:
-            narrative_rows = [
-                (
-                    str((row or {}).get("title") or "Read"),
-                    str((row or {}).get("body") or ""),
-                )
-                for row in memo_rows[:4]
-                if isinstance(row, dict)
-            ]
-        else:
-            narrative_rows = _crypto_narrative(c, scored, d, s)
+        # Keep the user-facing phase explanation tied to the deterministic
+        # classifier. A previously saved memo can add context elsewhere, but it
+        # must never contradict the current cycle label after market data moves.
+        narrative_rows = _crypto_narrative(c, scored, d, s)
         narrative = "".join(
             f'<div class="crypto-narrative-row"><div class="h">{html.escape(h)}</div><div class="b">{html.escape(b)}</div></div>'
             for h, b in narrative_rows
