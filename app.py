@@ -79,6 +79,7 @@ UNSUBSCRIBE_SECRET = _configured_text("UNSUBSCRIBE_SECRET")
 OWNER_ACCOUNT_EMAIL = _configured_text("TRADING_DESK_OWNER_EMAIL")
 APP_PUBLIC_URL = _configured_text("TRADING_DESK_APP_URL") or "https://tradingdesk.streamlit.app"
 GOOGLE_OAUTH_ENABLED = _configured_bool("GOOGLE_OAUTH_ENABLED", False)
+CRYPTO_CYCLE_MODEL_VERSION = "crypto-cycle-2026.09.01-c"
 AUTH_READY = auth_layer.configured(SUPABASE_URL, SUPABASE_ANON_KEY)
 HOSTED_DATABASE_READY = bool(_configured_text("DATABASE_URL"))
 # Hosted data is never exposed through owner mode. A configured identity
@@ -19715,7 +19716,9 @@ if view == "regime":
         # this run alive so the loading shell below remains visible throughout
         # the refresh and the completed snapshot replaces it in place.
 
-    regime_refresh_key = regime_daily_key()
+    # Include the deterministic model version so a deploy cannot reuse an
+    # older daily snapshot whose crypto payload lacks current cycle inputs.
+    regime_refresh_key = f"{regime_daily_key()}:{CRYPTO_CYCLE_MODEL_VERSION}"
     regime_loading = st.empty()
     regime_loading.markdown(regime_loading_shell_html(), unsafe_allow_html=True)
     snap = _regime_snapshot(regime_refresh_key)

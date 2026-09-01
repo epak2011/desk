@@ -4,6 +4,8 @@
 def classify_cycle(*, btc_vs_200, btc_vs_20, drawdown_cycle, return_90, fear_greed):
     above_200 = btc_vs_200 is not None and btc_vs_200 > 0
     above_20 = btc_vs_20 is not None and btc_vs_20 > 0
+    if drawdown_cycle is None:
+        return ("Unconfirmed", "Cycle data pending", "Waiting for the full two-year cycle range; no phase is asserted.", 0)
     deep_drawdown = drawdown_cycle is not None and drawdown_cycle <= -30
     parabolic = (
         above_200
