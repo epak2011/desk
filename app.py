@@ -19706,7 +19706,11 @@ if view == "regime":
         _crypto_snapshot.clear()
         _regime_snapshot.clear()
         st.session_state["force_regime_daily_memo"] = True
-        st.rerun()
+        # A button click is already a Streamlit rerun. Triggering another rerun
+        # here briefly unmounted the regime body and could leave a signed-in
+        # session looking like a blank page while the second run started. Keep
+        # this run alive so the loading shell below remains visible throughout
+        # the refresh and the completed snapshot replaces it in place.
 
     regime_refresh_key = regime_daily_key()
     regime_loading = st.empty()
