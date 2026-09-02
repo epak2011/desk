@@ -1286,11 +1286,17 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
 .desk-auth-wordmark span{color:#2563EB;margin-right:7px}
 .desk-auth-hero h1{font-size:clamp(38px,3.7vw,54px);line-height:1.02;letter-spacing:-.04em;margin:0 0 20px;max-width:650px;color:#151A22}
 .desk-auth-hero p{font-size:17px;line-height:1.6;color:#64748B;max-width:590px;margin:0}
-.desk-auth-proof{display:grid;gap:0;margin-top:34px;border-top:1px solid #D8E0E8;max-width:560px}
-.desk-auth-proof>div{padding:15px 0;border-bottom:1px solid #D8E0E8;display:grid;grid-template-columns:150px 1fr;gap:15px}
-.desk-auth-proof b{font-size:12px}.desk-auth-proof span{font-size:12px;line-height:1.45;color:#64748B}
-[class*="st-key-auth_panel"]{background:#FFF;border:1px solid #D8E0E8!important;border-top:4px solid #2563EB!important;border-radius:8px!important;padding:24px 24px 20px!important;box-shadow:0 16px 40px rgba(30,41,59,.08)}
-[class*="st-key-auth_panel"] h2{font-size:25px!important;margin:0!important;letter-spacing:-.02em}
+.desk-product-preview{max-width:560px;margin-top:28px;background:#FFF;border:1px solid #D8E0E8;border-radius:8px;padding:18px 20px;box-shadow:0 12px 30px rgba(30,41,59,.06)}
+.desk-product-preview .eyebrow{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;color:#64748B}
+.desk-product-preview .decision{font-size:23px;line-height:1.2;font-weight:900;color:#151A22;margin:7px 0 5px}
+.desk-product-preview .reason{font-size:13px;line-height:1.45;color:#64748B;margin-bottom:15px}
+.desk-product-preview .preview-row{display:flex;justify-content:space-between;gap:18px;padding:9px 0;border-top:1px solid #E7ECF1;font-size:12px;color:#64748B}
+.desk-product-preview .preview-row b{color:#263241}
+.desk-benefits{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px;max-width:560px}
+.desk-benefits span{font-size:10px;font-weight:800;color:#526071;background:#EDF2F7;border-radius:4px;padding:5px 8px}
+[class*="st-key-auth_hero_demo"] button{width:auto!important;min-height:38px!important;padding:0 16px!important;background:#FFF!important;color:#151A22!important;border:1px solid #CBD5E1!important;border-radius:5px!important;font-weight:850!important}
+[class*="st-key-auth_panel"]{background:#FFF;border:1px solid #D8E0E8!important;border-top:4px solid #2563EB!important;border-radius:8px!important;padding:20px 22px 18px!important;box-shadow:0 16px 40px rgba(30,41,59,.08)}
+[class*="st-key-auth_panel"] h2{font-size:23px!important;margin:0!important;letter-spacing:-.02em}
 [class*="st-key-auth_panel"] [data-baseweb="tab-list"]{gap:18px;border-bottom:1px solid #D8E0E8}
 [class*="st-key-auth_panel"] [data-baseweb="tab"]{padding:11px 0!important;font-weight:800!important}
 [class*="st-key-auth_panel"] input{background:#F8FAFC!important;border:1px solid #CBD5E1!important;border-radius:5px!important;color:#151A22!important}
@@ -1300,7 +1306,7 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
 .desk-auth-or{display:flex;align-items:center;gap:10px;margin:14px 0 2px;color:#94A3B8;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase}.desk-auth-or:before,.desk-auth-or:after{content:"";height:1px;background:#D8E0E8;flex:1}
 .desk-auth-private{font-size:12px;line-height:1.5;color:#64748B;margin:7px 0 14px}
 .desk-auth-foot{font-size:11px;line-height:1.5;color:#64748B;margin-top:12px}
-@media(max-width:760px){[data-testid="stMainBlockContainer"]{padding:24px 18px 32px!important}.desk-auth-wordmark{margin-bottom:18px}.desk-auth-hero h1{font-size:38px}.desk-auth-proof{margin:22px 0 24px}.desk-auth-proof>div{grid-template-columns:120px 1fr}[class*="st-key-auth_panel"]{padding:18px 16px 16px!important}}
+@media(max-width:760px){[data-testid="stMainBlockContainer"]{padding:24px 18px 32px!important}.desk-auth-wordmark{margin-bottom:18px}.desk-auth-hero h1{font-size:38px}.desk-product-preview{margin-top:22px;padding:16px}.desk-benefits{margin-bottom:12px}[class*="st-key-auth_panel"]{padding:18px 16px 16px!important}}
 </style>
         """,
         unsafe_allow_html=True,
@@ -1312,13 +1318,21 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
             '<div class="desk-auth-wordmark"><span>▸</span>Trading Desk</div>'
             '<h1>Make clearer investing decisions.</h1>'
             '<p>See what the market is doing, what each stock needs to do next, and which risks could change the outlook.</p>'
-            '<div class="desk-auth-proof">'
-            '<div><b>A clear next step</b><span>See whether the evidence supports buying, waiting, holding, or staying away.</span></div>'
-            '<div><b>The reason why</b><span>Understand the market and company signals behind each view in plain English.</span></div>'
-            '<div><b>What to watch</b><span>Know the price levels, events, and risks that would change the decision.</span></div>'
-            '</div></div>',
+            '<div class="desk-product-preview">'
+            '<div class="eyebrow">Example decision · Market today</div>'
+            '<div class="decision">Wait for a better entry</div>'
+            '<div class="reason">The longer-term trend is holding, but short-term conditions are not attractive enough to chase.</div>'
+            '<div class="preview-row"><b>Current view</b><span>Hold current exposure</span></div>'
+            '<div class="preview-row"><b>What changes it</b><span>Price stabilizes and volatility falls</span></div>'
+            '</div>'
+            '<div class="desk-benefits"><span>Clear next step</span><span>Plain-English reasoning</span><span>Specific watch points</span></div>'
+            '</div>',
             unsafe_allow_html=True,
         )
+        if st.button("Preview Trading Desk →", key="auth_hero_demo"):
+            st.session_state["_public_demo_session"] = True
+            st.session_state.pop("store", None)
+            st.rerun()
     with form_col:
         with st.container(key="auth_panel", border=True):
             st.markdown("## Welcome back.")
