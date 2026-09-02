@@ -16802,13 +16802,23 @@ if view == "analyze":
             "Degraded": "var(--color-warning-text)",
             "Blocked": "var(--color-negative)",
         }.get(trust_status, "var(--color-muted)")
+        portfolio_sector = str(portfolio_overlay.get("sector") or "Unknown")
+        portfolio_sector_weight = float(portfolio_overlay.get("sector_weight_pct") or 0)
+        if not portfolio_overlay.get("holdings_tracked"):
+            portfolio_concentration = "Add holdings to measure exposure"
+        elif portfolio_sector == "Unknown":
+            portfolio_concentration = "Sector data unavailable"
+        elif portfolio_sector_weight <= 0:
+            portfolio_concentration = f"No current {portfolio_sector} holdings"
+        else:
+            portfolio_concentration = f"{portfolio_sector} is {portfolio_sector_weight:.1f}% of portfolio"
         snapshot_items = [
             ("Setup quality", setup_score_breakdown_hover_html(t)),
             ("Confidence", html.escape(decision_confidence_label(t))),
             ("Risk / reward", html.escape(rr_value)),
             ("Setup stage", setup_stage_html(t)),
             ("Data trust", f'<span style="color:{trust_color};font-weight:800;">{html.escape(trust_status)}</span>'),
-            ("Sector exposure", html.escape(f'{portfolio_overlay.get("sector")}: {float(portfolio_overlay.get("sector_weight_pct") or 0):.1f}%')),
+            ("Portfolio concentration", html.escape(portfolio_concentration)),
         ]
         snapshot_html = "".join(
             f'<div class="desk-snapshot-item">'
