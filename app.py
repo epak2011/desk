@@ -16481,6 +16481,14 @@ if view == "analyze":
             or t.get("matrix_reason")
             or "Follow the stated trigger and position-size discipline."
         )
+        _hero_execution = trigger_text(t) or str(
+            t.get("entry_status") or _state_copy or "Follow the plan"
+        )
+        _hero_execution_label = (
+            "Entry trigger"
+            if normalize_action_key(t.get("action")) in {"watch", "hold_off"}
+            else "Execution"
+        )
         _hero_change = invalidation_text(t) or trigger_text(t) or "Reassess when the technical structure changes."
         _source_note = t.get("_source_note") or (
             "Rules primary"
@@ -16525,8 +16533,8 @@ if view == "analyze":
       <div class="desk-decision-brief-v">{html.escape(str(_hero_size))}</div>
     </div>
     <div class="desk-decision-brief-item">
-      <div class="desk-decision-brief-k">Execution</div>
-      <div class="desk-decision-brief-v">{html.escape(str(t.get('entry_status') or _state_copy or 'Follow the plan'))}</div>
+      <div class="desk-decision-brief-k">{html.escape(_hero_execution_label)}</div>
+      <div class="desk-decision-brief-v">{html.escape(_hero_execution)}</div>
     </div>
     <div class="desk-decision-brief-item">
       <div class="desk-decision-brief-k">Active constraint</div>
