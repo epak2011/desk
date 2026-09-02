@@ -27,7 +27,6 @@ class PortfolioContextTests(unittest.TestCase):
             risk_per_trade=.01, max_position_pct=.25,
         )
         self.assertEqual(result["suggested_weight_pct"], 0)
-        self.assertEqual(result["holdings_tracked"], 0)
 
 
 if __name__ == "__main__":

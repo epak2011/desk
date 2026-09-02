@@ -46,7 +46,6 @@ def portfolio_recommendation(
         if str(sectors.get(held_ticker) or "Unknown") == sector
     )
     sector_weight = sector_value / account if account else 0
-    holdings_tracked = sum(1 for value in position_values.values() if value > 0)
 
     no_entry = action not in {"enter_now", "accumulate"}
     if no_entry:
@@ -58,7 +57,6 @@ def portfolio_recommendation(
             "current_weight_pct": round(current_weight * 100, 2),
             "sector_weight_pct": round(sector_weight * 100, 2),
             "sector": sector,
-            "holdings_tracked": holdings_tracked,
             "concentration_flag": False,
         }
 
@@ -101,6 +99,5 @@ def portfolio_recommendation(
         "current_weight_pct": round(current_weight * 100, 2),
         "sector_weight_pct": round(sector_weight * 100, 2),
         "sector": sector,
-        "holdings_tracked": holdings_tracked,
         "concentration_flag": concentration_flag,
     }
