@@ -12996,7 +12996,7 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
                     view="analyze",
                     reason="sidebar ticker button",
                     sync_url=True,
-                    sync_widget=True,
+                    sync_widget=False,
                     rerun=True,
                 )
             quote_col.markdown(
