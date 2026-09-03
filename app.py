@@ -1322,8 +1322,8 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
         st.markdown(
             '<div class="desk-auth-hero">'
             '<div class="desk-auth-wordmark"><span>▸</span>Trading Desk</div>'
-            '<h1>Know what to do with a stock—and why.</h1>'
-            '<p>Trading Desk turns company, price, and market signals into a clear view: buy, wait, hold, or stay away.</p>'
+            '<h1>Meet your investment assistant.</h1>'
+            '<p>Trading Desk helps you make sense of any stock—from the big picture to what matters next.</p>'
             '<div class="desk-product-preview">'
             '<div class="eyebrow">Example · NVDA</div>'
             '<div class="decision">Wait for a better entry</div>'
