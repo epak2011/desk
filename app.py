@@ -1413,10 +1413,10 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
                             st.success("Account created. Check your email to confirm it, then sign in.")
                         except auth_layer.AuthError as exc:
                             st.error(str(exc))
-    st.markdown(
-        '<div class="desk-education-notice"><b>Educational use only.</b> Trading Desk does not provide investment advice, financial advice, recommendations, or solicitations to buy or sell securities. All information is provided solely for educational and informational purposes.</div>',
-        unsafe_allow_html=True,
-    )
+            st.markdown(
+                '<div class="desk-education-notice"><b>Educational use only.</b> Trading Desk does not provide investment advice, financial advice, recommendations, or solicitations to buy or sell securities. All information is provided solely for educational and informational purposes.</div>',
+                unsafe_allow_html=True,
+            )
     st.stop()
 
 
