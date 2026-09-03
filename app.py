@@ -12003,11 +12003,23 @@ with st.sidebar:
     )
     if _current_user_id():
         identity = st.session_state.get("_auth_identity") or {}
-        st.caption(str(identity.get("display_name") or identity.get("email") or "Signed in"))
-        if st.button("Sign out", key="auth_sign_out", use_container_width=False):
-            for auth_key in ("_auth_identity", "_auth_tokens", "store", "_persist_fingerprints"):
-                st.session_state.pop(auth_key, None)
-            st.rerun()
+        account_name = str(identity.get("display_name") or "").strip()
+        if not account_name:
+            account_name = str(identity.get("email") or "").split("@", 1)[0].strip()
+        account_name = account_name or "there"
+        with st.container(key="sidebar_account_row"):
+            account_greeting, account_action = st.columns([1.55, 1], vertical_alignment="center")
+            with account_greeting:
+                st.markdown(
+                    f'<div class="desk-sidebar-greeting"><span>Welcome</span>'
+                    f'<strong>Hi, {html.escape(account_name)}!</strong></div>',
+                    unsafe_allow_html=True,
+                )
+            with account_action:
+                if st.button("Sign out", key="auth_sign_out", use_container_width=True):
+                    for auth_key in ("_auth_identity", "_auth_tokens", "store", "_persist_fingerprints"):
+                        st.session_state.pop(auth_key, None)
+                    st.rerun()
     elif PUBLIC_DEMO_MODE and AUTH_REQUIRED:
         st.caption("Public Demo · private saving disabled")
         if st.button("Sign in", key="leave_public_demo", use_container_width=False):
@@ -13460,6 +13472,62 @@ section[data-testid="stSidebar"] {
     color: #0F9F5A;
     font-size: 10px;
     line-height: 1;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] {
+    margin: -10px 0 16px !important;
+    padding: 0 0 16px !important;
+    border-bottom: 1px solid var(--desk-border) !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] [data-testid="stHorizontalBlock"] {
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.desk-sidebar-greeting {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    line-height: 1.2;
+}
+
+.desk-sidebar-greeting span {
+    color: var(--desk-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.desk-sidebar-greeting strong {
+    color: var(--desk-text);
+    font-size: 14px;
+    font-weight: 750;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-auth_sign_out"] button {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    border: 1px solid #CAD3DF !important;
+    border-radius: 6px !important;
+    background: #FFFFFF !important;
+    color: #273344 !important;
+    box-shadow: none !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-auth_sign_out"] button:hover {
+    border-color: #8FA0B5 !important;
+    background: #F8FAFC !important;
+    color: #111827 !important;
 }
 
 .desk-sidebar-help {
