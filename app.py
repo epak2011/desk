@@ -12022,8 +12022,8 @@ with st.sidebar:
             account_greeting, account_action = st.columns([1.55, 1], vertical_alignment="center")
             with account_greeting:
                 st.markdown(
-                    f'<div class="desk-sidebar-greeting"><span>Welcome</span>'
-                    f'<strong>Hi, {html.escape(account_name)}!</strong></div>',
+                    f'<div class="desk-sidebar-greeting">Hi, '
+                    f'<strong>{html.escape(account_name)}</strong></div>',
                     unsafe_allow_html=True,
                 )
             with account_action:
@@ -12136,7 +12136,7 @@ with st.sidebar:
     )
     active_view_label = view_labels.get(st.session_state.view, "Menu")
     with st.container(key="sidebar_menu"):
-        with st.expander(f"☰  Menu  ·  {active_view_label}", expanded=False):
+        with st.popover(f"☰  {active_view_label}", use_container_width=True):
             for view_key, view_label in primary_view_labels.items():
                 is_active = view_key == st.session_state.view
                 if st.button(
@@ -12934,11 +12934,9 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
         except Exception:
             wl_data = saved_sidebar_cache
 
-        # Each watchlist row rendered as ONE HTML markdown block.
-        # No st.columns — flex layout in pure HTML, fully aligned, no
-        # Streamlit padding interference. Ticker click → ?open=TICKER,
-        # ✕ click → ?wldel=TICKER, both handled by the global handler.
-        rows_html = []
+        # Use Streamlit controls for ticker changes. Plain href navigation
+        # creates a new Streamlit browser session and drops the in-memory auth
+        # token, which made selecting a ticker appear to sign the user out.
         for tkr in watchlist:
             row_snapshot = wl_data.get(tkr.upper(), {})
             last = row_snapshot.get("last")
@@ -12985,52 +12983,30 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
             # repeated on every compact sidebar row.
             stale_note = ""
 
-            # Active ticker: black bg + white text on the ticker label only
-            active_bg = "var(--color-text)" if is_active else "transparent"
-            active_fg = "var(--color-bg)" if is_active else "var(--color-text)"
-            active_hover = "" if is_active else (
-                "onmouseover=\"this.style.background='var(--color-surface-soft)'\" "
-                "onmouseout=\"this.style.background='transparent'\""
+            ticker_col, quote_col, delete_col = st.columns([1.08, 1.1, 0.28], gap="small")
+            select_key = f"wl_select_active_{tkr}" if is_active else f"wl_select_{tkr}"
+            if ticker_col.button(
+                f"{tkr}{marker_emoji}",
+                key=select_key,
+                help=marker_title,
+                use_container_width=True,
+            ):
+                route_to(
+                    ticker=tkr,
+                    view="analyze",
+                    reason="sidebar ticker button",
+                    sync_url=True,
+                    sync_widget=True,
+                    rerun=True,
+                )
+            quote_col.markdown(
+                f'<div class="desk-sidebar-quote"><span>{px_str}</span>'
+                f'<small style="color:{chg_color};">{chg_str}</small>{stale_note}</div>',
+                unsafe_allow_html=True,
             )
-
-            rows_html.append(
-                f'<div style="display: flex; align-items: center;'
-                f'gap: 4px; padding: 2px 0; width: 100%;">'
-                # Ticker label — clickable, takes ~40% of row width
-                f'<a href="?open={tkr}" target="_self" '
-                f'style="flex: 0 0 38%; min-width: 0;'
-                f'font-family: var(--font-sans); font-size: var(--fs-base);'
-                f'font-weight: 600; color: {active_fg};'
-                f'background: {active_bg}; padding: 6px 8px;'
-                f'border-radius: 3px; text-decoration: none;'
-                f'text-align: left; cursor: pointer;'
-                f'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" '
-                f'{active_hover}>'
-                f'{tkr}{action_marker}</a>'
-                # Price + change — right aligned in middle area
-                f'<div style="flex: 1 1 auto; min-width: 0;'
-                f'display: flex; flex-direction: column; align-items: flex-end;'
-                f'font-family: var(--font-mono); font-variant-numeric: tabular-nums;'
-                f'line-height: 1.15; padding: 0 4px;">'
-                f'<span style="font-size: var(--fs-base); color: var(--color-text); font-weight: 500;">{px_str}</span>'
-                f'<span style="font-size: var(--fs-sm); color: {chg_color};">{chg_str}</span>'
-                f'{stale_note}'
-                f'</div>'
-                # ✕ delete — clickable
-                f'<a href="?wldel={tkr}" target="_self" title="Remove {tkr}" '
-                f'style="flex: 0 0 22px; height: 22px;'
-                f'display: flex; align-items: center; justify-content: center;'
-                f'font-family: var(--font-sans); font-size: var(--fs-base);'
-                f'color: var(--color-fainter); text-decoration: none;'
-                f'border: 1px solid transparent; border-radius: 3px;'
-                f'cursor: pointer;" '
-                f'onmouseover="this.style.color=\'var(--color-negative)\';'
-                f'this.style.borderColor=\'var(--color-border)\'" '
-                f'onmouseout="this.style.color=\'var(--color-fainter)\';'
-                f'this.style.borderColor=\'transparent\'">✕</a>'
-                f'</div>'
-            )
-        st.markdown("".join(rows_html), unsafe_allow_html=True)
+            if delete_col.button("×", key=f"wl_del_{tkr}", help=f"Remove {tkr}"):
+                st.session_state["_pending_wldel"] = tkr
+                st.rerun()
     else:
         st.caption("Empty — type a ticker above and add it.")
 
@@ -13498,6 +13474,23 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] {
     margin: 0 0 16px !important;
 }
 
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button {
+    min-height: 38px !important;
+    justify-content: flex-start !important;
+    padding: 0 12px !important;
+    border: 0 !important;
+    border-radius: 6px !important;
+    background: transparent !important;
+    color: #273344 !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+    font-weight: 750 !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button:hover {
+    background: #E8EDF3 !important;
+}
+
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] details {
     border: 1px solid #CDD6E1 !important;
     border-radius: 7px !important;
@@ -13555,18 +13548,13 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] [data-tes
 
 .desk-sidebar-greeting {
     display: flex;
-    flex-direction: column;
-    gap: 1px;
+    align-items: baseline;
+    gap: 4px;
     min-width: 0;
     line-height: 1.2;
-}
-
-.desk-sidebar-greeting span {
     color: var(--desk-muted);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .desk-sidebar-greeting strong {
@@ -13576,6 +13564,24 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] [data-tes
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.desk-sidebar-quote {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    min-height: 28px;
+    padding-right: 2px;
+    color: var(--desk-text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+}
+
+.desk-sidebar-quote small {
+    font-size: 9px;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-auth_sign_out"] button {
