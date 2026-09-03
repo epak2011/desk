@@ -12134,37 +12134,40 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-    for view_key, view_label in primary_view_labels.items():
-        is_active = view_key == st.session_state.view
-        if st.button(
-            view_label,
-            key=f"sidebar_nav_{view_key}",
-            type="primary" if is_active else "secondary",
-            use_container_width=False,
-        ):
-            route_to(
-                view=view_key,
-                reason="sidebar nav",
-                sync_url=True,
-                sync_widget=False,
-                rerun=False,
-            )
-    with st.expander("Advanced & methodology", expanded=st.session_state.view in operator_view_labels):
-        for view_key, view_label in operator_view_labels.items():
-            is_active = view_key == st.session_state.view
-            if st.button(
-                view_label,
-                key=f"sidebar_nav_{view_key}",
-                type="primary" if is_active else "secondary",
-                use_container_width=False,
-            ):
-                route_to(
-                    view=view_key,
-                    reason="sidebar advanced nav",
-                    sync_url=True,
-                    sync_widget=False,
-                    rerun=False,
-                )
+    active_view_label = view_labels.get(st.session_state.view, "Menu")
+    with st.container(key="sidebar_menu"):
+        with st.expander(f"☰  Menu  ·  {active_view_label}", expanded=False):
+            for view_key, view_label in primary_view_labels.items():
+                is_active = view_key == st.session_state.view
+                if st.button(
+                    view_label,
+                    key=f"sidebar_nav_{view_key}",
+                    type="primary" if is_active else "secondary",
+                    use_container_width=True,
+                ):
+                    route_to(
+                        view=view_key,
+                        reason="sidebar nav",
+                        sync_url=True,
+                        sync_widget=False,
+                        rerun=False,
+                    )
+            st.markdown('<div class="desk-menu-section">More</div>', unsafe_allow_html=True)
+            for view_key, view_label in operator_view_labels.items():
+                is_active = view_key == st.session_state.view
+                if st.button(
+                    view_label,
+                    key=f"sidebar_nav_{view_key}",
+                    type="primary" if is_active else "secondary",
+                    use_container_width=True,
+                ):
+                    route_to(
+                        view=view_key,
+                        reason="sidebar advanced nav",
+                        sync_url=True,
+                        sync_widget=False,
+                        rerun=False,
+                    )
     st.markdown(
         '<div style="height:18px;"></div>',
         unsafe_allow_html=True,
@@ -13489,6 +13492,60 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] {
     margin: -10px 0 16px !important;
     padding: 0 0 16px !important;
     border-bottom: 1px solid var(--desk-border) !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] {
+    margin: 0 0 16px !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] details {
+    border: 1px solid #CDD6E1 !important;
+    border-radius: 7px !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+    overflow: hidden !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] details > summary {
+    min-height: 42px !important;
+    padding: 0 12px !important;
+    color: #1D2939 !important;
+    font-size: 12px !important;
+    font-weight: 750 !important;
+    letter-spacing: 0.01em !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] details > summary:hover {
+    background: #F8FAFC !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] details[open] > summary {
+    border-bottom: 1px solid #E3E8EF !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] details [data-testid="stExpanderDetails"] {
+    padding: 7px !important;
+    background: #FFFFFF !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] button {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 10px !important;
+}
+
+.desk-menu-section {
+    margin: 8px 3px 4px;
+    padding: 8px 7px 3px;
+    border-top: 1px solid #E6EAF0;
+    color: var(--desk-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] [data-testid="stHorizontalBlock"] {
