@@ -1287,24 +1287,21 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
 .desk-auth-wordmark span{color:#2563EB;margin-right:7px}
 .desk-auth-hero h1{font-size:clamp(38px,3.7vw,54px);line-height:1.02;letter-spacing:-.04em;margin:0 0 20px;max-width:650px;color:#151A22}
 .desk-auth-hero p{font-size:17px;line-height:1.6;color:#64748B;max-width:590px;margin:0}
-.desk-product-preview{position:relative;overflow:hidden;max-width:560px;margin-top:28px;background:linear-gradient(145deg,#FFF 0%,#F8FBFF 100%);border:1px solid #CBD9EA;border-radius:12px;padding:20px 22px;box-shadow:0 18px 45px rgba(30,64,175,.12)}
-.desk-product-preview:before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,#2563EB,#7C5CFC,#38BDF8)}
+.desk-product-preview{position:relative;overflow:hidden;max-width:650px;margin-top:28px;background:linear-gradient(145deg,#FFF 0%,#F8FBFF 100%);border:1px solid #CBD9EA;border-radius:14px;padding:22px 24px;box-shadow:0 18px 45px rgba(30,64,175,.12)}
+.desk-product-preview:before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,#2563EB,#22C55E,#38BDF8)}
 .desk-product-preview:after{content:"";position:absolute;width:150px;height:150px;border-radius:50%;right:-80px;top:-80px;background:rgba(37,99,235,.07)}
-.desk-preview-top{display:flex;align-items:center;justify-content:space-between;gap:14px}
-.desk-signal-pill{position:relative;z-index:1;font-size:10px;font-weight:900;color:#8A5A00;background:#FFF3CF;border:1px solid #F3D98D;border-radius:999px;padding:5px 9px;white-space:nowrap}
 .desk-product-preview .eyebrow{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;color:#64748B}
-.desk-product-preview .decision{font-size:23px;line-height:1.2;font-weight:900;color:#151A22;margin:7px 0 5px}
+.desk-product-preview .decision{font-size:25px;line-height:1.2;font-weight:900;color:#151A22;margin:8px 0 6px}
 .desk-product-preview .reason{font-size:13px;line-height:1.45;color:#64748B;margin-bottom:15px}
-.desk-market-line{height:34px;display:flex;align-items:flex-end;gap:5px;margin:4px 0 15px}
-.desk-market-line i{display:block;width:8%;min-width:8px;border-radius:3px 3px 1px 1px;background:linear-gradient(180deg,#4F7DF3,#B8C9F7)}
-.desk-market-line i:nth-child(1){height:30%}.desk-market-line i:nth-child(2){height:42%}.desk-market-line i:nth-child(3){height:35%}.desk-market-line i:nth-child(4){height:58%}.desk-market-line i:nth-child(5){height:72%}.desk-market-line i:nth-child(6){height:64%}.desk-market-line i:nth-child(7){height:90%;background:linear-gradient(180deg,#7C5CFC,#C7BAFF)}.desk-market-line i:nth-child(8){height:78%}.desk-market-line i:nth-child(9){height:70%}.desk-market-line i:nth-child(10){height:55%}
-.desk-product-preview .preview-row{display:flex;justify-content:space-between;gap:18px;padding:9px 0;border-top:1px solid #E7ECF1;font-size:12px;color:#64748B}
-.desk-product-preview .preview-row b{color:#263241}
-.desk-benefits{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px;max-width:560px}
-.desk-benefits span{font-size:10px;font-weight:800;color:#526071;background:#EDF2F7;border-radius:4px;padding:5px 8px}
+.desk-audience-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0}
+.desk-audience{padding:11px 12px;border:1px solid #E2E8F0;border-radius:9px;background:#FFF;font-size:11px;color:#64748B}.desk-audience b{display:block;margin-top:2px;font-size:17px;color:#151A22}.desk-audience:first-child b{color:#D97706}.desk-audience:last-child b{color:#16834A}
+.desk-preview-label{margin:14px 0 7px;font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#64748B}
+.desk-status-row{display:flex;flex-wrap:wrap;gap:7px}.desk-status{border-radius:999px;padding:6px 9px;font-size:10px;font-weight:850}.desk-status.good{color:#147A46;background:#E7F8EE}.desk-status.trend{color:#1D4ED8;background:#EAF1FF}.desk-status.wait{color:#9A5B00;background:#FFF3D6}
+.desk-watchpoint{padding:10px 12px;border-left:3px solid #2563EB;background:#EEF5FF;border-radius:0 7px 7px 0;font-size:12px;font-weight:750;color:#263241}
+.desk-demo-note{font-size:11px;color:#64748B;margin-top:7px}
 [class*="st-key-auth_hero_demo"] button{width:auto!important;min-height:42px!important;padding:0 18px!important;background:#2563EB!important;color:#FFF!important;border:1px solid #2563EB!important;border-radius:6px!important;font-weight:850!important;box-shadow:0 8px 20px rgba(37,99,235,.20)!important}
 [class*="st-key-auth_hero_demo"] button:hover{background:#1D4ED8!important;border-color:#1D4ED8!important}
-[class*="st-key-auth_panel"]{background:#FFF;border:1px solid #D8E0E8!important;border-top:4px solid #2563EB!important;border-radius:8px!important;padding:20px 22px 18px!important;box-shadow:0 16px 40px rgba(30,41,59,.08)}
+[class*="st-key-auth_panel"]{background:rgba(255,255,255,.92);border:1px solid rgba(203,213,225,.82)!important;border-radius:12px!important;padding:18px 20px 16px!important;box-shadow:0 12px 32px rgba(30,41,59,.06)}
 [class*="st-key-auth_panel"] h2{font-size:23px!important;margin:0!important;letter-spacing:-.02em}
 [class*="st-key-auth_panel"] [data-baseweb="tab-list"]{gap:18px;border-bottom:1px solid #D8E0E8}
 [class*="st-key-auth_panel"] [data-baseweb="tab"]{padding:11px 0!important;font-weight:800!important}
@@ -1315,39 +1312,43 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
 .desk-auth-or{display:flex;align-items:center;gap:10px;margin:14px 0 2px;color:#94A3B8;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase}.desk-auth-or:before,.desk-auth-or:after{content:"";height:1px;background:#D8E0E8;flex:1}
 .desk-auth-private{font-size:12px;line-height:1.5;color:#64748B;margin:7px 0 14px}
 .desk-education-notice{max-width:980px;margin:28px auto 0;padding:12px 15px;border-left:3px solid #94A3B8;background:rgba(255,255,255,.70);font-size:11px;line-height:1.55;color:#5B6778}.desk-education-notice b{color:#263241}
-@media(max-width:760px){[data-testid="stMainBlockContainer"]{padding:24px 18px 32px!important}.desk-auth-wordmark{margin-bottom:18px}.desk-auth-hero h1{font-size:38px}.desk-product-preview{margin-top:22px;padding:16px}.desk-benefits{margin-bottom:12px}[class*="st-key-auth_panel"]{padding:18px 16px 16px!important}}
+@media(max-width:760px){[data-testid="stMainBlockContainer"]{padding:24px 18px 32px!important}.desk-auth-wordmark{margin-bottom:18px}.desk-auth-hero h1{font-size:38px}.desk-product-preview{margin-top:22px;padding:17px}.desk-audience-grid{grid-template-columns:1fr 1fr}[class*="st-key-auth_panel"]{padding:18px 16px 16px!important}}
 </style>
         """,
         unsafe_allow_html=True,
     )
-    hero_col, form_col = st.columns([1.08, .92], gap="large", vertical_alignment="center")
+    hero_col, form_col = st.columns([1.55, .85], gap="large", vertical_alignment="center")
     with hero_col:
         st.markdown(
             '<div class="desk-auth-hero">'
             '<div class="desk-auth-wordmark"><span>▸</span>Trading Desk</div>'
-            '<h1>Make clearer investing decisions.</h1>'
-            '<p>See what the market is doing, what each stock needs to do next, and which risks could change the outlook.</p>'
+            '<h1>Know what to do with a stock—and why.</h1>'
+            '<p>Trading Desk turns company, price, and market signals into a clear view: buy, wait, hold, or stay away.</p>'
             '<div class="desk-product-preview">'
-            '<div class="desk-preview-top"><div class="eyebrow">Example decision · Market today</div><div class="desk-signal-pill">WAIT FOR SETUP</div></div>'
+            '<div class="eyebrow">Example · NVDA</div>'
             '<div class="decision">Wait for a better entry</div>'
-            '<div class="reason">The longer-term trend is holding, but short-term conditions are not attractive enough to chase.</div>'
-            '<div class="desk-market-line"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>'
-            '<div class="preview-row"><b>Current view</b><span>Hold current exposure</span></div>'
-            '<div class="preview-row"><b>What changes it</b><span>Price stabilizes and volatility falls</span></div>'
+            '<div class="reason">The business looks strong, but the stock isn’t offering an attractive entry right now.</div>'
+            '<div class="desk-audience-grid"><div class="desk-audience">Thinking of buying?<b>Wait</b></div><div class="desk-audience">Already own it?<b>Hold</b></div></div>'
+            '<div class="desk-preview-label">What we’re seeing</div>'
+            '<div class="desk-status-row"><span class="desk-status good">Business: Strong</span><span class="desk-status trend">Trend: Holding</span><span class="desk-status wait">Entry: Too extended</span></div>'
+            '<div class="desk-preview-label">What could change the view</div>'
+            '<div class="desk-watchpoint">A pullback toward $168 or a strong hold above $185</div>'
             '</div>'
-            '<div class="desk-benefits"><span>Clear next step</span><span>Plain-English reasoning</span><span>Specific watch points</span></div>'
             '</div>',
             unsafe_allow_html=True,
         )
-        if st.button("Explore the demo →", key="auth_hero_demo"):
+        if st.button("Try it with a stock →", key="auth_hero_demo"):
             st.session_state["_public_demo_session"] = True
             st.session_state.pop("store", None)
+            st.query_params["view"] = "analyze"
+            st.query_params["ticker"] = "NVDA"
             st.rerun()
+        st.markdown('<div class="desk-demo-note">No account needed</div>', unsafe_allow_html=True)
     with form_col:
         with st.container(key="auth_panel", border=True):
-            st.markdown("## Welcome back.")
+            st.markdown("## Welcome back")
             st.markdown(
-                '<div class="desk-auth-private">Sign in to get back to your personalized trading desk.</div>',
+                '<div class="desk-auth-private">Sign in to pick up where you left off.</div>',
                 unsafe_allow_html=True,
             )
             oauth_error = st.session_state.pop("_oauth_error", "")
