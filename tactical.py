@@ -1579,6 +1579,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
             )
             trigger = {
                 "kind": "retrospective_breakout",
+                "sessions_ago": sessions_ago or 0,
                 "summary": f"prior breakout above ${fired_level:.2f} already fired",
                 "buy_rule": (
                     f"Buy while price holds above the fired trigger at ${fired_level:.2f}; "

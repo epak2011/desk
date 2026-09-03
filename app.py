@@ -5271,6 +5271,7 @@ def build_trigger_monitor(t_state):
     base = {
         "level": level,
         "fired": fired,
+        "sessions_ago": trigger.get("sessions_ago"),
         "updated_at": datetime.now().isoformat(timespec="seconds"),
     }
     if fired:
@@ -10394,6 +10395,16 @@ def current_attention_events(logic_alerts=None):
             "receipt": receipt,
             "invalidation_price": invalidation,
             "earnings_days": meta.get("earnings_days"),
+            "receipt_age_days": _age_days_from_ts(receipt.get("captured_at")),
+            "trigger_sessions_ago": (market.get("trigger_monitor") or {}).get("sessions_ago")
+            if isinstance(market.get("trigger_monitor"), dict) else None,
+            "market_fresh": market_freshness.snapshot_freshness(
+                ticker,
+                market_freshness.parse_timestamp(
+                    market.get("updated_at") or market.get("ts") or market.get("market_updated_at")
+                ),
+                now=now_market_time(),
+            ).get("fresh", False),
         })
         contract_mismatches.extend(decision_contract.receipt_consistency(ticker, {
             "receipt": receipt,
