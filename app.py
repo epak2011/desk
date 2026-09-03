@@ -12150,7 +12150,7 @@ with st.sidebar:
                         reason="sidebar nav",
                         sync_url=True,
                         sync_widget=False,
-                        rerun=False,
+                        rerun=True,
                     )
             st.markdown('<div class="desk-menu-section">More</div>', unsafe_allow_html=True)
             for view_key, view_label in operator_view_labels.items():
@@ -12166,7 +12166,7 @@ with st.sidebar:
                         reason="sidebar advanced nav",
                         sync_url=True,
                         sync_widget=False,
-                        rerun=False,
+                        rerun=True,
                     )
     st.markdown(
         '<div style="height:18px;"></div>',
