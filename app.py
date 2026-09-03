@@ -12008,7 +12008,7 @@ except Exception:
 with st.sidebar:
     st.markdown(
         '<div class="desk-sidebar-wordmark">'
-        '<span class="desk-sidebar-mark">▸</span><span>Trading Desk</span>'
+        '<span>Trading Desk</span>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -12018,15 +12018,14 @@ with st.sidebar:
         if not account_name:
             account_name = str(identity.get("email") or "").split("@", 1)[0].strip()
         account_name = account_name or "there"
-        with st.container(key="sidebar_account_row"):
-            account_greeting, account_action = st.columns([1.55, 1], vertical_alignment="center")
-            with account_greeting:
+        account_email = str(identity.get("email") or "").strip()
+        with st.container(key="sidebar_account_menu"):
+            with st.popover(f"●  {account_name}", use_container_width=True):
                 st.markdown(
-                    f'<div class="desk-sidebar-greeting">Hi, '
-                    f'<strong>{html.escape(account_name)}</strong></div>',
+                    f'<div class="desk-account-popover"><strong>{html.escape(account_name)}</strong>'
+                    f'<span>{html.escape(account_email)}</span></div>',
                     unsafe_allow_html=True,
                 )
-            with account_action:
                 if st.button("Sign out", key="auth_sign_out", use_container_width=True):
                     for auth_key in ("_auth_identity", "_auth_tokens", "store", "_persist_fingerprints"):
                         st.session_state.pop(auth_key, None)
@@ -12169,15 +12168,7 @@ with st.sidebar:
                         rerun=True,
                     )
     st.markdown(
-        '<div style="height:18px;"></div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("---")
-    st.markdown(
-        '<div style="font-family: var(--font-mono);font-size:var(--fs-xs);'
-        'font-weight:600;letter-spacing: var(--ls-caps-xl);text-transform:uppercase;'
-        'color:var(--color-muted);margin:6px 0 8px;">Ticker</div>',
+        '<div class="desk-sidebar-section-label">Ticker</div>',
         unsafe_allow_html=True,
     )
     # Ticker text input — TRICKY: Streamlit's text_input ignores `value=`
@@ -13447,15 +13438,14 @@ section[data-testid="stSidebar"] {
     display: flex;
     align-items: center;
     gap: 7px;
-    margin: 2px 0 24px;
-    padding: 0 0 18px;
-    border-bottom: 1px solid var(--desk-border);
+    margin: 0;
+    padding: 2px 2px 14px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #263241;
+    color: #1D2939;
 }
 
 .desk-sidebar-mark {
@@ -13464,20 +13454,22 @@ section[data-testid="stSidebar"] {
     line-height: 1;
 }
 
-section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] {
-    margin: -10px 0 16px !important;
-    padding: 0 0 16px !important;
-    border-bottom: 1px solid var(--desk-border) !important;
+section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] {
+    margin: 0 0 16px !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] {
     margin: 0 0 16px !important;
+    padding: 6px !important;
+    border: 1px solid #DCE3EA !important;
+    border-radius: 8px !important;
+    background: rgba(255,255,255,0.72) !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button {
     min-height: 38px !important;
     justify-content: flex-start !important;
-    padding: 0 12px !important;
+    padding: 0 10px !important;
     border: 0 !important;
     border-radius: 6px !important;
     background: transparent !important;
@@ -13541,29 +13533,49 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-
     text-transform: uppercase;
 }
 
-section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] [data-testid="stHorizontalBlock"] {
-    align-items: center !important;
-    gap: 8px !important;
+section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] [data-testid="stPopover"] > button {
+    min-height: 38px !important;
+    justify-content: flex-start !important;
+    padding: 0 10px !important;
+    border: 1px solid #DCE3EA !important;
+    border-radius: 8px !important;
+    background: rgba(255,255,255,0.72) !important;
+    color: #273344 !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+    font-weight: 750 !important;
 }
 
-.desk-sidebar-greeting {
+section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] [data-testid="stPopover"] > button:hover {
+    background: #FFFFFF !important;
+    border-color: #C6D0DC !important;
+}
+
+.desk-account-popover {
     display: flex;
-    align-items: baseline;
-    gap: 4px;
-    min-width: 0;
-    line-height: 1.2;
-    color: var(--desk-muted);
-    font-size: 12px;
-    font-weight: 600;
+    flex-direction: column;
+    gap: 3px;
+    padding: 2px 2px 10px;
 }
 
-.desk-sidebar-greeting strong {
+.desk-account-popover strong {
     color: var(--desk-text);
-    font-size: 14px;
-    font-weight: 750;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 13px;
+}
+
+.desk-account-popover span {
+    color: var(--desk-muted);
+    font-size: 11px;
+}
+
+.desk-sidebar-section-label {
+    margin: 0 2px 8px;
+    color: var(--desk-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
 }
 
 .desk-sidebar-quote {
@@ -13584,7 +13596,7 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_account_row"] [data-tes
     font-size: 9px;
 }
 
-section[data-testid="stSidebar"] [class*="st-key-auth_sign_out"] button {
+[class*="st-key-auth_sign_out"] button {
     min-height: 32px !important;
     height: 32px !important;
     padding: 0 10px !important;
@@ -13598,10 +13610,33 @@ section[data-testid="stSidebar"] [class*="st-key-auth_sign_out"] button {
     white-space: nowrap !important;
 }
 
-section[data-testid="stSidebar"] [class*="st-key-auth_sign_out"] button:hover {
+[class*="st-key-auth_sign_out"] button:hover {
     border-color: #8FA0B5 !important;
     background: #F8FAFC !important;
     color: #111827 !important;
+}
+
+/* Popover contents mount outside the sidebar subtree. Keep the menu options
+   on the same left alignment and compact rhythm as the sidebar trigger. */
+[class*="st-key-sidebar_nav_"] button {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    justify-content: flex-start !important;
+    padding: 0 10px !important;
+    border-radius: 5px !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+    font-weight: 650 !important;
+}
+
+@media (min-width: 900px) {
+    [data-testid="stSidebarCollapseButton"],
+    section[data-testid="stSidebar"] button[aria-label="Collapse sidebar"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
 }
 
 .desk-sidebar-help {
