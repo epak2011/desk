@@ -1394,9 +1394,16 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
                     display_name = st.text_input("Display name", key="signup_display_name", autocomplete="name")
                     new_email = st.text_input("Email", key="signup_email", autocomplete="email")
                     new_password = st.text_input("Password", type="password", key="signup_password", autocomplete="new-password")
+                    terms_accepted = st.checkbox(
+                        "I understand that Trading Desk does not provide investment advice and is for educational and informational purposes only. I agree to these terms.",
+                        value=False,
+                        key="signup_terms_accepted",
+                    )
                     created = st.form_submit_button("Create private account", use_container_width=True)
                 if created:
-                    if len(new_password) < 8:
+                    if not terms_accepted:
+                        st.error("You must accept the educational-use and no-investment-advice terms to create an account.")
+                    elif len(new_password) < 8:
                         st.error("Use a password with at least eight characters.")
                     else:
                         try:
@@ -1406,6 +1413,7 @@ header,[data-testid="stToolbar"],[data-testid="stDecoration"],footer{display:non
                                 new_email,
                                 new_password,
                                 display_name,
+                                terms_accepted=True,
                             )
                             if session:
                                 _remember_auth_session(session)

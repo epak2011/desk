@@ -40,6 +40,18 @@ class AuthLayerTests(unittest.TestCase):
         self.assertEqual(request.call_args.args[2]["data"], {"display_name": "Elle"})
 
     @patch("auth_layer._request")
+    def test_signup_records_terms_acceptance(self, request):
+        request.return_value = {"user": {"id": "123"}}
+        auth_layer.sign_up(
+            "https://x.supabase.co", "anon", "a@example.com", "secret", "Elle",
+            terms_accepted=True,
+        )
+        metadata = request.call_args.args[2]["data"]
+        self.assertTrue(metadata["terms_accepted"])
+        self.assertEqual(metadata["terms_version"], auth_layer.TERMS_VERSION)
+        self.assertTrue(metadata["terms_accepted_at"].endswith("+00:00"))
+
+    @patch("auth_layer._request")
     def test_unconfirmed_signup_does_not_create_session(self, request):
         request.return_value = {"user": {"id": "123"}}
         self.assertIsNone(auth_layer.sign_up("https://x.supabase.co", "anon", "a@example.com", "secret"))

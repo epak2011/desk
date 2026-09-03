@@ -14,7 +14,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Mapping
+
+
+TERMS_VERSION = "2026-09-03"
 
 
 class AuthError(RuntimeError):
@@ -92,8 +96,15 @@ def sign_up(
     email: str,
     password: str,
     display_name: str = "",
+    terms_accepted: bool = False,
 ) -> AuthSession | None:
     user_data = {"display_name": str(display_name or "").strip()[:80]}
+    if terms_accepted:
+        user_data.update({
+            "terms_accepted": True,
+            "terms_version": TERMS_VERSION,
+            "terms_accepted_at": datetime.now(timezone.utc).isoformat(),
+        })
     payload = _request(
         f"{supabase_url.rstrip('/')}/auth/v1/signup",
         anon_key,
