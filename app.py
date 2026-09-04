@@ -12154,7 +12154,7 @@ with st.sidebar:
     with brand_col:
         st.markdown(
             '<div class="desk-sidebar-wordmark">'
-            '<span class="desk-sidebar-logo" aria-hidden="true">✦</span><span>Trading Desk</span>'
+            '<span>Trading Desk</span>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -13512,30 +13512,15 @@ section[data-testid="stSidebar"] {
 .desk-sidebar-wordmark {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 7px;
     margin: 0;
-    padding: 2px 0;
+    padding: 2px 2px 14px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #1D2939;
-}
-
-.desk-sidebar-logo {
-    display: inline-flex;
-    width: 22px;
-    height: 22px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 7px;
-    background: #2563EB;
-    color: #FFFFFF;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-    font-size: 12px;
-    line-height: 1;
-    box-shadow: inset -5px -5px 0 rgba(15,159,90,.22);
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] {
