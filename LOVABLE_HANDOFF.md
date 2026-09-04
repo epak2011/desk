@@ -33,7 +33,8 @@ keys, email provider keys, private user state, logs, or production exports.
 1. Generate the responsive shell, landing page, authentication screens, and
    mocked Analyze workflow from the supplied fixtures.
 2. Connect Supabase Auth using Lovable's secret/environment-variable system.
-3. Connect read-only `/v1/regime` and `/v1/decisions/{ticker}` endpoints.
+3. Deploy the included `api_service.py` using `render.yaml`, then connect the
+   read-only `/v1/regime` and `/v1/decisions/{ticker}` endpoints.
 4. Connect authenticated `/v1/workspace`, `/v1/watchlist`, `/v1/attention`, and
    `/v1/portfolio` endpoints.
 5. Add mutations only after row-level security and two-user isolation tests pass.

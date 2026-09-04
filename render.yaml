@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: trading-desk-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    healthCheckPath: /v1/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: API_DOCS_ENABLED
+        value: "false"

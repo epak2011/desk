@@ -36,8 +36,15 @@ class PublicContractTests(unittest.TestCase):
         self.assertNotIn("private", payload["events"][0])
 
     def test_regime_payload_allowlists_fields(self):
-        payload = regime_payload({"why_today": "Mixed tape.", "database_url": "secret"})
+        payload = regime_payload({
+            "why_today": "Mixed tape.",
+            "portfolio_stance": "Neutral",
+            "assets": {"SPY": {"last": 100}},
+            "database_url": "secret",
+        })
         self.assertEqual(payload["regime"]["why_today"], "Mixed tape.")
+        self.assertEqual(payload["regime"]["portfolio_stance"], "Neutral")
+        self.assertEqual(payload["regime"]["assets"]["SPY"]["last"], 100)
         self.assertNotIn("database_url", payload["regime"])
 
     def test_watchlist_payload_blocks_private_notes(self):

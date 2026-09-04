@@ -122,6 +122,14 @@ def attention_payload(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
 def regime_payload(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     """Package the saved canonical regime without recomputing it in the client."""
     allowed = (
+        "schema_version",
+        "day",
+        "portfolio_stance",
+        "score",
+        "reasons",
+        "assets",
+        "errors",
+        "source",
         "opportunity_action",
         "opportunity_label",
         "entry_timing",
