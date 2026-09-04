@@ -1,0 +1,19 @@
+{
+  "contract_version": 2,
+  "meta": {
+    "contract_version": 2,
+    "generated_at": "2026-09-04T14:30:00+00:00",
+    "engine_version": "unknown",
+    "data_as_of": null,
+    "freshness": "unknown",
+    "request_id": "req_demo_03"
+  },
+  "workspace": {
+    "watchlist": ["DEMO"],
+    "holdings": {},
+    "notes": {},
+    "position_notes": {},
+    "settings": {},
+    "notification_preferences": {}
+  }
+}

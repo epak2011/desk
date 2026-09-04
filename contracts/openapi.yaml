@@ -1,0 +1,318 @@
+openapi: 3.1.0
+info:
+  title: Trading Desk Frontend API
+  version: 2.0.0
+  description: >-
+    Presentation-neutral boundary for Trading Desk. The API returns canonical
+    engine decisions; clients must never recreate or modify investment rules.
+servers:
+  - url: https://api.example.com
+    description: Replace with the deployed API origin.
+security:
+  - supabaseBearer: []
+tags:
+  - name: Shared
+  - name: Workspace
+  - name: Operations
+paths:
+  /v1/health:
+    get:
+      tags: [Operations]
+      security: []
+      summary: Lightweight service readiness check
+      responses:
+        "200":
+          description: Service is available
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/HealthResponse"}
+  /v1/regime:
+    get:
+      tags: [Shared]
+      security: []
+      summary: Latest saved canonical market regime
+      responses:
+        "200":
+          description: Current market regime
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RegimeResponse"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /v1/decisions/{ticker}:
+    get:
+      tags: [Shared]
+      security: []
+      summary: Canonical stock decision
+      parameters:
+        - $ref: "#/components/parameters/Ticker"
+      responses:
+        "200":
+          description: Decision receipt
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DecisionResponse"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/InvalidTicker"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /v1/workspace:
+    get:
+      tags: [Workspace]
+      summary: Authenticated user's private workspace
+      responses:
+        "200":
+          description: User-owned state
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WorkspaceResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    patch:
+      tags: [Workspace]
+      summary: Update supported private workspace sections
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WorkspacePatch"}
+      responses:
+        "200":
+          description: Updated user-owned state
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WorkspaceResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /v1/watchlist:
+    get:
+      tags: [Workspace]
+      summary: Authenticated watchlist with current decision summaries
+      responses:
+        "200":
+          description: Ordered watchlist
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WatchlistResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /v1/watchlist/{ticker}:
+    put:
+      tags: [Workspace]
+      summary: Add a ticker to the authenticated user's watchlist
+      parameters:
+        - $ref: "#/components/parameters/Ticker"
+      responses:
+        "200":
+          description: Updated watchlist
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WatchlistResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/InvalidTicker"}
+    delete:
+      tags: [Workspace]
+      summary: Remove a ticker from the authenticated user's watchlist
+      parameters:
+        - $ref: "#/components/parameters/Ticker"
+      responses:
+        "204": {description: Removed}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /v1/attention:
+    get:
+      tags: [Workspace]
+      summary: Current material attention events for the user
+      responses:
+        "200":
+          description: Ordered attention events
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AttentionResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /v1/portfolio:
+    get:
+      tags: [Workspace]
+      summary: User holdings and portfolio-aware decision context
+      responses:
+        "200":
+          description: User portfolio
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WorkspaceResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /v1/calibration:
+    get:
+      tags: [Operations]
+      summary: Versioned engine calibration summary
+      responses:
+        "200":
+          description: Read-only calibration evidence
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/GenericResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+components:
+  securitySchemes:
+    supabaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase access token. The API derives user_id from the verified JWT only.
+  parameters:
+    Ticker:
+      name: ticker
+      in: path
+      required: true
+      schema: {type: string, pattern: "^[A-Za-z0-9.-]{1,15}$"}
+  responses:
+    Unauthorized:
+      description: Missing or invalid Supabase session
+      content: {application/json: {schema: {$ref: "#/components/schemas/ErrorResponse"}}}
+    NotFound:
+      description: No canonical result exists for the ticker
+      content: {application/json: {schema: {$ref: "#/components/schemas/ErrorResponse"}}}
+    InvalidTicker:
+      description: Ticker is invalid or unsupported
+      content: {application/json: {schema: {$ref: "#/components/schemas/ErrorResponse"}}}
+    Conflict:
+      description: Workspace revision is stale
+      content: {application/json: {schema: {$ref: "#/components/schemas/ErrorResponse"}}}
+    ServiceUnavailable:
+      description: Required data or engine service is unavailable
+      content: {application/json: {schema: {$ref: "#/components/schemas/ErrorResponse"}}}
+  schemas:
+    Meta:
+      type: object
+      required: [contract_version, generated_at, engine_version, freshness]
+      properties:
+        contract_version: {type: integer, const: 2}
+        generated_at: {type: string, format: date-time}
+        engine_version: {type: string}
+        data_as_of: {type: [string, "null"], format: date-time}
+        freshness: {type: string, enum: [live, fresh, delayed, stale, unknown]}
+        request_id: {type: [string, "null"]}
+    PriceLevel:
+      type: object
+      properties:
+        text: {type: string}
+        price: {type: [number, "null"]}
+    DataTrust:
+      type: object
+      additionalProperties: true
+      properties:
+        status: {type: string, enum: [trusted, caution, blocked, unknown]}
+        executable: {type: boolean}
+        as_of: {type: [string, "null"], format: date-time}
+        freshness: {type: string}
+        issues: {type: array, items: {type: string}}
+    Decision:
+      type: object
+      required: [receipt_id, ticker, engine_version, action, trigger, invalidation]
+      properties:
+        receipt_id: {type: string}
+        ticker: {type: string}
+        captured_at: {type: string, format: date-time}
+        engine_version: {type: string}
+        action:
+          type: string
+          enum: [enter_now, accumulate, watch, hold_off, avoid]
+        price: {type: [number, "null"]}
+        market_regime: {type: [string, "null"]}
+        setup_score: {type: [number, "null"]}
+        confidence: {type: [string, number, "null"]}
+        entry_size: {}
+        setup_stage: {type: [string, "null"]}
+        top_factors: {type: array, maxItems: 3, items: {type: string}}
+        primary_risk: {type: string}
+        trigger: {$ref: "#/components/schemas/PriceLevel"}
+        invalidation: {$ref: "#/components/schemas/PriceLevel"}
+        data_trust: {$ref: "#/components/schemas/DataTrust"}
+        change_summary: {type: array, items: {type: string}}
+    DecisionResponse:
+      type: object
+      required: [contract_version, meta, decision, portfolio_context, executable]
+      properties:
+        contract_version: {type: integer, const: 2}
+        meta: {$ref: "#/components/schemas/Meta"}
+        decision: {$ref: "#/components/schemas/Decision"}
+        portfolio_context: {type: object, additionalProperties: true}
+        executable: {type: boolean}
+    RegimeResponse:
+      type: object
+      required: [contract_version, meta, regime]
+      properties:
+        contract_version: {type: integer, const: 2}
+        meta: {$ref: "#/components/schemas/Meta"}
+        regime: {type: object, additionalProperties: true}
+    WatchlistItem:
+      type: object
+      required: [ticker]
+      properties:
+        ticker: {type: string}
+        company_name: {type: [string, "null"]}
+        price: {type: [number, "null"]}
+        change_pct: {type: [number, "null"]}
+        action: {type: [string, "null"]}
+        confidence: {type: [string, number, "null"]}
+        trigger_price: {type: [number, "null"]}
+        invalidation_price: {type: [number, "null"]}
+        attention_priority: {type: [string, "null"]}
+        data_trust: {$ref: "#/components/schemas/DataTrust"}
+    WatchlistResponse:
+      type: object
+      required: [contract_version, meta, items, count]
+      properties:
+        contract_version: {type: integer, const: 2}
+        meta: {$ref: "#/components/schemas/Meta"}
+        items: {type: array, items: {$ref: "#/components/schemas/WatchlistItem"}}
+        count: {type: integer, minimum: 0}
+    AttentionResponse:
+      type: object
+      required: [contract_version, meta, events, count]
+      properties:
+        contract_version: {type: integer, const: 2}
+        meta: {$ref: "#/components/schemas/Meta"}
+        events: {type: array, items: {type: object, additionalProperties: true}}
+        count: {type: integer, minimum: 0}
+    Workspace:
+      type: object
+      additionalProperties: false
+      properties:
+        watchlist: {type: array, items: {type: string}}
+        holdings: {type: object, additionalProperties: true}
+        notes: {type: object, additionalProperties: true}
+        position_notes: {type: object, additionalProperties: true}
+        settings: {type: object, additionalProperties: true}
+        notification_preferences: {type: object, additionalProperties: true}
+    WorkspaceResponse:
+      type: object
+      required: [contract_version, meta, workspace]
+      properties:
+        contract_version: {type: integer, const: 2}
+        meta: {$ref: "#/components/schemas/Meta"}
+        workspace: {$ref: "#/components/schemas/Workspace"}
+    WorkspacePatch:
+      allOf:
+        - $ref: "#/components/schemas/Workspace"
+        - type: object
+          properties:
+            revision: {type: [string, "null"]}
+    ErrorResponse:
+      type: object
+      required: [meta, error]
+      properties:
+        meta: {$ref: "#/components/schemas/Meta"}
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            retryable: {type: boolean}
+            detail: {type: string}
+    HealthResponse:
+      type: object
+      required: [status, contract_version]
+      properties:
+        status: {type: string, enum: [ok, degraded]}
+        contract_version: {type: integer, const: 2}
+        engine_version: {type: string}
+    GenericResponse:
+      type: object
+      additionalProperties: true

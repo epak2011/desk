@@ -1,0 +1,25 @@
+{
+  "contract_version": 2,
+  "meta": {
+    "contract_version": 2,
+    "generated_at": "2026-09-04T14:30:00+00:00",
+    "engine_version": "rules-demo-v2",
+    "data_as_of": "2026-09-04T14:29:00+00:00",
+    "freshness": "fresh",
+    "request_id": "req_demo_02"
+  },
+  "regime": {
+    "opportunity_action": "hold_off",
+    "opportunity_label": "Mixed",
+    "entry_timing": "Neutral",
+    "change_label": "Unchanged",
+    "change_detail": "The broad opportunity window remains mixed.",
+    "why_today": "Price trends remain constructive, but confirmation across breadth, volatility, and credit is incomplete. Keep new exposure selective.",
+    "market_highlights": [{"label": "Broad trend", "value": "Constructive"}],
+    "drivers": ["Major indexes remain above intermediate trend levels."],
+    "risks": ["Credit and breadth confirmation are incomplete."],
+    "watch_triggers": ["A loss of intermediate trend would weaken the opportunity window."],
+    "forward_watch": ["Credit", "Breadth", "Volatility"],
+    "data_trust": {"status": "caution", "executable": true, "issues": ["One demo input is delayed."]}
+  }
+}

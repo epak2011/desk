@@ -1,0 +1,46 @@
+{
+  "contract_version": 2,
+  "meta": {
+    "contract_version": 2,
+    "generated_at": "2026-09-04T14:30:00+00:00",
+    "engine_version": "rules-demo-v2",
+    "data_as_of": "2026-09-04T14:29:00+00:00",
+    "freshness": "fresh",
+    "request_id": "req_demo_01"
+  },
+  "decision": {
+    "receipt_id": "demo-receipt-001",
+    "ticker": "DEMO",
+    "captured_at": "2026-09-04T14:30:00+00:00",
+    "engine_version": "rules-demo-v2",
+    "action": "watch",
+    "price": 100.0,
+    "market_regime": "mixed",
+    "setup_score": 7,
+    "confidence": "medium",
+    "entry_size": "0% until trigger",
+    "setup_stage": "extended",
+    "top_factors": [
+      "Business quality remains strong.",
+      "The primary trend is intact.",
+      "Price and momentum are too extended for a new entry."
+    ],
+    "primary_risk": "Chasing an extended move creates unfavorable near-term risk/reward.",
+    "trigger": {"text": "Wait for a confirmed entry trigger.", "price": 105.0},
+    "invalidation": {"text": "The setup weakens below support.", "price": 92.0},
+    "data_trust": {
+      "status": "trusted",
+      "executable": true,
+      "as_of": "2026-09-04T14:29:00+00:00",
+      "freshness": "fresh",
+      "issues": []
+    },
+    "change_summary": ["Action and trigger are unchanged."]
+  },
+  "portfolio_context": {
+    "owned": false,
+    "suggested_size_pct": 0,
+    "portfolio_message": "Wait for the trigger before opening exposure."
+  },
+  "executable": true
+}
