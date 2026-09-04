@@ -12038,10 +12038,12 @@ except Exception:
 with st.sidebar:
     st.markdown(
         '<div class="desk-sidebar-wordmark">'
-        '<span>Trading Desk</span>'
+        '<span class="desk-sidebar-logo" aria-hidden="true">✦</span><span>Trading Desk</span>'
         '</div>',
         unsafe_allow_html=True,
     )
+    sidebar_account_name = ""
+    sidebar_account_email = ""
     if _current_user_id():
         identity = st.session_state.get("_auth_identity") or {}
         account_name = str(identity.get("display_name") or "").strip()
@@ -12049,17 +12051,8 @@ with st.sidebar:
             account_name = str(identity.get("email") or "").split("@", 1)[0].strip()
         account_name = account_name or "there"
         account_email = str(identity.get("email") or "").strip()
-        with st.container(key="sidebar_account_menu"):
-            with st.popover(f"●  {account_name}", use_container_width=True):
-                st.markdown(
-                    f'<div class="desk-account-popover"><strong>{html.escape(account_name)}</strong>'
-                    f'<span>{html.escape(account_email)}</span></div>',
-                    unsafe_allow_html=True,
-                )
-                if st.button("Sign out", key="auth_sign_out", use_container_width=True):
-                    for auth_key in ("_auth_identity", "_auth_tokens", "store", "_persist_fingerprints"):
-                        st.session_state.pop(auth_key, None)
-                    st.rerun()
+        sidebar_account_name = account_name
+        sidebar_account_email = account_email
     elif PUBLIC_DEMO_MODE and AUTH_REQUIRED:
         st.caption("Public Demo · private saving disabled")
         if st.button("Sign in", key="leave_public_demo", use_container_width=False):
@@ -12068,17 +12061,17 @@ with st.sidebar:
             st.rerun()
 
     primary_view_labels = {
-        "regime": "Market Regime",
-        "analyze": "Analyze",
-        "watchlist": "Watchlist",
-        "alerts": "Alerts",
-        "holdings": "Holdings",
-        "ideas": "Ideas",
+        "regime": "◉  Market",
+        "analyze": "⌁  Analyze",
+        "watchlist": "☆  Watchlist",
+        "alerts": "!  Alerts",
+        "holdings": "▦  Portfolio",
+        "ideas": "✎  Ideas",
     }
     operator_view_labels = {
-        "backtest": "Calibration Lab",
+        "backtest": "Calibration",
         "health": "System Health",
-        "trust": "Trust & Methodology",
+        "trust": "Methodology",
     }
     if PUBLIC_DEMO_MODE:
         primary_view_labels.pop("holdings", None)
@@ -12163,40 +12156,26 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-    active_view_label = view_labels.get(st.session_state.view, "Menu")
     with st.container(key="sidebar_menu"):
-        with st.popover(f"☰  {active_view_label}", use_container_width=True):
-            for view_key, view_label in primary_view_labels.items():
-                is_active = view_key == st.session_state.view
-                if st.button(
-                    view_label,
-                    key=f"sidebar_nav_{view_key}",
-                    type="primary" if is_active else "secondary",
-                    use_container_width=True,
-                ):
-                    route_to(
-                        view=view_key,
-                        reason="sidebar nav",
-                        sync_url=True,
-                        sync_widget=False,
-                        rerun=True,
-                    )
-            st.markdown('<div class="desk-menu-section">More</div>', unsafe_allow_html=True)
-            for view_key, view_label in operator_view_labels.items():
-                is_active = view_key == st.session_state.view
-                if st.button(
-                    view_label,
-                    key=f"sidebar_nav_{view_key}",
-                    type="primary" if is_active else "secondary",
-                    use_container_width=True,
-                ):
-                    route_to(
-                        view=view_key,
-                        reason="sidebar advanced nav",
-                        sync_url=True,
-                        sync_widget=False,
-                        rerun=True,
-                    )
+        for view_key, view_label in primary_view_labels.items():
+            is_active = view_key == st.session_state.view
+            if st.button(
+                view_label,
+                key=f"sidebar_nav_{view_key}",
+                type="primary" if is_active else "secondary",
+                use_container_width=True,
+            ):
+                route_to(view=view_key, reason="sidebar nav", sync_url=True, sync_widget=False, rerun=True)
+        st.markdown('<div class="desk-menu-section">More</div>', unsafe_allow_html=True)
+        for view_key, view_label in operator_view_labels.items():
+            is_active = view_key == st.session_state.view
+            if st.button(
+                view_label,
+                key=f"sidebar_nav_{view_key}",
+                type="primary" if is_active else "secondary",
+                use_container_width=True,
+            ):
+                route_to(view=view_key, reason="sidebar advanced nav", sync_url=True, sync_widget=False, rerun=True)
     st.markdown(
         '<div class="desk-sidebar-section-label">Ticker</div>',
         unsafe_allow_html=True,
@@ -13149,6 +13128,7 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
             f'</div>',
             unsafe_allow_html=True,
         )
+
         if session_key and not env_key and not secret_key:
             if st.button("Clear session key", key="clear_api_key", use_container_width=True):
                 st.session_state["session_anthropic_api_key"] = ""
@@ -13235,6 +13215,20 @@ div[data-testid="element-container"]:has(.desk-cmp-header) {
             unsafe_allow_html=True,
         )
 
+    # Compact account control is the final sidebar item, separate from navigation.
+    if sidebar_account_name:
+        with st.container(key="sidebar_account_menu"):
+            with st.popover(f"●  {sidebar_account_name}", use_container_width=False):
+                st.markdown(
+                    f'<div class="desk-account-popover"><strong>{html.escape(sidebar_account_name)}</strong>'
+                    f'<span>{html.escape(sidebar_account_email)}</span></div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button("Sign out", key="auth_sign_out", use_container_width=True):
+                    for auth_key in ("_auth_identity", "_auth_tokens", "store", "_persist_fingerprints"):
+                        st.session_state.pop(auth_key, None)
+                    st.rerun()
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Final visual skin — intentionally late so older experimental layers
@@ -13311,6 +13305,7 @@ header[data-testid="stHeader"] * {
 [data-testid="stExpandSidebarButton"],
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapseButton"],
+[data-testid="stHeader"] button[kind="headerNoPadding"],
 button[aria-label="Open sidebar"],
 button[aria-label="Expand sidebar"],
 button[title="Open sidebar"],
@@ -13335,6 +13330,7 @@ button[title="Expand sidebar"] {
 [data-testid="stExpandSidebarButton"] *,
 [data-testid="collapsedControl"] *,
 [data-testid="stSidebarCollapseButton"] *,
+[data-testid="stHeader"] button[kind="headerNoPadding"] *,
 button[aria-label="Open sidebar"] *,
 button[aria-label="Expand sidebar"] *,
 button[title="Open sidebar"] *,
@@ -13352,10 +13348,34 @@ header [data-testid="stExpandSidebarButton"] *,
 }
 
 @media (max-width: 899px) {
+    [data-testid="stToolbar"]:has([data-testid="stExpandSidebarButton"]) {
+        display: block !important;
+        visibility: visible !important;
+        position: fixed !important;
+        inset: 0 auto auto 0 !important;
+        width: 50px !important;
+        height: 50px !important;
+        overflow: visible !important;
+        z-index: 2147483646 !important;
+        pointer-events: none !important;
+    }
+
+    [data-testid="stToolbar"]:has([data-testid="stExpandSidebarButton"]) div {
+        visibility: hidden !important;
+        overflow: visible !important;
+    }
+
+    [data-testid="stToolbar"]:has([data-testid="stExpandSidebarButton"]) div:has([data-testid="stExpandSidebarButton"]),
+    [data-testid="stToolbar"] [data-testid="stExpandSidebarButton"],
+    [data-testid="stToolbar"] [data-testid="stExpandSidebarButton"] * {
+        visibility: visible !important;
+    }
+
     [data-testid="stSidebarCollapsedControl"],
     [data-testid="stExpandSidebarButton"],
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
+    [data-testid="stHeader"] button[kind="headerNoPadding"],
     button[aria-label="Open sidebar"],
     button[aria-label="Expand sidebar"],
     button[title="Open sidebar"],
@@ -13378,6 +13398,7 @@ header [data-testid="stExpandSidebarButton"] *,
     [data-testid="stExpandSidebarButton"] svg,
     [data-testid="collapsedControl"] svg,
     [data-testid="stSidebarCollapseButton"] svg,
+    [data-testid="stHeader"] button[kind="headerNoPadding"] svg,
     button[aria-label="Open sidebar"] svg,
     button[aria-label="Expand sidebar"] svg,
     button[title="Open sidebar"] svg,
@@ -13391,8 +13412,12 @@ header [data-testid="stExpandSidebarButton"] *,
 }
 
 section[data-testid="stSidebar"] {
-    background: #F3F5F7 !important;
+    background: #F4F7FB !important;
+    background-image: none !important;
     border-right: 1px solid var(--desk-border) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    left: 0 !important;
 }
 
 @media (min-width: 900px) {
@@ -13467,9 +13492,9 @@ section[data-testid="stSidebar"] {
 .desk-sidebar-wordmark {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 9px;
     margin: 0;
-    padding: 2px 2px 14px;
+    padding: 2px 2px 18px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     font-weight: 800;
@@ -13478,22 +13503,72 @@ section[data-testid="stSidebar"] {
     color: #1D2939;
 }
 
-.desk-sidebar-mark {
-    color: #0F9F5A;
-    font-size: 10px;
+.desk-sidebar-logo {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    background: #2563EB;
+    color: #FFFFFF;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 12px;
     line-height: 1;
+    box-shadow: inset -5px -5px 0 rgba(15,159,90,.22);
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] {
-    margin: 0 0 16px !important;
+    position: sticky !important;
+    bottom: 10px !important;
+    z-index: 20 !important;
+    width: max-content !important;
+    margin: 24px 0 0 !important;
+    padding: 4px !important;
+    border: 1px solid #D8E0E8 !important;
+    border-radius: 999px !important;
+    background: rgba(255,255,255,.96) !important;
+    box-shadow: 0 5px 18px rgba(15,23,42,.08) !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] {
-    margin: 0 0 16px !important;
-    padding: 6px !important;
-    border: 1px solid #DCE3EA !important;
+    margin: 0 0 20px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] div.stButton {
+    margin: 0 0 3px !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] button {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    justify-content: flex-start !important;
+    padding: 0 11px !important;
+    border: 1px solid transparent !important;
     border-radius: 8px !important;
-    background: rgba(255,255,255,0.72) !important;
+    background: transparent !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] button:hover {
+    background: #FFFFFF !important;
+    border-color: #DCE5F0 !important;
+    color: #1E3A5F !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] button[kind="primary"] {
+    background: #E7F0FF !important;
+    border-color: #C9DBFA !important;
+    color: #1557B0 !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button {
@@ -13564,15 +13639,18 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] [data-testid="stPopover"] > button {
-    min-height: 38px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 30px !important;
+    height: 30px !important;
     justify-content: flex-start !important;
     padding: 0 10px !important;
-    border: 1px solid #DCE3EA !important;
-    border-radius: 8px !important;
-    background: rgba(255,255,255,0.72) !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: transparent !important;
     color: #273344 !important;
     box-shadow: none !important;
-    font-size: 12px !important;
+    font-size: 11px !important;
     font-weight: 750 !important;
 }
 
