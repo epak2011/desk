@@ -12036,12 +12036,6 @@ except Exception:
 # Sidebar
 # ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown(
-        '<div class="desk-sidebar-wordmark">'
-        '<span class="desk-sidebar-logo" aria-hidden="true">✦</span><span>Trading Desk</span>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
     sidebar_account_name = ""
     sidebar_account_email = ""
     if _current_user_id():
@@ -12156,26 +12150,52 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-    with st.container(key="sidebar_menu"):
-        for view_key, view_label in primary_view_labels.items():
-            is_active = view_key == st.session_state.view
-            if st.button(
-                view_label,
-                key=f"sidebar_nav_{view_key}",
-                type="primary" if is_active else "secondary",
-                use_container_width=True,
-            ):
-                route_to(view=view_key, reason="sidebar nav", sync_url=True, sync_widget=False, rerun=True)
-        st.markdown('<div class="desk-menu-section">More</div>', unsafe_allow_html=True)
-        for view_key, view_label in operator_view_labels.items():
-            is_active = view_key == st.session_state.view
-            if st.button(
-                view_label,
-                key=f"sidebar_nav_{view_key}",
-                type="primary" if is_active else "secondary",
-                use_container_width=True,
-            ):
-                route_to(view=view_key, reason="sidebar advanced nav", sync_url=True, sync_widget=False, rerun=True)
+    brand_col, menu_col = st.columns([5, 1], vertical_alignment="center")
+    with brand_col:
+        st.markdown(
+            '<div class="desk-sidebar-wordmark">'
+            '<span class="desk-sidebar-logo" aria-hidden="true">✦</span><span>Trading Desk</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    with menu_col:
+        def _toggle_sidebar_menu():
+            st.session_state["sidebar_menu_open"] = not st.session_state.get("sidebar_menu_open", False)
+
+        st.button(
+            "☰",
+            key="sidebar_menu_toggle",
+            help="Open navigation",
+            use_container_width=False,
+            on_click=_toggle_sidebar_menu,
+        )
+    if st.session_state.get("sidebar_menu_open", False):
+        with st.container(key="sidebar_menu"):
+            st.markdown(
+                f'<div class="desk-nav-current">{html.escape(view_labels.get(st.session_state.view, "Menu"))}</div>',
+                unsafe_allow_html=True,
+            )
+            for view_key, view_label in primary_view_labels.items():
+                is_active = view_key == st.session_state.view
+                if st.button(
+                    view_label,
+                    key=f"sidebar_nav_{view_key}",
+                    type="primary" if is_active else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state["sidebar_menu_open"] = False
+                    route_to(view=view_key, reason="sidebar nav", sync_url=True, sync_widget=False, rerun=True)
+            st.markdown('<div class="desk-menu-section">More</div>', unsafe_allow_html=True)
+            for view_key, view_label in operator_view_labels.items():
+                is_active = view_key == st.session_state.view
+                if st.button(
+                    view_label,
+                    key=f"sidebar_nav_{view_key}",
+                    type="primary" if is_active else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state["sidebar_menu_open"] = False
+                    route_to(view=view_key, reason="sidebar advanced nav", sync_url=True, sync_widget=False, rerun=True)
     st.markdown(
         '<div class="desk-sidebar-section-label">Ticker</div>',
         unsafe_allow_html=True,
@@ -13494,7 +13514,7 @@ section[data-testid="stSidebar"] {
     align-items: center;
     gap: 9px;
     margin: 0;
-    padding: 2px 2px 18px;
+    padding: 2px 0;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     font-weight: 800;
@@ -13532,11 +13552,32 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] {
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] {
-    margin: 0 0 20px !important;
+    width: 100% !important;
+    margin: 8px 0 18px !important;
+    padding: 8px !important;
+    border: 1px solid #DCE5F0 !important;
+    border-radius: 10px !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 8px 22px rgba(15,23,42,.07) !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu_toggle"] button {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
     padding: 0 !important;
-    border: 0 !important;
-    border-radius: 0 !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
     background: transparent !important;
+    color: #273344 !important;
+    box-shadow: none !important;
+    font-size: 19px !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu_toggle"] button:hover {
+    background: #E7F0FF !important;
+    border-color: #C9DBFA !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] div.stButton {
@@ -13572,20 +13613,52 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button {
-    min-height: 38px !important;
-    justify-content: flex-start !important;
-    padding: 0 10px !important;
-    border: 0 !important;
-    border-radius: 6px !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
     background: transparent !important;
     color: #273344 !important;
     box-shadow: none !important;
-    font-size: 12px !important;
-    font-weight: 750 !important;
+    font-size: 19px !important;
+    font-weight: 700 !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button:hover {
-    background: #E8EDF3 !important;
+    background: #E7F0FF !important;
+    border-color: #C9DBFA !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button * {
+    display: none !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button::before {
+    content: "☰";
+    display: block;
+    color: #273344;
+    font-size: 19px;
+    line-height: 1;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stPopover"] > button::after {
+    content: none !important;
+    display: none !important;
+}
+
+.desk-nav-current {
+    margin: 0 0 8px;
+    padding: 2px 4px 9px;
+    border-bottom: 1px solid #E2E8F0;
+    color: #64748B;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] details {
