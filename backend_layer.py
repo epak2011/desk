@@ -567,6 +567,26 @@ def stale_watchlist_market_tickers(*, max_age_minutes: int = 10, limit: int = 10
             return [str(row[0]).upper().strip() for row in cur.fetchall() if str(row[0] or "").strip()]
 
 
+def enabled_watchlist_tickers(*, limit: int = 250) -> list[str]:
+    """Return the durable union of enabled symbols across user watchlists."""
+    if not has_database():
+        return []
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT ticker
+                FROM watchlist_assets
+                WHERE enabled = TRUE
+                ORDER BY ticker
+                LIMIT %s
+                """,
+                (max(1, int(limit)),),
+            )
+            return [str(row[0]).upper().strip() for row in cur.fetchall() if str(row[0] or "").strip()]
+
+
 def recent_auto_rule_decision_exists(ticker: str, signature: str, *, within_days: int = 7) -> bool:
     """True when the same open auto-logged rules call was recently persisted."""
     clean_ticker = str(ticker or "").upper().strip()

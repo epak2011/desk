@@ -73,7 +73,7 @@ jobs:
             exit 0
           fi
 
-          "$PYTHON_BIN" worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 240 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan
+          "$PYTHON_BIN" worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 240 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan,market_regime_daily,repair_missing_data
           worker_status=$?
           if [ "$worker_status" -ne 0 ]; then
             echo "::warning::Worker exited with status ${worker_status}; scheduled maintenance is treated as a soft failure to avoid notification spam."

@@ -38,12 +38,120 @@ from pm_view import get_decision_dossier, get_pm_view
 import tactical
 
 
-SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan"]
+SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan", "market_regime_daily", "repair_missing_data"]
 SCHEDULED_SAFE_RUNTIME_SECONDS = 240
 LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
 OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
 OUTCOME_MIN_AGE_DAYS = 7
-RULE_ENGINE_VERSION = "rules-2026.08-b"
+RULE_ENGINE_VERSION = "rules-2026.08-d"
+
+
+def _series_snapshot(frame, ticker: str) -> dict:
+    frame = _flatten_yfinance(frame, ticker)
+    if frame is None or frame.empty or "Close" not in frame:
+        raise RuntimeError(f"No market history returned for {ticker}")
+    close = frame["Close"].dropna()
+    if len(close) < 50:
+        raise RuntimeError(f"Insufficient market history returned for {ticker}")
+    last = float(close.iloc[-1])
+    previous = float(close.iloc[-2])
+    ma20 = float(close.tail(20).mean())
+    ma50 = float(close.tail(50).mean())
+    ma200 = float(close.tail(200).mean()) if len(close) >= 200 else None
+    return {
+        "last": round(last, 4),
+        "change_pct": round((last / previous - 1) * 100, 4) if previous else None,
+        "return_5d_pct": round((last / float(close.iloc[-6]) - 1) * 100, 4) if len(close) >= 6 else None,
+        "return_20d_pct": round((last / float(close.iloc[-21]) - 1) * 100, 4) if len(close) >= 21 else None,
+        "vs_20d_pct": round((last / ma20 - 1) * 100, 4),
+        "vs_50d_pct": round((last / ma50 - 1) * 100, 4),
+        "vs_200d_pct": round((last / ma200 - 1) * 100, 4) if ma200 else None,
+    }
+
+
+def refresh_market_regime_daily(payload: dict | None = None) -> dict:
+    """Persist a deterministic daily market-regime snapshot for cheap UI/API reads."""
+    symbols = ("SPY", "QQQ", "RSP", "HYG", "^VIX", "BTC-USD")
+    assets, errors = {}, {}
+    for symbol in symbols:
+        try:
+            assets[symbol] = _series_snapshot(_download_history(symbol), symbol)
+        except Exception as exc:
+            errors[symbol] = str(exc)[:180]
+    if "SPY" not in assets:
+        raise RuntimeError(f"Regime refresh requires SPY history: {errors.get('SPY', 'unavailable')}")
+    spy = assets["SPY"]
+    rsp = assets.get("RSP") or {}
+    hyg = assets.get("HYG") or {}
+    vix = assets.get("^VIX") or {}
+    score = 0
+    reasons = []
+    if (spy.get("vs_50d_pct") or 0) > 0:
+        score += 2; reasons.append("SPY above its 50-day average")
+    else:
+        score -= 2; reasons.append("SPY below its 50-day average")
+    if spy.get("vs_200d_pct") is not None:
+        score += 2 if spy["vs_200d_pct"] > 0 else -2
+    if (rsp.get("return_20d_pct") or 0) > (spy.get("return_20d_pct") or 0) - 1:
+        score += 1; reasons.append("breadth is participating")
+    else:
+        score -= 1; reasons.append("equal-weight breadth is lagging")
+    if (hyg.get("return_20d_pct") or 0) >= -1:
+        score += 1; reasons.append("credit is stable")
+    else:
+        score -= 1; reasons.append("credit is weakening")
+    if (vix.get("last") or 0) >= 30:
+        score -= 2; reasons.append("volatility is elevated")
+    stance = "Risk On" if score >= 4 else "Moderately Risk On" if score >= 2 else "Neutral" if score >= 0 else "Defensive" if score >= -3 else "Risk Off"
+    generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    result = {
+        "schema_version": 1,
+        "generated_at": generated_at,
+        "day": date.today().isoformat(),
+        "portfolio_stance": stance,
+        "score": score,
+        "reasons": reasons,
+        "assets": assets,
+        "errors": errors,
+        "source": "worker_market_regime_v1",
+    }
+    backend.upsert_json_table("market_regime_daily", "day", result["day"], result, source=result["source"])
+    return result
+
+
+def repair_missing_data(payload: dict | None = None) -> dict:
+    """Repair missing/stale durable market and rule rows without touching user data."""
+    payload = payload or {}
+    explicit = payload.get("tickers") or []
+    requested = explicit or backend.enabled_watchlist_tickers(limit=250)
+    candidates = [str(t or "").upper().strip() for t in requested if str(t or "").strip()]
+    candidates = list(dict.fromkeys(candidates))
+    if explicit:
+        tickers = candidates
+    else:
+        markets = backend.read_json_table_many("market_snapshots", candidates)
+        rules = backend.read_json_table_many("rule_outputs", candidates)
+        tickers = []
+        for ticker in candidates:
+            market = markets.get(ticker) if isinstance(markets.get(ticker), dict) else {}
+            rule = rules.get(ticker) if isinstance(rules.get(ticker), dict) else {}
+            price = market.get("price") or market.get("last")
+            if price is None or not rule.get("action"):
+                tickers.append(ticker)
+    repaired, errors = [], {}
+    bench = _flatten_yfinance(_download_benchmark(), "SPY") if tickers else None
+    for ticker in tickers:
+        try:
+            repaired.append(refresh_market_snapshot(ticker, bench=bench))
+        except Exception as exc:
+            errors[ticker] = str(exc)[:180]
+    regime = None
+    if payload.get("include_regime", True):
+        try:
+            regime = refresh_market_regime_daily(payload)
+        except Exception as exc:
+            errors["market_regime_daily"] = str(exc)[:180]
+    return {"checked": len(candidates), "missing": len(tickers), "repaired": len(repaired), "errors": errors, "regime_updated": bool(regime)}
 
 
 def drain_notification_outbox(limit: int = 10) -> dict:
@@ -278,6 +386,22 @@ def _trigger_summary(t_state: dict) -> str:
     return "Rules action recorded from scheduled market scan."
 
 
+def _shadow_evaluations(t_state: dict) -> list[dict]:
+    """Record candidate behavior without allowing it to replace the live action."""
+    live_action = _normalize_action_key(t_state.get("action"))
+    warning = t_state.get("extension_warning") if isinstance(t_state.get("extension_warning"), dict) else {}
+    strict_action = live_action
+    if live_action in {"enter_now", "accumulate"} and warning.get("severity") == "high":
+        strict_action = "watch"
+    return [{
+        "candidate": "strict_extreme_extension",
+        "version": "shadow-2026.09-a",
+        "action": strict_action,
+        "differs_from_live": strict_action != live_action,
+        "reason": "Extreme stretched momentum waits for a pullback or base." if strict_action != live_action else "No extreme-extension override.",
+    }]
+
+
 def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker") -> bool:
     """Persist one rules decision when the worker computes a fresh rules state."""
     tkr = str(ticker or "").upper().strip()
@@ -297,6 +421,15 @@ def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker"
     signature_hash = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:10]
     emoji, label = RULE_ACTION_LABELS.get(action, ("", action.replace("_", " ").title()))
     trigger = t_state.get("trigger") if isinstance(t_state.get("trigger"), dict) else {}
+    receipt = decision_contract.build_decision_receipt(
+        tkr,
+        {
+            **t_state,
+            "trigger_summary": _trigger_summary(t_state),
+            "data_trust": data_trust.assess_decision_data(t_state),
+        },
+        engine_version=RULE_ENGINE_VERSION,
+    )
     entry = {
         "id": f"rules-auto-{tkr}-{today_key}-{action}-{signature_hash}",
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -320,15 +453,15 @@ def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker"
         "source": "rules_engine",
         "source_label": f"{emoji} {label}",
         "rule_engine_version": RULE_ENGINE_VERSION,
-        "decision_receipt": decision_contract.build_decision_receipt(
-            tkr,
-            {
-                **t_state,
-                "trigger_summary": _trigger_summary(t_state),
-                "data_trust": data_trust.assess_decision_data(t_state),
-            },
-            engine_version=RULE_ENGINE_VERSION,
-        ),
+        "decision_receipt": receipt,
+        "decision_attribution": decision_contract.build_rule_attribution(t_state),
+        "decision_context": {
+            "market_regime": t_state.get("market_regime"),
+            "tape_class": t_state.get("state"),
+            "extension_warning": bool(t_state.get("extension_warning")),
+            "extension_warning_severity": (t_state.get("extension_warning") or {}).get("severity") if isinstance(t_state.get("extension_warning"), dict) else None,
+        },
+        "shadow_evaluations": _shadow_evaluations(t_state),
         "outcome": None,
         **_rule_log_level_snapshot(t_state),
     }
@@ -387,12 +520,26 @@ def refresh_market_snapshot(ticker: str, bench=None) -> dict:
     t_state = tactical.compute(hist, bench)
     if not t_state:
         raise RuntimeError(f"Rule engine could not compute {ticker}")
+    t_state = tactical.apply_extension_execution_overlay(t_state) or t_state
     market_payload = _market_payload(ticker, hist, t_state)
     t_state["price"] = market_payload.get("price", t_state.get("price"))
     rule_payload = dict(t_state)
     trigger = rule_payload.get("trigger") or {}
     if isinstance(trigger, dict):
         rule_payload["trigger_summary"] = trigger.get("summary")
+    receipt = decision_contract.build_decision_receipt(
+        ticker,
+        {**rule_payload, "trigger_summary": _trigger_summary(rule_payload)},
+        engine_version=RULE_ENGINE_VERSION,
+    )
+    consistency = decision_contract.receipt_consistency(ticker, {
+        "receipt": receipt,
+        "rule_output": {**rule_payload, "rule_engine_version": RULE_ENGINE_VERSION},
+    })
+    rule_payload["decision_receipt"] = receipt
+    rule_payload["decision_attribution"] = decision_contract.build_rule_attribution(rule_payload)
+    rule_payload["decision_consistency"] = {"ok": not consistency, "mismatches": consistency}
+    rule_payload["shadow_evaluations"] = _shadow_evaluations(rule_payload)
     backend.upsert_json_table("market_snapshots", "ticker", ticker, market_payload, source="yahoo")
     backend.upsert_json_table("rule_outputs", "ticker", ticker, rule_payload, source="rules")
     logged = auto_log_rule_decision(ticker, rule_payload, source="worker_market_scan")
@@ -415,6 +562,7 @@ def _fresh_tactical_state(ticker: str) -> tuple[dict, dict]:
     t_state = tactical.compute(hist, bench) or {}
     if not t_state:
         raise RuntimeError(f"Rule engine could not compute {ticker}")
+    t_state = tactical.apply_extension_execution_overlay(t_state) or t_state
     market_payload = _market_payload(ticker, hist, t_state)
     t_state["price"] = market_payload.get("price", t_state.get("price"))
     backend.upsert_json_table("market_snapshots", "ticker", ticker, market_payload, source="yahoo")
@@ -510,6 +658,28 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
         requested_by="worker-maintenance",
     )
     return {"queued": True, "job_id": job_id, "tickers": tickers}
+
+
+def queue_scheduled_backend_maintenance() -> dict:
+    """Queue regime daily and data repair at most once per UTC day."""
+    today = date.today()
+    recent = backend.latest_jobs(limit=100)
+    queued = []
+    for job_type, priority in (("market_regime_daily", 20), ("repair_missing_data", 40)):
+        already_today = False
+        for row in recent:
+            if row.get("job_type") != job_type or row.get("status") not in {"queued", "running", "succeeded"}:
+                continue
+            stamp = row.get("created_at")
+            stamp_date = stamp.date() if hasattr(stamp, "date") else None
+            if stamp_date == today:
+                already_today = True
+                break
+        if not already_today:
+            job_id = backend.enqueue_job(job_type, priority=priority, requested_by="worker-maintenance")
+            if job_id:
+                queued.append(job_type)
+    return {"queued": queued}
 
 
 def score_due_rule_outcomes(max_entries: int = 12) -> dict:
@@ -615,10 +785,10 @@ def process_job(job: dict) -> dict:
         return refresh_watchlist_market_scan(payload)
     if job_type == "full_report":
         return refresh_full_report(ticker)
-    if job_type in {"market_regime_daily", "repair_missing_data"}:
-        # Queue contract exists now; these processors can be added without
-        # changing Streamlit or the database schema.
-        return {"queued_contract": job_type, "message": "processor pending"}
+    if job_type == "market_regime_daily":
+        return refresh_market_regime_daily(payload)
+    if job_type == "repair_missing_data":
+        return repair_missing_data(payload)
     raise ValueError(f"Unsupported job type: {job_type}")
 
 
@@ -703,6 +873,12 @@ def main():
     except Exception as exc:
         print(f"obsolete PM memo job retirement skipped: {exc}")
     if args.maintenance:
+        try:
+            maintenance_jobs = queue_scheduled_backend_maintenance()
+            if maintenance_jobs.get("queued"):
+                print(f"queued backend maintenance: {', '.join(maintenance_jobs['queued'])}")
+        except Exception as exc:
+            _gha_warning(f"Backend maintenance queue skipped: {exc}")
         try:
             digest_queue = queue_daily_user_digests()
             if digest_queue.get("enabled"):

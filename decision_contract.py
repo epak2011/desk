@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 
 
-RECEIPT_SCHEMA_VERSION = 1
+RECEIPT_SCHEMA_VERSION = 2
 
 
 def _number(value):
@@ -34,6 +34,57 @@ def _trace_factors(trace, limit=3):
         if len(factors) >= limit:
             break
     return list(reversed(factors))
+
+
+def build_rule_attribution(state):
+    """Return structured, machine-readable reasons for the final decision."""
+    state = state if isinstance(state, dict) else {}
+    trace = state.get("_rule_trace") or state.get("rule_trace") or []
+    steps = []
+    for index, step in enumerate(trace):
+        if isinstance(step, dict):
+            detail = str(step.get("detail") or step.get("label") or "").strip()
+            label = str(step.get("label") or f"Step {index + 1}").strip()
+            action = normalize_action(step.get("action"))
+        else:
+            detail, label, action = str(step or "").strip(), f"Step {index + 1}", ""
+        if detail:
+            steps.append({"order": index + 1, "label": label, "detail": detail, "action": action or None})
+    if not steps:
+        inferred = [
+            ("Base rules", state.get("matrix_reason") or state.get("trigger_fired_reason")),
+            ("Reward/risk", state.get("reward_risk_gate_reason")),
+            ("Stretched momentum", state.get("extension_overlay_reason")),
+        ]
+        for label, detail in inferred:
+            if detail:
+                steps.append({
+                    "order": len(steps) + 1,
+                    "label": label,
+                    "detail": str(detail).strip(),
+                    "action": normalize_action(state.get("action")) or None,
+                })
+    if not steps and state.get("state"):
+        steps.append({
+            "order": 1,
+            "label": "Technical state",
+            "detail": f"Technical structure classified as {state.get('state')}.",
+            "action": normalize_action(state.get("action")) or None,
+        })
+    gates = []
+    if state.get("reward_risk_gate"):
+        gates.append("reward_risk")
+    if state.get("extension_overlay_applied"):
+        gates.append("stretched_momentum")
+    if state.get("earnings_gate_applied"):
+        gates.append("earnings")
+    return {
+        "final_action": normalize_action(state.get("action")),
+        "base_action": normalize_action(state.get("extension_pre_overlay_action") or state.get("base_action")) or None,
+        "decisive_step": steps[-1] if steps else None,
+        "steps": steps,
+        "active_gates": gates,
+    }
 
 
 def build_decision_receipt(ticker, state, *, engine_version, captured_at=None, previous=None):
@@ -86,6 +137,7 @@ def build_decision_receipt(ticker, state, *, engine_version, captured_at=None, p
         "invalidation": {"text": invalidation_text, "price": invalidation_price},
         "source": "rules_engine",
         "data_trust": state.get("data_trust") if isinstance(state.get("data_trust"), dict) else {},
+        "attribution": build_rule_attribution(state),
     }
     identity = {key: value for key, value in core.items() if key != "captured_at"}
     core["receipt_id"] = hashlib.sha256(
@@ -135,4 +187,22 @@ def receipt_consistency(ticker, surfaces):
                 "observed": observed_version,
                 "kind": "engine_version",
             })
+        for field in ("trigger", "invalidation"):
+            expected_level = _number((receipt.get(field) or {}).get("price"))
+            payload_level = payload.get(field)
+            if isinstance(payload_level, dict):
+                observed_level = _number(payload_level.get("price"))
+            else:
+                observed_level = _number(
+                    payload.get(f"{field}_price")
+                    or (payload.get("entry") if field == "trigger" else payload.get("stop"))
+                )
+            if expected_level is not None and observed_level is not None and abs(expected_level - observed_level) > 0.01:
+                mismatches.append({
+                    "ticker": str(ticker or "").upper(),
+                    "surface": surface,
+                    "expected": round(expected_level, 4),
+                    "observed": round(observed_level, 4),
+                    "kind": f"{field}_price",
+                })
     return mismatches

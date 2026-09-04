@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 
-EVALUATION_VERSION = 5
+EVALUATION_VERSION = 6
 DEFAULT_HORIZONS = (5, 14, 30)
 
 
@@ -25,6 +25,52 @@ def decision_family(action):
     if action == "AVOID":
         return "avoid"
     return "wait"
+
+
+def calibration_eligible(entry):
+    """Whether a scored row is safe to use for rule calibration.
+
+    Legacy rows remain eligible; newly scored rows carry an explicit integrity
+    result so incomplete benchmark/path data cannot silently tune live rules.
+    """
+    outcome = entry.get("outcome") if isinstance(entry, dict) else None
+    if not isinstance(outcome, dict):
+        return False
+    integrity = outcome.get("integrity")
+    return not isinstance(integrity, dict) or bool(integrity.get("calibration_eligible"))
+
+
+def shadow_outcomes(entry, primary):
+    """Score recorded shadow actions on the exact same matured price path."""
+    rows = entry.get("shadow_evaluations") if isinstance(entry, dict) else []
+    forward = number_or_none(primary.get("forward_return_pct"))
+    excess = number_or_none(primary.get("excess_return_pct"))
+    results = []
+    if forward is None:
+        return results
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        family = decision_family(row.get("action"))
+        if family not in {"long", "avoid"}:
+            success = None
+            decision_return = None
+        else:
+            direction = 1 if family == "long" else -1
+            decision_return = round(direction * forward, 4)
+            success = (
+                bool(forward > 0 and (excess is None or excess > 0))
+                if family == "long"
+                else bool(forward < 0 or (excess is not None and excess <= -2))
+            )
+        results.append({
+            "candidate": str(row.get("candidate") or "unknown"),
+            "version": str(row.get("version") or "unknown"),
+            "action": row.get("action"),
+            "directional_success": success,
+            "decision_return_pct": decision_return,
+        })
+    return results
 
 
 def _entry_date(entry):
@@ -224,6 +270,31 @@ def score_forward_outcome(
         "post_trigger_returns_pct": post_trigger,
         "evaluation_complete": "30" in horizon_results,
     }
+    missing = []
+    if "14" not in horizon_results:
+        missing.append("14_session_path")
+    if family in {"long", "avoid"} and primary.get("benchmark_return_pct") is None:
+        missing.append("14_session_benchmark")
+    try:
+        last_history_date = history.index[-1].date()
+        if (as_of - last_history_date).days > 7:
+            missing.append("stale_price_history")
+    except Exception:
+        missing.append("unverifiable_price_history_date")
+    try:
+        logged_rows = history[history.index.date <= logged]
+        logged_close = number_or_none(logged_rows["Close"].iloc[-1]) if len(logged_rows) else None
+        if logged_close and abs(logged_close / ref_price - 1) > 0.30:
+            missing.append("reference_price_discontinuity")
+    except Exception:
+        pass
+    result["integrity"] = {
+        "calibration_eligible": not missing,
+        "issues": missing,
+        "price_history_adjusted": True,
+        "duplicate_control": "independent_ticker_family_cohorts_7d",
+    }
+    result["shadow_results"] = shadow_outcomes(entry, result)
     result["credited"] = directional_success if family in {"long", "avoid"} else patience_success
     return result
 
@@ -340,6 +411,8 @@ def failure_patterns(entries, minimum_count=3):
     """Rank sufficiently populated decision-time attributes by decision return."""
     groups = {}
     for entry in entries or []:
+        if not calibration_eligible(entry):
+            continue
         outcome = entry.get("outcome") or {}
         decision_return = number_or_none(outcome.get("decision_return_pct"))
         if decision_return is None:
@@ -399,6 +472,7 @@ def logic_review_flags(
         family_entries = [
             entry for entry in entries or []
             if decision_family(entry.get("rule_action")) == family
+            and calibration_eligible(entry)
             and isinstance(entry.get("outcome"), dict)
             and entry.get("outcome", {}).get("directional_success") is not None
             and number_or_none(entry.get("outcome", {}).get("decision_return_pct")) is not None
@@ -450,6 +524,8 @@ def weakest_directional_cases(entries, limit=8):
     """Return the worst mature independent calls for human case review."""
     cases = []
     for entry in entries or []:
+        if not calibration_eligible(entry):
+            continue
         outcome = entry.get("outcome") or {}
         decision_return = number_or_none(outcome.get("decision_return_pct"))
         if outcome.get("directional_success") is not False or decision_return is None:
@@ -472,6 +548,8 @@ def performance_slices(entries, minimum_count=3):
     """Summarize mature directional edge by version and decision environment."""
     groups = {}
     for entry in entries or []:
+        if not calibration_eligible(entry):
+            continue
         outcome = entry.get("outcome") or {}
         if outcome.get("directional_success") is None:
             continue
@@ -528,3 +606,30 @@ def confidence_calibration(entries, minimum_count=5):
             else "Displayed confidence is not ranking outcomes correctly; recalibration should be reviewed."
         )
     return {"rows": rows, "calibrated": calibrated, "note": note}
+
+
+def shadow_performance(entries, minimum_count=3):
+    """Compare candidate shadow actions using only integrity-approved outcomes."""
+    groups = {}
+    for entry in entries or []:
+        if not calibration_eligible(entry):
+            continue
+        for row in (entry.get("outcome") or {}).get("shadow_results") or []:
+            success = row.get("directional_success")
+            decision_return = number_or_none(row.get("decision_return_pct"))
+            if success is None or decision_return is None:
+                continue
+            key = (str(row.get("candidate") or "unknown"), str(row.get("version") or "unknown"))
+            groups.setdefault(key, []).append((bool(success), decision_return))
+    results = []
+    for (candidate, version), rows in groups.items():
+        if len(rows) < int(minimum_count):
+            continue
+        results.append({
+            "candidate": candidate,
+            "version": version,
+            "count": len(rows),
+            "success_rate_pct": round(100 * sum(ok for ok, _ret in rows) / len(rows), 1),
+            "avg_decision_return_pct": round(sum(ret for _ok, ret in rows) / len(rows), 2),
+        })
+    return sorted(results, key=lambda row: (-row["avg_decision_return_pct"], -row["count"]))

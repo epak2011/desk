@@ -5365,7 +5365,7 @@ def _market_snapshot_from_t_state(t_state, hist=None):
             "trigger": trigger_monitor,
         },
         "rule_trace": t_state.get("_rule_trace") or [],
-        "engine_version": RULE_ENGINE_VERSION if "RULE_ENGINE_VERSION" in globals() else "rules-2026.08-b",
+        "engine_version": RULE_ENGINE_VERSION if "RULE_ENGINE_VERSION" in globals() else "rules-2026.08-d",
         "data_trust": t_state.get("data_trust") or {},
         "price_age": price_age_label,
         "price_age_kind": price_age_kind,
@@ -9880,6 +9880,7 @@ def rules_performance_snapshot():
     directional_cohorts = [
         entry for entry in evaluated_cohorts
         if engine_evaluation.decision_family(entry.get("rule_action")) in {"long", "avoid"}
+        and engine_evaluation.calibration_eligible(entry)
     ]
     patience_cohorts = [
         entry for entry in evaluated_cohorts
@@ -9929,6 +9930,7 @@ def rules_performance_snapshot():
         "weakest_cases": engine_evaluation.weakest_directional_cases(directional_cohorts),
         "performance_slices": engine_evaluation.performance_slices(directional_cohorts),
         "confidence_calibration": engine_evaluation.confidence_calibration(directional_cohorts),
+        "shadow_performance": engine_evaluation.shadow_performance(directional_cohorts),
         "action_counts": action_counts,
         "right_by_action": right_by_action,
         "total_by_action": total_by_action,
@@ -9963,6 +9965,7 @@ def render_rules_performance_dashboard():
     weakest_cases = snap["weakest_cases"]
     performance_slices = snap["performance_slices"]
     confidence_calibration = snap["confidence_calibration"]
+    shadow_performance = snap["shadow_performance"]
 
     def _metric(value, suffix="%"):
         return f"{float(value):+.1f}{suffix}" if value is not None else "—"
@@ -10004,6 +10007,24 @@ def render_rules_performance_dashboard():
             f'<span>{html.escape(row["dimension"])}</span><strong>{html.escape(row["value"])}</strong><span>{row["count"]}</span>'
             f'<span>{row["successes"]} / {row["count"]}</span><span>{_metric(row["avg_decision_return_pct"])}</span></div>'
             for row in performance_slices
+        )
+
+    if shadow_performance:
+        shadow_rows = "".join(
+            '<div style="display:grid;grid-template-columns:1.4fr .9fr .4fr .7fr .8fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px dashed var(--color-border-soft);font-family:var(--font-mono);font-size:12px;">'
+            f'<strong>{html.escape(row["candidate"].replace("_", " ").title())}</strong><span>{html.escape(row["version"])}</span>'
+            f'<span>{row["count"]}</span><span>{row["success_rate_pct"]:.1f}%</span><span>{_metric(row["avg_decision_return_pct"])}</span></div>'
+            for row in shadow_performance
+        )
+        st.markdown(
+            '<div class="watch-queue-label" style="margin:18px 0 7px;">Shadow rules</div>'
+            '<div style="font-size:12px;color:var(--color-muted);margin-bottom:8px;">Candidate rules are scored beside the live engine and cannot change the user-facing decision.</div>'
+            '<div style="display:grid;grid-template-columns:1.4fr .9fr .4fr .7fr .8fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;text-transform:uppercase;color:var(--color-muted);">'
+            '<span>Candidate</span><span>Version</span><span>n</span><span>Success</span><span>Decision return</span></div>'
+            + shadow_rows,
+            unsafe_allow_html=True,
         )
         st.markdown(
             '<div class="watch-queue-label" style="margin:18px 0 7px;">Edge by environment</div>'

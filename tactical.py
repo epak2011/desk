@@ -1210,7 +1210,14 @@ def extension_momentum_warning(t_state):
 
 
 def apply_extension_execution_overlay(t_state):
-    """Constrain entry timing and size when bullish momentum is stretched."""
+    """Constrain only an Enter that survived the base extension gate.
+
+    Precedence is intentional and deterministic:
+      1. ``tactical_action`` blocks ordinary MA extension with Watch.
+      2. Exceptional sponsored momentum may survive that gate as Enter.
+      3. This RSI-aware overlay then caps that surviving Enter to a starter,
+         Accumulate, or Watch. It never upgrades a non-entry decision.
+    """
     if not isinstance(t_state, dict):
         return t_state
     warning = t_state.get("extension_warning")
@@ -1226,6 +1233,7 @@ def apply_extension_execution_overlay(t_state):
 
     updated["extension_pre_overlay_action"] = action
     updated["extension_overlay_applied"] = True
+    updated["extension_policy"] = "base_gate_then_rsi_execution_overlay"
     severity = str(warning.get("severity") or "med").lower()
     if severity != "high":
         reason = (

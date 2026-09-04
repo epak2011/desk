@@ -200,6 +200,29 @@ class EngineEvaluationTests(unittest.TestCase):
         calibration = engine_evaluation.confidence_calibration(rows)
         self.assertTrue(calibration["calibrated"])
 
+    def test_new_outcome_without_benchmark_is_excluded_from_calibration(self):
+        bars = path_history(sessions=14, step=1)
+        entry = {"ts": "2026-01-02T10:00:00", "price": 100, "rule_action": "enter_now"}
+        outcome = engine_evaluation.score_forward_outcome(entry, bars, as_of=date(2026, 2, 1))
+        entry["outcome"] = outcome
+        self.assertFalse(outcome["integrity"]["calibration_eligible"])
+        self.assertIn("14_session_benchmark", outcome["integrity"]["issues"])
+        self.assertEqual(engine_evaluation.logic_review_flags([entry])[0]["count"], 0)
+
+    def test_shadow_candidate_is_scored_but_does_not_replace_live_action(self):
+        bars = path_history(sessions=14, step=-1)
+        spy = path_history(sessions=14, start_price=500, step=0)
+        entry = {
+            "ts": "2026-01-02T10:00:00", "price": 100, "rule_action": "enter_now",
+            "shadow_evaluations": [{"candidate": "strict", "version": "s1", "action": "avoid"}],
+        }
+        outcome = engine_evaluation.score_forward_outcome(entry, bars, benchmark_history=spy, as_of=date(2026, 1, 23))
+        entry["outcome"] = outcome
+        self.assertEqual(entry["rule_action"], "enter_now")
+        self.assertTrue(outcome["shadow_results"][0]["directional_success"])
+        rows = engine_evaluation.shadow_performance([entry], minimum_count=1)
+        self.assertEqual(rows[0]["candidate"], "strict")
+
 
 if __name__ == "__main__":
     unittest.main()

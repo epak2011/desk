@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 
+import pandas as pd
+
 import worker
 
 
@@ -24,6 +26,28 @@ class WorkerMarketScheduleTests(unittest.TestCase):
 
         self.assertFalse(result["queued"])
         enqueue.assert_not_called()
+
+    @patch("worker.backend.upsert_json_table")
+    @patch("worker._download_history")
+    def test_market_regime_job_persists_deterministic_snapshot(self, download, upsert):
+        dates = pd.bdate_range("2025-01-01", periods=220)
+        download.return_value = pd.DataFrame({"Close": range(100, 320)}, index=dates)
+        result = worker.process_job({"job_type": "market_regime_daily", "payload": {}, "ticker": None})
+        self.assertIn(result["portfolio_stance"], {"Risk On", "Moderately Risk On", "Neutral", "Defensive", "Risk Off"})
+        upsert.assert_called_once()
+        self.assertEqual(upsert.call_args.args[0], "market_regime_daily")
+
+    @patch("worker.refresh_market_regime_daily", return_value={"day": "2026-09-04"})
+    @patch("worker.refresh_market_snapshot", side_effect=lambda ticker, bench=None: {"ticker": ticker})
+    @patch("worker._download_benchmark", return_value=pd.DataFrame({"Close": [1, 2]}))
+    @patch("worker.backend.read_json_table_many", return_value={})
+    @patch("worker.backend.enabled_watchlist_tickers", return_value=["NVDA", "AAPL"])
+    def test_repair_job_refreshes_durable_watchlist_rows(self, _tickers, _rows, _bench, _refresh, _regime):
+        result = worker.process_job({"job_type": "repair_missing_data", "payload": {}, "ticker": None})
+        self.assertEqual(result["checked"], 2)
+        self.assertEqual(result["missing"], 2)
+        self.assertEqual(result["repaired"], 2)
+        self.assertTrue(result["regime_updated"])
 
 
 if __name__ == "__main__":
