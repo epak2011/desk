@@ -51,6 +51,22 @@ class ApiServiceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         workspace.assert_called_once_with("trusted-user")
 
+    def test_analysis_request_requires_sign_in(self):
+        response = self.client.post("/v1/decisions/GOOG/requests")
+        self.assertEqual(response.status_code, 401)
+
+    def test_analysis_request_queues_for_verified_user(self):
+        identity = VerifiedIdentity("trusted-user", "demo@example.invalid", "Demo")
+        api_service.app.dependency_overrides[api_service.current_identity] = lambda: identity
+        with mock.patch.object(
+            api_service.api_repository,
+            "request_decision",
+            return_value={"status": "queued", "ticker": "GOOG", "request_id": "job-1"},
+        ) as request_decision:
+            response = self.client.post("/v1/decisions/GOOG/requests")
+        self.assertEqual(response.status_code, 202)
+        request_decision.assert_called_once_with("GOOG", "trusted-user")
+
     def test_cors_does_not_allow_arbitrary_origin(self):
         response = self.client.options(
             "/v1/regime",

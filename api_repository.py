@@ -73,6 +73,61 @@ def decision(ticker: str) -> dict[str, Any]:
     return public_contract.decision_payload(receipt)
 
 
+def request_decision(ticker: str, user_id: str) -> dict[str, Any]:
+    """Return a saved decision immediately or queue canonical analysis work."""
+    ticker = normalize_ticker(ticker)
+    try:
+        payload = decision(ticker)
+    except NotFoundError:
+        payload = None
+    if payload:
+        return {
+            "status": "ready",
+            "ticker": ticker,
+            "decision": payload,
+            "poll_url": f"/v1/decisions/{ticker}",
+        }
+    job_id = backend_layer.enqueue_job(
+        "market_snapshot",
+        ticker=ticker,
+        priority=20,
+        requested_by=f"api:{user_id}",
+        dedupe_active=False,
+    )
+    if not job_id:
+        raise RuntimeError("The analysis request could not be queued.")
+    return {
+        "status": "queued",
+        "ticker": ticker,
+        "request_id": job_id,
+        "poll_url": f"/v1/analysis-requests/{job_id}",
+    }
+
+
+def analysis_request(job_id: str, user_id: str) -> dict[str, Any]:
+    job = backend_layer.get_job(job_id)
+    if not job or job.get("requested_by") != f"api:{user_id}" or job.get("job_type") != "market_snapshot":
+        raise NotFoundError("Analysis request was not found.")
+    ticker = normalize_ticker(job.get("ticker"))
+    status = str(job.get("status") or "queued").lower()
+    response = {
+        "status": status,
+        "ticker": ticker,
+        "request_id": str(job["id"]),
+        "poll_url": f"/v1/analysis-requests/{job['id']}",
+    }
+    if status == "succeeded":
+        try:
+            response["decision"] = decision(ticker)
+            response["status"] = "ready"
+        except NotFoundError:
+            response["status"] = "failed"
+            response["message"] = "Analysis finished without producing a canonical decision."
+    elif status in {"failed", "cancelled"}:
+        response["message"] = "Analysis could not be completed. Please try again."
+    return response
+
+
 def regime() -> dict[str, Any]:
     rows = backend_layer.read_json_table("market_regime_daily", limit=1)
     if not rows:

@@ -40,6 +40,30 @@ class ApiRepositoryTests(unittest.TestCase):
         self.assertEqual(payload["items"][0]["ticker"], "DEMO")
         self.assertEqual(payload["items"][0]["trigger_price"], 105)
 
+    def test_missing_decision_is_queued_for_authenticated_user(self):
+        with (
+            mock.patch.object(api_repository, "decision", side_effect=api_repository.NotFoundError("missing")),
+            mock.patch.object(api_repository.backend_layer, "enqueue_job", return_value="job-1") as enqueue,
+        ):
+            payload = api_repository.request_decision("goog", "user-1")
+        self.assertEqual(payload["status"], "queued")
+        self.assertEqual(payload["ticker"], "GOOG")
+        enqueue.assert_called_once_with(
+            "market_snapshot", ticker="GOOG", priority=20, requested_by="api:user-1",
+            dedupe_active=False,
+        )
+
+    def test_request_status_is_scoped_to_requesting_user(self):
+        job = {
+            "id": "job-1", "job_type": "market_snapshot", "ticker": "GOOG",
+            "status": "queued", "requested_by": "api:another-user",
+        }
+        with (
+            mock.patch.object(api_repository.backend_layer, "get_job", return_value=job),
+            self.assertRaises(api_repository.NotFoundError),
+        ):
+            api_repository.analysis_request("job-1", "user-1")
+
 
 if __name__ == "__main__":
     unittest.main()

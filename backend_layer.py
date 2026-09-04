@@ -775,6 +775,45 @@ def latest_jobs(ticker: str | None = None, limit: int = 8) -> list[dict[str, Any
     return jobs
 
 
+def get_job(job_id: str) -> dict[str, Any] | None:
+    """Return one refresh job without exposing unrelated queue records."""
+    if not has_database():
+        return None
+    try:
+        clean_id = str(uuid.UUID(str(job_id or "").strip()))
+    except (TypeError, ValueError, AttributeError):
+        return None
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, job_type, ticker, status, result, error, requested_by,
+                       created_at, started_at, completed_at, updated_at
+                FROM refresh_jobs
+                WHERE id = %s
+                LIMIT 1
+                """,
+                (clean_id,),
+            )
+            row = cur.fetchone()
+    if not row:
+        return None
+    return {
+        "id": str(row[0]),
+        "job_type": row[1],
+        "ticker": row[2],
+        "status": row[3],
+        "result": row[4] or {},
+        "error": row[5],
+        "requested_by": row[6],
+        "created_at": row[7],
+        "started_at": row[8],
+        "completed_at": row[9],
+        "updated_at": row[10],
+    }
+
+
 def retry_failed_jobs(
     ticker: str | None = None,
     job_type: str | None = None,

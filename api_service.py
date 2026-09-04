@@ -31,7 +31,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "If-Match", "X-Request-ID"],
 )
 
@@ -104,6 +104,19 @@ def regime(request: Request):
 @app.get("/v1/decisions/{ticker}")
 def decision(ticker: str, request: Request):
     return _run(request, api_repository.decision, ticker)
+
+
+@app.post("/v1/decisions/{ticker}/requests", status_code=202)
+def request_decision(ticker: str, request: Request, identity: Identity, response: Response):
+    result = _run(request, api_repository.request_decision, ticker, identity.user_id)
+    if result.get("status") == "ready":
+        response.status_code = 200
+    return result
+
+
+@app.get("/v1/analysis-requests/{job_id}")
+def analysis_request(job_id: str, request: Request, identity: Identity):
+    return _run(request, api_repository.analysis_request, job_id, identity.user_id)
 
 
 @app.get("/v1/workspace")

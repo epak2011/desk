@@ -54,6 +54,32 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/InvalidTicker"}
         "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /v1/decisions/{ticker}/requests:
+    post:
+      tags: [Shared]
+      summary: Return a saved decision or queue canonical analysis for a missing ticker
+      parameters:
+        - $ref: "#/components/parameters/Ticker"
+      responses:
+        "200": {description: A canonical decision is already available}
+        "202": {description: Analysis was queued; poll the returned poll_url}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/InvalidTicker"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /v1/analysis-requests/{job_id}:
+    get:
+      tags: [Operations]
+      summary: Poll an authenticated analysis request
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200": {description: Current request status and the canonical decision when ready}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
   /v1/workspace:
     get:
       tags: [Workspace]
