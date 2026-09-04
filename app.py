@@ -10008,6 +10008,15 @@ def render_rules_performance_dashboard():
             f'<span>{row["successes"]} / {row["count"]}</span><span>{_metric(row["avg_decision_return_pct"])}</span></div>'
             for row in performance_slices
         )
+        st.markdown(
+            '<div class="watch-queue-label" style="margin:18px 0 7px;">Edge by environment</div>'
+            '<div style="font-size:12px;color:var(--color-muted);margin-bottom:8px;">Mature directional outcomes split by engine version, regime, tape, setup score, and displayed confidence.</div>'
+            '<div style="display:grid;grid-template-columns:.8fr 1.2fr .45fr .65fr .75fr;gap:10px;padding:8px 6px;'
+            'border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;text-transform:uppercase;color:var(--color-muted);">'
+            '<span>Dimension</span><span>Condition</span><span>n</span><span>Success</span><span>Decision return</span></div>'
+            + slice_rows,
+            unsafe_allow_html=True,
+        )
 
     if shadow_performance:
         shadow_rows = "".join(
@@ -10026,13 +10035,13 @@ def render_rules_performance_dashboard():
             + shadow_rows,
             unsafe_allow_html=True,
         )
+    else:
         st.markdown(
-            '<div class="watch-queue-label" style="margin:18px 0 7px;">Edge by environment</div>'
-            '<div style="font-size:12px;color:var(--color-muted);margin-bottom:8px;">Mature directional outcomes split by engine version, regime, tape, setup score, and displayed confidence.</div>'
-            '<div style="display:grid;grid-template-columns:.8fr 1.2fr .45fr .65fr .75fr;gap:10px;padding:8px 6px;'
-            'border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;text-transform:uppercase;color:var(--color-muted);">'
-            '<span>Dimension</span><span>Condition</span><span>n</span><span>Success</span><span>Decision return</span></div>'
-            + slice_rows,
+            '<div class="watch-queue-label" style="margin:18px 0 7px;">Shadow rules</div>'
+            '<div class="watch-queue-card" style="padding:12px 14px;margin-bottom:14px;">'
+            '<div class="health-warn" style="font-weight:800;">Collecting evidence</div>'
+            '<div style="font-size:12px;color:var(--color-muted);margin-top:4px;">The strict extreme-extension candidate is logging beside the live engine. Results appear after at least three integrity-approved directional outcomes mature.</div>'
+            '</div>',
             unsafe_allow_html=True,
         )
 
