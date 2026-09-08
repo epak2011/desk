@@ -45,6 +45,7 @@ LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
 OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
 OUTCOME_MIN_AGE_DAYS = 7
 RULE_ENGINE_VERSION = "rules-2026.08-d"
+CRYPTO_REGIME_MODEL_VERSION = "crypto-cycle-2026.09.08-a"
 
 
 def _series_snapshot(frame, ticker: str) -> dict:
@@ -119,7 +120,7 @@ def _crypto_regime_snapshot(frame) -> dict:
             "drawdown_from_2y_high_pct": round(drawdown, 4),
             "return_90d_pct": round(return90, 4) if return90 is not None else None,
         },
-        "model_version": "crypto-cycle-2026.09.08-a",
+        "model_version": CRYPTO_REGIME_MODEL_VERSION,
     }
 
 
@@ -721,6 +722,10 @@ def queue_scheduled_backend_maintenance() -> dict:
     """Queue regime daily and data repair at most once per UTC day."""
     today = date.today()
     recent = backend.latest_jobs(limit=100)
+    saved_regime_rows = backend.read_json_table("market_regime_daily", limit=1)
+    saved_regime = next(iter(saved_regime_rows.values()), {}) if saved_regime_rows else {}
+    saved_crypto = saved_regime.get("crypto_regime") if isinstance(saved_regime, dict) else {}
+    force_crypto_upgrade = not isinstance(saved_crypto, dict) or saved_crypto.get("model_version") != CRYPTO_REGIME_MODEL_VERSION
     queued = []
     for job_type, priority in (("market_regime_daily", 20), ("repair_missing_data", 40)):
         already_today = False
@@ -732,6 +737,8 @@ def queue_scheduled_backend_maintenance() -> dict:
             if stamp_date == today:
                 already_today = True
                 break
+        if job_type == "market_regime_daily" and force_crypto_upgrade:
+            already_today = False
         if not already_today:
             job_id = backend.enqueue_job(job_type, priority=priority, requested_by="worker-maintenance")
             if job_id:
