@@ -22,6 +22,10 @@ production database connection strings.
   `POST /v1/decisions/{ticker}/research/requests`, poll the returned URL, and
   refetch the decision when ready. Keep the rules action visible while research
   is pending because AI explanation never owns the action.
+- When `research.status` is `stale`, keep the saved research visible but put a
+  restrained red “Research needs refresh” warning above it. Show `age_days` and
+  `stale_reasons`, and use the same authenticated request/poll/refetch flow.
+  Never color or block the rules decision merely because research is stale.
 - The existing Streamlit app remains the internal calibration and fallback tool
   while the new client is built.
 

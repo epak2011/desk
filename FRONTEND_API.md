@@ -23,6 +23,11 @@ saved company overview, thesis, drivers, risks, valuation, PM narrative, and
 quality view. Research can explain or challenge a decision, but it cannot change
 the canonical action returned in `decision`.
 
+Research freshness is separate from market-data trust. `research.status: stale`
+includes `age_days` and `stale_reasons`; clients should keep the research visible,
+show a restrained red refresh warning, and offer the authenticated research
+request action without changing or blocking the canonical decision.
+
 The future service layer should be thin: load canonical engine state, call these
 serializers, apply authentication/rate limits, and return JSON. Private holdings,
 notes, chats, database details, and manual levels must never enter public payloads.

@@ -6,6 +6,7 @@ from public_contract import (
     decision_payload,
     error_payload,
     regime_payload,
+    research_payload,
     user_workspace_payload,
     watchlist_payload,
 )
@@ -62,6 +63,20 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "data_stale")
         self.assertTrue(payload["error"]["retryable"])
         self.assertEqual(payload["meta"]["request_id"], "req-1")
+
+    def test_old_or_price_dislocated_research_is_stale(self):
+        payload = research_payload(
+            "DEMO",
+            report={
+                "pm": {"thesis": "Saved thesis."},
+                "_worker_generated_at": "2026-01-01T12:00:00+00:00",
+                "_market_price": 100,
+            },
+            market={"price": 115},
+        )
+        self.assertEqual(payload["status"], "stale")
+        self.assertGreaterEqual(payload["age_days"], 7)
+        self.assertTrue(any("Price has moved" in reason for reason in payload["stale_reasons"]))
 
 
 if __name__ == "__main__":

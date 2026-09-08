@@ -142,8 +142,30 @@ def research_payload(
     )
     source = first(dossier.get("_source"), pm.get("_source"), memo.get("_source"), memo.get("source"))
     quality = first(dossier.get("quality"), pm.get("quality"), memo.get("quality"), {})
+    has_research = bool(company_overview or thesis)
+    stale_reasons = []
+    age_days = None
+    if has_research:
+        try:
+            generated = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+            if generated.tzinfo is None:
+                generated = generated.replace(tzinfo=timezone.utc)
+            age_days = max(0, (datetime.now(timezone.utc) - generated.astimezone(timezone.utc)).days)
+            if age_days >= 7:
+                stale_reasons.append(f"Research is {age_days} days old.")
+        except (TypeError, ValueError):
+            stale_reasons.append("Research date is unavailable.")
+        report_price = first(report.get("_market_price"), pm.get("_market_price"), memo.get("_market_price"))
+        current_price = first(market.get("price"), market.get("last"))
+        try:
+            price_move = abs(float(current_price) / float(report_price) - 1) * 100
+            if price_move >= 10:
+                stale_reasons.append(f"Price has moved {price_move:.0f}% since this research was generated.")
+        except (TypeError, ValueError, ZeroDivisionError):
+            pass
+    status = "unavailable" if not has_research else ("stale" if stale_reasons else "ready")
     result = {
-        "status": "ready" if company_overview or thesis else "unavailable",
+        "status": status,
         "ticker": str(ticker or "").upper(),
         "company_name": first((report.get("meta") or {}).get("company_name") if isinstance(report.get("meta"), Mapping) else None, market.get("company_name")),
         "company_overview": company_overview,
@@ -157,6 +179,8 @@ def research_payload(
         "pm_narrative": first(dossier.get("pm_narrative"), memo.get("pm_narrative")),
         "quality": dict(quality) if isinstance(quality, Mapping) else {},
         "generated_at": generated_at,
+        "age_days": age_days,
+        "stale_reasons": stale_reasons,
         "source": source,
     }
     return result

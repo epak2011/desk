@@ -277,7 +277,7 @@ components:
       type: object
       required: [status, ticker, drivers, risks, quality]
       properties:
-        status: {type: string, enum: [ready, unavailable]}
+        status: {type: string, enum: [ready, stale, unavailable]}
         ticker: {type: string}
         company_name: {type: [string, "null"]}
         company_overview: {type: [string, "null"]}
@@ -291,6 +291,8 @@ components:
         pm_narrative: {type: [string, "null"]}
         quality: {type: object, additionalProperties: true}
         generated_at: {type: [string, "null"]}
+        age_days: {type: [integer, "null"], minimum: 0}
+        stale_reasons: {type: array, items: {type: string}}
         source: {type: [string, "null"]}
     RegimeResponse:
       type: object
