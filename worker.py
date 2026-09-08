@@ -124,6 +124,103 @@ def _crypto_regime_snapshot(frame) -> dict:
     }
 
 
+def _level_from_distance(asset: dict, key: str):
+    """Recover a moving-average level from price and its percentage distance."""
+    last, distance = asset.get("last"), asset.get(key)
+    if last is None or distance is None or float(distance) <= -99.9:
+        return None
+    return float(last) / (1 + float(distance) / 100)
+
+
+def _regime_decision_context(*, stance: str, score: int, assets: dict, errors: dict, previous: dict | None = None) -> dict:
+    """Build the complete, client-safe Market Regime narrative from saved inputs."""
+    previous = previous or {}
+    spy, qqq = assets.get("SPY", {}), assets.get("QQQ", {})
+    rsp, hyg, vix = assets.get("RSP", {}), assets.get("HYG", {}), assets.get("^VIX", {})
+    favorable = score >= 4
+    defensive = score < 0
+    action = "enter" if favorable else "avoid" if defensive else "hold_off"
+    label = "Favorable" if favorable else "Unfavorable" if defensive else "Mixed"
+    above_20 = (spy.get("vs_20d_pct") or 0) > 0
+    above_50 = (spy.get("vs_50d_pct") or 0) > 0
+    breadth_gap = (rsp.get("return_20d_pct") or 0) - (spy.get("return_20d_pct") or 0)
+    credit_20 = hyg.get("return_20d_pct")
+    vix_level = vix.get("last")
+    if favorable and above_20 and above_50 and (vix_level is None or vix_level < 25):
+        timing = "Constructive — stage entries; do not chase extended stocks"
+    elif defensive or not above_50:
+        timing = "Defensive — wait for trend repair before broad new entries"
+    else:
+        timing = "Selective — require clean stock-level triggers"
+
+    prior_score = previous.get("score")
+    prior_stance = previous.get("portfolio_stance")
+    if prior_score is None:
+        change_label = "First comparable snapshot"
+        change_detail = "No prior saved regime snapshot is available for a day-over-day comparison."
+    else:
+        delta = score - int(prior_score)
+        change_label = "Improved" if delta > 0 else "Weakened" if delta < 0 else "Unchanged"
+        change_detail = (
+            f"The stance moved from {prior_stance or 'the prior reading'} to {stance}; the score changed {delta:+d} to {score}."
+            if delta else f"The {stance} stance and score of {score} are unchanged from the prior snapshot."
+        )
+
+    trend_text = (
+        f"SPY is {abs(spy.get('vs_20d_pct') or 0):.1f}% {'above' if above_20 else 'below'} its 20-day average and "
+        f"{abs(spy.get('vs_50d_pct') or 0):.1f}% {'above' if above_50 else 'below'} its 50-day average"
+    )
+    breadth_text = f"equal-weight breadth is {abs(breadth_gap):.1f} points {'ahead of' if breadth_gap >= 0 else 'behind'} SPY over 20 sessions"
+    credit_text = "credit data is unavailable" if credit_20 is None else f"high-yield credit is {credit_20:+.1f}% over 20 sessions"
+    volatility_text = "volatility data is unavailable" if vix_level is None else f"VIX is {vix_level:.1f}"
+    why_today = (
+        f"{trend_text}. {breadth_text.capitalize()}, while {credit_text} and {volatility_text}. "
+        f"Together those live inputs make the 2–12 week opportunity window {label.lower()}. "
+        f"The practical call is to {'add exposure in stages only where company-level triggers agree' if favorable else 'protect capital and wait for confirmation' if defensive else 'keep exposure selective and wait for cleaner confirmation'}."
+    )
+
+    drivers, risks = [], []
+    (drivers if above_50 else risks).append(f"SPY is {'above' if above_50 else 'below'} its 50-day trend.")
+    (drivers if breadth_gap >= -1 else risks).append(f"Equal-weight breadth is {'participating' if breadth_gap >= -1 else 'lagging'} versus SPY.")
+    (drivers if credit_20 is not None and credit_20 >= -1 else risks).append(
+        "High-yield credit is stable." if credit_20 is not None and credit_20 >= -1 else "Credit confirmation is weak or unavailable."
+    )
+    (risks if vix_level is not None and vix_level >= 25 else drivers).append(
+        f"VIX is elevated at {vix_level:.1f}." if vix_level is not None and vix_level >= 25 else "Volatility is contained."
+    )
+
+    spy20, spy50 = _level_from_distance(spy, "vs_20d_pct"), _level_from_distance(spy, "vs_50d_pct")
+    triggers = []
+    if spy20 is not None and spy50 is not None:
+        if above_20 and above_50:
+            triggers.append(f"SPY closes below ${max(spy20, spy50):,.2f} and then loses ${min(spy20, spy50):,.2f}: broad trend support is failing; stop adding marginal exposure.")
+        else:
+            triggers.append(f"SPY reclaims ${max(spy20, spy50):,.2f}: trend repair improves the case for selective new exposure.")
+    triggers.extend([
+        "Equal-weight RSP lags SPY by more than 1 percentage point over 20 sessions: participation is narrowing; favor stronger setups.",
+        "High-yield credit falls more than 1% over 20 sessions: credit is no longer confirming risk appetite; reduce marginal cyclicals.",
+        "VIX rises through 30: volatility stress is material; tighten risk and avoid chasing entries.",
+    ])
+    highlights = []
+    for symbol, label_name in (("SPY", "S&P 500"), ("QQQ", "Nasdaq 100"), ("RSP", "Equal-weight breadth"), ("HYG", "High-yield credit"), ("^VIX", "Volatility"), ("BTC-USD", "Bitcoin")):
+        item = assets.get(symbol) or {}
+        if item.get("last") is not None:
+            highlights.append({"symbol": symbol, "label": label_name, "value": item["last"], "change_pct": item.get("change_pct"), "return_20d_pct": item.get("return_20d_pct"), "vs_50d_pct": item.get("vs_50d_pct")})
+    forward_watch = [
+        {"title": "Broad trend", "body": "Watch whether SPY holds its 20-day and 50-day averages; those levels govern near-term execution."},
+        {"title": "Breadth", "body": "RSP should keep pace with SPY. Persistent lag would make an index-led rally less dependable."},
+        {"title": "Credit", "body": "HYG should remain stable. Weakening credit would challenge an otherwise constructive equity tape."},
+        {"title": "Volatility", "body": "A VIX move through 30 would shift the focus from adding exposure to protecting capital."},
+    ]
+    return {
+        "opportunity_action": action, "opportunity_label": label, "entry_timing": timing,
+        "change_label": change_label, "change_detail": change_detail, "why_today": why_today,
+        "market_highlights": highlights, "drivers": drivers, "risks": risks,
+        "watch_triggers": triggers, "forward_watch": forward_watch,
+        "data_trust": {"status": "caution" if errors else "trusted", "executable": "SPY" in assets, "issues": [f"{key}: unavailable" for key in errors]},
+    }
+
+
 def refresh_market_regime_daily(payload: dict | None = None) -> dict:
     """Persist a deterministic daily market-regime snapshot for cheap UI/API reads."""
     symbols = ("SPY", "QQQ", "RSP", "HYG", "^VIX", "BTC-USD")
@@ -161,6 +258,8 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
         score -= 2; reasons.append("volatility is elevated")
     stance = "Risk On" if score >= 4 else "Moderately Risk On" if score >= 2 else "Neutral" if score >= 0 else "Defensive" if score >= -3 else "Risk Off"
     generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    saved = backend.read_json_table("market_regime_daily", limit=3)
+    previous = next((row for day, row in saved.items() if day != date.today().isoformat()), {}) if isinstance(saved, dict) else {}
     result = {
         "schema_version": 1,
         "generated_at": generated_at,
@@ -173,6 +272,7 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
         "source": "worker_market_regime_v1",
         "crypto_regime": _crypto_regime_snapshot(frames.get("BTC-USD")),
     }
+    result.update(_regime_decision_context(stance=stance, score=score, assets=assets, errors=errors, previous=previous))
     backend.upsert_json_table("market_regime_daily", "day", result["day"], result, source=result["source"])
     return result
 

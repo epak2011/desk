@@ -36,6 +36,29 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertIn(result["portfolio_stance"], {"Risk On", "Moderately Risk On", "Neutral", "Defensive", "Risk Off"})
         upsert.assert_called_once()
         self.assertEqual(upsert.call_args.args[0], "market_regime_daily")
+        self.assertIn("why_today", result)
+        self.assertGreaterEqual(len(result["watch_triggers"]), 3)
+        self.assertEqual(len(result["market_highlights"]), 6)
+
+    def test_regime_context_changes_with_current_market_inputs(self):
+        constructive_assets = {
+            "SPY": {"last": 600, "vs_20d_pct": 2, "vs_50d_pct": 5, "return_20d_pct": 4},
+            "RSP": {"last": 180, "return_20d_pct": 4},
+            "HYG": {"last": 80, "return_20d_pct": 1},
+            "^VIX": {"last": 16},
+        }
+        weak_assets = {
+            "SPY": {"last": 520, "vs_20d_pct": -4, "vs_50d_pct": -7, "return_20d_pct": -8},
+            "RSP": {"last": 150, "return_20d_pct": -12},
+            "HYG": {"last": 70, "return_20d_pct": -5},
+            "^VIX": {"last": 36},
+        }
+        strong = worker._regime_decision_context(stance="Risk On", score=6, assets=constructive_assets, errors={})
+        weak = worker._regime_decision_context(stance="Risk Off", score=-6, assets=weak_assets, errors={})
+        self.assertEqual(strong["opportunity_action"], "enter")
+        self.assertEqual(weak["opportunity_action"], "avoid")
+        self.assertNotEqual(strong["why_today"], weak["why_today"])
+        self.assertIn("VIX is elevated", weak["risks"][-1])
 
     @patch("worker.refresh_market_regime_daily", return_value={"day": "2026-09-04"})
     @patch("worker.refresh_market_snapshot", side_effect=lambda ticker, bench=None: {"ticker": ticker})
