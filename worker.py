@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import traceback
 import time
 import urllib.parse
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
@@ -46,7 +48,7 @@ OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
 OUTCOME_MIN_AGE_DAYS = 7
 RULE_ENGINE_VERSION = "rules-2026.08-d"
 CRYPTO_REGIME_MODEL_VERSION = "crypto-cycle-2026.09.08-a"
-MARKET_REGIME_SCHEMA_VERSION = 2
+MARKET_REGIME_SCHEMA_VERSION = 3
 
 
 def _series_snapshot(frame, ticker: str) -> dict:
@@ -61,15 +63,140 @@ def _series_snapshot(frame, ticker: str) -> dict:
     ma20 = float(close.tail(20).mean())
     ma50 = float(close.tail(50).mean())
     ma200 = float(close.tail(200).mean()) if len(close) >= 200 else None
+    peak5 = float(close.tail(5).max()) if len(close) >= 5 else None
     return {
         "last": round(last, 4),
         "change_pct": round((last / previous - 1) * 100, 4) if previous else None,
         "return_5d_pct": round((last / float(close.iloc[-6]) - 1) * 100, 4) if len(close) >= 6 else None,
         "return_20d_pct": round((last / float(close.iloc[-21]) - 1) * 100, 4) if len(close) >= 21 else None,
+        "peak_5d": round(peak5, 4) if peak5 is not None else None,
+        "drop_from_5d_peak_pct": round((peak5 / last - 1) * 100, 4) if peak5 and last else None,
         "vs_20d_pct": round((last / ma20 - 1) * 100, 4),
         "vs_50d_pct": round((last / ma50 - 1) * 100, 4),
         "vs_200d_pct": round((last / ma200 - 1) * 100, 4) if ma200 else None,
     }
+
+
+def _fred_values(series_id: str, limit: int = 24) -> list[float]:
+    """Read recent FRED values using the same public series as Streamlit."""
+    try:
+        import pandas as pd
+        url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={urllib.parse.quote(series_id)}"
+        frame = pd.read_csv(url).tail(limit)
+        values = pd.to_numeric(frame[series_id], errors="coerce").dropna()
+        return [float(value) for value in values]
+    except Exception:
+        return []
+
+
+def _fear_greed_value() -> tuple[int | None, str | None]:
+    try:
+        request = urllib.request.Request("https://api.alternative.me/fng/", headers={"User-Agent": "TradingDesk/1.0"})
+        with urllib.request.urlopen(request, timeout=5) as response:
+            item = (json.loads(response.read().decode("utf-8")).get("data") or [{}])[0]
+        return int(item.get("value")), str(item.get("value_classification") or "") or None
+    except Exception:
+        return None, None
+
+
+def _macro_regime_inputs() -> dict:
+    ism = _fred_values("NAPMPMI")
+    unemp = _fred_values("UNRATE")
+    hy = _fred_values("BAMLH0A0HYM2")
+    curve = _fred_values("T10Y2Y")
+    fed, rrp, tga = _fred_values("WALCL"), _fred_values("WLRRAL"), _fred_values("WTREGEN")
+    fear_greed, fear_greed_label = _fear_greed_value()
+    return {
+        "ism": ism[-1] if ism else None,
+        "unemployment": unemp[-1] if unemp else None,
+        "unemployment_previous": unemp[-2] if len(unemp) >= 2 else None,
+        "hy_oas_bps": hy[-1] * 100 if hy else None,
+        "yield_curve_bps": curve[-1] * 100 if curve else None,
+        "fed_now": fed[-1] if fed else None, "fed_previous": fed[-2] if len(fed) >= 2 else None,
+        "rrp_now": rrp[-1] if rrp else None, "rrp_previous": rrp[-2] if len(rrp) >= 2 else None,
+        "tga_now": tga[-1] if tga else None, "tga_previous": tga[-2] if len(tga) >= 2 else None,
+        "fear_greed": fear_greed, "fear_greed_label": fear_greed_label,
+    }
+
+
+def _streamlit_regime_score(*, assets: dict, macro: dict) -> dict:
+    """Canonical 2–12 week score ported from Streamlit's Market Regime engine."""
+    spy, vix = assets.get("SPY", {}), assets.get("^VIX", {})
+    spx20, spx50 = spy.get("vs_20d_pct"), spy.get("vs_50d_pct")
+    ret5, ret20 = spy.get("return_5d_pct"), spy.get("return_20d_pct")
+    vix_level, vix_peak5, vix_drop5 = vix.get("last"), vix.get("peak_5d"), vix.get("drop_from_5d_peak_pct")
+    hy_bps, fg = macro.get("hy_oas_bps"), macro.get("fear_greed")
+    ism = macro.get("ism")
+    unemployment, unemployment_previous = macro.get("unemployment"), macro.get("unemployment_previous")
+    t1 = "WARNING" if ism is not None and ism < 50 else "CLEAR"
+    rising = unemployment is not None and unemployment_previous is not None and unemployment > unemployment_previous
+    falling = unemployment is not None and unemployment_previous is not None and unemployment < unemployment_previous
+    if unemployment is not None and unemployment >= 4.2 and rising:
+        t2 = "FIRING"
+    elif unemployment is not None and unemployment >= 4.2 and falling:
+        t2 = "RETREATING"
+    elif unemployment is not None and unemployment >= 4.0 and rising:
+        t2 = "APPROACHING"
+    else:
+        t2 = "CLEAR"
+    if hy_bps is not None and hy_bps >= 600:
+        t3 = "FIRING"
+    elif hy_bps is not None and hy_bps >= 450:
+        t3 = "ELEVATED"
+    else:
+        t3 = "CLEAR"
+    curve = macro.get("yield_curve_bps")
+    curve_state = "INVERTED" if curve is not None and curve < 0 else "FLAT" if curve is not None and curve < 50 else "STEEPENING"
+
+    score, drivers, risks = 0, [], []
+    if spx20 is not None and spx50 is not None:
+        if spx20 > 0 and spx50 > 0:
+            score += 2; drivers.append("SPX above 20d/50d")
+        elif spx50 > 0:
+            score += 1; drivers.append("SPX above 50d")
+        elif spx20 < 0 and spx50 < 0:
+            score -= 2; risks.append("SPX below 20d/50d")
+        else:
+            score -= 1; risks.append("SPX trend mixed")
+    if hy_bps is not None:
+        if hy_bps < 350:
+            score += 1; drivers.append("credit calm")
+        elif hy_bps >= 475:
+            score -= 2; risks.append("credit stress rising")
+        elif hy_bps >= 400:
+            score -= 1; risks.append("credit spreads elevated")
+    if vix_peak5 is not None and vix_drop5 is not None and vix_peak5 >= 25 and vix_drop5 >= 20:
+        score += 1; drivers.append("volatility compressed after stress")
+    elif vix_level is not None and vix_level > 35:
+        score -= 2; risks.append("VIX panic active")
+    elif vix_level is not None and vix_level > 25:
+        score -= 1; risks.append("VIX elevated")
+    if fg is not None and fg <= 25 and ret5 is not None and ret5 > 0:
+        score += 1; drivers.append("fear despite price recovery")
+    elif fg is not None and fg >= 75 and ret20 is not None and ret20 > 5:
+        score -= 1; risks.append("sentiment stretched")
+    if t1 == "WARNING":
+        score -= 3; risks.append("T1 macro trigger fired")
+    elif curve_state == "INVERTED" and t1 == "CLEAR":
+        score -= 1; risks.append("curve inverted")
+
+    window = "Favorable" if score >= 3 else "Mixed" if score >= 0 else "Unfavorable"
+    cluster_n = int(vix_level is not None and vix_level > 35) + int(fg is not None and fg < 25)
+    if cluster_n >= 2:
+        timing = "Add weakness"
+    elif fg is not None and fg >= 75:
+        timing = "Wait"
+    elif spx20 is not None and spx20 > 3:
+        timing = "Wait"
+    elif spx20 is not None and spx20 < 0 and spx50 is not None and spx50 > 0:
+        timing = "Pullback watch"
+    elif (vix_peak5 is not None and vix_drop5 is not None and vix_peak5 >= 25 and vix_drop5 >= 20) or (fg is not None and fg <= 35 and ret5 is not None and ret5 > 0):
+        timing = "Acceptable"
+    else:
+        timing = "Neutral"
+    action = "Avoid" if window == "Unfavorable" else "Hold Off" if window == "Mixed" else "Wait" if timing in {"Wait", "Pullback watch"} else "Enter"
+    return {"score": score, "window": window, "timing": timing, "action": action, "drivers": drivers, "risks": risks,
+            "signals": {"t1_ism": t1, "t2_unemployment": t2, "t3_hy_oas": t3, "yield_curve": curve_state}}
 
 
 def _crypto_regime_snapshot(frame) -> dict:
@@ -133,26 +260,24 @@ def _level_from_distance(asset: dict, key: str):
     return float(last) / (1 + float(distance) / 100)
 
 
-def _regime_decision_context(*, stance: str, score: int, assets: dict, errors: dict, previous: dict | None = None) -> dict:
+def _regime_decision_context(*, stance: str, score: int, assets: dict, errors: dict, previous: dict | None = None,
+                             canonical: dict | None = None, macro: dict | None = None) -> dict:
     """Build the complete, client-safe Market Regime narrative from saved inputs."""
     previous = previous or {}
+    canonical, macro = canonical or {}, macro or {}
     spy, qqq = assets.get("SPY", {}), assets.get("QQQ", {})
     rsp, hyg, vix = assets.get("RSP", {}), assets.get("HYG", {}), assets.get("^VIX", {})
-    favorable = score >= 4
-    defensive = score < 0
-    action = "enter" if favorable else "avoid" if defensive else "hold_off"
-    label = "Favorable" if favorable else "Unfavorable" if defensive else "Mixed"
+    label = canonical.get("window") or ("Favorable" if score >= 3 else "Unfavorable" if score < 0 else "Mixed")
+    action_label = canonical.get("action") or ("Enter" if label == "Favorable" else "Avoid" if label == "Unfavorable" else "Hold Off")
+    action = {"Enter": "enter", "Wait": "wait", "Hold Off": "hold_off", "Avoid": "avoid"}.get(action_label, "hold_off")
+    favorable = label == "Favorable"
+    defensive = label == "Unfavorable"
     above_20 = (spy.get("vs_20d_pct") or 0) > 0
     above_50 = (spy.get("vs_50d_pct") or 0) > 0
     breadth_gap = (rsp.get("return_20d_pct") or 0) - (spy.get("return_20d_pct") or 0)
     credit_20 = hyg.get("return_20d_pct")
     vix_level = vix.get("last")
-    if favorable and above_20 and above_50 and (vix_level is None or vix_level < 25):
-        timing = "Constructive — stage entries; do not chase extended stocks"
-    elif defensive or not above_50:
-        timing = "Defensive — wait for trend repair before broad new entries"
-    else:
-        timing = "Selective — require clean stock-level triggers"
+    timing = canonical.get("timing") or "Neutral"
 
     prior_score = previous.get("score")
     prior_stance = previous.get("portfolio_stance")
@@ -172,7 +297,8 @@ def _regime_decision_context(*, stance: str, score: int, assets: dict, errors: d
         f"{abs(spy.get('vs_50d_pct') or 0):.1f}% {'above' if above_50 else 'below'} its 50-day average"
     )
     breadth_text = f"equal-weight breadth is {abs(breadth_gap):.1f} points {'ahead of' if breadth_gap >= 0 else 'behind'} SPY over 20 sessions"
-    credit_text = "credit data is unavailable" if credit_20 is None else f"high-yield credit is {credit_20:+.1f}% over 20 sessions"
+    hy_oas = macro.get("hy_oas_bps")
+    credit_text = f"high-yield spreads are {hy_oas:.0f} bps" if hy_oas is not None else ("credit data is unavailable" if credit_20 is None else f"high-yield credit is {credit_20:+.1f}% over 20 sessions")
     volatility_text = "volatility data is unavailable" if vix_level is None else f"VIX is {vix_level:.1f}"
     why_today = (
         f"{trend_text}. {breadth_text.capitalize()}, while {credit_text} and {volatility_text}. "
@@ -180,15 +306,9 @@ def _regime_decision_context(*, stance: str, score: int, assets: dict, errors: d
         f"The practical call is to {'add exposure in stages only where company-level triggers agree' if favorable else 'protect capital and wait for confirmation' if defensive else 'keep exposure selective and wait for cleaner confirmation'}."
     )
 
-    drivers, risks = [], []
-    (drivers if above_50 else risks).append(f"SPY is {'above' if above_50 else 'below'} its 50-day trend.")
-    (drivers if breadth_gap >= -1 else risks).append(f"Equal-weight breadth is {'participating' if breadth_gap >= -1 else 'lagging'} versus SPY.")
-    (drivers if credit_20 is not None and credit_20 >= -1 else risks).append(
-        "High-yield credit is stable." if credit_20 is not None and credit_20 >= -1 else "Credit confirmation is weak or unavailable."
-    )
-    (risks if vix_level is not None and vix_level >= 25 else drivers).append(
-        f"VIX is elevated at {vix_level:.1f}." if vix_level is not None and vix_level >= 25 else "Volatility is contained."
-    )
+    drivers, risks = list(canonical.get("drivers") or []), list(canonical.get("risks") or [])
+    if not drivers and not risks:
+        (drivers if above_50 else risks).append(f"SPY is {'above' if above_50 else 'below'} its 50-day trend.")
 
     spy20, spy50 = _level_from_distance(spy, "vs_20d_pct"), _level_from_distance(spy, "vs_50d_pct")
     triggers = []
@@ -235,29 +355,11 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
             errors[symbol] = str(exc)[:180]
     if "SPY" not in assets:
         raise RuntimeError(f"Regime refresh requires SPY history: {errors.get('SPY', 'unavailable')}")
-    spy = assets["SPY"]
-    rsp = assets.get("RSP") or {}
-    hyg = assets.get("HYG") or {}
-    vix = assets.get("^VIX") or {}
-    score = 0
-    reasons = []
-    if (spy.get("vs_50d_pct") or 0) > 0:
-        score += 2; reasons.append("SPY above its 50-day average")
-    else:
-        score -= 2; reasons.append("SPY below its 50-day average")
-    if spy.get("vs_200d_pct") is not None:
-        score += 2 if spy["vs_200d_pct"] > 0 else -2
-    if (rsp.get("return_20d_pct") or 0) > (spy.get("return_20d_pct") or 0) - 1:
-        score += 1; reasons.append("breadth is participating")
-    else:
-        score -= 1; reasons.append("equal-weight breadth is lagging")
-    if (hyg.get("return_20d_pct") or 0) >= -1:
-        score += 1; reasons.append("credit is stable")
-    else:
-        score -= 1; reasons.append("credit is weakening")
-    if (vix.get("last") or 0) >= 30:
-        score -= 2; reasons.append("volatility is elevated")
-    stance = "Risk On" if score >= 4 else "Moderately Risk On" if score >= 2 else "Neutral" if score >= 0 else "Defensive" if score >= -3 else "Risk Off"
+    macro = _macro_regime_inputs()
+    canonical = _streamlit_regime_score(assets=assets, macro=macro)
+    score = canonical["score"]
+    stance = canonical["window"]
+    reasons = list(canonical["drivers"] + canonical["risks"])
     generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     saved = backend.read_json_table("market_regime_daily", limit=3)
     previous = next((row for day, row in saved.items() if day != date.today().isoformat()), {}) if isinstance(saved, dict) else {}
@@ -274,9 +376,11 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
         "assets": assets,
         "errors": errors,
         "source": "worker_market_regime_v1",
+        "macro": macro,
+        "signals": canonical["signals"],
         "crypto_regime": _crypto_regime_snapshot(frames.get("BTC-USD")),
     }
-    result.update(_regime_decision_context(stance=stance, score=score, assets=assets, errors=errors, previous=previous))
+    result.update(_regime_decision_context(stance=stance, score=score, assets=assets, errors=errors, previous=previous, canonical=canonical, macro=macro))
     backend.upsert_json_table("market_regime_daily", "day", result["day"], result, source=result["source"])
     return result
 

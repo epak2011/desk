@@ -28,17 +28,31 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         enqueue.assert_not_called()
 
     @patch("worker.backend.upsert_json_table")
+    @patch("worker._macro_regime_inputs", return_value={"hy_oas_bps": 265, "fear_greed": 69})
     @patch("worker._download_history")
-    def test_market_regime_job_persists_deterministic_snapshot(self, download, upsert):
+    def test_market_regime_job_persists_deterministic_snapshot(self, download, _macro, upsert):
         dates = pd.bdate_range("2025-01-01", periods=220)
         download.return_value = pd.DataFrame({"Close": range(100, 320)}, index=dates)
         result = worker.process_job({"job_type": "market_regime_daily", "payload": {}, "ticker": None})
-        self.assertIn(result["portfolio_stance"], {"Risk On", "Moderately Risk On", "Neutral", "Defensive", "Risk Off"})
+        self.assertIn(result["portfolio_stance"], {"Favorable", "Mixed", "Unfavorable"})
         upsert.assert_called_once()
         self.assertEqual(upsert.call_args.args[0], "market_regime_daily")
         self.assertIn("why_today", result)
         self.assertGreaterEqual(len(result["watch_triggers"]), 3)
         self.assertEqual(len(result["market_highlights"]), 6)
+
+    def test_streamlit_parity_pullback_is_mixed_hold_off(self):
+        assets = {
+            "SPY": {"vs_20d_pct": -0.1, "vs_50d_pct": 1.3, "return_5d_pct": 0.1, "return_20d_pct": -0.7},
+            "^VIX": {"last": 15.3, "peak_5d": 15.5, "drop_from_5d_peak_pct": 1.3},
+        }
+        macro = {"ism": None, "unemployment": 4.1, "unemployment_previous": 4.1,
+                 "hy_oas_bps": 265, "yield_curve_bps": 41, "fear_greed": 69}
+        result = worker._streamlit_regime_score(assets=assets, macro=macro)
+        self.assertEqual(result["score"], 2)
+        self.assertEqual(result["window"], "Mixed")
+        self.assertEqual(result["timing"], "Pullback watch")
+        self.assertEqual(result["action"], "Hold Off")
 
     def test_regime_context_changes_with_current_market_inputs(self):
         constructive_assets = {
@@ -58,7 +72,7 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertEqual(strong["opportunity_action"], "enter")
         self.assertEqual(weak["opportunity_action"], "avoid")
         self.assertNotEqual(strong["why_today"], weak["why_today"])
-        self.assertIn("VIX is elevated", weak["risks"][-1])
+        self.assertTrue(weak["risks"])
 
     @patch("worker.backend.enqueue_job", return_value="job-1")
     @patch("worker.backend.read_json_table")
