@@ -114,6 +114,14 @@ def request_decision(ticker: str, request: Request, identity: Identity, response
     return result
 
 
+@app.post("/v1/decisions/{ticker}/research/requests", status_code=202)
+def request_research(ticker: str, request: Request, identity: Identity, response: Response):
+    result = _run(request, api_repository.request_research, ticker, identity.user_id)
+    if result.get("status") == "ready":
+        response.status_code = 200
+    return result
+
+
 @app.get("/v1/analysis-requests/{job_id}")
 def analysis_request(job_id: str, request: Request, identity: Identity):
     return _run(request, api_repository.analysis_request, job_id, identity.user_id)

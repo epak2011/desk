@@ -14,6 +14,14 @@ production database connection strings.
 - The frontend renders API responses. It must not calculate, reinterpret, or
   silently override actions, triggers, invalidations, confidence, position size,
   data trust, or market regime.
+- Analyze research comes from the `research` object returned by
+  `GET /v1/decisions/{ticker}`. Render its company overview, thesis, drivers,
+  risks, valuation, quality, and PM narrative; never replace missing fields with
+  sample-company copy.
+- When a signed-in user needs missing research, call
+  `POST /v1/decisions/{ticker}/research/requests`, poll the returned URL, and
+  refetch the decision when ready. Keep the rules action visible while research
+  is pending because AI explanation never owns the action.
 - The existing Streamlit app remains the internal calibration and fallback tool
   while the new client is built.
 

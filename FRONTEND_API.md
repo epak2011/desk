@@ -11,11 +11,17 @@ product/build prompt is in `LOVABLE_HANDOFF.md`.
 ## Recommended endpoints
 
 - `GET /v1/decisions/{ticker}` → `decision_payload(...)`
+- `POST /v1/decisions/{ticker}/research/requests` → saved research or a queued current AI report (authenticated)
 - `GET /v1/attention` → `attention_payload(...)`
 - `GET /v1/regime` → `regime_payload(...)`
 - `GET/PATCH /v1/workspace` → `user_workspace_payload(...)` after verified auth
 - `GET /v1/watchlist` → `watchlist_payload(...)` after verified auth
 - `GET /v1/calibration` → the existing performance slices and confidence calibration
+
+The decision response includes a presentation-ready `research` object with the
+saved company overview, thesis, drivers, risks, valuation, PM narrative, and
+quality view. Research can explain or challenge a decision, but it cannot change
+the canonical action returned in `decision`.
 
 The future service layer should be thin: load canonical engine state, call these
 serializers, apply authentication/rate limits, and return JSON. Private holdings,

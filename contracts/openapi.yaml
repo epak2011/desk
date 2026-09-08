@@ -66,6 +66,19 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "422": {$ref: "#/components/responses/InvalidTicker"}
         "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /v1/decisions/{ticker}/research/requests:
+    post:
+      tags: [Shared]
+      summary: Return saved AI research or queue a current full report
+      description: Research enriches explanations only and never changes the canonical rules action.
+      parameters:
+        - $ref: "#/components/parameters/Ticker"
+      responses:
+        "200": {description: Saved research is already available}
+        "202": {description: Research was queued; poll the returned poll_url}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/InvalidTicker"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
   /v1/analysis-requests/{job_id}:
     get:
       tags: [Operations]
@@ -252,13 +265,33 @@ components:
         change_summary: {type: array, items: {type: string}}
     DecisionResponse:
       type: object
-      required: [contract_version, meta, decision, portfolio_context, executable]
+      required: [contract_version, meta, decision, portfolio_context, research, executable]
       properties:
         contract_version: {type: integer, const: 2}
         meta: {$ref: "#/components/schemas/Meta"}
         decision: {$ref: "#/components/schemas/Decision"}
         portfolio_context: {type: object, additionalProperties: true}
+        research: {$ref: "#/components/schemas/Research"}
         executable: {type: boolean}
+    Research:
+      type: object
+      required: [status, ticker, drivers, risks, quality]
+      properties:
+        status: {type: string, enum: [ready, unavailable]}
+        ticker: {type: string}
+        company_name: {type: [string, "null"]}
+        company_overview: {type: [string, "null"]}
+        thesis: {type: [string, "null"]}
+        drivers: {type: array, items: {type: string}}
+        risks: {type: array, items: {type: string}}
+        valuation: {type: [string, "null"]}
+        timing_watchpoint: {type: [string, "null"]}
+        decision_memo: {type: [string, "null"]}
+        technical_narrative: {type: [string, "null"]}
+        pm_narrative: {type: [string, "null"]}
+        quality: {type: object, additionalProperties: true}
+        generated_at: {type: [string, "null"]}
+        source: {type: [string, "null"]}
     RegimeResponse:
       type: object
       required: [contract_version, meta, regime]

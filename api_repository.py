@@ -70,7 +70,30 @@ def decision(ticker: str) -> dict[str, Any]:
     receipt = rule.get("decision_receipt") if isinstance(rule.get("decision_receipt"), dict) else {}
     if not receipt:
         raise NotFoundError(f"No canonical decision receipt is available for {ticker}.")
-    return public_contract.decision_payload(receipt)
+    report = (backend_layer.read_json_table("research_reports", ticker) or {}).get(ticker) or {}
+    memo = (backend_layer.read_json_table("pm_memos", ticker) or {}).get(ticker) or {}
+    market = (backend_layer.read_json_table("market_snapshots", ticker) or {}).get(ticker) or {}
+    research = public_contract.research_payload(ticker, report=report, memo=memo, market=market)
+    return public_contract.decision_payload(receipt, research=research)
+
+
+def request_research(ticker: str, user_id: str) -> dict[str, Any]:
+    """Return saved research or queue a worker-generated full report."""
+    ticker = normalize_ticker(ticker)
+    try:
+        payload = decision(ticker)
+    except NotFoundError:
+        payload = None
+    if payload and payload.get("research", {}).get("status") == "ready":
+        return {"status": "ready", "ticker": ticker, "decision": payload}
+    job_id = backend_layer.enqueue_job(
+        "full_report", ticker=ticker, payload={"source": "frontend_api"}, priority=70,
+        requested_by=f"api:{user_id}", dedupe_active=False,
+    )
+    if not job_id:
+        raise RuntimeError("The research request could not be queued.")
+    return {"status": "queued", "ticker": ticker, "request_id": job_id,
+            "poll_url": f"/v1/analysis-requests/{job_id}"}
 
 
 def request_decision(ticker: str, user_id: str) -> dict[str, Any]:
@@ -106,7 +129,7 @@ def request_decision(ticker: str, user_id: str) -> dict[str, Any]:
 
 def analysis_request(job_id: str, user_id: str) -> dict[str, Any]:
     job = backend_layer.get_job(job_id)
-    if not job or job.get("requested_by") != f"api:{user_id}" or job.get("job_type") != "market_snapshot":
+    if not job or job.get("requested_by") != f"api:{user_id}" or job.get("job_type") not in {"market_snapshot", "full_report"}:
         raise NotFoundError("Analysis request was not found.")
     ticker = normalize_ticker(job.get("ticker"))
     status = str(job.get("status") or "queued").lower()

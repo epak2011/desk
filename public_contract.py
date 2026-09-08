@@ -86,6 +86,7 @@ def decision_payload(
     receipt: Mapping[str, Any],
     *,
     portfolio_context: Mapping[str, Any] | None = None,
+    research: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the single canonical decision response consumed by any UI."""
     trust = receipt.get("data_trust") or {}
@@ -101,8 +102,64 @@ def decision_payload(
         ),
         "decision": decision,
         "portfolio_context": dict(portfolio_context or {}),
+        "research": dict(research or {"status": "unavailable"}),
         "executable": executable,
     }
+
+
+def research_payload(
+    ticker: str,
+    *,
+    report: Mapping[str, Any] | None = None,
+    memo: Mapping[str, Any] | None = None,
+    market: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Normalize saved AI research without allowing it to alter the rule decision."""
+    report = report if isinstance(report, Mapping) else {}
+    memo = memo if isinstance(memo, Mapping) else {}
+    market = market if isinstance(market, Mapping) else {}
+    pm = report.get("pm") if isinstance(report.get("pm"), Mapping) else {}
+    dossier = report.get("dossier") if isinstance(report.get("dossier"), Mapping) else {}
+    bullets = dossier.get("bullets") if isinstance(dossier.get("bullets"), Mapping) else {}
+    deep_dive = pm.get("deep_dive") if isinstance(pm.get("deep_dive"), Mapping) else {}
+
+    def first(*values):
+        return next((value for value in values if value not in (None, "", [], {})), None)
+
+    def strings(value, limit=6):
+        if not isinstance(value, (list, tuple)):
+            return []
+        return [str(item).strip() for item in value if str(item or "").strip()][:limit]
+
+    thesis = first(pm.get("thesis"), memo.get("thesis"), bullets.get("thesis"))
+    company_overview = first(
+        deep_dive.get("business"), pm.get("business"), memo.get("business"),
+        dossier.get("pm_narrative"), memo.get("pm_narrative"), thesis,
+    )
+    generated_at = first(
+        report.get("_worker_generated_at"), report.get("generated_at"),
+        memo.get("_worker_generated_at"), memo.get("generated_at"), memo.get("updated_at"),
+    )
+    source = first(dossier.get("_source"), pm.get("_source"), memo.get("_source"), memo.get("source"))
+    quality = first(dossier.get("quality"), pm.get("quality"), memo.get("quality"), {})
+    result = {
+        "status": "ready" if company_overview or thesis else "unavailable",
+        "ticker": str(ticker or "").upper(),
+        "company_name": first((report.get("meta") or {}).get("company_name") if isinstance(report.get("meta"), Mapping) else None, market.get("company_name")),
+        "company_overview": company_overview,
+        "thesis": thesis,
+        "drivers": strings(first(pm.get("drivers"), memo.get("drivers"), bullets.get("drivers"), [])),
+        "risks": strings(first(pm.get("risks"), memo.get("risks"), bullets.get("risks"), [])),
+        "valuation": first(pm.get("valuation"), memo.get("valuation"), bullets.get("valuation")),
+        "timing_watchpoint": first(pm.get("timing_watchpoint"), memo.get("timing_watchpoint"), bullets.get("timing_watchpoint")),
+        "decision_memo": first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier")),
+        "technical_narrative": first(dossier.get("technical_narrative"), memo.get("technical_narrative")),
+        "pm_narrative": first(dossier.get("pm_narrative"), memo.get("pm_narrative")),
+        "quality": dict(quality) if isinstance(quality, Mapping) else {},
+        "generated_at": generated_at,
+        "source": source,
+    }
+    return result
 
 
 def attention_payload(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:

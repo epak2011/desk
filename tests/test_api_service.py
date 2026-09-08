@@ -67,6 +67,18 @@ class ApiServiceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         request_decision.assert_called_once_with("GOOG", "trusted-user")
 
+    def test_research_request_queues_for_verified_user(self):
+        identity = VerifiedIdentity("trusted-user", "demo@example.invalid", "Demo")
+        api_service.app.dependency_overrides[api_service.current_identity] = lambda: identity
+        with mock.patch.object(
+            api_service.api_repository,
+            "request_research",
+            return_value={"status": "queued", "ticker": "DASH", "request_id": "job-2"},
+        ) as request_research:
+            response = self.client.post("/v1/decisions/DASH/research/requests")
+        self.assertEqual(response.status_code, 202)
+        request_research.assert_called_once_with("DASH", "trusted-user")
+
     def test_cors_does_not_allow_arbitrary_origin(self):
         response = self.client.options(
             "/v1/regime",

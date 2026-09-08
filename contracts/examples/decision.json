@@ -42,5 +42,22 @@
     "suggested_size_pct": 0,
     "portfolio_message": "Wait for the trigger before opening exposure."
   },
+  "research": {
+    "status": "ready",
+    "ticker": "DEMO",
+    "company_name": "Demo Systems, Inc.",
+    "company_overview": "Demo Systems sells workflow software to enterprise operations teams through recurring subscriptions and competes on its integrated data platform.",
+    "thesis": "Durable customer retention supports the business, but the current entry is extended.",
+    "drivers": ["Recurring enterprise subscriptions", "Expanding customer usage", "Improving operating leverage"],
+    "risks": ["Slower seat expansion", "Longer sales cycles", "Elevated valuation"],
+    "valuation": "The current multiple requires durable double-digit growth.",
+    "timing_watchpoint": "Wait for either a constructive pullback or a confirmed breakout.",
+    "decision_memo": "Business quality is constructive, while the rules engine still requires a better entry.",
+    "technical_narrative": "The trend is intact but price is extended.",
+    "pm_narrative": "The long-term business case is stronger than the current tactical entry.",
+    "quality": {"tier": "B", "rationale": "A durable business with valuation risk."},
+    "generated_at": "2026-09-04T14:30:00+00:00",
+    "source": "claude"
+  },
   "executable": true
 }

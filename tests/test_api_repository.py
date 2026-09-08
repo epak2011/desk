@@ -11,10 +11,34 @@ class ApiRepositoryTests(unittest.TestCase):
             "action": "watch", "trigger": {"price": 105}, "invalidation": {"price": 92},
             "private_note": "do not expose",
         }}}
-        with mock.patch.object(api_repository.backend_layer, "read_json_table", return_value=rows):
+        with mock.patch.object(api_repository.backend_layer, "read_json_table", side_effect=[rows, {}, {}, {}]):
             payload = api_repository.decision("demo")
         self.assertEqual(payload["decision"]["ticker"], "DEMO")
         self.assertNotIn("private_note", payload["decision"])
+        self.assertEqual(payload["research"]["status"], "unavailable")
+
+    def test_decision_includes_saved_research_without_changing_action(self):
+        rule = {"DEMO": {"decision_receipt": {
+            "ticker": "DEMO", "action": "watch", "engine_version": "rules-v1",
+        }}}
+        report = {"DEMO": {
+            "pm": {"thesis": "A specific business thesis.", "drivers": ["Driver one"],
+                   "risks": ["Risk one"], "valuation": "Valuation context."},
+            "dossier": {"pm_narrative": "The company sells workflow software to enterprises.",
+                        "quality": {"tier": "B"}},
+            "meta": {"company_name": "Demo Inc."},
+            "_worker_generated_at": "2026-09-08T12:00:00+00:00",
+        }}
+        with mock.patch.object(
+            api_repository.backend_layer, "read_json_table",
+            side_effect=[rule, report, {}, {"DEMO": {"company_name": "Old name"}}],
+        ):
+            payload = api_repository.decision("DEMO")
+        self.assertEqual(payload["decision"]["action"], "watch")
+        self.assertEqual(payload["research"]["status"], "ready")
+        self.assertEqual(payload["research"]["company_name"], "Demo Inc.")
+        self.assertIn("workflow software", payload["research"]["company_overview"])
+        self.assertEqual(payload["research"]["quality"]["tier"], "B")
 
     def test_decision_never_fabricates_missing_receipt(self):
         with (
@@ -63,6 +87,19 @@ class ApiRepositoryTests(unittest.TestCase):
             self.assertRaises(api_repository.NotFoundError),
         ):
             api_repository.analysis_request("job-1", "user-1")
+
+    def test_missing_research_is_queued_for_authenticated_user(self):
+        saved = {"research": {"status": "unavailable"}}
+        with (
+            mock.patch.object(api_repository, "decision", return_value=saved),
+            mock.patch.object(api_repository.backend_layer, "enqueue_job", return_value="job-2") as enqueue,
+        ):
+            payload = api_repository.request_research("dash", "user-1")
+        self.assertEqual(payload["status"], "queued")
+        enqueue.assert_called_once_with(
+            "full_report", ticker="DASH", payload={"source": "frontend_api"}, priority=70,
+            requested_by="api:user-1", dedupe_active=False,
+        )
 
 
 if __name__ == "__main__":
