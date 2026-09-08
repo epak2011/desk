@@ -60,6 +60,22 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertNotEqual(strong["why_today"], weak["why_today"])
         self.assertIn("VIX is elevated", weak["risks"][-1])
 
+    @patch("worker.backend.enqueue_job", return_value="job-1")
+    @patch("worker.backend.read_json_table")
+    @patch("worker.backend.latest_jobs")
+    def test_schema_upgrade_forces_same_day_regime_refresh(self, latest_jobs, read_regime, enqueue):
+        latest_jobs.return_value = [{
+            "job_type": "market_regime_daily", "status": "succeeded",
+            "created_at": pd.Timestamp.today(),
+        }]
+        read_regime.return_value = {"today": {
+            "schema_version": worker.MARKET_REGIME_SCHEMA_VERSION - 1,
+            "crypto_regime": {"model_version": worker.CRYPTO_REGIME_MODEL_VERSION},
+        }}
+        result = worker.queue_scheduled_backend_maintenance()
+        self.assertIn("market_regime_daily", result["queued"])
+        self.assertTrue(any(call.args[0] == "market_regime_daily" for call in enqueue.call_args_list))
+
     @patch("worker.refresh_market_regime_daily", return_value={"day": "2026-09-04"})
     @patch("worker.refresh_market_snapshot", side_effect=lambda ticker, bench=None: {"ticker": ticker})
     @patch("worker._download_benchmark", return_value=pd.DataFrame({"Close": [1, 2]}))

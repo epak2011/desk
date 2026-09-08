@@ -46,6 +46,7 @@ OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
 OUTCOME_MIN_AGE_DAYS = 7
 RULE_ENGINE_VERSION = "rules-2026.08-d"
 CRYPTO_REGIME_MODEL_VERSION = "crypto-cycle-2026.09.08-a"
+MARKET_REGIME_SCHEMA_VERSION = 2
 
 
 def _series_snapshot(frame, ticker: str) -> dict:
@@ -261,8 +262,11 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
     saved = backend.read_json_table("market_regime_daily", limit=3)
     previous = next((row for day, row in saved.items() if day != date.today().isoformat()), {}) if isinstance(saved, dict) else {}
     result = {
-        "schema_version": 1,
+        "schema_version": MARKET_REGIME_SCHEMA_VERSION,
         "generated_at": generated_at,
+        "data_as_of": generated_at,
+        "freshness": "fresh",
+        "engine_version": RULE_ENGINE_VERSION,
         "day": date.today().isoformat(),
         "portfolio_stance": stance,
         "score": score,
@@ -826,6 +830,7 @@ def queue_scheduled_backend_maintenance() -> dict:
     saved_regime = next(iter(saved_regime_rows.values()), {}) if saved_regime_rows else {}
     saved_crypto = saved_regime.get("crypto_regime") if isinstance(saved_regime, dict) else {}
     force_crypto_upgrade = not isinstance(saved_crypto, dict) or saved_crypto.get("model_version") != CRYPTO_REGIME_MODEL_VERSION
+    force_regime_upgrade = not isinstance(saved_regime, dict) or saved_regime.get("schema_version") != MARKET_REGIME_SCHEMA_VERSION
     queued = []
     for job_type, priority in (("market_regime_daily", 20), ("repair_missing_data", 40)):
         already_today = False
@@ -837,7 +842,7 @@ def queue_scheduled_backend_maintenance() -> dict:
             if stamp_date == today:
                 already_today = True
                 break
-        if job_type == "market_regime_daily" and force_crypto_upgrade:
+        if job_type == "market_regime_daily" and (force_crypto_upgrade or force_regime_upgrade):
             already_today = False
         if not already_today:
             job_id = backend.enqueue_job(job_type, priority=priority, requested_by="worker-maintenance")
