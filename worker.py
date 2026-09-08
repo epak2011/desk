@@ -31,6 +31,7 @@ import decision_contract
 import data_trust
 import engine_evaluation
 import market_freshness
+import crypto_regime
 import email_delivery
 import notification_engine
 import unsubscribe
@@ -69,13 +70,68 @@ def _series_snapshot(frame, ticker: str) -> dict:
     }
 
 
+def _crypto_regime_snapshot(frame) -> dict:
+    """Return distinct canonical cycle, trend, and timing reads for clients."""
+    frame = _flatten_yfinance(frame, "BTC-USD")
+    if frame is None or frame.empty or "Close" not in frame:
+        return {}
+    close = frame["Close"].dropna()
+    if len(close) < 200:
+        return {}
+    price = float(close.iloc[-1])
+    ma20 = float(close.tail(20).mean())
+    ma50 = float(close.tail(50).mean())
+    ma200 = float(close.tail(200).mean())
+    peak = float(close.max())
+    vs20 = (price / ma20 - 1) * 100 if ma20 else None
+    vs50 = (price / ma50 - 1) * 100 if ma50 else None
+    vs200 = (price / ma200 - 1) * 100 if ma200 else None
+    drawdown = (price / peak - 1) * 100 if peak else None
+    return90 = (price / float(close.iloc[-90]) - 1) * 100 if len(close) >= 90 else None
+    phase, cycle_label, cycle_detail, phase_number = crypto_regime.classify_cycle(
+        btc_vs_200=vs200,
+        btc_vs_20=vs20,
+        drawdown_cycle=drawdown,
+        return_90=return90,
+        fear_greed=None,
+    )
+    if vs50 is not None and vs20 is not None and vs50 > 0 and vs20 > 0:
+        trend_label, trend_detail = "Uptrend", "Bitcoin is above its 20-day and 50-day averages."
+    elif vs50 is not None and vs50 > 0:
+        trend_label, trend_detail = "Uptrend under pressure", "Bitcoin remains above its 50-day average but has lost its 20-day average."
+    elif vs20 is not None and vs20 > 0:
+        trend_label, trend_detail = "Recovery attempt", "Short-term momentum is improving, but Bitcoin remains below its 50-day average."
+    else:
+        trend_label, trend_detail = "Downtrend", "Bitcoin is below its 20-day and 50-day averages."
+    if (vs20 or 0) >= 8 or ((assets_return := return90) is not None and assets_return >= 25):
+        timing_label, timing_detail = "Extended — wait", "Momentum is stretched; wait for consolidation or a pullback instead of chasing."
+    elif vs20 is not None and vs20 > 0:
+        timing_label, timing_detail = "Constructive", "Short-term momentum is positive, but entry quality still depends on price and risk limits."
+    else:
+        timing_label, timing_detail = "Not ready", "Wait for Bitcoin to reclaim its 20-day average before treating timing as constructive."
+    return {
+        "cycle": {"phase": phase, "phase_number": phase_number, "label": cycle_label, "detail": cycle_detail},
+        "medium_term_trend": {"label": trend_label, "detail": trend_detail},
+        "tactical_timing": {"label": timing_label, "detail": timing_detail},
+        "metrics": {
+            "price": round(price, 4), "vs_20d_pct": round(vs20, 4),
+            "vs_50d_pct": round(vs50, 4), "vs_200d_pct": round(vs200, 4),
+            "drawdown_from_2y_high_pct": round(drawdown, 4),
+            "return_90d_pct": round(return90, 4) if return90 is not None else None,
+        },
+        "model_version": "crypto-cycle-2026.09.08-a",
+    }
+
+
 def refresh_market_regime_daily(payload: dict | None = None) -> dict:
     """Persist a deterministic daily market-regime snapshot for cheap UI/API reads."""
     symbols = ("SPY", "QQQ", "RSP", "HYG", "^VIX", "BTC-USD")
     assets, errors = {}, {}
+    frames = {}
     for symbol in symbols:
         try:
-            assets[symbol] = _series_snapshot(_download_history(symbol), symbol)
+            frames[symbol] = _download_history(symbol)
+            assets[symbol] = _series_snapshot(frames[symbol], symbol)
         except Exception as exc:
             errors[symbol] = str(exc)[:180]
     if "SPY" not in assets:
@@ -114,6 +170,7 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
         "assets": assets,
         "errors": errors,
         "source": "worker_market_regime_v1",
+        "crypto_regime": _crypto_regime_snapshot(frames.get("BTC-USD")),
     }
     backend.upsert_json_table("market_regime_daily", "day", result["day"], result, source=result["source"])
     return result
