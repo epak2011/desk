@@ -20081,6 +20081,72 @@ if view == "regime":
             s["alerts"].append("HY ELEVATED")
         return {"data": d, "signals": s, "crypto": _crypto_snapshot(), "updated_at": now_market_time().isoformat(timespec="seconds")}
 
+    def _saved_canonical_regime():
+        """Return the worker's one authoritative regime decision for both UIs."""
+        try:
+            rows = backend_layer.read_json_table("market_regime_daily", limit=1)
+            snapshot = next(iter(rows.values()), {}) if rows else {}
+        except Exception:
+            return {}
+        return snapshot if isinstance(snapshot, dict) and snapshot.get("schema_version") == 3 else {}
+
+    def _apply_canonical_regime(snap, canonical):
+        """Overlay decision-bearing fields so Streamlit cannot diverge from the API."""
+        if not canonical:
+            return snap
+        d, s = snap["data"], snap["signals"]
+        macro = canonical.get("macro") if isinstance(canonical.get("macro"), dict) else {}
+        assets = canonical.get("assets") if isinstance(canonical.get("assets"), dict) else {}
+        spy, qqq, vix = assets.get("SPY", {}), assets.get("QQQ", {}), assets.get("^VIX", {})
+        d.update({
+            "ism": macro.get("ism"),
+            "unemp": macro.get("unemployment"),
+            "unemp_prev": macro.get("unemployment_previous"),
+            "hy_bps": macro.get("hy_oas_bps"),
+            "yc_bps": macro.get("yield_curve_bps"),
+            "fed_now": macro.get("fed_now"),
+            "fed_prev": macro.get("fed_previous"),
+            "rrp_now": macro.get("rrp_now"),
+            "rrp_prev": macro.get("rrp_previous"),
+            "tga_now": macro.get("tga_now"),
+            "tga_prev": macro.get("tga_previous"),
+            "fg": macro.get("fear_greed"),
+            "fg_label": macro.get("fear_greed_label"),
+            "spx": spy.get("last"),
+            "spx_change": spy.get("change_pct"),
+            "spx_vs20": spy.get("vs_20d_pct"),
+            "spx_vs50": spy.get("vs_50d_pct"),
+            "spx_ret5": spy.get("return_5d_pct"),
+            "spx_ret20": spy.get("return_20d_pct"),
+            "qqq": qqq.get("last"),
+            "qqq_change": qqq.get("change_pct"),
+            "vix": vix.get("last"),
+            "vix_change": vix.get("change_pct"),
+            "vix_peak5": vix.get("peak_5d"),
+            "vix_drop5": vix.get("drop_from_5d_peak_pct"),
+        })
+        action_map = {"enter": "Enter", "hold_off": "Hold Off", "avoid": "Avoid", "wait": "Wait"}
+        action = action_map.get(str(canonical.get("opportunity_action") or "").lower(), canonical.get("opportunity_action"))
+        window = canonical.get("opportunity_label") or canonical.get("portfolio_stance")
+        timing = canonical.get("entry_timing")
+        s.update({
+            "opportunity_score": canonical.get("score"),
+            "opportunity_window": window,
+            "portfolio_stance": window,
+            "execution_window": timing,
+            "short_term_cond": timing,
+            "action_guidance": action,
+            "final_action": action,
+            "opportunity_drivers": list(canonical.get("drivers") or []),
+            "opportunity_risks": list(canonical.get("risks") or []),
+            "opportunity_reason": canonical.get("why_today") or s.get("opportunity_reason"),
+        })
+        canonical_crypto = canonical.get("crypto_regime")
+        if isinstance(canonical_crypto, dict):
+            snap["canonical_crypto_regime"] = canonical_crypto
+        snap["updated_at"] = canonical.get("generated_at") or canonical.get("data_as_of") or snap["updated_at"]
+        return snap
+
     if st.button("↻ Refresh market regime", key="refresh_market_regime", help="Refresh macro, crypto, and regenerate the daily Claude memo."):
         _fred_rows.clear()
         _quote.clear()
@@ -20088,6 +20154,11 @@ if view == "regime":
         _crypto_snapshot.clear()
         _regime_snapshot.clear()
         st.session_state["force_regime_daily_memo"] = True
+        try:
+            from worker import refresh_market_regime_daily
+            refresh_market_regime_daily({"source": "streamlit_manual_refresh"})
+        except Exception as exc:
+            st.warning(f"The shared market snapshot could not refresh: {str(exc)[:140]}")
         # A button click is already a Streamlit rerun. Triggering another rerun
         # here briefly unmounted the regime body and could leave a signed-in
         # session looking like a blank page while the second run started. Keep
@@ -20099,7 +20170,7 @@ if view == "regime":
     regime_refresh_key = f"{regime_daily_key()}:{CRYPTO_CYCLE_MODEL_VERSION}"
     regime_loading = st.empty()
     regime_loading.markdown(regime_loading_shell_html(), unsafe_allow_html=True)
-    snap = _regime_snapshot(regime_refresh_key)
+    snap = _apply_canonical_regime(_regime_snapshot(regime_refresh_key), _saved_canonical_regime())
     regime_loading.empty()
     d, s, crypto = snap["data"], snap["signals"], snap.get("crypto") or {}
     color_map = {
@@ -20496,11 +20567,13 @@ if view == "regime":
     def _regime_daily_topline(s, daily_memo):
         memo_topline = (daily_memo or {}).get("topline") if isinstance(daily_memo, dict) else None
         memo_topline = memo_topline if isinstance(memo_topline, dict) else {}
+        # The memo may be older than the worker snapshot. Decision-bearing
+        # labels always come from the canonical rules output, never prose.
         return {
-            "regime": str(memo_topline.get("regime") or s.get("regime_layer") or ""),
-            "portfolio_stance": str(memo_topline.get("portfolio_stance") or s.get("portfolio_stance") or ""),
-            "action": str(memo_topline.get("action") or s.get("action_guidance") or ""),
-            "short_term": str(memo_topline.get("short_term") or s.get("short_term_cond") or ""),
+            "regime": str(s.get("regime_layer") or memo_topline.get("regime") or ""),
+            "portfolio_stance": str(s.get("portfolio_stance") or memo_topline.get("portfolio_stance") or ""),
+            "action": str(s.get("action_guidance") or memo_topline.get("action") or ""),
+            "short_term": str(s.get("short_term_cond") or memo_topline.get("short_term") or ""),
         }
 
     def _call_claude_regime_daily_memo(d, s, crypto, api_key):
