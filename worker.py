@@ -927,14 +927,20 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
 
 
 def queue_scheduled_backend_maintenance() -> dict:
-    """Queue regime daily and data repair at most once per UTC day."""
+    """Keep regime intraday-current; run slower repair work once per UTC day."""
     today = date.today()
+    now = datetime.now(timezone.utc)
     recent = backend.latest_jobs(limit=100)
     saved_regime_rows = backend.read_json_table("market_regime_daily", limit=1)
     saved_regime = next(iter(saved_regime_rows.values()), {}) if saved_regime_rows else {}
     saved_crypto = saved_regime.get("crypto_regime") if isinstance(saved_regime, dict) else {}
     force_crypto_upgrade = not isinstance(saved_crypto, dict) or saved_crypto.get("model_version") != CRYPTO_REGIME_MODEL_VERSION
     force_regime_upgrade = not isinstance(saved_regime, dict) or saved_regime.get("schema_version") != MARKET_REGIME_SCHEMA_VERSION
+    regime_stamp = saved_regime.get("generated_at") if isinstance(saved_regime, dict) else None
+    try:
+        regime_age_minutes = (now - datetime.fromisoformat(str(regime_stamp).replace("Z", "+00:00"))).total_seconds() / 60
+    except (TypeError, ValueError):
+        regime_age_minutes = float("inf")
     queued = []
     for job_type, priority in (("market_regime_daily", 20), ("repair_missing_data", 40)):
         already_today = False
@@ -948,6 +954,22 @@ def queue_scheduled_backend_maintenance() -> dict:
                 break
         if job_type == "market_regime_daily" and (force_crypto_upgrade or force_regime_upgrade):
             already_today = False
+        elif job_type == "market_regime_daily" and regime_age_minutes >= 90:
+            # GitHub runs throughout the day. A once-daily gate left Lovable on
+            # an overnight decision while Streamlit used current market data.
+            # Refresh the canonical snapshot whenever it is materially stale;
+            # the recent-job check above still prevents duplicate active runs.
+            recent_regime_job = next((
+                row for row in recent
+                if row.get("job_type") == "market_regime_daily"
+                and row.get("status") in {"queued", "running", "succeeded"}
+            ), None)
+            recent_stamp = recent_regime_job.get("created_at") if recent_regime_job else None
+            try:
+                recent_age = (now - recent_stamp).total_seconds() / 60
+            except (TypeError, AttributeError):
+                recent_age = float("inf")
+            already_today = recent_age < 60
         if not already_today:
             job_id = backend.enqueue_job(job_type, priority=priority, requested_by="worker-maintenance")
             if job_id:
