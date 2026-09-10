@@ -37,7 +37,7 @@ import crypto_regime
 import email_delivery
 import notification_engine
 import unsubscribe
-from pm_view import get_decision_dossier, get_pm_view
+from pm_view import _messages_create, get_decision_dossier, get_pm_view
 import tactical
 
 
@@ -342,6 +342,58 @@ def _regime_decision_context(*, stance: str, score: int, assets: dict, errors: d
     }
 
 
+def _claude_regime_context(*, snapshot: dict, fallback: str) -> tuple[str, str]:
+    """Turn the deterministic regime snapshot into natural prose without changing its call."""
+    api_key = _api_key()
+    if not api_key:
+        return fallback, "rules_fallback"
+    try:
+        from anthropic import Anthropic
+
+        prompt_payload = {
+            "opportunity_label": snapshot.get("opportunity_label"),
+            "opportunity_action": snapshot.get("opportunity_action"),
+            "entry_timing": snapshot.get("entry_timing"),
+            "score": snapshot.get("score"),
+            "change_label": snapshot.get("change_label"),
+            "change_detail": snapshot.get("change_detail"),
+            "drivers": snapshot.get("drivers"),
+            "risks": snapshot.get("risks"),
+            "assets": snapshot.get("assets"),
+            "macro": snapshot.get("macro"),
+        }
+        response = _messages_create(
+            Anthropic(api_key=api_key),
+            max_tokens=260,
+            temperature=0.35,
+            system=(
+                "You write the daily market context for a serious retail-investor decision workstation. "
+                "The deterministic rules engine is authoritative. Explain its output; never change, soften, "
+                "upgrade, or contradict the supplied action, stance, score, or timing."
+            ),
+            messages=[{"role": "user", "content": (
+                "Write one natural paragraph of 70-115 words explaining what matters in today's market tape "
+                "and what it means for a portfolio. Synthesize the tension among trend, breadth, credit, "
+                "volatility, sentiment, and macro conditions instead of reciting every field in order. Lead "
+                "with the most important development or conflict. Mention numbers only when they sharpen the "
+                "explanation. Use plain English, vary sentence structure, and end with the practical posture. "
+                "Do not use a heading, bullets, markdown, predictions, outside facts, news, or economic events "
+                "that are not present in the payload. Do not call this investment advice. Return only the paragraph.\n\n"
+                + json.dumps(prompt_payload, separators=(",", ":"), default=str)
+            )}],
+        )
+        text = " ".join(
+            str(getattr(block, "text", "") or "").strip()
+            for block in getattr(response, "content", [])
+        ).strip()
+        word_count = len(text.split())
+        if not text or word_count < 45 or word_count > 150 or "```" in text:
+            raise ValueError("Claude returned invalid market-context prose")
+        return text, "claude"
+    except Exception:
+        return fallback, "rules_fallback"
+
+
 def refresh_market_regime_daily(payload: dict | None = None) -> dict:
     """Persist a deterministic daily market-regime snapshot for cheap UI/API reads."""
     symbols = ("SPY", "QQQ", "RSP", "HYG", "^VIX", "BTC-USD")
@@ -381,6 +433,11 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
         "crypto_regime": _crypto_regime_snapshot(frames.get("BTC-USD")),
     }
     result.update(_regime_decision_context(stance=stance, score=score, assets=assets, errors=errors, previous=previous, canonical=canonical, macro=macro))
+    result["why_today_fallback"] = result["why_today"]
+    result["why_today"], result["why_today_source"] = _claude_regime_context(
+        snapshot=result,
+        fallback=result["why_today_fallback"],
+    )
     backend.upsert_json_table("market_regime_daily", "day", result["day"], result, source=result["source"])
     return result
 
