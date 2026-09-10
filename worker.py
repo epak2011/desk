@@ -376,7 +376,8 @@ def _claude_regime_context(*, snapshot: dict, fallback: str) -> tuple[str, str]:
                 "and what it means for a portfolio. Synthesize the tension among trend, breadth, credit, "
                 "volatility, sentiment, and macro conditions instead of reciting every field in order. Lead "
                 "with the most important development or conflict. Mention numbers only when they sharpen the "
-                "explanation. Use plain English, vary sentence structure, and end with the practical posture. "
+                "explanation. Use calm, factual plain English, vary sentence structure, and end with the practical "
+                "posture. Avoid sensational or loaded adjectives such as dangerous, alarming, severe, or dramatic. "
                 "Do not use a heading, bullets, markdown, predictions, outside facts, news, or economic events "
                 "that are not present in the payload. Do not call this investment advice. Return only the paragraph.\n\n"
                 + json.dumps(prompt_payload, separators=(",", ":"), default=str)
