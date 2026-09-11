@@ -49,7 +49,7 @@ import market_freshness
 import public_recovery
 import unsubscribe
 from operator_access import owner_access_allowed
-from rules_updates import RULES_UPDATES
+from rules_updates import engine_updates_payload
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
 
@@ -22156,7 +22156,8 @@ if view == "updates":
             "Governance rule: proposed and shadow-tested changes do not alter live decisions. "
             "Only entries explicitly marked Deployed are active in production."
         )
-        for update_index, update in enumerate(RULES_UPDATES):
+        updates_feed = engine_updates_payload()
+        for update_index, update in enumerate(updates_feed["updates"]):
             status = str(update.get("status") or "Update")
             title = str(update.get("title") or "Engine update")
             date = str(update.get("date") or "")

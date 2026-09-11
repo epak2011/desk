@@ -186,6 +186,21 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/GenericResponse"}
         "401": {$ref: "#/components/responses/Unauthorized"}
+  /v1/operator/engine-updates:
+    get:
+      tags: [Operations]
+      summary: Owner-only rules and engine update feed
+      description: >-
+        Canonical governance history shared by Streamlit and approved frontends.
+        The API verifies the Supabase identity and requires the configured owner email.
+      responses:
+        "200":
+          description: Versioned engine update feed
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EngineUpdatesResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
 components:
   securitySchemes:
     supabaseBearer:
@@ -202,6 +217,9 @@ components:
   responses:
     Unauthorized:
       description: Missing or invalid Supabase session
+      content: {application/json: {schema: {$ref: "#/components/schemas/ErrorResponse"}}}
+    Forbidden:
+      description: Authenticated identity is not the configured owner
       content: {application/json: {schema: {$ref: "#/components/schemas/ErrorResponse"}}}
     NotFound:
       description: No canonical result exists for the ticker
@@ -377,3 +395,21 @@ components:
     GenericResponse:
       type: object
       additionalProperties: true
+    EngineUpdate:
+      type: object
+      required: [date, title, status, summary, changes, validation]
+      properties:
+        date: {type: string, format: date}
+        title: {type: string}
+        status: {type: string}
+        summary: {type: string}
+        changes: {type: array, items: {type: string}}
+        validation: {type: string}
+    EngineUpdatesResponse:
+      type: object
+      required: [contract_version, generated_at, updates, count]
+      properties:
+        contract_version: {type: integer, const: 1}
+        generated_at: {type: string, format: date-time}
+        updates: {type: array, items: {$ref: "#/components/schemas/EngineUpdate"}}
+        count: {type: integer, minimum: 0}

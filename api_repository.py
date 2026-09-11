@@ -11,6 +11,7 @@ import attention_engine
 import backend_layer
 import public_contract
 import user_state_store
+from rules_updates import engine_updates_payload
 
 
 TICKER_PATTERN = re.compile(r"^[A-Z0-9.-]{1,15}$")
@@ -271,3 +272,8 @@ def calibration() -> dict[str, Any]:
         "meta": public_contract.response_meta(),
         "calibration": backend_layer.read_engine_review_status(),
     }
+
+
+def engine_updates() -> dict[str, Any]:
+    """Owner-only governance feed; authorization is enforced by api_service."""
+    return engine_updates_payload()

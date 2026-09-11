@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 import api_repository
 from api_auth import TokenVerificationError, VerifiedIdentity, verify_access_token
+from operator_access import owner_access_allowed
 from public_contract import error_payload
 
 
@@ -74,6 +75,18 @@ def current_identity(
 
 
 Identity = Annotated[VerifiedIdentity, Depends(current_identity)]
+
+
+def current_owner(request: Request, identity: Identity) -> VerifiedIdentity:
+    if not owner_access_allowed(
+        {"user_id": identity.user_id, "email": identity.email},
+        os.environ.get("TRADING_DESK_OWNER_EMAIL", ""),
+    ):
+        _http_error(request, 403, "forbidden", "This operator resource is available only to the Trading Desk owner.")
+    return identity
+
+
+OwnerIdentity = Annotated[VerifiedIdentity, Depends(current_owner)]
 
 
 def _run(request: Request, operation, *args, **kwargs):
@@ -166,3 +179,8 @@ def portfolio(request: Request, identity: Identity):
 @app.get("/v1/calibration")
 def calibration(request: Request, identity: Identity):
     return _run(request, api_repository.calibration)
+
+
+@app.get("/v1/operator/engine-updates")
+def engine_updates(request: Request, identity: OwnerIdentity):
+    return _run(request, api_repository.engine_updates)

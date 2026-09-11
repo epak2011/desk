@@ -26,6 +26,7 @@ class FrontendContractAssetTests(unittest.TestCase):
             "/v1/attention:",
             "/v1/portfolio:",
             "/v1/calibration:",
+            "/v1/operator/engine-updates:",
         ):
             self.assertIn(route, spec)
         self.assertIn("supabaseBearer", spec)

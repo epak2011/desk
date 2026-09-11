@@ -17,6 +17,19 @@ product/build prompt is in `LOVABLE_HANDOFF.md`.
 - `GET/PATCH /v1/workspace` → `user_workspace_payload(...)` after verified auth
 - `GET /v1/watchlist` → `watchlist_payload(...)` after verified auth
 - `GET /v1/calibration` → the existing performance slices and confidence calibration
+- `GET /v1/operator/engine-updates` → owner-only rules governance feed after verified auth
+
+## Owner update feed
+
+Streamlit and Lovable must render `GET /v1/operator/engine-updates`; neither
+frontend should maintain a separate changelog. Lovable sends the signed-in
+Supabase access token as `Authorization: Bearer <token>`, shows the navigation
+item only for the configured owner account, and still treats a `403` response as
+authoritative. Hiding the navigation item is presentation, not authorization.
+
+Each backend rules release updates `rules_updates.py` in the same commit. The
+endpoint and Streamlit therefore receive the same versioned entries on deployment,
+without copying content between frontends.
 
 The decision response includes a presentation-ready `research` object with the
 saved company overview, thesis, drivers, risks, valuation, PM narrative, and

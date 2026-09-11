@@ -89,6 +89,29 @@ class ApiServiceTests(unittest.TestCase):
         )
         self.assertNotEqual(response.headers.get("access-control-allow-origin"), "https://untrusted.example")
 
+    def test_engine_updates_requires_sign_in(self):
+        response = self.client.get("/v1/operator/engine-updates")
+        self.assertEqual(response.status_code, 401)
+
+    def test_engine_updates_denies_non_owner(self):
+        identity = VerifiedIdentity("trusted-user", "someone@example.invalid", "Someone")
+        api_service.app.dependency_overrides[api_service.current_identity] = lambda: identity
+        with mock.patch.dict(api_service.os.environ, {"TRADING_DESK_OWNER_EMAIL": "owner@example.invalid"}):
+            response = self.client.get("/v1/operator/engine-updates")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["error"]["code"], "forbidden")
+
+    def test_engine_updates_returns_canonical_feed_to_owner(self):
+        identity = VerifiedIdentity("owner-user", "OWNER@example.invalid", "Owner")
+        api_service.app.dependency_overrides[api_service.current_identity] = lambda: identity
+        expected = {"contract_version": 1, "updates": [], "count": 0}
+        with mock.patch.dict(api_service.os.environ, {"TRADING_DESK_OWNER_EMAIL": "owner@example.invalid"}):
+            with mock.patch.object(api_service.api_repository, "engine_updates", return_value=expected) as updates:
+                response = self.client.get("/v1/operator/engine-updates")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), expected)
+        updates.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()

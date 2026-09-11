@@ -14,5 +14,7 @@ services:
         sync: false
       - key: CORS_ALLOWED_ORIGINS
         sync: false
+      - key: TRADING_DESK_OWNER_EMAIL
+        sync: false
       - key: API_DOCS_ENABLED
         value: "false"

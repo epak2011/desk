@@ -25,6 +25,7 @@ DATABASE_URL
 SUPABASE_URL
 SUPABASE_ANON_KEY
 CORS_ALLOWED_ORIGINS
+TRADING_DESK_OWNER_EMAIL
 ```
 
 `CORS_ALLOWED_ORIGINS` must be a comma-separated allowlist containing the exact
@@ -57,6 +58,7 @@ After Render assigns the API origin:
 - `GET /v1/attention`
 - `GET /v1/portfolio`
 - `GET /v1/calibration`
+- `GET /v1/operator/engine-updates` (verified owner only)
 
 Private endpoints verify the bearer token with Supabase Auth and use only the
 verified UUID to load state. The browser cannot select an account by passing an

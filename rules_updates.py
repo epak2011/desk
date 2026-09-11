@@ -4,6 +4,13 @@ Keep proposed work separate from deployed work. Every material rule change shoul
 record its rationale, validation evidence, and production status here.
 """
 
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+
+ENGINE_UPDATES_CONTRACT_VERSION = 1
+
 RULES_UPDATES = (
     {
         "date": "2026-09-11",
@@ -37,3 +44,19 @@ RULES_UPDATES = (
         "validation": "Automated regime-context and market-schedule checks cover the contract.",
     },
 )
+
+
+def engine_updates_payload() -> dict:
+    """Return the presentation-neutral feed shared by every frontend."""
+    return {
+        "contract_version": ENGINE_UPDATES_CONTRACT_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "updates": [
+            {
+                **entry,
+                "changes": list(entry.get("changes") or ()),
+            }
+            for entry in RULES_UPDATES
+        ],
+        "count": len(RULES_UPDATES),
+    }
