@@ -48,8 +48,8 @@ import notification_engine
 import market_freshness
 import public_recovery
 import unsubscribe
+import rules_updates
 from operator_access import owner_access_allowed
-from rules_updates import engine_updates_payload
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
 
@@ -112,6 +112,9 @@ if any(
     for export in ("logic_review_flags", "performance_slices", "confidence_calibration")
 ):
     engine_evaluation = importlib.reload(engine_evaluation)
+
+if not hasattr(rules_updates, "engine_updates_payload"):
+    rules_updates = importlib.reload(rules_updates)
 
 try:
     from pm_view import pm_identity_mismatch
@@ -22156,7 +22159,7 @@ if view == "updates":
             "Governance rule: proposed and shadow-tested changes do not alter live decisions. "
             "Only entries explicitly marked Deployed are active in production."
         )
-        updates_feed = engine_updates_payload()
+        updates_feed = rules_updates.engine_updates_payload()
         for update_index, update in enumerate(updates_feed["updates"]):
             status = str(update.get("status") or "Update")
             title = str(update.get("title") or "Engine update")
