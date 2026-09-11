@@ -48,6 +48,8 @@ import notification_engine
 import market_freshness
 import public_recovery
 import unsubscribe
+from operator_access import owner_access_allowed
+from rules_updates import RULES_UPDATES
 from pm_view import CLAUDE_MODEL, get_pm_view, get_decision_dossier, STATIC_SNAPSHOTS, RESEARCH_CONTEXT_TICKERS
 
 
@@ -95,6 +97,13 @@ PUBLIC_DEMO_MODE = _configured_bool("TRADING_DESK_PUBLIC_DEMO", False) or bool(
 def _current_user_id():
     identity = st.session_state.get("_auth_identity") or {}
     return str(identity.get("user_id") or "").strip()
+
+
+def _is_owner_account():
+    return owner_access_allowed(
+        st.session_state.get("_auth_identity") or {},
+        OWNER_ACCOUNT_EMAIL,
+    )
 
 # Streamlit Cloud can hot-reload this file before refreshing an already imported
 # helper module during deployment. Reload only across that temporary version gap.
@@ -1183,7 +1192,7 @@ def save_store(store):
     record_perf_metric("save_store", _perf_t0)
 
 
-ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "alerts", "backtest", "triggers", "health", "holdings", "ideas", "trust"}
+ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "alerts", "backtest", "triggers", "health", "holdings", "ideas", "trust", "updates"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -12067,6 +12076,8 @@ with st.sidebar:
         "health": "System Health",
         "trust": "Methodology",
     }
+    if _is_owner_account():
+        operator_view_labels["updates"] = "Engine Updates"
     if PUBLIC_DEMO_MODE:
         primary_view_labels.pop("holdings", None)
         operator_view_labels.pop("health", None)
@@ -22108,6 +22119,54 @@ if view == "backtest":
         unsafe_allow_html=True,
     )
     render_rules_performance_dashboard()
+
+
+if view == "updates":
+    if not _is_owner_account():
+        st.error("This private operator page is available only to the Trading Desk owner account.")
+    else:
+        st.markdown(
+            """
+            <style>
+            .updates-head { margin: 8px 0 22px; max-width: 900px; }
+            .updates-kicker {
+                font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 800;
+                letter-spacing: var(--ls-caps-xl); text-transform: uppercase; color: var(--color-muted);
+            }
+            .updates-title {
+                margin: 5px 0 7px; font-family: var(--font-sans); font-size: var(--fs-3xl);
+                font-weight: 800; color: var(--color-text);
+            }
+            .updates-sub { color: var(--color-muted); font-size: var(--fs-sm); line-height: 1.5; }
+            .updates-private {
+                display: inline-block; margin-top: 10px; padding: 4px 8px; border-radius: 999px;
+                background: #E7F0FF; color: #1557B0; font-size: 11px; font-weight: 750;
+            }
+            </style>
+            <div class="updates-head">
+              <div class="updates-kicker">Owner workspace · rules governance</div>
+              <h1 class="updates-title">Engine Updates</h1>
+              <div class="updates-sub">A private record of what is proposed, what changed, why it changed, and what evidence was checked before release.</div>
+              <span class="updates-private">Private · owner account only</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.info(
+            "Governance rule: proposed and shadow-tested changes do not alter live decisions. "
+            "Only entries explicitly marked Deployed are active in production."
+        )
+        for update_index, update in enumerate(RULES_UPDATES):
+            status = str(update.get("status") or "Update")
+            title = str(update.get("title") or "Engine update")
+            date = str(update.get("date") or "")
+            with st.expander(f"{date} · {status} · {title}", expanded=update_index == 0):
+                st.write(str(update.get("summary") or ""))
+                st.markdown("**What changes**")
+                for change in update.get("changes") or ():
+                    st.markdown(f"- {change}")
+                st.markdown("**Validation and release evidence**")
+                st.write(str(update.get("validation") or "Not recorded."))
 
 
 if view == "health":
