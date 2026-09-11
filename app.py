@@ -12177,9 +12177,10 @@ with st.sidebar:
             st.session_state["sidebar_menu_open"] = not st.session_state.get("sidebar_menu_open", False)
 
         st.button(
-            "☰",
+            "Menu",
             key="sidebar_menu_toggle",
             help="Open navigation",
+            icon=":material/menu:",
             use_container_width=False,
             on_click=_toggle_sidebar_menu,
         )
@@ -13528,7 +13529,7 @@ section[data-testid="stSidebar"] {
     align-items: center;
     gap: 7px;
     margin: 0;
-    padding: 2px 2px 14px;
+    padding: 0 0 0 2px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     font-weight: 800;
@@ -13571,7 +13572,20 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu_toggle"] button {
     background: transparent !important;
     color: #273344 !important;
     box-shadow: none !important;
-    font-size: 19px !important;
+    font-size: 0 !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu_toggle"] button [data-testid="stIconMaterial"] {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    font-size: 21px !important;
+    line-height: 1 !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu_toggle"] button p {
+    display: none !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu_toggle"] button:hover {
