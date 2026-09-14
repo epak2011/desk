@@ -13467,6 +13467,20 @@ section[data-testid="stSidebar"] {
     border-radius: 0 !important;
     box-shadow: none !important;
     left: 0 !important;
+    margin-left: 0 !important;
+    inset-inline-start: 0 !important;
+}
+
+/* Streamlit's default sidebar content starts almost six rems from the top.
+   Keep the product rail anchored like normal application navigation. */
+section[data-testid="stSidebar"] > div:first-child,
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    padding: 18px 14px 24px !important;
+}
+
+section[data-testid="stSidebar"] > div:first-child > [data-testid="stVerticalBlock"],
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > [data-testid="stVerticalBlock"] {
+    gap: 12px !important;
 }
 
 @media (min-width: 900px) {
@@ -13550,6 +13564,8 @@ section[data-testid="stSidebar"] {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #1D2939;
+    min-height: 36px;
+    line-height: 1;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] {
