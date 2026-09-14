@@ -117,6 +117,15 @@ if any(
 if not hasattr(rules_updates, "engine_updates_payload"):
     rules_updates = importlib.reload(rules_updates)
 
+# Streamlit Cloud can briefly keep an older helper module in memory while a
+# newly deployed app.py is already running. Reload the receipt helper across
+# that temporary version gap so decision logging cannot take down the page.
+if any(
+    not hasattr(decision_contract, export)
+    for export in ("build_input_snapshot", "decision_invariant_issues")
+):
+    decision_contract = importlib.reload(decision_contract)
+
 try:
     from pm_view import pm_identity_mismatch
 except ImportError:
