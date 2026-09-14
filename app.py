@@ -15941,10 +15941,15 @@ if engine_review_alerts and view != "backtest":
         + ('var(--color-negative)' if review_due else 'var(--color-warning)')
         + ';border-radius:6px;background:#fff;padding:10px 13px;margin:4px 0 14px;">'
         f'<div style="font-weight:800;color:var(--color-text);">{html.escape(alert_heading)}</div>'
-        f'<div style="font-size:12px;color:var(--color-muted);margin-top:3px;">{html.escape(" · ".join(alert_parts))} '
-        '<a href="?view=backtest" target="_self">Review the cases →</a></div></div>',
+        f'<div style="font-size:12px;color:var(--color-muted);margin-top:3px;">{html.escape(" · ".join(alert_parts))}</div></div>',
         unsafe_allow_html=True,
     )
+    if st.button("Review the cases →", key="engine_review_cases", type="tertiary"):
+        st.session_state.view = "backtest"
+        st.session_state.store["last_view"] = "backtest"
+        st.query_params["view"] = "backtest"
+        save_store(st.session_state.store)
+        st.rerun()
 
 important_attention = [event for event in daily_attention_events if event.get("priority") in {"critical", "high"}]
 if important_attention and view not in {"alerts", "backtest", "health"}:
@@ -15955,10 +15960,15 @@ if important_attention and view not in {"alerts", "backtest", "health"}:
     st.markdown(
         '<div style="border-bottom:1px solid var(--color-border);padding:7px 2px 10px;margin:0 0 12px;font-size:12px;">'
         f'<b>{len(important_attention)} item{"s" if len(important_attention) != 1 else ""} need attention</b> '
-        f'<span style="color:var(--color-muted);">{html.escape(attention_text)}</span> '
-        '<a href="?view=alerts" target="_self">Open inbox →</a></div>',
+        f'<span style="color:var(--color-muted);">{html.escape(attention_text)}</span></div>',
         unsafe_allow_html=True,
     )
+    if st.button("Open inbox →", key="global_attention_inbox", type="tertiary"):
+        st.session_state.view = "alerts"
+        st.session_state.store["last_view"] = "alerts"
+        st.query_params["view"] = "alerts"
+        save_store(st.session_state.store)
+        st.rerun()
 
 
 # ── Database error banner — shown on every page if DB is unreachable ──
