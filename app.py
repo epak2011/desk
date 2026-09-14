@@ -13478,6 +13478,19 @@ section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
     padding: 18px 14px 24px !important;
 }
 
+/* The hosted Streamlit shell reserves an empty logo/header block above user
+   content (67.5px plus an 18px margin). The app owns its sidebar header, so
+   collapse only that spacer; fixed reopen controls remain independently
+   available through the selectors above. */
+section[data-testid="stSidebar"] [data-testid="stSidebarHeader"],
+section[data-testid="stSidebar"] [data-testid="stLogoSpacer"] {
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+}
+
 section[data-testid="stSidebar"] > div:first-child > [data-testid="stVerticalBlock"],
 section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > [data-testid="stVerticalBlock"] {
     gap: 12px !important;
