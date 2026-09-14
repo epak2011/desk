@@ -39,6 +39,7 @@ import auth_layer
 import decision_contract
 import data_trust
 import engine_evaluation
+import engine_candidates
 import portfolio_context
 import tactical
 import user_state_store
@@ -9830,6 +9831,10 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
         "source": "rules_engine",
         "source_label": f"{style.get('emoji', '')} {style.get('label', action)}",
         "decision_receipt": receipt,
+        "decision_attribution": decision_contract.build_rule_attribution(receipt_state),
+        "decision_inputs": decision_contract.build_input_snapshot(receipt_state, captured_at=captured_at),
+        "decision_invariant_issues": decision_contract.decision_invariant_issues(receipt_state),
+        "shadow_evaluations": engine_candidates.shadow_evaluations(receipt_state),
         "outcome": None,
         **levels,
     }

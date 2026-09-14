@@ -70,6 +70,31 @@ class DecisionContractTests(unittest.TestCase):
         self.assertEqual(result["decisive_step"]["label"], "Extension")
         self.assertEqual(result["active_gates"], ["reward_risk", "stretched_momentum"])
 
+    def test_input_snapshot_is_immutable_and_hashed(self):
+        state = {"action": "watch", "price": 100, "ma50": 95, "rs": 1.1, "market_regime": "bullish"}
+        snapshot = decision_contract.build_input_snapshot(state, captured_at="2026-09-14T12:00:00Z")
+        state["price"] = 200
+        self.assertEqual(snapshot["inputs"]["price"], 100.0)
+        self.assertEqual(len(snapshot["input_hash"]), 16)
+        self.assertEqual(snapshot["source_as_of"], None)
+
+    def test_invariants_reject_contradictory_or_incomplete_contracts(self):
+        self.assertIn("trending_structural_avoid", decision_contract.decision_invariant_issues({
+            "action": "avoid", "state": "TRENDING", "primary_risk": "Weak structure",
+        }))
+        issues = decision_contract.decision_invariant_issues({
+            "action": "enter_now", "state": "TRENDING", "entry": 100,
+        })
+        self.assertIn("invalidation_missing", issues)
+        self.assertIn("entry_size_missing", issues)
+
+    def test_complete_enter_contract_has_no_invariant_issues(self):
+        issues = decision_contract.decision_invariant_issues({
+            "action": "enter_now", "state": "TRENDING", "entry": 100,
+            "stop": 94, "entry_size": "starter",
+        })
+        self.assertEqual(issues, [])
+
 
 if __name__ == "__main__":
     unittest.main()

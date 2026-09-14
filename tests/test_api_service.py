@@ -16,11 +16,12 @@ class ApiServiceTests(unittest.TestCase):
 
     def test_health_is_public(self):
         with mock.patch.object(api_service.api_repository, "health", return_value={
-            "status": "ok", "contract_version": 2, "engine_version": "saved",
+            "status": "ok", "contract_version": 2, "engine_version": "saved", "deployment_revision": "abc123",
         }):
             response = self.client.get("/v1/health")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["contract_version"], 2)
+        self.assertEqual(response.json()["deployment_revision"], "abc123")
         self.assertTrue(response.headers.get("X-Request-ID"))
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
 

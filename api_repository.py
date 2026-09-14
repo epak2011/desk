@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from typing import Any, Iterable
 
@@ -60,6 +61,7 @@ def health() -> dict[str, Any]:
         "status": "ok" if backend_layer.has_database() else "degraded",
         "contract_version": public_contract.PUBLIC_CONTRACT_VERSION,
         "engine_version": "saved-canonical-output",
+        "deployment_revision": str(os.environ.get("RENDER_GIT_COMMIT") or "local")[:12],
     }
 
 

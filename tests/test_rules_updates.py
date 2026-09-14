@@ -13,8 +13,8 @@ class RulesUpdatesTests(unittest.TestCase):
         self.assertIsInstance(payload["updates"][0]["changes"], list)
 
     def test_proposed_work_is_not_presented_as_deployed(self):
-        proposed = next(item for item in engine_updates_payload()["updates"] if item["status"] == "Proposed")
-        self.assertIn("required before production", proposed["validation"])
+        candidate = next(item for item in engine_updates_payload()["updates"] if item["status"] == "Shadow testing")
+        self.assertIn("Promotion still requires", candidate["validation"])
 
 
 if __name__ == "__main__":

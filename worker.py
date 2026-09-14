@@ -30,6 +30,7 @@ import yfinance as yf
 import backend_layer as backend
 import attention_engine
 import decision_contract
+import engine_candidates
 import data_trust
 import engine_evaluation
 import market_freshness
@@ -712,18 +713,7 @@ def _trigger_summary(t_state: dict) -> str:
 
 def _shadow_evaluations(t_state: dict) -> list[dict]:
     """Record candidate behavior without allowing it to replace the live action."""
-    live_action = _normalize_action_key(t_state.get("action"))
-    warning = t_state.get("extension_warning") if isinstance(t_state.get("extension_warning"), dict) else {}
-    strict_action = live_action
-    if live_action in {"enter_now", "accumulate"} and warning.get("severity") == "high":
-        strict_action = "watch"
-    return [{
-        "candidate": "strict_extreme_extension",
-        "version": "shadow-2026.09-a",
-        "action": strict_action,
-        "differs_from_live": strict_action != live_action,
-        "reason": "Extreme stretched momentum waits for a pullback or base." if strict_action != live_action else "No extreme-extension override.",
-    }]
+    return engine_candidates.shadow_evaluations(t_state)
 
 
 def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker") -> bool:
@@ -779,6 +769,8 @@ def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker"
         "rule_engine_version": RULE_ENGINE_VERSION,
         "decision_receipt": receipt,
         "decision_attribution": decision_contract.build_rule_attribution(t_state),
+        "decision_inputs": decision_contract.build_input_snapshot(t_state, captured_at=receipt["captured_at"]),
+        "decision_invariant_issues": decision_contract.decision_invariant_issues(t_state),
         "decision_context": {
             "market_regime": t_state.get("market_regime"),
             "tape_class": t_state.get("state"),

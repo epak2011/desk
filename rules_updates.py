@@ -15,7 +15,7 @@ RULES_UPDATES = (
     {
         "date": "2026-09-11",
         "title": "Structural state and action consistency",
-        "status": "Proposed",
+        "status": "Shadow testing",
         "summary": (
             "Remove contradictory TRENDING/TRANSITION state and AVOID combinations by "
             "giving structural classification and tactical action one shared definition."
@@ -26,7 +26,7 @@ RULES_UPDATES = (
             "Distinguish recovering from weakening transition structures.",
             "Make structural AVOID consume the canonical structural state.",
         ),
-        "validation": "Boundary tests and a historical shadow comparison are required before production activation.",
+        "validation": "Boundary tests are active and the candidate is logging beside production. Promotion still requires mature historical comparison evidence.",
     },
     {
         "date": "2026-09-10",

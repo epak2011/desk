@@ -7,6 +7,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class FrontendContractAssetTests(unittest.TestCase):
+    def test_api_image_includes_owner_updates_source(self):
+        dockerfile = (ROOT / "Dockerfile.api").read_text(encoding="utf-8")
+        self.assertIn("rules_updates.py", dockerfile)
+
     def test_all_examples_are_valid_json_and_version_two(self):
         examples = sorted((ROOT / "contracts" / "examples").glob("*.json"))
         self.assertEqual({path.name for path in examples}, {"decision.json", "regime.json", "workspace.json"})

@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements-api.txt ./
 RUN pip install --no-cache-dir -r requirements-api.txt
 
-COPY api_auth.py api_repository.py api_service.py ./
+COPY api_auth.py api_repository.py api_service.py rules_updates.py ./
 COPY attention_engine.py backend_layer.py public_contract.py user_state_store.py ./
 
 RUN useradd --create-home --uid 10001 apiuser

@@ -7,7 +7,8 @@ import json
 from datetime import datetime, timezone
 
 
-RECEIPT_SCHEMA_VERSION = 2
+RECEIPT_SCHEMA_VERSION = 3
+INPUT_SNAPSHOT_SCHEMA_VERSION = 1
 
 
 def _number(value):
@@ -87,6 +88,58 @@ def build_rule_attribution(state):
     }
 
 
+def build_input_snapshot(state, *, captured_at=None):
+    """Freeze decision-time inputs so future evaluation cannot move history."""
+    state = state if isinstance(state, dict) else {}
+    captured_at = captured_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    numeric_fields = (
+        "price", "ma20", "ma50", "ma100", "ma200", "rs", "rs_delta",
+        "tech_delta", "setup_score", "reward_risk", "rsi14", "vol_ratio",
+        "atr_pct", "structure_quality",
+    )
+    snapshot = {
+        "schema_version": INPUT_SNAPSHOT_SCHEMA_VERSION,
+        "captured_at": str(captured_at),
+        "action": normalize_action(state.get("action")),
+        "state": state.get("state"),
+        "market_regime": state.get("market_regime"),
+        "source_as_of": state.get("data_as_of") or state.get("market_data_as_of") or state.get("updated_at"),
+        "inputs": {field: _number(state.get(field)) for field in numeric_fields},
+    }
+    identity = {key: value for key, value in snapshot.items() if key != "captured_at"}
+    snapshot["input_hash"] = hashlib.sha256(
+        json.dumps(identity, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:16]
+    return snapshot
+
+
+def decision_invariant_issues(state):
+    """Report impossible or incomplete decision contracts without changing them."""
+    state = state if isinstance(state, dict) else {}
+    action = normalize_action(state.get("action"))
+    structural_state = str(state.get("state") or "").upper()
+    trigger = state.get("trigger") if isinstance(state.get("trigger"), dict) else {}
+    levels = trigger.get("levels") if isinstance(trigger.get("levels"), dict) else {}
+    trigger_price = _number(levels.get("buy_above") or state.get("trigger_price") or state.get("entry"))
+    invalidation = _number(levels.get("abort_below") or state.get("invalidation_price") or state.get("stop"))
+    issues = []
+    if action == "avoid" and structural_state == "TRENDING":
+        issues.append("trending_structural_avoid")
+    if action in {"watch", "hold_off"} and not (
+        str(state.get("trigger_summary") or trigger.get("summary") or trigger.get("detail") or "").strip()
+        or str(state.get("matrix_reason") or state.get("primary_risk") or "").strip()
+    ):
+        issues.append("patience_reason_missing")
+    if action in {"enter_now", "accumulate"}:
+        if trigger_price is None:
+            issues.append("entry_price_missing")
+        if invalidation is None:
+            issues.append("invalidation_missing")
+        if not state.get("entry_size"):
+            issues.append("entry_size_missing")
+    return issues
+
+
 def build_decision_receipt(ticker, state, *, engine_version, captured_at=None, previous=None):
     """Create the immutable, public-facing contract for one rules decision."""
     state = state if isinstance(state, dict) else {}
@@ -138,6 +191,8 @@ def build_decision_receipt(ticker, state, *, engine_version, captured_at=None, p
         "source": "rules_engine",
         "data_trust": state.get("data_trust") if isinstance(state.get("data_trust"), dict) else {},
         "attribution": build_rule_attribution(state),
+        "input_snapshot": build_input_snapshot(state, captured_at=captured_at),
+        "invariant_issues": decision_invariant_issues(state),
     }
     identity = {key: value for key, value in core.items() if key != "captured_at"}
     core["receipt_id"] = hashlib.sha256(

@@ -450,6 +450,27 @@ def structure_quality(hist):
     return max(0.0, min(10.0, score))
 
 
+def structure_quality_candidate(hist):
+    """Shadow replacement that treats lower highs and lower lows symmetrically."""
+    prices = hist["Close"].iloc[-30:].to_numpy()
+    highs, lows = [], []
+    for i in range(1, len(prices) - 1):
+        if prices[i] > prices[i - 1] and prices[i] > prices[i + 1]:
+            highs.append(prices[i])
+        if prices[i] < prices[i - 1] and prices[i] < prices[i + 1]:
+            lows.append(prices[i])
+    score = 5.0
+    if len(highs) >= 2 and highs[-1] > highs[0]:
+        score += 2
+    if len(lows) >= 2 and lows[-1] > lows[0]:
+        score += 2
+    if len(highs) >= 2 and highs[-1] < highs[0]:
+        score -= 2
+    if len(lows) >= 2 and lows[-1] < lows[0]:
+        score -= 2
+    return max(0.0, min(10.0, score))
+
+
 def _ma_score(price, ma, *, tight=False):
     """Gradient distance score for price vs a moving average.
 
@@ -1384,6 +1405,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
 
     rs = relative_strength(ticker_hist, bench_hist)
     sq = structure_quality(ticker_hist)
+    sq_candidate = structure_quality_candidate(ticker_hist)
     setup_breakdown = tech_score_breakdown(ticker_hist)
     setup = setup_breakdown["score"]
 
@@ -1738,6 +1760,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
         "pct_of_52w_range": pct_of_52w_range,
         "rsi14": rsi14,
         "structure_quality": sq,
+        "structure_quality_candidate": sq_candidate,
         "avg_vol_20d": avg_vol_20d,
         "vol_ratio": vol_ratio,
         "ma50_history": ma50_history,    # dict or None
