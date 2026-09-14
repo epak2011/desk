@@ -12193,7 +12193,6 @@ with st.sidebar:
         st.button(
             "Menu",
             key="sidebar_menu_toggle",
-            help="Open navigation",
             icon=":material/menu:",
             use_container_width=False,
             on_click=_toggle_sidebar_menu,
@@ -13475,7 +13474,8 @@ section[data-testid="stSidebar"] {
    Keep the product rail anchored like normal application navigation. */
 section[data-testid="stSidebar"] > div:first-child,
 section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
-    padding: 18px 14px 24px !important;
+    padding: 14px 16px 24px !important;
+    box-sizing: border-box !important;
 }
 
 /* The hosted Streamlit shell reserves an empty logo/header block above user
@@ -13493,7 +13493,7 @@ section[data-testid="stSidebar"] [data-testid="stLogoSpacer"] {
 
 section[data-testid="stSidebar"] > div:first-child > [data-testid="stVerticalBlock"],
 section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > [data-testid="stVerticalBlock"] {
-    gap: 12px !important;
+    gap: 8px !important;
 }
 
 @media (min-width: 900px) {
@@ -13570,14 +13570,14 @@ section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > [data-testid
     align-items: center;
     gap: 7px;
     margin: 0;
-    padding: 0 0 0 2px;
+    padding: 0;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #1D2939;
-    min-height: 36px;
+    min-height: 34px;
     line-height: 1;
 }
 
@@ -13596,8 +13596,8 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_account_menu"] {
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] {
     width: 100% !important;
-    margin: 8px 0 18px !important;
-    padding: 8px !important;
+    margin: 4px 0 12px !important;
+    padding: 6px !important;
     border: 1px solid #DCE5F0 !important;
     border-radius: 10px !important;
     background: #FFFFFF !important;
@@ -13605,10 +13605,10 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] {
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu_toggle"] button {
-    width: 36px !important;
-    min-width: 36px !important;
-    height: 36px !important;
-    min-height: 36px !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
     padding: 0 !important;
     border: 1px solid transparent !important;
     border-radius: 8px !important;
@@ -13637,7 +13637,12 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu_toggle"] button:ho
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] div.stButton {
-    margin: 0 0 3px !important;
+    margin: 0 !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] > div,
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="stVerticalBlock"] {
+    gap: 4px !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] button {
@@ -13654,6 +13659,21 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-
     box-shadow: none !important;
     font-size: 12px !important;
     font-weight: 700 !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] {
+    height: 36px !important;
+    min-height: 36px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] > div,
+section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] div.stButton {
+    height: 36px !important;
+    min-height: 36px !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-sidebar_nav_"] button:hover {
@@ -13707,8 +13727,8 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [data-testid="st
 }
 
 .desk-nav-current {
-    margin: 0 0 8px;
-    padding: 2px 4px 9px;
+    margin: 0 0 2px;
+    padding: 2px 5px 7px;
     border-bottom: 1px solid #E2E8F0;
     color: #64748B;
     font-size: 10px;
@@ -13756,8 +13776,8 @@ section[data-testid="stSidebar"] [class*="st-key-sidebar_menu"] [class*="st-key-
 }
 
 .desk-menu-section {
-    margin: 8px 3px 4px;
-    padding: 8px 7px 3px;
+    margin: 4px 3px 1px;
+    padding: 7px 6px 2px;
     border-top: 1px solid #E6EAF0;
     color: var(--desk-muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
