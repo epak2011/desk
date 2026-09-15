@@ -896,9 +896,26 @@ def _fresh_tactical_state(ticker: str) -> tuple[dict, dict]:
     market_payload["company_name"] = meta.get("company_name")
     market_payload["security_profile"] = {**meta, "updated_at": market_payload.get("updated_at")}
     t_state["price"] = market_payload.get("price", t_state.get("price"))
+    rule_payload = dict(t_state)
+    trigger = rule_payload.get("trigger") or {}
+    if isinstance(trigger, dict):
+        rule_payload["trigger_summary"] = trigger.get("summary")
+    receipt = decision_contract.build_decision_receipt(
+        ticker,
+        {**rule_payload, "trigger_summary": _trigger_summary(rule_payload)},
+        engine_version=RULE_ENGINE_VERSION,
+    )
+    consistency = decision_contract.receipt_consistency(ticker, {
+        "receipt": receipt,
+        "rule_output": {**rule_payload, "rule_engine_version": RULE_ENGINE_VERSION},
+    })
+    rule_payload["decision_receipt"] = receipt
+    rule_payload["decision_attribution"] = decision_contract.build_rule_attribution(rule_payload)
+    rule_payload["decision_consistency"] = {"ok": not consistency, "mismatches": consistency}
+    rule_payload["shadow_evaluations"] = _shadow_evaluations(rule_payload)
     backend.upsert_json_table("market_snapshots", "ticker", ticker, market_payload, source="yahoo")
-    backend.upsert_json_table("rule_outputs", "ticker", ticker, t_state, source="rules")
-    return t_state, meta
+    backend.upsert_json_table("rule_outputs", "ticker", ticker, rule_payload, source="rules")
+    return rule_payload, meta
 
 
 def refresh_full_report(ticker: str) -> dict:

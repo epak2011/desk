@@ -10,6 +10,24 @@ class WorkerMarketScheduleTests(unittest.TestCase):
     def test_scheduled_worker_drains_research_jobs(self):
         self.assertIn("full_report", worker.SCHEDULED_SAFE_JOB_TYPES)
 
+    @patch("worker._quote_meta", return_value={"company_name": "Demo Inc."})
+    @patch("worker.backend.upsert_json_table")
+    @patch("worker.tactical.apply_extension_execution_overlay", side_effect=lambda state: state)
+    @patch("worker.tactical.compute", return_value={"action": "watch", "price": 100})
+    @patch("worker._download_benchmark")
+    @patch("worker._download_history")
+    def test_research_refresh_preserves_canonical_decision_receipt(
+        self, history, benchmark, _compute, _overlay, upsert, _meta
+    ):
+        dates = pd.bdate_range("2025-01-01", periods=3)
+        frame = pd.DataFrame({"Close": [98.0, 99.0, 100.0]}, index=dates)
+        history.return_value = frame
+        benchmark.return_value = frame
+        state, _ = worker._fresh_tactical_state("DEMO")
+        self.assertIn("decision_receipt", state)
+        rule_write = next(call for call in upsert.call_args_list if call.args[0] == "rule_outputs")
+        self.assertIn("decision_receipt", rule_write.args[3])
+
     @patch("worker.backend.enqueue_job")
     @patch("worker.backend.stale_watchlist_market_tickers", return_value=["NVDA", "BTC-USD"])
     @patch("worker.market_freshness.worker_should_refresh", side_effect=lambda ticker: ticker == "BTC-USD")
