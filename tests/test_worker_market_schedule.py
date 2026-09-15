@@ -7,6 +7,9 @@ import worker
 
 
 class WorkerMarketScheduleTests(unittest.TestCase):
+    def test_scheduled_worker_drains_research_jobs(self):
+        self.assertIn("full_report", worker.SCHEDULED_SAFE_JOB_TYPES)
+
     @patch("worker.backend.enqueue_job")
     @patch("worker.backend.stale_watchlist_market_tickers", return_value=["NVDA", "BTC-USD"])
     @patch("worker.market_freshness.worker_should_refresh", side_effect=lambda ticker: ticker == "BTC-USD")

@@ -77,7 +77,8 @@ def decision(ticker: str) -> dict[str, Any]:
     memo = (backend_layer.read_json_table("pm_memos", ticker) or {}).get(ticker) or {}
     market = (backend_layer.read_json_table("market_snapshots", ticker) or {}).get(ticker) or {}
     research = public_contract.research_payload(ticker, report=report, memo=memo, market=market)
-    return public_contract.decision_payload(receipt, research=research)
+    security_profile = public_contract.security_profile_payload(ticker, report=report, market=market)
+    return public_contract.decision_payload(receipt, research=research, security_profile=security_profile)
 
 
 def request_research(ticker: str, user_id: str) -> dict[str, Any]:

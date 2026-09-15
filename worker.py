@@ -42,7 +42,7 @@ from pm_view import _messages_create, get_decision_dossier, get_pm_view
 import tactical
 
 
-SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan", "market_regime_daily", "repair_missing_data"]
+SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan", "market_regime_daily", "repair_missing_data", "full_report"]
 SCHEDULED_SAFE_RUNTIME_SECONDS = 240
 LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
 OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
@@ -809,11 +809,23 @@ def _quote_meta(ticker: str) -> dict:
         info = yf.Ticker(ticker).get_info() or {}
     except Exception:
         info = {}
+    earnings_timestamp = info.get("earningsTimestamp") or info.get("earningsTimestampStart")
+    try:
+        earnings_date = datetime.fromtimestamp(float(earnings_timestamp), tz=timezone.utc).isoformat()
+    except (TypeError, ValueError, OSError, OverflowError):
+        earnings_date = None
+    quote_type = str(info.get("quoteType") or "").lower() or None
     return {
         "company_name": info.get("shortName") or info.get("longName") or ticker,
+        "quote_type": quote_type,
+        "asset_category": "crypto" if quote_type == "cryptocurrency" or ticker.endswith("-USD") else "equity",
         "sector": info.get("sector"),
         "industry": info.get("industry"),
         "market_cap": info.get("marketCap"),
+        "short_pct_float": info.get("shortPercentOfFloat"),
+        "institutional_ownership_pct": info.get("heldPercentInstitutions"),
+        "dividend_yield": info.get("dividendYield"),
+        "earnings_date": earnings_date,
         "forward_pe": info.get("forwardPE"),
         "peg": info.get("pegRatio"),
         "ev_ebitda": info.get("enterpriseToEbitda"),
@@ -880,10 +892,13 @@ def _fresh_tactical_state(ticker: str) -> tuple[dict, dict]:
         raise RuntimeError(f"Rule engine could not compute {ticker}")
     t_state = tactical.apply_extension_execution_overlay(t_state) or t_state
     market_payload = _market_payload(ticker, hist, t_state)
+    meta = _quote_meta(ticker)
+    market_payload["company_name"] = meta.get("company_name")
+    market_payload["security_profile"] = {**meta, "updated_at": market_payload.get("updated_at")}
     t_state["price"] = market_payload.get("price", t_state.get("price"))
     backend.upsert_json_table("market_snapshots", "ticker", ticker, market_payload, source="yahoo")
     backend.upsert_json_table("rule_outputs", "ticker", ticker, t_state, source="rules")
-    return t_state, _quote_meta(ticker)
+    return t_state, meta
 
 
 def refresh_full_report(ticker: str) -> dict:

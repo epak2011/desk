@@ -87,6 +87,7 @@ def decision_payload(
     *,
     portfolio_context: Mapping[str, Any] | None = None,
     research: Mapping[str, Any] | None = None,
+    security_profile: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the single canonical decision response consumed by any UI."""
     trust = receipt.get("data_trust") or {}
@@ -101,9 +102,40 @@ def decision_payload(
             freshness=str((trust.get("freshness") if isinstance(trust, Mapping) else None) or "unknown"),
         ),
         "decision": decision,
+        "security_profile": dict(security_profile or {}),
         "portfolio_context": dict(portfolio_context or {}),
         "research": dict(research or {"status": "unavailable"}),
         "executable": executable,
+    }
+
+
+def security_profile_payload(
+    ticker: str,
+    *,
+    report: Mapping[str, Any] | None = None,
+    market: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return stable company metadata without exposing provider payloads."""
+    report = report if isinstance(report, Mapping) else {}
+    market = market if isinstance(market, Mapping) else {}
+    report_meta = report.get("meta") if isinstance(report.get("meta"), Mapping) else {}
+    market_profile = market.get("security_profile") if isinstance(market.get("security_profile"), Mapping) else {}
+
+    def first(key: str):
+        return next(
+            (source.get(key) for source in (report_meta, market_profile, market) if source.get(key) not in (None, "")),
+            None,
+        )
+
+    fields = (
+        "company_name", "quote_type", "asset_category", "sector", "industry",
+        "market_cap", "short_pct_float", "institutional_ownership_pct",
+        "dividend_yield", "earnings_date",
+    )
+    return {
+        "ticker": str(ticker or "").upper(),
+        **{key: first(key) for key in fields},
+        "updated_at": first("updated_at"),
     }
 
 

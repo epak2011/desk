@@ -7,6 +7,7 @@ from public_contract import (
     error_payload,
     regime_payload,
     research_payload,
+    security_profile_payload,
     user_workspace_payload,
     watchlist_payload,
 )
@@ -77,6 +78,17 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(payload["status"], "stale")
         self.assertGreaterEqual(payload["age_days"], 7)
         self.assertTrue(any("Price has moved" in reason for reason in payload["stale_reasons"]))
+
+    def test_security_profile_allowlists_company_metadata(self):
+        payload = security_profile_payload(
+            "demo",
+            report={"meta": {"company_name": "Demo Inc.", "sector": "Technology", "private": "secret"}},
+            market={"security_profile": {"market_cap": 1000, "short_pct_float": 0.03}},
+        )
+        self.assertEqual(payload["ticker"], "DEMO")
+        self.assertEqual(payload["company_name"], "Demo Inc.")
+        self.assertEqual(payload["market_cap"], 1000)
+        self.assertNotIn("private", payload)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timezone
 from unittest import mock
 
 import api_repository
@@ -27,7 +28,7 @@ class ApiRepositoryTests(unittest.TestCase):
             "dossier": {"pm_narrative": "The company sells workflow software to enterprises.",
                         "quality": {"tier": "B"}},
             "meta": {"company_name": "Demo Inc."},
-            "_worker_generated_at": "2026-09-08T12:00:00+00:00",
+            "_worker_generated_at": datetime.now(timezone.utc).isoformat(),
         }}
         with mock.patch.object(
             api_repository.backend_layer, "read_json_table",
@@ -37,6 +38,7 @@ class ApiRepositoryTests(unittest.TestCase):
         self.assertEqual(payload["decision"]["action"], "watch")
         self.assertEqual(payload["research"]["status"], "ready")
         self.assertEqual(payload["research"]["company_name"], "Demo Inc.")
+        self.assertEqual(payload["security_profile"]["company_name"], "Demo Inc.")
         self.assertIn("workflow software", payload["research"]["company_overview"])
         self.assertEqual(payload["research"]["quality"]["tier"], "B")
 
