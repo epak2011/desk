@@ -99,7 +99,7 @@ class ApiRepositoryTests(unittest.TestCase):
             payload = api_repository.request_research("dash", "user-1")
         self.assertEqual(payload["status"], "queued")
         enqueue.assert_called_once_with(
-            "full_report", ticker="DASH", payload={"source": "frontend_api"}, priority=70,
+            "full_report", ticker="DASH", payload={"source": "frontend_api"}, priority=10,
             requested_by="api:user-1", dedupe_active=False,
         )
 

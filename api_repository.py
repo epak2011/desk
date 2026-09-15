@@ -91,7 +91,7 @@ def request_research(ticker: str, user_id: str) -> dict[str, Any]:
     if payload and payload.get("research", {}).get("status") == "ready":
         return {"status": "ready", "ticker": ticker, "decision": payload}
     job_id = backend_layer.enqueue_job(
-        "full_report", ticker=ticker, payload={"source": "frontend_api"}, priority=70,
+        "full_report", ticker=ticker, payload={"source": "frontend_api"}, priority=10,
         requested_by=f"api:{user_id}", dedupe_active=False,
     )
     if not job_id:
