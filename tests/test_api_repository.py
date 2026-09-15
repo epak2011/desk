@@ -124,6 +124,18 @@ class ApiRepositoryTests(unittest.TestCase):
             requested_by="api:user-1", dedupe_active=False,
         )
 
+    def test_existing_research_is_still_refreshed_when_explicitly_requested(self):
+        with mock.patch.object(
+            api_repository.backend_layer, "enqueue_job", return_value="job-3"
+        ) as enqueue:
+            payload = api_repository.request_research("nvda", "user-1")
+        self.assertEqual(payload["status"], "queued")
+        self.assertEqual(payload["request_id"], "job-3")
+        enqueue.assert_called_once_with(
+            "full_report", ticker="NVDA", payload={"source": "frontend_api"}, priority=10,
+            requested_by="api:user-1", dedupe_active=False,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

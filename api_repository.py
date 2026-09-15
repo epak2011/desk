@@ -82,14 +82,14 @@ def decision(ticker: str) -> dict[str, Any]:
 
 
 def request_research(ticker: str, user_id: str) -> dict[str, Any]:
-    """Return saved research or queue a worker-generated full report."""
+    """Queue a worker-generated report, preserving saved research meanwhile.
+
+    This endpoint represents an explicit refresh request.  Returning ``ready``
+    merely because an older report exists made the UI's Refresh button a no-op.
+    Clients continue reading the saved decision while the queued replacement is
+    generated, so there is no need to suppress the refresh.
+    """
     ticker = normalize_ticker(ticker)
-    try:
-        payload = decision(ticker)
-    except NotFoundError:
-        payload = None
-    if payload and payload.get("research", {}).get("status") == "ready":
-        return {"status": "ready", "ticker": ticker, "decision": payload}
     job_id = backend_layer.enqueue_job(
         "full_report", ticker=ticker, payload={"source": "frontend_api"}, priority=10,
         requested_by=f"api:{user_id}", dedupe_active=False,
