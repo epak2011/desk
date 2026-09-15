@@ -163,7 +163,10 @@ def research_payload(
             return []
         return [str(item).strip() for item in value if str(item or "").strip()][:limit]
 
-    thesis = first(pm.get("thesis"), memo.get("thesis"), bullets.get("thesis"))
+    # The dossier is generated after the compact PM snapshot. Prefer its
+    # fields so a successful Claude dossier cannot be masked by an earlier
+    # rules-backed compact fallback.
+    thesis = first(bullets.get("thesis"), pm.get("thesis"), memo.get("thesis"))
     company_overview = first(
         (report.get("meta") or {}).get("long_business_summary") if isinstance(report.get("meta"), Mapping) else None,
         deep_dive.get("business"), pm.get("business"), memo.get("business"),
@@ -203,10 +206,10 @@ def research_payload(
         "company_name": first((report.get("meta") or {}).get("company_name") if isinstance(report.get("meta"), Mapping) else None, market.get("company_name")),
         "company_overview": company_overview,
         "thesis": thesis,
-        "drivers": strings(first(pm.get("drivers"), memo.get("drivers"), bullets.get("drivers"), [])),
-        "risks": strings(first(pm.get("risks"), memo.get("risks"), bullets.get("risks"), [])),
-        "valuation": first(pm.get("valuation"), memo.get("valuation"), bullets.get("valuation")),
-        "timing_watchpoint": first(pm.get("timing_watchpoint"), memo.get("timing_watchpoint"), bullets.get("timing_watchpoint")),
+        "drivers": strings(first(bullets.get("drivers"), pm.get("drivers"), memo.get("drivers"), [])),
+        "risks": strings(first(bullets.get("risks"), pm.get("risks"), memo.get("risks"), [])),
+        "valuation": first(bullets.get("valuation"), pm.get("valuation"), memo.get("valuation")),
+        "timing_watchpoint": first(bullets.get("timing_watchpoint"), pm.get("timing_watchpoint"), memo.get("timing_watchpoint")),
         "decision_memo": first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier")),
         "technical_narrative": first(dossier.get("technical_narrative"), memo.get("technical_narrative")),
         "pm_narrative": first(dossier.get("pm_narrative"), memo.get("pm_narrative")),

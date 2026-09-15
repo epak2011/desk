@@ -22,6 +22,19 @@ class _Client:
 
 
 class FastModelTests(unittest.TestCase):
+    def test_nested_live_values_resolve_for_frontend_contract(self):
+        state = {"price": 212.17, "ma50": 213.02, "rs": 1.0}
+        payload = {
+            "memo": "Price {price}; again {{price}}; RS {rs}.",
+            "bullets": ["Trigger {pct_ma50}", "No token"],
+        }
+
+        resolved = pm_view.substitute_live_values_nested(payload, state)
+
+        self.assertEqual(resolved["memo"], "Price $212.17; again $212.17; RS 1.00.")
+        self.assertIn("Trigger", resolved["bullets"][0])
+        self.assertNotIn("{", resolved["bullets"][0])
+
     def test_fast_messages_prefer_fast_model(self):
         client = _Client()
         with mock.patch.object(

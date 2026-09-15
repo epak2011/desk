@@ -79,6 +79,35 @@ class PublicContractTests(unittest.TestCase):
         self.assertGreaterEqual(payload["age_days"], 7)
         self.assertTrue(any("Price has moved" in reason for reason in payload["stale_reasons"]))
 
+    def test_completed_dossier_precedes_compact_rules_fallback(self):
+        payload = research_payload(
+            "NVDA",
+            report={
+                "pm": {
+                    "thesis": "Rules fallback thesis.",
+                    "drivers": ["Rules fallback driver."],
+                    "risks": ["Claude PM research did not complete."],
+                    "valuation": "Valuation unavailable.",
+                    "_source": "rules fallback",
+                },
+                "dossier": {
+                    "bullets": {
+                        "thesis": "Claude dossier thesis.",
+                        "drivers": ["Blackwell demand."],
+                        "risks": ["Custom silicon adoption."],
+                        "valuation": "Forward P/E provides the anchor.",
+                    },
+                    "_source": "claude · fast refresh",
+                },
+                "_worker_generated_at": "2026-09-15T22:00:00+00:00",
+            },
+        )
+
+        self.assertEqual(payload["thesis"], "Claude dossier thesis.")
+        self.assertEqual(payload["drivers"], ["Blackwell demand."])
+        self.assertEqual(payload["risks"], ["Custom silicon adoption."])
+        self.assertEqual(payload["valuation"], "Forward P/E provides the anchor.")
+
     def test_security_profile_allowlists_company_metadata(self):
         payload = security_profile_payload(
             "demo",

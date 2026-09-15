@@ -199,6 +199,20 @@ def substitute_live_values(text, tactical_output):
     return text
 
 
+def substitute_live_values_nested(value, tactical_output):
+    """Resolve live-value tokens throughout a JSON-compatible structure."""
+    if isinstance(value, str):
+        return substitute_live_values(value, tactical_output)
+    if isinstance(value, list):
+        return [substitute_live_values_nested(item, tactical_output) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: substitute_live_values_nested(item, tactical_output)
+            for key, item in value.items()
+        }
+    return value
+
+
 # Static snapshot views for common tickers — used when no API key is set.
 STATIC_SNAPSHOTS = {
     "NVDA": {
@@ -1125,7 +1139,9 @@ Be specific. Do not return placeholders. If the business has a special-situation
                     if text.lower().startswith("json"):
                         text = text[4:]
                     text = text.strip()
-                parsed = _parse_json_response(text)
+                parsed = substitute_live_values_nested(
+                    _parse_json_response(text), t_state
+                )
                 if pm_identity_mismatch(ticker, parsed, company_name):
                     return _identity_guarded_dossier_payload(ticker)
                 return {
