@@ -14,10 +14,18 @@ import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 CLAUDE_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6-20260217").strip()
+CLAUDE_FAST_MODEL = os.environ.get(
+    "ANTHROPIC_FAST_MODEL", "claude-haiku-4-5-20251015"
+).strip()
 CLAUDE_MODEL_FALLBACKS = [
     CLAUDE_MODEL,
     "claude-sonnet-4-5-20250929",
     "claude-haiku-4-5-20251015",
+]
+CLAUDE_FAST_MODEL_FALLBACKS = [
+    CLAUDE_FAST_MODEL,
+    CLAUDE_MODEL,
+    "claude-sonnet-4-5-20250929",
 ]
 CLAUDE_PM_TIMEOUT_SECONDS = max(12, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "24")))
 CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(24, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "45")))
@@ -35,9 +43,9 @@ def _call_with_timeout(fn, timeout_seconds, label):
         executor.shutdown(wait=False, cancel_futures=True)
 
 
-def _model_candidates():
+def _model_candidates(models=None):
     seen = set()
-    for model in CLAUDE_MODEL_FALLBACKS:
+    for model in models or CLAUDE_MODEL_FALLBACKS:
         model = str(model or "").strip()
         if model and model not in seen:
             seen.add(model)
@@ -63,6 +71,22 @@ def _messages_create(client, **kwargs):
     if last_exc:
         raise last_exc
     raise RuntimeError("No Claude model configured.")
+
+
+def _messages_create_fast(client, **kwargs):
+    """Create a latency-sensitive message, preferring Haiku over Sonnet."""
+    last_exc = None
+    for model in _model_candidates(CLAUDE_FAST_MODEL_FALLBACKS):
+        try:
+            return client.messages.create(model=model, **kwargs)
+        except Exception as exc:
+            if _is_model_not_found(exc):
+                last_exc = exc
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("No fast Claude model configured.")
 
 
 def _parse_json_response(text):
@@ -831,7 +855,7 @@ Rules:
 
         try:
             message = _call_with_timeout(
-                lambda: _messages_create(client,
+                lambda: _messages_create_fast(client,
                     max_tokens=900,
                     temperature=0,
                     messages=[{"role": "user", "content": compact_prompt}],
@@ -1086,7 +1110,7 @@ Be specific. Do not return placeholders. If the business has a special-situation
 
             try:
                 message = _call_with_timeout(
-                    lambda: _messages_create(client,
+                    lambda: _messages_create_fast(client,
                         max_tokens=1400,
                         temperature=0,
                         messages=[{"role": "user", "content": fast_prompt}],
