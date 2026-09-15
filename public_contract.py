@@ -165,6 +165,7 @@ def research_payload(
 
     thesis = first(pm.get("thesis"), memo.get("thesis"), bullets.get("thesis"))
     company_overview = first(
+        (report.get("meta") or {}).get("long_business_summary") if isinstance(report.get("meta"), Mapping) else None,
         deep_dive.get("business"), pm.get("business"), memo.get("business"),
         dossier.get("pm_narrative"), memo.get("pm_narrative"), thesis,
     )

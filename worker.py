@@ -817,6 +817,7 @@ def _quote_meta(ticker: str) -> dict:
     quote_type = str(info.get("quoteType") or "").lower() or None
     return {
         "company_name": info.get("shortName") or info.get("longName") or ticker,
+        "long_business_summary": info.get("longBusinessSummary"),
         "quote_type": quote_type,
         "asset_category": "crypto" if quote_type == "cryptocurrency" or ticker.endswith("-USD") else "equity",
         "sector": info.get("sector"),
@@ -934,7 +935,10 @@ def refresh_full_report(ticker: str) -> dict:
         pm_data=pm,
         api_key=api_key,
         company_name=company_name,
-        fast=False,
+        # Background jobs need a dependable, bounded response more than the
+        # oversized legacy dossier.  The fast contract still returns every
+        # public research field while avoiding frequent 45-second timeouts.
+        fast=True,
     )
     generated_at = datetime.now(timezone.utc).isoformat()
     pm_payload = {

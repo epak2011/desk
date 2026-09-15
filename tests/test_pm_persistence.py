@@ -113,6 +113,7 @@ class PmPersistenceTests(unittest.TestCase):
         )[0]
         self.assertNotIn("upsert_pm_memo", full_report_body)
         self.assertIn('upsert_json_table("research_reports"', full_report_body)
+        self.assertIn("fast=True", full_report_body)
 
     def test_app_does_not_clear_or_replace_pm_memo_during_initialization(self):
         app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()

@@ -42,6 +42,27 @@ class ApiRepositoryTests(unittest.TestCase):
         self.assertIn("workflow software", payload["research"]["company_overview"])
         self.assertEqual(payload["research"]["quality"]["tier"], "B")
 
+    def test_verified_business_summary_precedes_tactical_research_fallback(self):
+        rule = {"NVDA": {"decision_receipt": {
+            "ticker": "NVDA", "action": "watch", "engine_version": "rules-v1",
+        }}}
+        report = {"NVDA": {
+            "pm": {"thesis": "NVDA is a monitor/watch candidate."},
+            "dossier": {"pm_narrative": "Technical setup commentary."},
+            "meta": {
+                "company_name": "NVIDIA Corporation",
+                "long_business_summary": "NVIDIA designs accelerated-computing platforms for data centers and gaming customers.",
+            },
+            "_worker_generated_at": datetime.now(timezone.utc).isoformat(),
+        }}
+        with mock.patch.object(
+            api_repository.backend_layer, "read_json_table",
+            side_effect=[rule, report, {}, {}],
+        ):
+            payload = api_repository.decision("NVDA")
+        self.assertIn("accelerated-computing platforms", payload["research"]["company_overview"])
+        self.assertNotIn("monitor/watch", payload["research"]["company_overview"])
+
     def test_decision_never_fabricates_missing_receipt(self):
         with (
             mock.patch.object(api_repository.backend_layer, "read_json_table", return_value={"DEMO": {"action": "watch"}}),
