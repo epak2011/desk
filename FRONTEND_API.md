@@ -10,6 +10,7 @@ product/build prompt is in `LOVABLE_HANDOFF.md`.
 
 ## Recommended endpoints
 
+- `GET /v1/app-manifest` → backend-owned page map, routes, auth requirements, and parity status
 - `GET /v1/decisions/{ticker}` → `decision_payload(...)`
 - `POST /v1/decisions/{ticker}/research/requests` → saved research or a queued current AI report (authenticated)
 - `GET /v1/attention` → `attention_payload(...)`
@@ -31,7 +32,13 @@ Each backend rules release updates `rules_updates.py` in the same commit. The
 endpoint and Streamlit therefore receive the same versioned entries on deployment,
 without copying content between frontends.
 
-The decision response includes a presentation-ready `research` object with the
+The decision response includes a presentation-ready `analyze_page` object with
+the complete hero strip, evidence matrix, action rationale, call-change conditions,
+technical picture, PM quality guide, all PM sections, earnings/analyst/Lynch cards,
+and full-report state. Clients should render those named sections directly and
+must not reproduce the Streamlit-only derivation logic.
+
+It also includes a presentation-ready `research` object with the
 saved company overview, thesis, drivers, risks, valuation, PM narrative, and
 quality view. Research can explain or challenge a decision, but it cannot change
 the canonical action returned in `decision`.

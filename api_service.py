@@ -109,6 +109,11 @@ def health():
     return api_repository.health()
 
 
+@app.get("/v1/app-manifest")
+def app_manifest():
+    return api_repository.app_manifest()
+
+
 @app.get("/v1/regime")
 def regime(request: Request):
     return _run(request, api_repository.regime)

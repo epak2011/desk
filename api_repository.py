@@ -65,6 +65,10 @@ def health() -> dict[str, Any]:
     }
 
 
+def app_manifest() -> dict[str, Any]:
+    return public_contract.app_manifest_payload()
+
+
 def decision(ticker: str) -> dict[str, Any]:
     ticker = normalize_ticker(ticker)
     rule = (backend_layer.read_json_table("rule_outputs", ticker) or {}).get(ticker) or {}
@@ -78,7 +82,12 @@ def decision(ticker: str) -> dict[str, Any]:
     market = (backend_layer.read_json_table("market_snapshots", ticker) or {}).get(ticker) or {}
     research = public_contract.research_payload(ticker, report=report, memo=memo, market=market)
     security_profile = public_contract.security_profile_payload(ticker, report=report, market=market)
-    return public_contract.decision_payload(receipt, research=research, security_profile=security_profile)
+    analyze_page = public_contract.analyze_page_payload(
+        ticker, rule=rule, market=market, report=report, memo=memo, research=research,
+    )
+    return public_contract.decision_payload(
+        receipt, research=research, security_profile=security_profile, analyze_page=analyze_page,
+    )
 
 
 def request_research(ticker: str, user_id: str) -> dict[str, Any]:

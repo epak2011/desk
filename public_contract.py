@@ -14,6 +14,43 @@ from typing import Any, Iterable, Mapping
 PUBLIC_CONTRACT_VERSION = 2
 
 
+QUALITY_CLASSIFICATIONS = [
+    {"tier": "A", "label": "Quality A", "description": "Durable category leader; core-position candidate."},
+    {"tier": "B", "label": "Quality B", "description": "Real moat with timing or execution risk; tactical and selective."},
+    {"tier": "Speculative", "label": "Speculative", "description": "Real upside with binary risk; size accordingly."},
+    {"tier": "Avoid", "label": "Quality Avoid", "description": "Structurally weak business; do not engage."},
+]
+
+
+def app_manifest_payload() -> dict[str, Any]:
+    """Publish the backend-owned page map every frontend must implement."""
+    pages = [
+        {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "shared"},
+        {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared"},
+        {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared"},
+        {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared"},
+        {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared"},
+        {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "shared"},
+        {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": None, "auth": "required", "status": "backend_contract_needed"},
+        {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared"},
+        {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/health", "auth": "required", "status": "partial"},
+        {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": None, "auth": "public", "status": "backend_contract_needed"},
+        {"key": "engine_updates", "label": "Engine Updates", "route": "/engine-updates", "endpoint": "/v1/operator/engine-updates", "auth": "owner", "status": "shared"},
+    ]
+    return {
+        "contract_version": PUBLIC_CONTRACT_VERSION,
+        "meta": response_meta(engine_version="saved-canonical-output", freshness="live"),
+        "navigation": [page["key"] for page in pages],
+        "pages": pages,
+        "rules": {
+            "backend_is_authoritative": True,
+            "no_client_decision_logic": True,
+            "no_placeholder_market_data": True,
+            "research_may_not_override_action": True,
+        },
+    }
+
+
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -88,6 +125,7 @@ def decision_payload(
     portfolio_context: Mapping[str, Any] | None = None,
     research: Mapping[str, Any] | None = None,
     security_profile: Mapping[str, Any] | None = None,
+    analyze_page: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the single canonical decision response consumed by any UI."""
     trust = receipt.get("data_trust") or {}
@@ -105,7 +143,152 @@ def decision_payload(
         "security_profile": dict(security_profile or {}),
         "portfolio_context": dict(portfolio_context or {}),
         "research": dict(research or {"status": "unavailable"}),
+        "analyze_page": dict(analyze_page or {}),
         "executable": executable,
+    }
+
+
+def analyze_page_payload(
+    ticker: str,
+    *,
+    rule: Mapping[str, Any] | None = None,
+    market: Mapping[str, Any] | None = None,
+    report: Mapping[str, Any] | None = None,
+    memo: Mapping[str, Any] | None = None,
+    research: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return a complete, ready-to-render Analyze page without UI inference."""
+    rule = rule if isinstance(rule, Mapping) else {}
+    market = market if isinstance(market, Mapping) else {}
+    report = report if isinstance(report, Mapping) else {}
+    memo = memo if isinstance(memo, Mapping) else {}
+    research = research if isinstance(research, Mapping) else {}
+    receipt = rule.get("decision_receipt") if isinstance(rule.get("decision_receipt"), Mapping) else {}
+    trigger = receipt.get("trigger") if isinstance(receipt.get("trigger"), Mapping) else {}
+    invalidation = receipt.get("invalidation") if isinstance(receipt.get("invalidation"), Mapping) else {}
+    action = str(receipt.get("action") or rule.get("action") or "").lower()
+
+    def first(*values):
+        return next((value for value in values if value not in (None, "", [], {})), None)
+
+    def number(value):
+        try:
+            return None if value is None else float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def text_items(value, limit=8):
+        if not isinstance(value, (list, tuple)):
+            return []
+        return [str(item).strip() for item in value if str(item or "").strip()][:limit]
+
+    action_labels = {
+        "enter_now": "Enter", "accumulate": "Accumulate", "watch": "Watch",
+        "hold_off": "Hold Off", "avoid": "Avoid",
+    }
+    wait_action = action in {"watch", "hold_off"}
+    entry_size = first(receipt.get("entry_size"), rule.get("entry_size"))
+    if entry_size in (None, "") and wait_action:
+        entry_size = "0% — wait for an actionable call"
+    entry_text = first(trigger.get("text"), rule.get("trigger_summary"), rule.get("entry_status"))
+    constraint = first(
+        rule.get("extension_overlay_reason"), rule.get("reward_risk_gate_reason"),
+        rule.get("matrix_reason"), receipt.get("primary_risk"),
+    )
+    change_text = first(invalidation.get("text"), entry_text, "Reassess when the technical structure changes.")
+
+    setup_breakdown = rule.get("setup_score_breakdown") if isinstance(rule.get("setup_score_breakdown"), Mapping) else {}
+    setup_components = []
+    for component in setup_breakdown.get("components") or []:
+        if isinstance(component, Mapping):
+            setup_components.append({
+                "label": component.get("label"), "points": number(component.get("points")),
+                "max_points": number(component.get("max_points")), "note": component.get("note"),
+            })
+    checks = [
+        {"key": "trend", "label": "Trend", "passed": bool(number(rule.get("price")) and number(rule.get("ma50")) and number(rule.get("price")) > number(rule.get("ma50")))},
+        {"key": "relative_strength", "label": "Relative strength", "passed": bool(number(rule.get("rs")) and number(rule.get("rs")) >= 1)},
+        {"key": "reward_risk", "label": "Reward/risk", "passed": bool(number(rule.get("reward_risk")) is not None and number(rule.get("reward_risk")) >= 1.2)},
+        {"key": "trigger", "label": "Trigger", "passed": bool(rule.get("trigger_fired"))},
+        {"key": "volume", "label": "Volume", "passed": bool(number(rule.get("vol_ratio")) is not None and number(rule.get("vol_ratio")) >= 0.6)},
+    ]
+    why = text_items(receipt.get("top_factors"))
+    if constraint and str(constraint) not in why:
+        why.append(str(constraint))
+    changes = []
+    if entry_text:
+        changes.append({"kind": "upgrade", "text": str(entry_text)})
+    if invalidation.get("text"):
+        changes.append({"kind": "invalidate", "text": str(invalidation.get("text"))})
+
+    price = number(first(rule.get("price"), market.get("price")))
+    ma20, ma50, ma200 = number(rule.get("ma20")), number(rule.get("ma50")), number(rule.get("ma200"))
+    rs, tech_delta, vol_ratio = number(rule.get("rs")), number(rule.get("tech_delta")), number(rule.get("vol_ratio"))
+    range_position = number(rule.get("pct_of_52w_range"))
+    technical = [
+        {"key": "trend", "label": "Trend", "status": "Strong" if price and ma50 and ma200 and price > ma50 and price > ma200 else "Mixed", "detail": "Above both major moving averages." if price and ma50 and ma200 and price > ma50 and price > ma200 else "Price is not above both major moving averages."},
+        {"key": "momentum", "label": "Momentum", "status": "Improving" if tech_delta is not None and tech_delta > 0 else ("Fading" if tech_delta is not None and tech_delta < 0 else "Stable"), "detail": "Technical score change over the last 10 sessions."},
+        {"key": "strength", "label": "Strength", "status": "Leading" if rs is not None and rs >= 1 else "Lagging", "detail": "Relative performance versus the S&P 500."},
+        {"key": "volume", "label": "Volume", "status": "Strong" if vol_ratio is not None and vol_ratio >= 1 else "Light", "detail": f"Participation is {vol_ratio:.2f}x the 20-day average." if vol_ratio is not None else "Volume reading unavailable."},
+        {"key": "location", "label": "Location", "status": "Upper half" if range_position is not None and range_position >= 50 else "Lower half", "detail": "Position within the 52-week range."},
+    ]
+
+    meta = report.get("meta") if isinstance(report.get("meta"), Mapping) else {}
+    quality = research.get("quality") if isinstance(research.get("quality"), Mapping) else {}
+    report_generated = first(report.get("_worker_generated_at"), report.get("generated_at"), research.get("generated_at"))
+    profile_fields = {
+        key: first(meta.get(key), (market.get("security_profile") or {}).get(key) if isinstance(market.get("security_profile"), Mapping) else None)
+        for key in (
+            "earnings_date", "earnings_days", "expected_eps", "analyst_rec", "analyst_target", "analyst_n",
+            "forward_pe", "trailing_pe", "peg", "ev_ebitda", "debt_to_equity", "earnings_growth",
+            "revenue_growth", "gross_margins", "operating_margins", "profit_margins",
+        )
+    }
+    target = number(profile_fields.get("analyst_target"))
+    analyst_upside = ((target / price - 1) * 100) if target is not None and price else None
+    return {
+        "schema_version": 1,
+        "ticker": str(ticker or "").upper(),
+        "hero": {
+            "action": action, "action_label": action_labels.get(action, action.replace("_", " ").title()),
+            "size_now": entry_size, "entry_label": "Entry trigger" if wait_action else "Execution",
+            "entry_trigger": {"text": entry_text, "price": number(trigger.get("price"))},
+            "active_constraint": constraint,
+            "what_changes_the_call": {"text": change_text, "price": number(invalidation.get("price"))},
+        },
+        "decision_evidence": {
+            "setup_quality": {"score": number(first(setup_breakdown.get("score"), rule.get("setup_score"))), "components": setup_components},
+            "confidence": first(receipt.get("confidence"), rule.get("decision_confidence"), rule.get("confidence")),
+            "reward_risk": number(rule.get("reward_risk")),
+            "setup_stage": first(rule.get("entry_status"), receipt.get("setup_stage"), rule.get("state")),
+            "checks": checks,
+            "passed_count": sum(1 for item in checks if item["passed"]),
+            "total_count": len(checks),
+            "data_trust": dict(receipt.get("data_trust") or {}),
+        },
+        "why_action": {"title": f"Why {action_labels.get(action, action).upper()}", "items": why},
+        "call_changes": changes,
+        "technical_picture": technical,
+        "portfolio_manager": {
+            "quality": dict(quality),
+            "quality_classifications": QUALITY_CLASSIFICATIONS,
+            "thesis": research.get("thesis"), "drivers": list(research.get("drivers") or []),
+            "risks": list(research.get("risks") or []), "valuation": research.get("valuation"),
+            "timing_watchpoint": research.get("timing_watchpoint"),
+            "next_earnings": {"date": profile_fields.get("earnings_date"), "days": profile_fields.get("earnings_days"), "expected_eps": profile_fields.get("expected_eps")},
+            "analyst_consensus": {"rating": profile_fields.get("analyst_rec"), "analyst_count": profile_fields.get("analyst_n"), "target": target, "upside_pct": analyst_upside},
+            "lynch_check": {key: profile_fields.get(key) for key in ("earnings_growth", "peg", "forward_pe", "debt_to_equity")},
+        },
+        "full_research_report": {
+            "status": research.get("status"), "available": bool(research.get("decision_memo")),
+            "generated_at": report_generated, "request_endpoint": f"/v1/decisions/{str(ticker or '').upper()}/research/requests",
+            "polling_note": "POST the request endpoint when signed in, then poll the returned poll_url until ready.",
+            "sections": {
+                "decision_memo": research.get("decision_memo"),
+                "technical_narrative": research.get("technical_narrative"),
+                "portfolio_manager_view": research.get("pm_narrative"),
+            },
+        },
     }
 
 
@@ -130,7 +313,9 @@ def security_profile_payload(
     fields = (
         "company_name", "quote_type", "asset_category", "sector", "industry",
         "market_cap", "short_pct_float", "institutional_ownership_pct",
-        "dividend_yield", "earnings_date",
+        "dividend_yield", "earnings_date", "earnings_days", "expected_eps",
+        "analyst_rec", "analyst_target", "analyst_n", "forward_pe", "trailing_pe",
+        "peg", "ev_ebitda", "debt_to_equity", "earnings_growth", "revenue_growth",
     )
     return {
         "ticker": str(ticker or "").upper(),

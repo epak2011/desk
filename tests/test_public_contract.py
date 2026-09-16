@@ -2,6 +2,8 @@ import unittest
 
 from public_contract import (
     PUBLIC_CONTRACT_VERSION,
+    analyze_page_payload,
+    app_manifest_payload,
     attention_payload,
     decision_payload,
     error_payload,
@@ -14,6 +16,39 @@ from public_contract import (
 
 
 class PublicContractTests(unittest.TestCase):
+    def test_app_manifest_identifies_shared_and_missing_page_contracts(self):
+        payload = app_manifest_payload()
+        pages = {page["key"]: page for page in payload["pages"]}
+        self.assertEqual(pages["analyze"]["endpoint"], "/v1/decisions/{ticker}")
+        self.assertEqual(pages["ideas"]["status"], "backend_contract_needed")
+        self.assertTrue(payload["rules"]["backend_is_authoritative"])
+
+    def test_analyze_page_payload_is_complete_and_ready_to_render(self):
+        rule = {
+            "action": "watch", "price": 100, "ma20": 98, "ma50": 90, "ma200": 80,
+            "rs": 1.1, "tech_delta": -0.2, "vol_ratio": 0.5, "pct_of_52w_range": 80,
+            "reward_risk": 0.9, "entry_status": "Waiting for pullback",
+            "matrix_reason": "Setup needs the trigger to fire.",
+            "setup_score_breakdown": {"score": 6.5, "components": [{"label": "Baseline", "points": 5, "max_points": 5, "note": "neutral"}]},
+            "decision_receipt": {
+                "action": "watch", "entry_size": None, "confidence": "Low",
+                "trigger": {"text": "Pull back to $95 and hold.", "price": 95},
+                "invalidation": {"text": "Invalid below $88.", "price": 88},
+                "top_factors": ["Trend is intact."], "data_trust": {"status": "trusted"},
+            },
+        }
+        research = {
+            "status": "ready", "thesis": "A durable platform.", "drivers": ["Growth"],
+            "risks": ["Valuation"], "valuation": "Rich", "quality": {"tier": "B", "rationale": "Execution risk"},
+            "decision_memo": "Full memo", "technical_narrative": "Technical read", "pm_narrative": "PM view",
+        }
+        payload = analyze_page_payload("DEMO", rule=rule, research=research)
+        self.assertEqual(payload["hero"]["size_now"], "0% — wait for an actionable call")
+        self.assertEqual(payload["decision_evidence"]["total_count"], 5)
+        self.assertEqual(payload["why_action"]["title"], "Why WATCH")
+        self.assertEqual(len(payload["portfolio_manager"]["quality_classifications"]), 4)
+        self.assertTrue(payload["full_research_report"]["available"])
+
     def test_decision_payload_uses_receipt_and_blocks_untrusted_execution(self):
         payload = decision_payload(
             {
