@@ -929,6 +929,12 @@ def _quote_meta(ticker: str) -> dict:
         earnings_date = datetime.fromtimestamp(float(earnings_timestamp), tz=timezone.utc).isoformat()
     except (TypeError, ValueError, OSError, OverflowError):
         earnings_date = None
+    earnings_days = None
+    if earnings_date:
+        try:
+            earnings_days = (datetime.fromisoformat(earnings_date).date() - datetime.now(timezone.utc).date()).days
+        except (TypeError, ValueError):
+            earnings_days = None
     quote_type = str(info.get("quoteType") or "").lower() or None
     return {
         "company_name": info.get("shortName") or info.get("longName") or ticker,
@@ -942,6 +948,8 @@ def _quote_meta(ticker: str) -> dict:
         "institutional_ownership_pct": info.get("heldPercentInstitutions"),
         "dividend_yield": info.get("dividendYield"),
         "earnings_date": earnings_date,
+        "earnings_days": earnings_days,
+        "expected_eps": info.get("epsForward") or info.get("epsCurrentYear"),
         "forward_pe": info.get("forwardPE"),
         "peg": info.get("pegRatio"),
         "ev_ebitda": info.get("enterpriseToEbitda"),
@@ -950,6 +958,8 @@ def _quote_meta(ticker: str) -> dict:
         "debt_to_equity": info.get("debtToEquity"),
         "analyst_rec": info.get("recommendationKey"),
         "analyst_target": info.get("targetMeanPrice"),
+        "analyst_n": info.get("numberOfAnalystOpinions"),
+        "trailing_pe": info.get("trailingPE"),
     }
 
 

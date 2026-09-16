@@ -25,15 +25,15 @@ QUALITY_CLASSIFICATIONS = [
 def app_manifest_payload() -> dict[str, Any]:
     """Publish the backend-owned page map every frontend must implement."""
     pages = [
-        {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "shared"},
+        {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "partial", "missing": ["daily_workflow_summary"]},
         {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared"},
         {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared"},
         {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared"},
         {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared"},
-        {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "shared"},
+        {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "partial", "missing": ["position_decisions", "portfolio_risk_summary"]},
         {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": None, "auth": "required", "status": "backend_contract_needed"},
         {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared"},
-        {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/health", "auth": "required", "status": "partial"},
+        {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/health", "auth": "required", "status": "partial", "missing": ["storage_checks", "worker_checks", "freshness_checks", "decision_consistency"]},
         {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": None, "auth": "public", "status": "backend_contract_needed"},
         {"key": "engine_updates", "label": "Engine Updates", "route": "/engine-updates", "endpoint": "/v1/operator/engine-updates", "auth": "owner", "status": "shared"},
     ]
