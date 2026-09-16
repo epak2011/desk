@@ -108,6 +108,26 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(payload["risks"], ["Custom silicon adoption."])
         self.assertEqual(payload["valuation"], "Forward P/E provides the anchor.")
 
+    def test_completed_dossier_never_splices_in_rules_fallback(self):
+        payload = research_payload(
+            "NVDA",
+            report={
+                "pm": {
+                    "drivers": ["Rules fallback driver."],
+                    "risks": ["Claude PM research did not complete."],
+                    "valuation": "Valuation requires a successful PM memo refresh.",
+                },
+                "dossier": {
+                    "bullets": {"thesis": "Completed Claude thesis."},
+                    "_source": "claude · fast refresh",
+                },
+            },
+        )
+
+        self.assertEqual(payload["drivers"], [])
+        self.assertEqual(payload["risks"], [])
+        self.assertIsNone(payload["valuation"])
+
     def test_security_profile_allowlists_company_metadata(self):
         payload = security_profile_payload(
             "demo",

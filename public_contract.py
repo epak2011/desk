@@ -177,6 +177,7 @@ def research_payload(
         memo.get("_worker_generated_at"), memo.get("generated_at"), memo.get("updated_at"),
     )
     source = first(dossier.get("_source"), pm.get("_source"), memo.get("_source"), memo.get("source"))
+    dossier_completed = "claude" in str(dossier.get("_source") or "").lower()
     quality = first(dossier.get("quality"), pm.get("quality"), memo.get("quality"), {})
     has_research = bool(company_overview or thesis)
     stale_reasons = []
@@ -206,10 +207,13 @@ def research_payload(
         "company_name": first((report.get("meta") or {}).get("company_name") if isinstance(report.get("meta"), Mapping) else None, market.get("company_name")),
         "company_overview": company_overview,
         "thesis": thesis,
-        "drivers": strings(first(bullets.get("drivers"), pm.get("drivers"), memo.get("drivers"), [])),
-        "risks": strings(first(bullets.get("risks"), pm.get("risks"), memo.get("risks"), [])),
-        "valuation": first(bullets.get("valuation"), pm.get("valuation"), memo.get("valuation")),
-        "timing_watchpoint": first(bullets.get("timing_watchpoint"), pm.get("timing_watchpoint"), memo.get("timing_watchpoint")),
+        # Once Claude completed a dossier, never splice rule-fallback prose into
+        # missing dossier fields. Empty is more honest than a contradictory
+        # hybrid memo that claims Claude did not complete.
+        "drivers": strings(bullets.get("drivers") if dossier_completed else first(bullets.get("drivers"), pm.get("drivers"), memo.get("drivers"), [])),
+        "risks": strings(bullets.get("risks") if dossier_completed else first(bullets.get("risks"), pm.get("risks"), memo.get("risks"), [])),
+        "valuation": bullets.get("valuation") if dossier_completed else first(bullets.get("valuation"), pm.get("valuation"), memo.get("valuation")),
+        "timing_watchpoint": bullets.get("timing_watchpoint") if dossier_completed else first(bullets.get("timing_watchpoint"), pm.get("timing_watchpoint"), memo.get("timing_watchpoint")),
         "decision_memo": first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier")),
         "technical_narrative": first(dossier.get("technical_narrative"), memo.get("technical_narrative")),
         "pm_narrative": first(dossier.get("pm_narrative"), memo.get("pm_narrative")),
