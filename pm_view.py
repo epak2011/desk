@@ -12,6 +12,7 @@ import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from datetime import date, datetime, timezone
 
 CLAUDE_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
 CLAUDE_FAST_MODEL = os.environ.get(
@@ -104,6 +105,54 @@ def _parse_json_response(text):
         text = text[start:end + 1]
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
     return json.loads(text)
+
+
+def _date_label(value):
+    """Return a trustworthy UTC date label for prompt grounding."""
+    if value in (None, ""):
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            parsed = datetime.fromtimestamp(float(value), tz=timezone.utc)
+        else:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.date().isoformat()
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _dossier_contract_issues(payload, *, as_of=None):
+    """Validate the public PM dossier before it can be persisted."""
+    as_of = as_of or date.today()
+    payload = payload if isinstance(payload, dict) else {}
+    bullets = payload.get("bullets") if isinstance(payload.get("bullets"), dict) else {}
+    quality = payload.get("quality") if isinstance(payload.get("quality"), dict) else {}
+    tactical = payload.get("tactical_call") if isinstance(payload.get("tactical_call"), dict) else {}
+    issues = []
+
+    for key in ("dossier", "technical_narrative", "pm_narrative"):
+        if not str(payload.get(key) or "").strip():
+            issues.append(f"missing {key}")
+    for key in ("thesis", "valuation", "timing_watchpoint"):
+        if not str(bullets.get(key) or "").strip():
+            issues.append(f"missing bullets.{key}")
+    for key in ("drivers", "risks"):
+        values = bullets.get(key)
+        if not isinstance(values, list) or len([v for v in values if str(v or "").strip()]) != 3:
+            issues.append(f"bullets.{key} must contain exactly 3 items")
+    if not str(quality.get("tier") or "").strip() or not str(quality.get("rationale") or "").strip():
+        issues.append("quality requires tier and rationale")
+    if not str(tactical.get("action") or "").strip() or not str(tactical.get("reasoning") or "").strip():
+        issues.append("tactical_call requires action and reasoning")
+
+    timing = str(bullets.get("timing_watchpoint") or "")
+    stale_years = sorted({
+        int(year) for year in re.findall(r"\b(?:19|20)\d{2}\b", timing)
+        if int(year) < as_of.year
+    })
+    if stale_years:
+        issues.append(f"timing_watchpoint references past year(s): {', '.join(map(str, stale_years))}")
+    return issues
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1065,9 +1114,21 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         valuation = (pm_data or {}).get("valuation", "")
 
         if fast:
+            as_of = date.today()
+            confirmed_earnings = _date_label((meta or {}).get("earnings_date"))
+            earnings_grounding = (
+                f"Confirmed next earnings date: {confirmed_earnings}."
+                if confirmed_earnings
+                else "No confirmed future earnings date is available; do not invent one."
+            )
             fast_prompt = f"""You are a senior portfolio manager and trader. Refresh the on-page PM research for {ticker}{f' ({company_name})' if company_name else ''}.
 
 Return ONLY valid JSON. No markdown.
+
+TIME GROUNDING (mandatory): Today is {as_of.isoformat()}. {earnings_grounding}
+- Never describe a past date, past quarter, or past earnings event as upcoming.
+- The timing watchpoint must be in the next 1-8 weeks from today or explicitly say that no confirmed near-term company catalyst is available.
+- Use the confirmed earnings date above when one is supplied; never substitute a date from model memory.
 
 Identity guard:
 {identity_guard}
@@ -1120,28 +1181,40 @@ JSON shape:
   }}
 }}
 
-Be specific. Do not return placeholders. If the business has a special-situation angle, hidden asset, major strategic relationship, financing risk, customer concentration, or regulatory catalyst, include it."""
+Be specific. Do not return placeholders. Every JSON field is required. Drivers and risks must each contain exactly 3 non-empty items. If the business has a special-situation angle, hidden asset, major strategic relationship, financing risk, customer concentration, or regulatory catalyst, include it."""
 
             try:
-                message = _call_with_timeout(
-                    lambda: _messages_create_fast(client,
-                        max_tokens=1400,
-                        temperature=0,
-                        messages=[{"role": "user", "content": fast_prompt}],
-                    ),
-                    min(CLAUDE_DOSSIER_TIMEOUT_SECONDS, 45),
-                    "Claude fast PM refresh",
-                )
-                text = message.content[0].text.strip()
-                if text.startswith("```"):
-                    parts = text.split("```")
-                    text = parts[1] if len(parts) > 1 else text
-                    if text.lower().startswith("json"):
-                        text = text[4:]
-                    text = text.strip()
-                parsed = substitute_live_values_nested(
-                    _parse_json_response(text), t_state
-                )
+                parsed = None
+                prompt_for_attempt = fast_prompt
+                for attempt in range(2):
+                    message = _call_with_timeout(
+                        lambda p=prompt_for_attempt: _messages_create_fast(client,
+                            max_tokens=1800,
+                            temperature=0,
+                            messages=[{"role": "user", "content": p}],
+                        ),
+                        min(CLAUDE_DOSSIER_TIMEOUT_SECONDS, 45),
+                        "Claude fast PM refresh",
+                    )
+                    text = message.content[0].text.strip()
+                    parsed = substitute_live_values_nested(
+                        _parse_json_response(text), t_state
+                    )
+                    issues = _dossier_contract_issues(parsed, as_of=as_of)
+                    if not issues:
+                        break
+                    if attempt == 1:
+                        raise ValueError("Incomplete Claude dossier: " + "; ".join(issues))
+                    prompt_for_attempt = f"""Repair the JSON response below. Return ONLY one complete valid JSON object using the exact schema from the original request.
+
+Today is {as_of.isoformat()}. {earnings_grounding}
+Problems to correct:
+- {chr(10).join(issues)}
+
+Do not copy any past event into the timing watchpoint. Drivers and risks must each contain exactly 3 non-empty, company-specific items. Do not use placeholders.
+
+Previous response:
+{json.dumps(parsed, ensure_ascii=False)}"""
                 if pm_identity_mismatch(ticker, parsed, company_name):
                     return _identity_guarded_dossier_payload(ticker)
                 return {
