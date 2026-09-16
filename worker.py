@@ -17,15 +17,19 @@ import argparse
 import hashlib
 import json
 import os
+import ssl
 import traceback
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
+from email.utils import parsedate_to_datetime
 from zoneinfo import ZoneInfo
 
 import yfinance as yf
+import certifi
 
 import backend_layer as backend
 import attention_engine
@@ -49,7 +53,111 @@ OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
 OUTCOME_MIN_AGE_DAYS = 7
 RULE_ENGINE_VERSION = "rules-2026.08-d"
 CRYPTO_REGIME_MODEL_VERSION = "crypto-cycle-2026.09.08-a"
-MARKET_REGIME_SCHEMA_VERSION = 3
+MARKET_REGIME_SCHEMA_VERSION = 4
+
+
+REGIME_NEWS_QUERIES = {
+    "economy": (
+        "Federal Reserve OR inflation OR CPI OR PCE OR payrolls OR unemployment OR GDP "
+        "OR Treasury yields OR economic growth when:3d"
+    ),
+    "markets": (
+        "S&P 500 OR Nasdaq OR stocks OR credit spreads OR bond market OR VIX "
+        "OR earnings outlook OR oil price when:3d"
+    ),
+    "crypto_policy": (
+        'crypto regulation OR digital asset policy OR "CLARITY Act" OR "Digital Asset Market Clarity Act" '
+        "OR stablecoin legislation OR SEC crypto OR CFTC crypto when:7d"
+    ),
+    "crypto_markets": (
+        "Bitcoin OR Ethereum OR crypto ETF OR stablecoin OR digital asset market "
+        "OR crypto liquidity OR institutional crypto when:3d"
+    ),
+}
+
+_NEWS_IMPACT_TERMS = {
+    "federal reserve": 5, "rate cut": 5, "rate hike": 5, "inflation": 4,
+    "payroll": 4, "unemployment": 4, "gdp": 4, "treasury": 3,
+    "credit spread": 4, "earnings": 2, "oil": 2, "tariff": 3,
+    "clarity act": 6, "digital asset market clarity": 6, "stablecoin": 4,
+    "sec": 3, "cftc": 3, "bitcoin": 3, "ethereum": 3, "crypto etf": 4,
+}
+
+
+def _fetch_regime_news(*, per_topic: int = 5) -> tuple[list[dict], dict]:
+    """Collect and rank fresh market-moving news across the regime's full remit."""
+    def _fetch_topic(topic: str, query: str) -> tuple[str, list[dict], str | None]:
+        url = "https://news.google.com/rss/search?" + urllib.parse.urlencode({
+            "q": query, "hl": "en-US", "gl": "US", "ceid": "US:en",
+        })
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": "TradingDesk/1.0"})
+            tls_context = ssl.create_default_context(cafile=certifi.where())
+            with urllib.request.urlopen(request, timeout=8, context=tls_context) as response:
+                root = ET.fromstring(response.read())
+            stories = []
+            for item in root.findall("./channel/item")[: per_topic * 3]:
+                title = " ".join((item.findtext("title") or "").split())
+                link = (item.findtext("link") or "").strip()
+                published_raw = (item.findtext("pubDate") or "").strip()
+                source_node = item.find("source")
+                source = " ".join(((source_node.text if source_node is not None else "") or "").split())
+                if not title or not link:
+                    continue
+                try:
+                    published_at = parsedate_to_datetime(published_raw).astimezone(timezone.utc).isoformat(timespec="seconds")
+                except Exception:
+                    published_at = None
+                lowered = title.lower()
+                impact_score = sum(weight for term, weight in _NEWS_IMPACT_TERMS.items() if term in lowered)
+                stories.append({
+                    "title": title, "url": link, "source": source or "Google News",
+                    "published_at": published_at, "category": topic,
+                    "impact_score": impact_score,
+                })
+            stories.sort(key=lambda row: (row["impact_score"], row.get("published_at") or ""), reverse=True)
+            return topic, stories[:per_topic], None
+        except Exception as exc:
+            return topic, [], str(exc)[:180]
+
+    collected, errors = [], {}
+    with ThreadPoolExecutor(max_workers=len(REGIME_NEWS_QUERIES)) as pool:
+        futures = [pool.submit(_fetch_topic, topic, query) for topic, query in REGIME_NEWS_QUERIES.items()]
+        for future in as_completed(futures):
+            topic, stories, error = future.result()
+            collected.extend(stories)
+            if error:
+                errors[topic] = error
+
+    deduped = {}
+    for story in collected:
+        key = " ".join(story["title"].lower().split())
+        existing = deduped.get(key)
+        if existing is None or story["impact_score"] > existing["impact_score"]:
+            deduped[key] = story
+    ranked = sorted(
+        deduped.values(),
+        key=lambda row: (row["impact_score"], row.get("published_at") or ""),
+        reverse=True,
+    )
+    # Guarantee breadth before filling remaining slots by impact. Otherwise a
+    # busy macro day can silently crowd all crypto policy (or vice versa) out
+    # of the client payload even though collection succeeded.
+    selected, selected_urls = [], set()
+    for topic in REGIME_NEWS_QUERIES:
+        for story in (row for row in ranked if row["category"] == topic):
+            if len([row for row in selected if row["category"] == topic]) >= 3:
+                break
+            selected.append(story)
+            selected_urls.add(story["url"])
+    for story in ranked:
+        if len(selected) >= 16:
+            break
+        if story["url"] not in selected_urls:
+            selected.append(story)
+            selected_urls.add(story["url"])
+    selected.sort(key=lambda row: (row["impact_score"], row.get("published_at") or ""), reverse=True)
+    return selected, errors
 
 
 def _series_snapshot(frame, ticker: str) -> dict:
@@ -362,6 +470,7 @@ def _claude_regime_context(*, snapshot: dict, fallback: str) -> tuple[str, str]:
             "risks": snapshot.get("risks"),
             "assets": snapshot.get("assets"),
             "macro": snapshot.get("macro"),
+            "news": snapshot.get("news"),
         }
         response = _messages_create(
             Anthropic(api_key=api_key),
@@ -379,8 +488,11 @@ def _claude_regime_context(*, snapshot: dict, fallback: str) -> tuple[str, str]:
                 "with the most important development or conflict. Mention numbers only when they sharpen the "
                 "explanation. Use calm, factual plain English, vary sentence structure, and end with the practical "
                 "posture. Avoid sensational or loaded adjectives such as dangerous, alarming, severe, or dramatic. "
-                "Do not use a heading, bullets, markdown, predictions, outside facts, news, or economic events "
-                "that are not present in the payload. Do not call this investment advice. Return only the paragraph.\n\n"
+                "Treat the supplied news as context, not as a replacement for the rules. Mention only stories that "
+                "materially affect growth, inflation, rates, liquidity, risk appetite, or crypto conditions. Explain "
+                "the market and portfolio implication instead of listing headlines. Do not use a heading, bullets, "
+                "markdown, predictions, outside facts, news, or economic events that are not present in the payload. "
+                "Do not call this investment advice. Return only the paragraph.\n\n"
                 + json.dumps(prompt_payload, separators=(",", ":"), default=str)
             )}],
         )
@@ -410,6 +522,7 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
     if "SPY" not in assets:
         raise RuntimeError(f"Regime refresh requires SPY history: {errors.get('SPY', 'unavailable')}")
     macro = _macro_regime_inputs()
+    news, news_errors = _fetch_regime_news()
     canonical = _streamlit_regime_score(assets=assets, macro=macro)
     score = canonical["score"]
     stance = canonical["window"]
@@ -431,6 +544,8 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
         "errors": errors,
         "source": "worker_market_regime_v1",
         "macro": macro,
+        "news": news,
+        "news_errors": news_errors,
         "signals": canonical["signals"],
         "crypto_regime": _crypto_regime_snapshot(frames.get("BTC-USD")),
     }

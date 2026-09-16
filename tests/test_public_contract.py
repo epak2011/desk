@@ -42,11 +42,13 @@ class PublicContractTests(unittest.TestCase):
             "why_today": "Mixed tape.",
             "portfolio_stance": "Neutral",
             "assets": {"SPY": {"last": 100}},
+            "news": [{"title": "Crypto policy update", "category": "crypto_policy"}],
             "database_url": "secret",
         })
         self.assertEqual(payload["regime"]["why_today"], "Mixed tape.")
         self.assertEqual(payload["regime"]["portfolio_stance"], "Neutral")
         self.assertEqual(payload["regime"]["assets"]["SPY"]["last"], 100)
+        self.assertEqual(payload["regime"]["news"][0]["category"], "crypto_policy")
         self.assertNotIn("database_url", payload["regime"])
 
     def test_watchlist_payload_blocks_private_notes(self):

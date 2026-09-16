@@ -20189,7 +20189,7 @@ if view == "regime":
             snapshot = next(iter(rows.values()), {}) if rows else {}
         except Exception:
             return {}
-        return snapshot if isinstance(snapshot, dict) and snapshot.get("schema_version") == 3 else {}
+        return snapshot if isinstance(snapshot, dict) and snapshot.get("schema_version") == 4 else {}
 
     def _apply_canonical_regime(snap, canonical):
         """Overlay decision-bearing fields so Streamlit cannot diverge from the API."""

@@ -250,6 +250,8 @@ def regime_payload(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         "reasons",
         "assets",
         "macro",
+        "news",
+        "news_errors",
         "signals",
         "errors",
         "source",

@@ -49,9 +49,14 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         enqueue.assert_not_called()
 
     @patch("worker.backend.upsert_json_table")
+    @patch("worker._fetch_regime_news", return_value=([{
+        "title": "Digital asset policy update", "url": "https://example.com/story",
+        "source": "Example", "published_at": "2026-09-16T12:00:00+00:00",
+        "category": "crypto_policy", "impact_score": 4,
+    }], {}))
     @patch("worker._macro_regime_inputs", return_value={"hy_oas_bps": 265, "fear_greed": 69})
     @patch("worker._download_history")
-    def test_market_regime_job_persists_deterministic_snapshot(self, download, _macro, upsert):
+    def test_market_regime_job_persists_deterministic_snapshot(self, download, _macro, _news, upsert):
         dates = pd.bdate_range("2025-01-01", periods=220)
         download.return_value = pd.DataFrame({"Close": range(100, 320)}, index=dates)
         result = worker.process_job({"job_type": "market_regime_daily", "payload": {}, "ticker": None})
@@ -61,6 +66,7 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertIn("why_today", result)
         self.assertGreaterEqual(len(result["watch_triggers"]), 3)
         self.assertEqual(len(result["market_highlights"]), 6)
+        self.assertEqual(result["news"][0]["category"], "crypto_policy")
 
     def test_streamlit_parity_pullback_is_mixed_hold_off(self):
         assets = {
