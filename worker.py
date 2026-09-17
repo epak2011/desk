@@ -48,7 +48,14 @@ import idea_discovery
 import user_state_store
 
 
-SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan", "market_regime_daily", "repair_missing_data", "full_report"]
+SCHEDULED_SAFE_JOB_TYPES = [
+    "market_snapshot",
+    "watchlist_market_scan",
+    "market_regime_daily",
+    "repair_missing_data",
+    "full_report",
+    "idea_discovery",
+]
 SCHEDULED_SAFE_RUNTIME_SECONDS = 240
 LEGACY_IGNORED_JOB_TYPES = {"pm_memo"}
 OUTCOME_SCORE_VERSION = engine_evaluation.EVALUATION_VERSION
