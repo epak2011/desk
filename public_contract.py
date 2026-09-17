@@ -25,17 +25,17 @@ QUALITY_CLASSIFICATIONS = [
 def app_manifest_payload() -> dict[str, Any]:
     """Publish the backend-owned page map every frontend must implement."""
     pages = [
-        {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "partial", "missing": ["daily_workflow_summary"]},
-        {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared"},
-        {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared"},
-        {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared"},
-        {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared"},
-        {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "partial", "missing": ["position_decisions", "portfolio_risk_summary"]},
-        {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "shared"},
-        {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared"},
-        {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/system-health", "auth": "required", "status": "shared"},
-        {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": "/v1/methodology", "auth": "public", "status": "shared"},
-        {"key": "engine_updates", "label": "Engine Updates", "route": "/engine-updates", "endpoint": "/v1/operator/engine-updates", "auth": "owner", "status": "shared"},
+        {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "partial", "missing": ["daily_workflow_summary"], "sections": ["daily_decision_workflow", "attention_inbox"]},
+        {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared", "sections": ["outlook", "entry_timing", "todays_context", "market_highlights", "market_implications", "forward_watch", "framework_gauges", "market_news", "crypto_regime", "metric_guide"]},
+        {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared", "sections": ["decision_header", "hero", "company_overview", "decision_evidence", "why_action", "call_changes", "technical_picture", "portfolio_manager", "full_research_report"]},
+        {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared", "sections": ["decision_rows"]},
+        {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared", "sections": ["attention_inbox"]},
+        {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "partial", "missing": ["position_decisions", "portfolio_risk_summary"], "sections": ["holdings", "position_notes", "portfolio_risk_summary"]},
+        {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "shared", "sections": ["screen_request", "saved_screens", "criteria", "candidates", "evidence", "verify_next"]},
+        {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared", "sections": ["evidence_summary", "cohorts", "outcomes", "review_cases"]},
+        {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/system-health", "auth": "required", "status": "shared", "sections": ["status", "coverage", "issues", "worker_jobs", "checks"]},
+        {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": "/v1/methodology", "auth": "public", "status": "shared", "sections": ["disclaimer", "actions", "methodology_sections", "quality_classifications"]},
+        {"key": "engine_updates", "label": "Engine Updates", "route": "/engine-updates", "endpoint": "/v1/operator/engine-updates", "auth": "owner", "status": "shared", "sections": ["rules_releases", "change_log", "validation"]},
     ]
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
@@ -44,6 +44,9 @@ def app_manifest_payload() -> dict[str, Any]:
         "pages": pages,
         "rules": {
             "backend_is_authoritative": True,
+            "render_endpoint_payload_directly": True,
+            "preserve_section_order": True,
+            "preserve_backend_labels_and_copy": True,
             "no_client_decision_logic": True,
             "no_placeholder_market_data": True,
             "research_may_not_override_action": True,

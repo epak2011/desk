@@ -27,6 +27,11 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(pages["health"]["endpoint"], "/v1/system-health")
         self.assertEqual(pages["methodology"]["status"], "shared")
         self.assertTrue(payload["rules"]["backend_is_authoritative"])
+        self.assertTrue(payload["rules"]["render_endpoint_payload_directly"])
+        self.assertEqual(
+            pages["market"]["sections"],
+            ["outlook", "entry_timing", "todays_context", "market_highlights", "market_implications", "forward_watch", "framework_gauges", "market_news", "crypto_regime", "metric_guide"],
+        )
 
     def test_ideas_payload_only_exposes_renderable_saved_screen_fields(self):
         payload = ideas_payload([{"query": "AI power", "secret": "no", "result": {
