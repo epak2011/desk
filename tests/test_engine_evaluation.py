@@ -223,6 +223,18 @@ class EngineEvaluationTests(unittest.TestCase):
         rows = engine_evaluation.shadow_performance([entry], minimum_count=1)
         self.assertEqual(rows[0]["candidate"], "strict")
 
+    def test_avoided_long_exposure_scores_the_opposite_live_price_path(self):
+        primary = {"forward_return_pct": -7.5, "excess_return_pct": -5.0}
+        results = engine_evaluation.shadow_outcomes({
+            "shadow_evaluations": [{
+                "candidate": "entry_timing_guard", "version": "s2",
+                "action": "watch", "evaluation_mode": "avoided_long_exposure",
+            }],
+        }, primary)
+        self.assertTrue(results[0]["directional_success"])
+        self.assertEqual(results[0]["decision_return_pct"], 7.5)
+        self.assertEqual(results[0]["evaluation_mode"], "avoided_long_exposure")
+
 
 if __name__ == "__main__":
     unittest.main()

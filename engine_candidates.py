@@ -9,6 +9,8 @@ from __future__ import annotations
 
 STRUCTURAL_CANDIDATE_VERSION = "shadow-2026.09-b"
 NO_MOMENTUM_EXCEPTION_VERSION = "shadow-2026.09-c"
+ENTRY_TIMING_GUARD_VERSION = "shadow-2026.09-d"
+REGIME_QUALITY_GATE_VERSION = "shadow-2026.09-e"
 
 
 def _number(value, default=None):
@@ -90,6 +92,29 @@ def shadow_evaluations(state: dict) -> list[dict]:
         if extended:
             no_exception = "watch"
 
+    # Candidate 4: require a cleaner entry whenever the live decision still
+    # carries an extension warning.  This deliberately tests a broader guard
+    # than the existing high-severity-only candidate.
+    timing_guard = live_action
+    if live_action in {"enter_now", "accumulate"} and warning.get("severity") in {"med", "medium", "high"}:
+        timing_guard = "watch"
+
+    # Candidate 5: weak/mixed market regimes demand both a high-quality setup
+    # and strong reward/risk before permitting new or additional exposure.
+    regime = str(state.get("market_regime") or "").strip().lower().replace("_", " ").replace("-", " ")
+    constrained_regime = regime in {
+        "mixed", "unfavorable", "unfavourable", "hold off", "risk off",
+        "bearish", "defensive", "cautious",
+    }
+    setup_score = _number(state.get("setup_score"))
+    reward_risk = _number(state.get("reward_risk"))
+    regime_gate = live_action
+    if live_action in {"enter_now", "accumulate"} and constrained_regime:
+        strong_setup = setup_score is not None and setup_score >= 8
+        strong_reward_risk = reward_risk is not None and reward_risk >= 2
+        if not (strong_setup and strong_reward_risk):
+            regime_gate = "watch"
+
     return [
         {
             "candidate": "strict_extreme_extension",
@@ -114,5 +139,25 @@ def shadow_evaluations(state: dict) -> list[dict]:
             "action": no_exception,
             "differs_from_live": no_exception != live_action,
             "reason": "Extended entries wait for a base without a momentum exception." if no_exception != live_action else "Momentum exception is not decisive for this setup.",
+        },
+        {
+            "candidate": "entry_timing_guard",
+            "version": ENTRY_TIMING_GUARD_VERSION,
+            "action": timing_guard,
+            "evaluation_mode": "avoided_long_exposure" if timing_guard != live_action else "directional",
+            "differs_from_live": timing_guard != live_action,
+            "reason": "Any material extension warning waits for a pullback or base." if timing_guard != live_action else "No material extension warning blocks this entry.",
+        },
+        {
+            "candidate": "regime_quality_gate",
+            "version": REGIME_QUALITY_GATE_VERSION,
+            "action": regime_gate,
+            "evaluation_mode": "avoided_long_exposure" if regime_gate != live_action else "directional",
+            "differs_from_live": regime_gate != live_action,
+            "reason": (
+                "Mixed or unfavorable conditions require setup score at least 8 and reward/risk at least 2."
+                if regime_gate != live_action
+                else "The market regime is unconstrained or both quality gates pass."
+            ),
         },
     ]

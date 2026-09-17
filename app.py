@@ -10066,7 +10066,7 @@ def render_rules_performance_dashboard():
             '<div class="watch-queue-label" style="margin:18px 0 7px;">Shadow rules</div>'
             '<div class="watch-queue-card" style="padding:12px 14px;margin-bottom:14px;">'
             '<div class="health-warn" style="font-weight:800;">Collecting evidence</div>'
-            '<div style="font-size:12px;color:var(--color-muted);margin-top:4px;">The strict extreme-extension candidate is logging beside the live engine. Results appear after at least three integrity-approved directional outcomes mature.</div>'
+            '<div style="font-size:12px;color:var(--color-muted);margin-top:4px;">Entry-timing, regime-quality, structural-state, and extension candidates are logging beside the live engine. Filter candidates are scored by the gains or losses they avoid on the identical price path. Results appear after at least three integrity-approved directional outcomes mature.</div>'
             '</div>',
             unsafe_allow_html=True,
         )

@@ -53,7 +53,38 @@ class EngineCandidateTests(unittest.TestCase):
         self.assertEqual(state, original)
         self.assertEqual({row["candidate"] for row in rows}, {
             "strict_extreme_extension", "unified_structural_state", "no_momentum_exception",
+            "entry_timing_guard", "regime_quality_gate",
         })
+
+    def test_entry_timing_guard_shadows_medium_extension_without_changing_live_action(self):
+        state = {
+            "action": "enter_now", "market_regime": "Favorable",
+            "setup_score": 9, "reward_risk": 2.5,
+            "extension_warning": {"severity": "med"},
+        }
+        candidate = next(
+            row for row in engine_candidates.shadow_evaluations(state)
+            if row["candidate"] == "entry_timing_guard"
+        )
+        self.assertEqual(candidate["action"], "watch")
+        self.assertEqual(candidate["evaluation_mode"], "avoided_long_exposure")
+        self.assertEqual(state["action"], "enter_now")
+
+    def test_regime_quality_gate_requires_both_quality_thresholds(self):
+        weak = next(
+            row for row in engine_candidates.shadow_evaluations({
+                "action": "accumulate", "market_regime": "Mixed",
+                "setup_score": 8.5, "reward_risk": 1.6,
+            }) if row["candidate"] == "regime_quality_gate"
+        )
+        strong = next(
+            row for row in engine_candidates.shadow_evaluations({
+                "action": "accumulate", "market_regime": "Mixed",
+                "setup_score": 8.5, "reward_risk": 2.1,
+            }) if row["candidate"] == "regime_quality_gate"
+        )
+        self.assertEqual(weak["action"], "watch")
+        self.assertEqual(strong["action"], "accumulate")
 
 
 if __name__ == "__main__":

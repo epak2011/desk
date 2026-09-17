@@ -52,7 +52,15 @@ def shadow_outcomes(entry, primary):
         if not isinstance(row, dict):
             continue
         family = decision_family(row.get("action"))
-        if family not in {"long", "avoid"}:
+        evaluation_mode = str(row.get("evaluation_mode") or "directional")
+        if evaluation_mode == "avoided_long_exposure":
+            # A filtered Enter/Accumulate earns positive counterfactual return
+            # when it avoids a subsequent loss and negative return when it
+            # sidelines a winner.  This makes timing/regime filters directly
+            # comparable with the live long decision on the identical path.
+            decision_return = round(-forward, 4)
+            success = bool(forward < 0)
+        elif family not in {"long", "avoid"}:
             success = None
             decision_return = None
         else:
@@ -67,6 +75,7 @@ def shadow_outcomes(entry, primary):
             "candidate": str(row.get("candidate") or "unknown"),
             "version": str(row.get("version") or "unknown"),
             "action": row.get("action"),
+            "evaluation_mode": evaluation_mode,
             "directional_success": success,
             "decision_return_pct": decision_return,
         })

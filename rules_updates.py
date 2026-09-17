@@ -13,6 +13,22 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-09-17",
+        "title": "Entry timing and regime quality shadow gates",
+        "status": "Shadow testing",
+        "summary": (
+            "Test whether stricter entry timing and stronger evidence requirements in "
+            "mixed or unfavorable markets improve the weak Enter/Accumulate cohort without changing live calls."
+        ),
+        "changes": (
+            "Add an entry-timing candidate that waits on any material extension warning.",
+            "Add a regime-quality candidate requiring setup score at least 8 and reward/risk at least 2 in constrained regimes.",
+            "Score filtered entries by the gain or loss the candidate avoided on the identical 14-session path.",
+            "Keep every production action unchanged while evidence accumulates.",
+        ),
+        "validation": "All 175 automated tests pass. Promotion still requires mature, integrity-approved shadow outcomes across multiple regimes.",
+    },
+    {
         "date": "2026-09-11",
         "title": "Structural state and action consistency",
         "status": "Shadow testing",
