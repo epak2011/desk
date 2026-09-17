@@ -317,8 +317,9 @@ def _streamlit_regime_score(*, assets: dict, macro: dict) -> dict:
             "signals": {"t1_ism": t1, "t2_unemployment": t2, "t3_hy_oas": t3, "yield_curve": curve_state}}
 
 
-def _crypto_regime_snapshot(frame) -> dict:
-    """Return distinct canonical cycle, trend, and timing reads for clients."""
+def _crypto_regime_snapshot(frame, eth_frame=None, ethbtc_frame=None, *, fear_greed=None,
+                            fear_greed_label=None, portfolio_stance="Neutral") -> dict:
+    """Return the complete canonical crypto contract used by every client."""
     frame = _flatten_yfinance(frame, "BTC-USD")
     if frame is None or frame.empty or "Close" not in frame:
         return {}
@@ -335,36 +336,45 @@ def _crypto_regime_snapshot(frame) -> dict:
     vs200 = (price / ma200 - 1) * 100 if ma200 else None
     drawdown = (price / peak - 1) * 100 if peak else None
     return90 = (price / float(close.iloc[-90]) - 1) * 100 if len(close) >= 90 else None
-    phase, cycle_label, cycle_detail, phase_number = crypto_regime.classify_cycle(
-        btc_vs_200=vs200,
-        btc_vs_20=vs20,
-        drawdown_cycle=drawdown,
-        return_90=return90,
-        fear_greed=None,
+    def return_pct(days):
+        return (price / float(close.iloc[-(days + 1)]) - 1) * 100 if len(close) >= days + 1 else None
+    eth = _flatten_yfinance(eth_frame, "ETH-USD")
+    eth_close = eth["Close"].dropna() if eth is not None and not eth.empty and "Close" in eth else None
+    eth_price = float(eth_close.iloc[-1]) if eth_close is not None and len(eth_close) else None
+    eth_return_1d = (eth_price / float(eth_close.iloc[-2]) - 1) * 100 if eth_close is not None and len(eth_close) >= 2 else None
+    pair = _flatten_yfinance(ethbtc_frame, "ETH-BTC")
+    pair_close = pair["Close"].dropna() if pair is not None and not pair.empty and "Close" in pair else None
+    ethbtc_now = float(pair_close.iloc[-1]) if pair_close is not None and len(pair_close) else None
+    ethbtc_change = ((ethbtc_now / float(pair_close.tail(30).mean()) - 1) * 100
+                     if pair_close is not None and len(pair_close) >= 20 else None)
+    btc_dominance = 55.0
+    assessment = crypto_regime.assess(
+        btc_vs_200=vs200, btc_vs_20=vs20, drawdown_cycle=drawdown,
+        return_90=return90, fear_greed=fear_greed,
+        ethbtc_change=ethbtc_change, btc_dominance=btc_dominance,
+        portfolio_stance=portfolio_stance,
     )
-    if vs50 is not None and vs20 is not None and vs50 > 0 and vs20 > 0:
-        trend_label, trend_detail = "Uptrend", "Bitcoin is above its 20-day and 50-day averages."
-    elif vs50 is not None and vs50 > 0:
-        trend_label, trend_detail = "Uptrend under pressure", "Bitcoin remains above its 50-day average but has lost its 20-day average."
-    elif vs20 is not None and vs20 > 0:
-        trend_label, trend_detail = "Recovery attempt", "Short-term momentum is improving, but Bitcoin remains below its 50-day average."
-    else:
-        trend_label, trend_detail = "Downtrend", "Bitcoin is below its 20-day and 50-day averages."
-    if (vs20 or 0) >= 8 or ((assets_return := return90) is not None and assets_return >= 25):
-        timing_label, timing_detail = "Extended — wait", "Momentum is stretched; wait for consolidation or a pullback instead of chasing."
-    elif vs20 is not None and vs20 > 0:
-        timing_label, timing_detail = "Constructive", "Short-term momentum is positive, but entry quality still depends on price and risk limits."
-    else:
-        timing_label, timing_detail = "Not ready", "Wait for Bitcoin to reclaim its 20-day average before treating timing as constructive."
     return {
-        "cycle": {"phase": phase, "phase_number": phase_number, "label": cycle_label, "detail": cycle_detail},
-        "medium_term_trend": {"label": trend_label, "detail": trend_detail},
-        "tactical_timing": {"label": timing_label, "detail": timing_detail},
+        **assessment,
+        "medium_term_trend": assessment["trend"],
+        "tactical_timing": assessment["tactical_phase"],
         "metrics": {
+            "btc_price": round(price, 4),
+            "btc_return_1d_pct": round(return_pct(1), 4) if return_pct(1) is not None else None,
+            "btc_return_5d_pct": round(return_pct(5), 4) if return_pct(5) is not None else None,
+            "btc_return_20d_pct": round(return_pct(20), 4) if return_pct(20) is not None else None,
             "price": round(price, 4), "vs_20d_pct": round(vs20, 4),
             "vs_50d_pct": round(vs50, 4), "vs_200d_pct": round(vs200, 4),
             "drawdown_from_2y_high_pct": round(drawdown, 4),
             "return_90d_pct": round(return90, 4) if return90 is not None else None,
+            "eth_price": round(eth_price, 4) if eth_price is not None else None,
+            "eth_return_1d_pct": round(eth_return_1d, 4) if eth_return_1d is not None else None,
+            "eth_btc": round(ethbtc_now, 6) if ethbtc_now is not None else None,
+            "eth_btc_vs_30d_pct": round(ethbtc_change, 4) if ethbtc_change is not None else None,
+            "btc_dominance_pct": btc_dominance,
+            "btc_dominance_is_estimate": True,
+            "fear_greed": fear_greed,
+            "fear_greed_label": fear_greed_label,
         },
         "model_version": CRYPTO_REGIME_MODEL_VERSION,
     }
@@ -519,7 +529,7 @@ def _claude_regime_context(*, snapshot: dict, fallback: str) -> tuple[str, str]:
 
 def refresh_market_regime_daily(payload: dict | None = None) -> dict:
     """Persist a deterministic daily market-regime snapshot for cheap UI/API reads."""
-    symbols = ("SPY", "QQQ", "RSP", "HYG", "^VIX", "BTC-USD")
+    symbols = ("SPY", "QQQ", "RSP", "HYG", "^VIX", "BTC-USD", "ETH-USD", "ETH-BTC")
     assets, errors = {}, {}
     frames = {}
     for symbol in symbols:
@@ -556,7 +566,11 @@ def refresh_market_regime_daily(payload: dict | None = None) -> dict:
         "news": news,
         "news_errors": news_errors,
         "signals": canonical["signals"],
-        "crypto_regime": _crypto_regime_snapshot(frames.get("BTC-USD")),
+        "crypto_regime": _crypto_regime_snapshot(
+            frames.get("BTC-USD"), frames.get("ETH-USD"), frames.get("ETH-BTC"),
+            fear_greed=macro.get("fear_greed"), fear_greed_label=macro.get("fear_greed_label"),
+            portfolio_stance=stance,
+        ),
     }
     result.update(_regime_decision_context(stance=stance, score=score, assets=assets, errors=errors, previous=previous, canonical=canonical, macro=macro))
     result["why_today_fallback"] = result["why_today"]

@@ -20060,10 +20060,9 @@ if view == "regime":
             ]
         )
         phase_defs = [
-            (1, "Phase 1", "🤔 Accumulation", "Post-crash, boring, sentiment terrible. Smart money buys quietly.", "2015, 2018–19, 2022–23", "Deeply below 200d, extreme fear, flat price action"),
-            (2, "Phase 2", "📈 Recovery", "Price climbs back toward old highs. Halving occurs. Retail not yet paying attention.", "2016, 2020, 2023–24", "Reclaimed 200d MA, momentum building, sentiment improving"),
-            (3, "Phase 3", "🚀 Parabolic Bull", "Euphoria. New ATH. Media explodes. Altcoins go parabolic.", "Q4 2013, Q4 2017, Q4 2021, Q4 2025", "Well above 200d, extreme greed, parabolic price action"),
-            (4, "Phase 4", "🐻 Bear / Transition", "50–80% drawdown from peak. Bear rallies trap latecomers. Watch for accumulation signals before the next cycle begins.", "2014–15, 2018, 2022, 2025–26", "Below 200d, declining momentum, bear rallies mislead"),
+            (item["number"], item["phase"], f'{item["icon"]} {item["name"]}', item["description"],
+             item["historical"], item["signal"])
+            for item in crypto_regime.PHASE_DEFINITIONS
         ]
         active_phase = scored["four"][3]
         phases = "".join(

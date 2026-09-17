@@ -16,6 +16,12 @@ class WorkerCryptoContractTests(unittest.TestCase):
         self.assertEqual(result["cycle"]["label"], "Accumulation / repair")
         self.assertIn("medium_term_trend", result)
         self.assertIn("tactical_timing", result)
+        self.assertEqual(len(result["phases"]), 4)
+        self.assertEqual([row["heading"] for row in result["narrative"]],
+                         ["Trend", "Opportunity", "Positioning", "Conviction"])
+        self.assertIn("opportunity", result)
+        self.assertIn("positioning", result)
+        self.assertIn("btc_return_20d_pct", result["metrics"])
 
     def test_missing_history_returns_no_assessment(self):
         self.assertEqual(worker._crypto_regime_snapshot(pd.DataFrame()), {})
