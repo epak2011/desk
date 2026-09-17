@@ -105,6 +105,18 @@ class ApiServiceTests(unittest.TestCase):
         self.assertEqual(self.client.get("/v1/ideas").status_code, 401)
         self.assertEqual(self.client.get("/v1/system-health").status_code, 401)
 
+    def test_idea_generation_request_queues_for_verified_user(self):
+        identity = VerifiedIdentity("trusted-user", "demo@example.invalid", "Demo")
+        api_service.app.dependency_overrides[api_service.current_identity] = lambda: identity
+        payload = {"query": "Data-center power infrastructure"}
+        with mock.patch.object(
+            api_service.api_repository, "request_ideas",
+            return_value={"status": "queued", "request_id": "idea-1", "poll_url": "/v1/idea-requests/idea-1"},
+        ) as request_ideas:
+            response = self.client.post("/v1/ideas/requests", json=payload)
+        self.assertEqual(response.status_code, 202)
+        request_ideas.assert_called_once_with("trusted-user", payload)
+
     def test_engine_updates_denies_non_owner(self):
         identity = VerifiedIdentity("trusted-user", "someone@example.invalid", "Someone")
         api_service.app.dependency_overrides[api_service.current_identity] = lambda: identity

@@ -287,6 +287,31 @@ def ideas(user_id: str) -> dict[str, Any]:
     return public_contract.ideas_payload(runs[:8])
 
 
+def request_ideas(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    query = str((payload or {}).get("query") or "").strip()
+    if len(query) < 8:
+        raise ValueError("Write a little more about the theme you want.")
+    universe = str((payload or {}).get("universe") or "").strip()
+    job_id = backend_layer.enqueue_job(
+        "idea_discovery", payload={"query": query, "universe": universe, "user_id": user_id},
+        priority=30, requested_by=f"api:{user_id}", dedupe_active=False,
+    )
+    return {"status": "queued", "request_id": job_id, "poll_url": f"/v1/idea-requests/{job_id}"}
+
+
+def idea_request(job_id: str, user_id: str) -> dict[str, Any]:
+    job = backend_layer.get_job(job_id)
+    if not job or job.get("requested_by") != f"api:{user_id}" or job.get("job_type") != "idea_discovery":
+        raise NotFoundError("Idea request was not found.")
+    status = str(job.get("status") or "queued").lower()
+    result = {"status": status, "request_id": str(job["id"]), "poll_url": f"/v1/idea-requests/{job_id}"}
+    if status == "succeeded":
+        result.update({"status": "ready", "ideas": ideas(user_id)})
+    elif status in {"failed", "cancelled"}:
+        result["message"] = "The idea screen could not be completed. Please try again."
+    return result
+
+
 def methodology() -> dict[str, Any]:
     return public_contract.methodology_payload()
 

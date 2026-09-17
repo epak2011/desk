@@ -19,6 +19,7 @@ product/build prompt is in `LOVABLE_HANDOFF.md`.
 - `GET /v1/watchlist` → `watchlist_payload(...)` after verified auth
 - `GET /v1/portfolio` → private holdings, position notes, and settings after verified auth
 - `GET /v1/ideas` → saved thematic screens and candidate evidence after verified auth
+- `POST /v1/ideas/requests` → queue a private thematic screen; poll `GET /v1/idea-requests/{request_id}`
 - `GET /v1/system-health` → persisted storage, coverage, freshness, and worker-job audit after verified auth
 - `GET /v1/methodology` → public action definitions, methodology, quality guide, and disclosures
 - `GET /v1/calibration` → the existing performance slices and confidence calibration

@@ -44,6 +44,8 @@ import notification_engine
 import unsubscribe
 from pm_view import _messages_create, get_decision_dossier, get_pm_view
 import tactical
+import idea_discovery
+import user_state_store
 
 
 SCHEDULED_SAFE_JOB_TYPES = ["market_snapshot", "watchlist_market_scan", "market_regime_daily", "repair_missing_data", "full_report"]
@@ -1295,6 +1297,19 @@ def process_job(job: dict) -> dict:
         return refresh_market_regime_daily(payload)
     if job_type == "repair_missing_data":
         return repair_missing_data(payload)
+    if job_type == "idea_discovery":
+        query = str(payload.get("query") or "").strip()
+        user_id = str(payload.get("user_id") or "").strip()
+        result = idea_discovery.generate(query, payload.get("universe") or idea_discovery.DEFAULT_UNIVERSE, _api_key())
+        run = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "query": query,
+               "universe": payload.get("universe") or idea_discovery.DEFAULT_UNIVERSE, "result": result}
+        with backend.db_connection() as conn:
+            with conn.cursor() as cur:
+                state = user_state_store.load(cur, user_id) or {}
+                runs = state.get("idea_discovery_runs") if isinstance(state.get("idea_discovery_runs"), list) else []
+                state["idea_discovery_runs"] = [run, *runs][:8]
+                user_state_store.save(cur, user_id, state)
+        return {"query": query, "candidate_count": len(result.get("candidates") or [])}
     raise ValueError(f"Unsupported job type: {job_type}")
 
 

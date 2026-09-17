@@ -31,7 +31,7 @@ def app_manifest_payload() -> dict[str, Any]:
         {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared"},
         {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared"},
         {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "partial", "missing": ["position_decisions", "portfolio_risk_summary"]},
-        {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "partial", "missing": ["frontend_generation_request"]},
+        {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "shared"},
         {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared"},
         {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/system-health", "auth": "required", "status": "shared"},
         {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": "/v1/methodology", "auth": "public", "status": "shared"},
@@ -78,7 +78,7 @@ def ideas_payload(runs: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "meta": response_meta(),
         "ideas": safe_runs,
         "count": len(safe_runs),
-        "generation": {"available": False, "reason": "The saved screens are readable; API generation is not contracted yet."},
+        "generation": {"available": True, "request_url": "/v1/ideas/requests", "method": "POST", "poll_url_template": "/v1/idea-requests/{request_id}"},
     }
 
 

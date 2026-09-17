@@ -28,6 +28,7 @@ JOB_TYPES = {
     "full_report",
     "market_regime_daily",
     "repair_missing_data",
+    "idea_discovery",
 }
 
 TERMINAL_JOB_STATUSES = {"succeeded", "failed", "cancelled"}

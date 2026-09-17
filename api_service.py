@@ -186,6 +186,16 @@ def ideas(request: Request, identity: Identity):
     return _run(request, api_repository.ideas, identity.user_id)
 
 
+@app.post("/v1/ideas/requests", status_code=202)
+def request_ideas(payload: dict[str, Any], request: Request, identity: Identity):
+    return _run(request, api_repository.request_ideas, identity.user_id, payload)
+
+
+@app.get("/v1/idea-requests/{job_id}")
+def idea_request(job_id: str, request: Request, identity: Identity):
+    return _run(request, api_repository.idea_request, job_id, identity.user_id)
+
+
 @app.get("/v1/system-health")
 def system_health(request: Request, identity: Identity):
     return _run(request, api_repository.system_health, identity.user_id)

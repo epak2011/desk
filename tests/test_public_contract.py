@@ -23,7 +23,7 @@ class PublicContractTests(unittest.TestCase):
         pages = {page["key"]: page for page in payload["pages"]}
         self.assertEqual(pages["analyze"]["endpoint"], "/v1/decisions/{ticker}")
         self.assertEqual(pages["ideas"]["endpoint"], "/v1/ideas")
-        self.assertEqual(pages["ideas"]["status"], "partial")
+        self.assertEqual(pages["ideas"]["status"], "shared")
         self.assertEqual(pages["health"]["endpoint"], "/v1/system-health")
         self.assertEqual(pages["methodology"]["status"], "shared")
         self.assertTrue(payload["rules"]["backend_is_authoritative"])
