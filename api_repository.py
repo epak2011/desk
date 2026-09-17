@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 import attention_engine
@@ -23,6 +24,7 @@ WORKSPACE_FIELDS = {
     "position_notes",
     "settings",
     "notification_preferences",
+    "idea_discovery_runs",
 }
 
 
@@ -277,6 +279,76 @@ def portfolio(user_id: str) -> dict[str, Any]:
         "position_notes": state.get("position_notes") or {},
         "settings": state.get("settings") or {},
     })
+
+
+def ideas(user_id: str) -> dict[str, Any]:
+    state = _workspace_state(user_id)
+    runs = state.get("idea_discovery_runs") if isinstance(state.get("idea_discovery_runs"), list) else []
+    return public_contract.ideas_payload(runs[:8])
+
+
+def methodology() -> dict[str, Any]:
+    return public_contract.methodology_payload()
+
+
+def _age_minutes(value: Any) -> float | None:
+    try:
+        stamp = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        return round(max(0.0, (datetime.now(timezone.utc) - stamp).total_seconds() / 60.0), 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def system_health(user_id: str) -> dict[str, Any]:
+    """Fast persisted-state audit; never calls Yahoo or Claude."""
+    state = _workspace_state(user_id)
+    tickers = [normalize_ticker(item) for item in state.get("watchlist", []) if str(item or "").strip()]
+    rules = backend_layer.read_json_table_many("rule_outputs", tickers)
+    markets = backend_layer.read_json_table_many("market_snapshots", tickers)
+    reports = backend_layer.read_json_table_many("research_reports", tickers)
+    memos = backend_layer.read_json_table_many("pm_memos", tickers)
+    issues = []
+    coverage = {"market": 0, "decision": 0, "pm_memo": 0, "full_report": 0}
+    for ticker in tickers:
+        market, rule, memo, report = markets.get(ticker) or {}, rules.get(ticker) or {}, memos.get(ticker) or {}, reports.get(ticker) or {}
+        if market:
+            coverage["market"] += 1
+        else:
+            issues.append({"ticker": ticker, "kind": "market_missing", "severity": "high"})
+        if rule.get("decision_receipt"):
+            coverage["decision"] += 1
+        else:
+            issues.append({"ticker": ticker, "kind": "decision_missing", "severity": "high"})
+        if memo:
+            coverage["pm_memo"] += 1
+        if report:
+            coverage["full_report"] += 1
+        age = _age_minutes(market.get("updated_at") or market.get("ts") or market.get("market_updated_at"))
+        if age is not None and age > 1440:
+            issues.append({"ticker": ticker, "kind": "market_stale", "severity": "medium", "age_minutes": age})
+    jobs = []
+    try:
+        jobs = backend_layer.latest_jobs(limit=25)
+    except (RuntimeError, TypeError):
+        jobs = []
+    job_counts: dict[str, int] = {}
+    for job in jobs:
+        status = str(job.get("status") or "unknown").lower()
+        job_counts[status] = job_counts.get(status, 0) + 1
+    return {
+        "contract_version": public_contract.PUBLIC_CONTRACT_VERSION,
+        "meta": public_contract.response_meta(engine_version="saved-canonical-output", freshness="live"),
+        "status": "ok" if backend_layer.has_database() and not any(i["severity"] == "high" for i in issues) else "needs_attention",
+        "storage": {"ok": backend_layer.has_database()},
+        "watchlist_count": len(tickers),
+        "coverage": coverage,
+        "issues": issues,
+        "issue_count": len(issues),
+        "worker_jobs": {"counts": job_counts, "recent": jobs},
+        "checks": {"external_market_calls": False, "external_ai_calls": False},
+    }
 
 
 def calibration() -> dict[str, Any]:

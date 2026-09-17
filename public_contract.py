@@ -31,10 +31,10 @@ def app_manifest_payload() -> dict[str, Any]:
         {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared"},
         {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared"},
         {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "partial", "missing": ["position_decisions", "portfolio_risk_summary"]},
-        {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": None, "auth": "required", "status": "backend_contract_needed"},
+        {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "partial", "missing": ["frontend_generation_request"]},
         {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared"},
-        {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/health", "auth": "required", "status": "partial", "missing": ["storage_checks", "worker_checks", "freshness_checks", "decision_consistency"]},
-        {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": None, "auth": "public", "status": "backend_contract_needed"},
+        {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/system-health", "auth": "required", "status": "shared"},
+        {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": "/v1/methodology", "auth": "public", "status": "shared"},
         {"key": "engine_updates", "label": "Engine Updates", "route": "/engine-updates", "endpoint": "/v1/operator/engine-updates", "auth": "owner", "status": "shared"},
     ]
     return {
@@ -48,6 +48,63 @@ def app_manifest_payload() -> dict[str, Any]:
             "no_placeholder_market_data": True,
             "research_may_not_override_action": True,
         },
+    }
+
+
+def ideas_payload(runs: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """Package saved thematic screens without inventing candidate data."""
+    safe_runs = []
+    for run in runs:
+        result = run.get("result") if isinstance(run.get("result"), Mapping) else {}
+        candidates = []
+        for candidate in result.get("candidates") or []:
+            if not isinstance(candidate, Mapping):
+                continue
+            candidates.append({key: candidate.get(key) for key in (
+                "ticker", "company", "score", "theme_fit", "why_it_matters", "evidence", "verify_next",
+                "_name", "_price", "_change", "_action", "_rs", "_market_cap", "_sector", "_industry",
+                "_revenue_growth", "_debt_equity", "_starter",
+            ) if key in candidate})
+        safe_runs.append({
+            "created_at": run.get("ts") or run.get("created_at"),
+            "query": run.get("query"),
+            "criteria": list(result.get("criteria") or []),
+            "summary": result.get("summary"),
+            "candidates": candidates,
+            "metrics_refreshed_at": run.get("metrics_refreshed_at"),
+        })
+    return {
+        "contract_version": PUBLIC_CONTRACT_VERSION,
+        "meta": response_meta(),
+        "ideas": safe_runs,
+        "count": len(safe_runs),
+        "generation": {"available": False, "reason": "The saved screens are readable; API generation is not contracted yet."},
+    }
+
+
+def methodology_payload() -> dict[str, Any]:
+    """Canonical public explanation of the decision system and its limits."""
+    return {
+        "contract_version": PUBLIC_CONTRACT_VERSION,
+        "meta": response_meta(engine_version="rules-2026.08-d", freshness="live"),
+        "title": "How Trading Desk works",
+        "disclaimer": "Trading Desk is research and decision support for educational and informational purposes. It does not provide personalized investment advice, execute trades, or guarantee outcomes.",
+        "actions": [
+            {"key": "enter", "meaning": "Evidence and upside justify initiating exposure."},
+            {"key": "accumulate", "meaning": "The setup supports adding to existing exposure."},
+            {"key": "watch", "meaning": "The thesis may be constructive, but a named trigger or better entry is still required."},
+            {"key": "hold_off", "meaning": "Evidence or timing is not ready; do not initiate or add yet."},
+            {"key": "avoid", "meaning": "Current risk/reward does not justify exposure."},
+        ],
+        "sections": [
+            {"title": "Decision methodology", "body": "Deterministic rules produce the action, sizing, trigger, and invalidation. AI supplies research and dissent but cannot silently replace the rules action. Every signal carries an engine version and auditable decision receipt."},
+            {"title": "Market data", "body": "Prices and indicators may be delayed, incomplete, adjusted, or temporarily unavailable. Data trust and freshness travel with the decision; blocked decisions should not be executed."},
+            {"title": "Performance evidence", "body": "Directional calls use independent cohorts and 5-, 14-, and 30-session paths. Watch and Hold Off are evaluated as patience systems. Small samples are calibration evidence, not proof of future performance."},
+            {"title": "Research boundary", "body": "Company research can explain, challenge, or add context to a call. It never changes the canonical action unless the deterministic engine itself changes."},
+            {"title": "Privacy", "body": "Private accounts can store watchlists, holdings, notes, settings, research, and decision history. Public demo activity is not saved."},
+            {"title": "Risk disclosure", "body": "Investing involves loss of principal. Signals can fail, gaps can bypass stops, and historical results do not predict future returns. Verify important information independently before acting."},
+        ],
+        "quality_classifications": QUALITY_CLASSIFICATIONS,
     }
 
 

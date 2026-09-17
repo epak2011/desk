@@ -181,6 +181,21 @@ def portfolio(request: Request, identity: Identity):
     return _run(request, api_repository.portfolio, identity.user_id)
 
 
+@app.get("/v1/ideas")
+def ideas(request: Request, identity: Identity):
+    return _run(request, api_repository.ideas, identity.user_id)
+
+
+@app.get("/v1/system-health")
+def system_health(request: Request, identity: Identity):
+    return _run(request, api_repository.system_health, identity.user_id)
+
+
+@app.get("/v1/methodology")
+def methodology(request: Request):
+    return _run(request, api_repository.methodology)
+
+
 @app.get("/v1/calibration")
 def calibration(request: Request, identity: Identity):
     return _run(request, api_repository.calibration)

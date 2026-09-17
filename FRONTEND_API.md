@@ -17,6 +17,10 @@ product/build prompt is in `LOVABLE_HANDOFF.md`.
 - `GET /v1/regime` → `regime_payload(...)`
 - `GET/PATCH /v1/workspace` → `user_workspace_payload(...)` after verified auth
 - `GET /v1/watchlist` → `watchlist_payload(...)` after verified auth
+- `GET /v1/portfolio` → private holdings, position notes, and settings after verified auth
+- `GET /v1/ideas` → saved thematic screens and candidate evidence after verified auth
+- `GET /v1/system-health` → persisted storage, coverage, freshness, and worker-job audit after verified auth
+- `GET /v1/methodology` → public action definitions, methodology, quality guide, and disclosures
 - `GET /v1/calibration` → the existing performance slices and confidence calibration
 - `GET /v1/operator/engine-updates` → owner-only rules governance feed after verified auth
 
@@ -37,6 +41,11 @@ the complete hero strip, evidence matrix, action rationale, call-change conditio
 technical picture, PM quality guide, all PM sections, earnings/analyst/Lynch cards,
 and full-report state. Clients should render those named sections directly and
 must not reproduce the Streamlit-only derivation logic.
+
+`GET /v1/app-manifest` is also the parity checklist. A page marked `shared` has
+a backend-owned render contract. A page marked `partial` must display its
+declared `missing` capabilities instead of substituting sample data or quietly
+reimplementing Streamlit logic in the browser.
 
 It also includes a presentation-ready `research` object with the
 saved company overview, thesis, drivers, risks, valuation, PM narrative, and

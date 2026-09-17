@@ -94,6 +94,17 @@ class ApiServiceTests(unittest.TestCase):
         response = self.client.get("/v1/operator/engine-updates")
         self.assertEqual(response.status_code, 401)
 
+    def test_methodology_is_public(self):
+        expected = {"contract_version": 2, "actions": [{"key": "watch"}]}
+        with mock.patch.object(api_service.api_repository, "methodology", return_value=expected):
+            response = self.client.get("/v1/methodology")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), expected)
+
+    def test_ideas_and_system_health_require_sign_in(self):
+        self.assertEqual(self.client.get("/v1/ideas").status_code, 401)
+        self.assertEqual(self.client.get("/v1/system-health").status_code, 401)
+
     def test_engine_updates_denies_non_owner(self):
         identity = VerifiedIdentity("trusted-user", "someone@example.invalid", "Someone")
         api_service.app.dependency_overrides[api_service.current_identity] = lambda: identity

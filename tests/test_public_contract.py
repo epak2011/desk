@@ -12,6 +12,8 @@ from public_contract import (
     security_profile_payload,
     user_workspace_payload,
     watchlist_payload,
+    ideas_payload,
+    methodology_payload,
 )
 
 
@@ -20,8 +22,25 @@ class PublicContractTests(unittest.TestCase):
         payload = app_manifest_payload()
         pages = {page["key"]: page for page in payload["pages"]}
         self.assertEqual(pages["analyze"]["endpoint"], "/v1/decisions/{ticker}")
-        self.assertEqual(pages["ideas"]["status"], "backend_contract_needed")
+        self.assertEqual(pages["ideas"]["endpoint"], "/v1/ideas")
+        self.assertEqual(pages["ideas"]["status"], "partial")
+        self.assertEqual(pages["health"]["endpoint"], "/v1/system-health")
+        self.assertEqual(pages["methodology"]["status"], "shared")
         self.assertTrue(payload["rules"]["backend_is_authoritative"])
+
+    def test_ideas_payload_only_exposes_renderable_saved_screen_fields(self):
+        payload = ideas_payload([{"query": "AI power", "secret": "no", "result": {
+            "summary": "Grid beneficiaries", "criteria": ["Power demand"],
+            "candidates": [{"ticker": "VRT", "score": 91, "theme_fit": "Cooling", "secret": "no"}],
+        }}])
+        self.assertEqual(payload["ideas"][0]["candidates"][0]["ticker"], "VRT")
+        self.assertNotIn("secret", payload["ideas"][0])
+        self.assertNotIn("secret", payload["ideas"][0]["candidates"][0])
+
+    def test_methodology_publishes_actions_and_disclaimer(self):
+        payload = methodology_payload()
+        self.assertEqual({row["key"] for row in payload["actions"]}, {"enter", "accumulate", "watch", "hold_off", "avoid"})
+        self.assertIn("does not provide personalized investment advice", payload["disclaimer"])
 
     def test_analyze_page_payload_is_complete_and_ready_to_render(self):
         rule = {
