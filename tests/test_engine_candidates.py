@@ -86,6 +86,20 @@ class EngineCandidateTests(unittest.TestCase):
         self.assertEqual(weak["action"], "watch")
         self.assertEqual(strong["action"], "accumulate")
 
+    def test_historical_state_uses_frozen_inputs_not_current_values(self):
+        state = engine_candidates.decision_state_from_log({
+            "rule_action": "avoid",
+            "setup_score": 2,
+            "decision_inputs": {
+                "action": "enter_now", "state": "TRENDING", "market_regime": "Mixed",
+                "inputs": {"price": 110, "ma50": 100, "ma100": 95, "ma200": 90, "setup_score": 8.5, "reward_risk": 1.5},
+            },
+            "decision_context": {"extension_warning": True, "extension_warning_severity": "med"},
+        })
+        self.assertEqual(state["action"], "enter_now")
+        self.assertEqual(state["setup_score"], 8.5)
+        self.assertEqual(state["extension_warning"]["severity"], "med")
+
 
 if __name__ == "__main__":
     unittest.main()

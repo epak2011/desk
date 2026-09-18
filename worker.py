@@ -1211,9 +1211,50 @@ def queue_scheduled_backend_maintenance() -> dict:
     return {"queued": queued}
 
 
+def _backfill_shadow_candidates(entries: list[dict]) -> int:
+    """Attach current shadow candidates to historical immutable snapshots.
+
+    Only missing candidate versions are appended. Existing historical shadow
+    records are never rewritten, and the production action remains untouched.
+    """
+    target_candidates = {"entry_timing_guard", "regime_quality_gate"}
+    updated = 0
+    for entry in entries or []:
+        if not isinstance(entry, dict) or not entry.get("id"):
+            continue
+        if not isinstance(entry.get("decision_inputs"), dict):
+            # Do not reconstruct old calls from today's data or incomplete
+            # legacy rows. Backfill is valid only from frozen decision inputs.
+            continue
+        state = engine_candidates.decision_state_from_log(entry)
+        generated = [
+            row for row in engine_candidates.shadow_evaluations(state)
+            if row.get("candidate") in target_candidates
+        ]
+        existing = list(entry.get("shadow_evaluations") or [])
+        existing_keys = {
+            (str(row.get("candidate")), str(row.get("version")))
+            for row in existing if isinstance(row, dict)
+        }
+        additions = [
+            row for row in generated
+            if (str(row.get("candidate")), str(row.get("version"))) not in existing_keys
+        ]
+        if not additions:
+            continue
+        entry["shadow_evaluations"] = existing + additions
+        outcome = entry.get("outcome") if isinstance(entry.get("outcome"), dict) else None
+        if outcome and engine_evaluation.number_or_none(outcome.get("forward_return_pct")) is not None:
+            outcome["shadow_results"] = engine_evaluation.shadow_outcomes(entry, outcome)
+        backend.upsert_decision_log(entry)
+        updated += 1
+    return updated
+
+
 def score_due_rule_outcomes(max_entries: int = 12) -> dict:
     """Refresh due outcome paths once daily and persist the current review gate."""
     all_entries = backend.read_decision_logs()
+    backfilled = _backfill_shadow_candidates(all_entries)
     cohorts = engine_evaluation.independent_cohorts(all_entries, spacing_days=7)
     today = date.today()
     due = []
@@ -1287,6 +1328,7 @@ def score_due_rule_outcomes(max_entries: int = 12) -> dict:
     ]
     flags = engine_evaluation.logic_review_flags(directional)
     alerting = [row for row in flags if row.get("status") in {"watch", "review_logic"}]
+    shadow_promotion = engine_evaluation.shadow_promotion_readiness(directional)
     status = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "score_version": OUTCOME_SCORE_VERSION,
@@ -1294,9 +1336,16 @@ def score_due_rule_outcomes(max_entries: int = 12) -> dict:
         "remaining_due": max(0, total_due - updated),
         "flags": flags,
         "alerting": alerting,
+        "shadow_promotion": shadow_promotion,
     }
     backend.write_engine_review_status(status)
-    return {"scored": updated, "errors": errors, "alerts": len(alerting), "remaining_due": status["remaining_due"]}
+    return {
+        "scored": updated,
+        "shadow_backfilled": backfilled,
+        "errors": errors,
+        "alerts": len(alerting),
+        "remaining_due": status["remaining_due"],
+    }
 
 
 def process_job(job: dict) -> dict:

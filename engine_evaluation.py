@@ -642,3 +642,102 @@ def shadow_performance(entries, minimum_count=3):
             "avg_decision_return_pct": round(sum(ret for _ok, ret in rows) / len(rows), 2),
         })
     return sorted(results, key=lambda row: (-row["avg_decision_return_pct"], -row["count"]))
+
+
+def shadow_promotion_readiness(
+    entries,
+    *,
+    minimum_count=30,
+    minimum_changed=8,
+    minimum_regimes=2,
+    minimum_per_regime=5,
+    minimum_return_lift_pct=1.5,
+    minimum_success_lift_pct=5.0,
+    maximum_regime_harm_pct=-1.0,
+):
+    """Return evidence gates for human review of shadow candidates.
+
+    This function can recommend review but can never promote a candidate. It
+    compares every candidate with the live decision on the identical matured
+    path and requires breadth across market regimes.
+    """
+    groups = {}
+    for entry in entries or []:
+        if not calibration_eligible(entry):
+            continue
+        outcome = entry.get("outcome") if isinstance(entry.get("outcome"), dict) else {}
+        live_return = number_or_none(outcome.get("decision_return_pct"))
+        live_success = outcome.get("directional_success")
+        if live_return is None or live_success is None:
+            continue
+        regime = str((entry.get("decision_context") or {}).get("market_regime") or "Unknown").strip() or "Unknown"
+        evaluations = {
+            (str(row.get("candidate")), str(row.get("version"))): row
+            for row in entry.get("shadow_evaluations") or [] if isinstance(row, dict)
+        }
+        for result in outcome.get("shadow_results") or []:
+            if not isinstance(result, dict):
+                continue
+            candidate_return = number_or_none(result.get("decision_return_pct"))
+            candidate_success = result.get("directional_success")
+            if candidate_return is None or candidate_success is None:
+                continue
+            key = (str(result.get("candidate") or "unknown"), str(result.get("version") or "unknown"))
+            evaluation = evaluations.get(key) or {}
+            groups.setdefault(key, []).append({
+                "regime": regime,
+                "live_return": live_return,
+                "candidate_return": candidate_return,
+                "live_success": bool(live_success),
+                "candidate_success": bool(candidate_success),
+                "changed": bool(evaluation.get("differs_from_live")),
+            })
+
+    readiness = []
+    for (candidate, version), rows in groups.items():
+        count = len(rows)
+        changed_count = sum(row["changed"] for row in rows)
+        return_lift = sum(row["candidate_return"] - row["live_return"] for row in rows) / count
+        success_lift = 100 * (
+            sum(row["candidate_success"] for row in rows) - sum(row["live_success"] for row in rows)
+        ) / count
+        regime_groups = {}
+        for row in rows:
+            regime_groups.setdefault(row["regime"], []).append(row)
+        mature_regimes = []
+        for regime, regime_rows in regime_groups.items():
+            if len(regime_rows) < int(minimum_per_regime):
+                continue
+            lift = sum(row["candidate_return"] - row["live_return"] for row in regime_rows) / len(regime_rows)
+            mature_regimes.append({"regime": regime, "count": len(regime_rows), "return_lift_pct": round(lift, 2)})
+        harmful_regimes = [row for row in mature_regimes if row["return_lift_pct"] <= float(maximum_regime_harm_pct)]
+        gates = {
+            "sample": count >= int(minimum_count),
+            "changed_sample": changed_count >= int(minimum_changed),
+            "regime_breadth": len(mature_regimes) >= int(minimum_regimes),
+            "return_lift": return_lift >= float(minimum_return_lift_pct),
+            "success_lift": success_lift >= float(minimum_success_lift_pct),
+            "no_material_regime_harm": not harmful_regimes,
+        }
+        if all(gates.values()):
+            status = "review_for_promotion"
+            reason = "All evidence gates passed; human review is warranted before any production change."
+        elif not gates["sample"] or not gates["changed_sample"] or not gates["regime_breadth"]:
+            status = "collecting"
+            reason = "More mature changed decisions across market regimes are required."
+        else:
+            status = "do_not_promote"
+            reason = "The candidate does not improve outcomes consistently enough for promotion."
+        readiness.append({
+            "candidate": candidate,
+            "version": version,
+            "status": status,
+            "count": count,
+            "changed_count": changed_count,
+            "success_lift_pct": round(success_lift, 2),
+            "return_lift_pct": round(return_lift, 2),
+            "regimes": mature_regimes,
+            "gates": gates,
+            "reason": reason,
+        })
+    return sorted(readiness, key=lambda row: (row["status"] != "review_for_promotion", -row["return_lift_pct"], row["candidate"]))

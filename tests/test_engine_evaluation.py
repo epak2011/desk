@@ -235,6 +235,42 @@ class EngineEvaluationTests(unittest.TestCase):
         self.assertEqual(results[0]["decision_return_pct"], 7.5)
         self.assertEqual(results[0]["evaluation_mode"], "avoided_long_exposure")
 
+    def test_shadow_promotion_requires_matched_cross_regime_improvement(self):
+        entries = []
+        for index in range(30):
+            regime = "Mixed" if index < 15 else "Unfavorable"
+            entries.append({
+                "decision_context": {"market_regime": regime},
+                "shadow_evaluations": [{
+                    "candidate": "entry_timing_guard", "version": "s2",
+                    "differs_from_live": index < 20,
+                }],
+                "outcome": {
+                    "directional_success": False, "decision_return_pct": -2,
+                    "shadow_results": [{
+                        "candidate": "entry_timing_guard", "version": "s2",
+                        "directional_success": True, "decision_return_pct": 2,
+                    }],
+                },
+            })
+        result = engine_evaluation.shadow_promotion_readiness(entries)[0]
+        self.assertEqual(result["status"], "review_for_promotion")
+        self.assertEqual(result["changed_count"], 20)
+        self.assertTrue(all(result["gates"].values()))
+
+    def test_shadow_promotion_never_passes_on_small_sample(self):
+        entry = {
+            "decision_context": {"market_regime": "Mixed"},
+            "shadow_evaluations": [{"candidate": "gate", "version": "v1", "differs_from_live": True}],
+            "outcome": {
+                "directional_success": False, "decision_return_pct": -5,
+                "shadow_results": [{"candidate": "gate", "version": "v1", "directional_success": True, "decision_return_pct": 5}],
+            },
+        }
+        result = engine_evaluation.shadow_promotion_readiness([entry])[0]
+        self.assertEqual(result["status"], "collecting")
+        self.assertFalse(result["gates"]["sample"])
+
 
 if __name__ == "__main__":
     unittest.main()

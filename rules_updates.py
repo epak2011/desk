@@ -13,6 +13,21 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-09-18",
+        "title": "Historical shadow backfill and promotion governance",
+        "status": "Repository updated",
+        "summary": (
+            "Evaluate the new entry filters on eligible historical decision snapshots and publish explicit evidence gates for human promotion review."
+        ),
+        "changes": (
+            "Backfill entry-timing and regime-quality candidates only from frozen decision-time inputs.",
+            "Re-score matured historical paths without downloading or substituting current market inputs.",
+            "Require matched outcomes, changed decisions, cross-regime breadth, success lift, return lift, and no materially harmed regime.",
+            "Allow the system to recommend human review but never promote a rule automatically.",
+        ),
+        "validation": "Promotion still requires all published evidence gates; no production action changes in this release.",
+    },
+    {
         "date": "2026-09-17",
         "title": "Entry timing and regime quality shadow gates",
         "status": "Shadow testing",

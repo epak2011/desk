@@ -20,6 +20,32 @@ def market_history(start_price=100, sessions=40):
 
 
 class WorkerOutcomeScoringTests(unittest.TestCase):
+    def test_historical_shadow_candidates_backfill_from_frozen_snapshot(self):
+        entry = {
+            "id": "rules-auto-BACKFILL",
+            "rule_action": "enter_now",
+            "decision_inputs": {
+                "action": "enter_now", "state": "TRENDING", "market_regime": "Mixed",
+                "inputs": {"price": 110, "ma50": 100, "ma100": 95, "ma200": 90, "setup_score": 7, "reward_risk": 1.5},
+            },
+            "decision_context": {"market_regime": "Mixed", "extension_warning": True, "extension_warning_severity": "med"},
+            "shadow_evaluations": [],
+            "outcome": {
+                "forward_return_pct": -6, "excess_return_pct": -4,
+                "directional_success": False, "decision_return_pct": -6,
+            },
+        }
+        saved = []
+        with patch.object(worker.backend, "upsert_decision_log", side_effect=lambda row: saved.append(row.copy())):
+            count = worker._backfill_shadow_candidates([entry])
+        self.assertEqual(count, 1)
+        self.assertEqual(
+            {row["candidate"] for row in entry["shadow_evaluations"]},
+            {"entry_timing_guard", "regime_quality_gate"},
+        )
+        self.assertTrue(all(row["directional_success"] for row in entry["outcome"]["shadow_results"]))
+        self.assertEqual(len(saved), 1)
+
     def test_scheduled_scoring_persists_outcome_and_status(self):
         logged = datetime.now(timezone.utc) - timedelta(days=35)
         entry = {

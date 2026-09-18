@@ -9957,6 +9957,7 @@ def rules_performance_snapshot():
         "performance_slices": engine_evaluation.performance_slices(directional_cohorts),
         "confidence_calibration": engine_evaluation.confidence_calibration(directional_cohorts),
         "shadow_performance": engine_evaluation.shadow_performance(directional_cohorts),
+        "shadow_promotion": engine_evaluation.shadow_promotion_readiness(directional_cohorts),
         "action_counts": action_counts,
         "right_by_action": right_by_action,
         "total_by_action": total_by_action,
@@ -9992,6 +9993,7 @@ def render_rules_performance_dashboard():
     performance_slices = snap["performance_slices"]
     confidence_calibration = snap["confidence_calibration"]
     shadow_performance = snap["shadow_performance"]
+    shadow_promotion = snap["shadow_promotion"]
 
     def _metric(value, suffix="%"):
         return f"{float(value):+.1f}{suffix}" if value is not None else "—"
@@ -10068,6 +10070,27 @@ def render_rules_performance_dashboard():
             '<div class="health-warn" style="font-weight:800;">Collecting evidence</div>'
             '<div style="font-size:12px;color:var(--color-muted);margin-top:4px;">Entry-timing, regime-quality, structural-state, and extension candidates are logging beside the live engine. Filter candidates are scored by the gains or losses they avoid on the identical price path. Results appear after at least three integrity-approved directional outcomes mature.</div>'
             '</div>',
+            unsafe_allow_html=True,
+        )
+
+    if shadow_promotion:
+        promotion_rows = "".join(
+            '<div style="display:grid;grid-template-columns:1.3fr .75fr .4fr .5fr .65fr .65fr 1.4fr;gap:9px;padding:8px 6px;'
+            'border-bottom:1px dashed var(--color-border-soft);font-family:var(--font-mono);font-size:11px;">'
+            f'<strong>{html.escape(row["candidate"].replace("_", " ").title())}</strong>'
+            f'<span>{html.escape(row["status"].replace("_", " ").title())}</span>'
+            f'<span>{row["count"]}</span><span>{row["changed_count"]}</span>'
+            f'<span>{_metric(row["success_lift_pct"])}</span><span>{_metric(row["return_lift_pct"])}</span>'
+            f'<span style="font-family:var(--font-sans);">{html.escape(row["reason"])}</span></div>'
+            for row in shadow_promotion
+        )
+        st.markdown(
+            '<div class="watch-queue-label" style="margin:18px 0 7px;">Shadow promotion gate</div>'
+            '<div style="font-size:12px;color:var(--color-muted);margin-bottom:8px;">A candidate can only be recommended for human review after at least 30 matched outcomes, 8 changed calls, evidence in 2 regimes, ≥5-point success lift, ≥1.5-point return lift, and no materially harmed regime. Promotion is never automatic.</div>'
+            '<div style="display:grid;grid-template-columns:1.3fr .75fr .4fr .5fr .65fr .65fr 1.4fr;gap:9px;padding:8px 6px;'
+            'border-bottom:1px solid var(--color-border);font-size:10px;font-weight:800;text-transform:uppercase;color:var(--color-muted);">'
+            '<span>Candidate</span><span>Status</span><span>n</span><span>Changed</span><span>Success lift</span><span>Return lift</span><span>Reason</span></div>'
+            + promotion_rows,
             unsafe_allow_html=True,
         )
 

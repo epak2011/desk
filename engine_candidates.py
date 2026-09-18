@@ -161,3 +161,29 @@ def shadow_evaluations(state: dict) -> list[dict]:
             ),
         },
     ]
+
+
+def decision_state_from_log(entry: dict) -> dict:
+    """Rebuild only decision-time candidate inputs from an immutable log row.
+
+    This intentionally ignores current market data. Historical candidates must
+    be evaluated using what the engine knew when the original call was logged.
+    """
+    entry = entry if isinstance(entry, dict) else {}
+    snapshot = entry.get("decision_inputs") if isinstance(entry.get("decision_inputs"), dict) else {}
+    inputs = snapshot.get("inputs") if isinstance(snapshot.get("inputs"), dict) else {}
+    context = entry.get("decision_context") if isinstance(entry.get("decision_context"), dict) else {}
+    state = {
+        **inputs,
+        "action": snapshot.get("action") or entry.get("rule_action"),
+        "state": snapshot.get("state") or entry.get("rule_state"),
+        "market_regime": snapshot.get("market_regime") or context.get("market_regime"),
+        "setup_score": inputs.get("setup_score") if inputs.get("setup_score") is not None else entry.get("setup_score"),
+        "reward_risk": inputs.get("reward_risk") if inputs.get("reward_risk") is not None else entry.get("reward_risk"),
+        "entry_is_projected": bool(entry.get("entry_is_projected")),
+    }
+    if context.get("extension_warning"):
+        state["extension_warning"] = {
+            "severity": str(context.get("extension_warning_severity") or "active").lower(),
+        }
+    return state
