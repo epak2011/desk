@@ -39,6 +39,7 @@ import auth_layer
 import decision_contract
 import data_trust
 import engine_evaluation
+import ism_data
 import engine_candidates
 import portfolio_context
 import tactical
@@ -19472,6 +19473,8 @@ if view == "regime":
 
     @st.cache_data(ttl=60 * 60, show_spinner=False)
     def _fred_rows(series_id, limit=24):
+        if series_id == "NAPMPMI":
+            return ism_data.manufacturing_pmi_rows()
         try:
             import pandas as pd
             url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={urllib.parse.quote(series_id)}"

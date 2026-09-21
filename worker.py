@@ -39,6 +39,7 @@ import data_trust
 import engine_evaluation
 import market_freshness
 import crypto_regime
+import ism_data
 import email_delivery
 import notification_engine
 import unsubscribe
@@ -218,7 +219,8 @@ def _fear_greed_value() -> tuple[int | None, str | None]:
 
 
 def _macro_regime_inputs() -> dict:
-    ism = _fred_values("NAPMPMI")
+    ism_rows = ism_data.manufacturing_pmi_rows()
+    ism = [row["value"] for row in ism_rows]
     unemp = _fred_values("UNRATE")
     hy = _fred_values("BAMLH0A0HYM2")
     curve = _fred_values("T10Y2Y")
