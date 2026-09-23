@@ -11,6 +11,7 @@ from typing import Any, Iterable
 
 import attention_engine
 import backend_layer
+import portfolio_context
 import public_contract
 import user_state_store
 from rules_updates import engine_updates_payload
@@ -272,12 +273,73 @@ def attention(user_id: str) -> dict[str, Any]:
     return public_contract.attention_payload(normalized)
 
 
+def _pf_number(value, default=None):
+    try:
+        return default if value is None else float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def portfolio(user_id: str) -> dict[str, Any]:
     state = _workspace_state(user_id)
+    holdings = state.get("holdings") if isinstance(state.get("holdings"), dict) else {}
+    settings = state.get("settings") if isinstance(state.get("settings"), dict) else {}
+    tickers = [normalize_ticker(item) for item in holdings.keys() if str(item or "").strip()]
+    markets = backend_layer.read_json_table_many("market_snapshots", tickers)
+    rules = backend_layer.read_json_table_many("rule_outputs", tickers)
+
+    prices: dict[str, Any] = {}
+    sectors: dict[str, Any] = {}
+    for ticker in tickers:
+        market = markets.get(ticker) or {}
+        prices[ticker] = market.get("price") or market.get("last")
+        sectors[ticker] = (market.get("security_profile") or {}).get("sector") or "Unknown"
+
+    account_size = _pf_number(settings.get("account_size"), 100000)
+    risk_per_trade = _pf_number(settings.get("risk_per_trade"), 0.01)
+    max_position_pct = _pf_number(settings.get("max_position_pct"), 0.25)
+
+    position_decisions = []
+    sector_exposure: dict[str, float] = {}
+    concentration_flags = []
+    for ticker in tickers:
+        rule = rules.get(ticker) or {}
+        receipt = rule.get("decision_receipt") if isinstance(rule.get("decision_receipt"), dict) else {}
+        invalidation = receipt.get("invalidation") if isinstance(receipt.get("invalidation"), dict) else {}
+        ticker_state = {
+            "action": receipt.get("action"),
+            "entry_size": receipt.get("entry_size"),
+            "entry": receipt.get("price"),
+            "price": receipt.get("price"),
+            "stop": invalidation.get("price"),
+        }
+        recommendation = portfolio_context.portfolio_recommendation(
+            ticker,
+            ticker_state,
+            holdings,
+            prices,
+            sectors,
+            account_size=account_size,
+            risk_per_trade=risk_per_trade,
+            max_position_pct=max_position_pct,
+        )
+        position_decisions.append({"ticker": ticker, **recommendation})
+        if recommendation.get("concentration_flag"):
+            concentration_flags.append(ticker)
+        sector_exposure[recommendation.get("sector", "Unknown")] = recommendation.get("sector_weight_pct", 0)
+
+    portfolio_risk_summary = {
+        "sector_exposure_pct": sector_exposure,
+        "concentration_flags": concentration_flags,
+        "position_count": len(tickers),
+    }
+
     return public_contract.user_workspace_payload({
-        "holdings": state.get("holdings") or {},
+        "holdings": holdings,
         "position_notes": state.get("position_notes") or {},
-        "settings": state.get("settings") or {},
+        "settings": settings,
+        "position_decisions": position_decisions,
+        "portfolio_risk_summary": portfolio_risk_summary,
     })
 
 

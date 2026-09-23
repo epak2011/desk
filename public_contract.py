@@ -30,7 +30,7 @@ def app_manifest_payload() -> dict[str, Any]:
         {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared", "sections": ["decision_header", "hero", "company_overview", "decision_evidence", "why_action", "call_changes", "technical_picture", "portfolio_manager", "full_research_report"]},
         {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared", "sections": ["decision_rows"]},
         {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared", "sections": ["attention_inbox"]},
-        {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "partial", "missing": ["position_decisions", "portfolio_risk_summary"], "sections": ["holdings", "position_notes", "portfolio_risk_summary"]},
+        {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "shared", "sections": ["holdings", "position_notes", "position_decisions", "portfolio_risk_summary"]},
         {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "shared", "sections": ["screen_request", "saved_screens", "criteria", "candidates", "evidence", "verify_next"]},
         {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared", "sections": ["evidence_summary", "cohorts", "outcomes", "review_cases"]},
         {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/system-health", "auth": "required", "status": "shared", "sections": ["status", "coverage", "issues", "worker_jobs", "checks"]},
@@ -559,6 +559,8 @@ def user_workspace_payload(state: Mapping[str, Any]) -> dict[str, Any]:
         "position_notes",
         "settings",
         "notification_preferences",
+        "position_decisions",
+        "portfolio_risk_summary",
     )
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
