@@ -214,14 +214,20 @@ def decision_payload(
 ) -> dict[str, Any]:
     """Return the single canonical decision response consumed by any UI."""
     trust = receipt.get("data_trust") or {}
+    input_snapshot = receipt.get("input_snapshot") or {}
     executable = bool(trust.get("executable", True)) if isinstance(trust, Mapping) else True
     decision = _public_receipt(receipt)
+    data_as_of = (
+        trust.get("as_of") if isinstance(trust, Mapping) else None
+    ) or (
+        input_snapshot.get("source_as_of") if isinstance(input_snapshot, Mapping) else None
+    ) or receipt.get("captured_at")
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
         "meta": response_meta(
             generated_at=str(receipt.get("captured_at") or "") or None,
             engine_version=str(receipt.get("engine_version") or "unknown"),
-            data_as_of=(trust.get("as_of") if isinstance(trust, Mapping) else None),
+            data_as_of=str(data_as_of or "") or None,
             freshness=str((trust.get("freshness") if isinstance(trust, Mapping) else None) or "unknown"),
             refresh_url=f"/v1/decisions/{str(receipt.get('ticker') or '').upper()}/requests",
         ),

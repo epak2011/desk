@@ -81,6 +81,7 @@ class PublicContractTests(unittest.TestCase):
                 "receipt_id": "abc",
                 "ticker": "AAPL",
                 "action": "Enter",
+                "captured_at": "2026-09-23T18:27:41+00:00",
                 "data_trust": {"status": "blocked", "executable": False},
                 "private_note": "never expose",
             },
@@ -90,6 +91,16 @@ class PublicContractTests(unittest.TestCase):
         self.assertFalse(payload["executable"])
         self.assertNotIn("private_note", payload["decision"])
         self.assertEqual(payload["meta"]["contract_version"], PUBLIC_CONTRACT_VERSION)
+        self.assertEqual(payload["meta"]["data_as_of"], "2026-09-23T18:27:41+00:00")
+
+    def test_decision_payload_prefers_market_source_timestamp(self):
+        payload = decision_payload({
+            "ticker": "AVGO",
+            "captured_at": "2026-09-23T18:27:41+00:00",
+            "input_snapshot": {"source_as_of": "2026-09-23T18:25:00+00:00"},
+            "data_trust": {"as_of": "2026-09-23T18:26:00+00:00"},
+        })
+        self.assertEqual(payload["meta"]["data_as_of"], "2026-09-23T18:26:00+00:00")
 
     def test_attention_payload_has_stable_shape_without_private_fields(self):
         payload = attention_payload(
