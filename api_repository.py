@@ -26,6 +26,9 @@ WORKSPACE_FIELDS = {
     "settings",
     "notification_preferences",
     "idea_discovery_runs",
+    "account_size",
+    "risk_per_trade",
+    "max_position_pct",
 }
 
 
@@ -175,6 +178,30 @@ def regime() -> dict[str, Any]:
     return public_contract.regime_payload(snapshot)
 
 
+def request_regime(user_id: str) -> dict[str, Any]:
+    """Queue one canonical regime refresh; authentication prevents public abuse."""
+    job_id = backend_layer.enqueue_job(
+        "market_regime_daily", payload={"source": "frontend_api"}, priority=20,
+        requested_by=f"api:{user_id}", dedupe_active=True,
+    )
+    if not job_id:
+        raise RuntimeError("The market refresh could not be queued.")
+    return {"status": "queued", "request_id": job_id, "poll_url": f"/v1/regime-requests/{job_id}"}
+
+
+def regime_request(job_id: str, user_id: str) -> dict[str, Any]:
+    job = backend_layer.get_job(job_id)
+    if not job or job.get("requested_by") != f"api:{user_id}" or job.get("job_type") != "market_regime_daily":
+        raise NotFoundError("Market refresh request was not found.")
+    status = str(job.get("status") or "queued").lower()
+    result = {"status": status, "request_id": str(job["id"]), "poll_url": f"/v1/regime-requests/{job_id}"}
+    if status == "succeeded":
+        result.update({"status": "ready", "regime": regime()})
+    elif status in {"failed", "cancelled"}:
+        result["message"] = "The market refresh could not be completed. Please try again."
+    return result
+
+
 def workspace(user_id: str) -> dict[str, Any]:
     state = _workspace_state(user_id)
     payload = public_contract.user_workspace_payload(state)
@@ -295,9 +322,15 @@ def portfolio(user_id: str) -> dict[str, Any]:
         prices[ticker] = market.get("price") or market.get("last")
         sectors[ticker] = (market.get("security_profile") or {}).get("sector") or "Unknown"
 
-    account_size = _pf_number(settings.get("account_size"), 100000)
-    risk_per_trade = _pf_number(settings.get("risk_per_trade"), 0.01)
-    max_position_pct = _pf_number(settings.get("max_position_pct"), 0.25)
+    account_size = _pf_number(state.get("account_size"), _pf_number(settings.get("account_size"), 100000))
+    risk_per_trade = _pf_number(state.get("risk_per_trade"), _pf_number(settings.get("risk_per_trade"), 0.01))
+    max_position_pct = _pf_number(state.get("max_position_pct"), _pf_number(settings.get("max_position_pct"), 0.25))
+    settings = {
+        **settings,
+        "account_size": account_size,
+        "risk_per_trade": risk_per_trade,
+        "max_position_pct": max_position_pct,
+    }
 
     position_decisions = []
     sector_exposure: dict[str, float] = {}
@@ -328,16 +361,38 @@ def portfolio(user_id: str) -> dict[str, Any]:
             concentration_flags.append(ticker)
         sector_exposure[recommendation.get("sector", "Unknown")] = recommendation.get("sector_weight_pct", 0)
 
+    position_values = {}
+    for ticker in tickers:
+        holding = holdings.get(ticker) if isinstance(holdings.get(ticker), dict) else {}
+        shares = _pf_number(holding.get("shares"), 0) or 0
+        price = _pf_number(prices.get(ticker), _pf_number(holding.get("entry_price"), 0)) or 0
+        position_values[ticker] = max(0.0, shares * price)
+    gross_value = sum(position_values.values())
+    largest_positions = sorted(
+        ({
+            "ticker": ticker, "value": round(value, 2),
+            "weight_pct": round(value / account_size * 100, 2) if account_size else 0.0,
+        } for ticker, value in position_values.items()),
+        key=lambda row: row["value"], reverse=True,
+    )[:5]
     portfolio_risk_summary = {
         "sector_exposure_pct": sector_exposure,
         "concentration_flags": concentration_flags,
         "position_count": len(tickers),
+        "account_size": account_size,
+        "gross_position_value": round(gross_value, 2),
+        "gross_exposure_pct": round(gross_value / account_size * 100, 2) if account_size else 0.0,
+        "unallocated_value": round(max(0.0, account_size - gross_value), 2) if account_size else None,
+        "largest_positions": largest_positions,
     }
 
     return public_contract.user_workspace_payload({
         "holdings": holdings,
         "position_notes": state.get("position_notes") or {},
         "settings": settings,
+        "account_size": account_size,
+        "risk_per_trade": risk_per_trade,
+        "max_position_pct": max_position_pct,
         "position_decisions": position_decisions,
         "portfolio_risk_summary": portfolio_risk_summary,
     })

@@ -13,6 +13,24 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-09-23",
+        "title": "Complete frontend parity and deployment governance",
+        "status": "Repository updated",
+        "summary": (
+            "Complete the shared page contracts, correct portfolio-aware sizing inputs, "
+            "and prevent Streamlit/Lovable drift after future backend releases."
+        ),
+        "changes": (
+            "Publish the Today daily workflow summary and mark every page contract shared.",
+            "Normalize account size, per-trade risk, and position caps across legacy Streamlit and Lovable workspace shapes.",
+            "Publish portfolio exposure, unallocated value, concentration flags, largest positions, and per-position decisions.",
+            "Add universal freshness, refresh, stale-state, and data-as-of display instructions to response metadata.",
+            "Fingerprint every page contract and publish required response keys for route-by-route frontend parity checks.",
+            "Verify after every main-branch push that Render is on the exact revision and public Market/Analyze contracts remain complete.",
+        ),
+        "validation": "All 189 automated tests pass. This release changes presentation contracts and portfolio context, not the production trading rules.",
+    },
+    {
         "date": "2026-09-18",
         "title": "Historical shadow backfill and promotion governance",
         "status": "Repository updated",

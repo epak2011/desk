@@ -25,6 +25,8 @@ class FrontendContractAssetTests(unittest.TestCase):
         for route in (
             "/v1/health:",
             "/v1/regime:",
+            "/v1/regime/requests:",
+            "/v1/regime-requests/{job_id}:",
             "/v1/decisions/{ticker}:",
             "/v1/workspace:",
             "/v1/watchlist:",

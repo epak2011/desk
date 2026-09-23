@@ -26,6 +26,8 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(pages["ideas"]["status"], "shared")
         self.assertEqual(pages["health"]["endpoint"], "/v1/system-health")
         self.assertEqual(pages["methodology"]["status"], "shared")
+        self.assertTrue(all(page["status"] == "shared" for page in pages.values()))
+        self.assertNotIn("missing", pages["today"])
         self.assertTrue(payload["rules"]["backend_is_authoritative"])
         self.assertTrue(payload["rules"]["render_endpoint_payload_directly"])
         self.assertEqual(
@@ -94,7 +96,14 @@ class PublicContractTests(unittest.TestCase):
             [{"event_id": "x", "ticker": "MSFT", "priority": "high", "private": 1}]
         )
         self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["daily_workflow_summary"]["urgent_items"], 1)
+        self.assertEqual(payload["daily_workflow_summary"]["affected_tickers"], ["MSFT"])
         self.assertNotIn("private", payload["events"][0])
+
+    def test_empty_attention_payload_publishes_clear_daily_workflow(self):
+        payload = attention_payload([])
+        self.assertEqual(payload["daily_workflow_summary"]["status"], "clear")
+        self.assertEqual(payload["daily_workflow_summary"]["next_step"], "No action is required.")
 
     def test_regime_payload_allowlists_fields(self):
         payload = regime_payload({
@@ -125,6 +134,7 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "data_stale")
         self.assertTrue(payload["error"]["retryable"])
         self.assertEqual(payload["meta"]["request_id"], "req-1")
+        self.assertIn("display", payload["meta"])
 
     def test_old_or_price_dislocated_research_is_stale(self):
         payload = research_payload(

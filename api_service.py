@@ -51,6 +51,11 @@ async def request_id_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Trading-Desk-Revision"] = str(os.environ.get("RENDER_GIT_COMMIT") or "local")[:12]
+    response.headers["X-Trading-Desk-Contract"] = str(api_repository.public_contract.PUBLIC_CONTRACT_VERSION)
+    response.headers["X-Trading-Desk-Contract-Fingerprint"] = str(
+        api_repository.public_contract.app_manifest_payload().get("contract_fingerprint") or ""
+    )
     return response
 
 
@@ -117,6 +122,16 @@ def app_manifest():
 @app.get("/v1/regime")
 def regime(request: Request):
     return _run(request, api_repository.regime)
+
+
+@app.post("/v1/regime/requests", status_code=202)
+def request_regime(request: Request, identity: Identity):
+    return _run(request, api_repository.request_regime, identity.user_id)
+
+
+@app.get("/v1/regime-requests/{job_id}")
+def regime_request(job_id: str, request: Request, identity: Identity):
+    return _run(request, api_repository.regime_request, job_id, identity.user_id)
 
 
 @app.get("/v1/decisions/{ticker}")

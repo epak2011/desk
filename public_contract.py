@@ -7,11 +7,27 @@ engine with different actions, sizing, or trust semantics.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
 
 PUBLIC_CONTRACT_VERSION = 2
+
+PAGE_CONTRACTS = [
+    {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "shared", "sections": ["daily_decision_workflow", "attention_inbox"], "response_keys": ["daily_workflow_summary", "events"]},
+    {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared", "sections": ["outlook", "entry_timing", "todays_context", "market_highlights", "market_implications", "forward_watch", "framework_gauges", "market_news", "crypto_regime", "metric_guide"], "response_keys": ["regime"]},
+    {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared", "sections": ["decision_header", "hero", "company_overview", "decision_evidence", "why_action", "call_changes", "technical_picture", "portfolio_manager", "full_research_report"], "response_keys": ["decision", "security_profile", "research", "analyze_page"]},
+    {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared", "sections": ["decision_rows"], "response_keys": ["items"]},
+    {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared", "sections": ["attention_inbox"], "response_keys": ["events"]},
+    {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "shared", "sections": ["holdings", "position_notes", "position_decisions", "portfolio_risk_summary"], "response_keys": ["workspace.holdings", "workspace.position_notes", "workspace.position_decisions", "workspace.portfolio_risk_summary"]},
+    {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "shared", "sections": ["screen_request", "saved_screens", "criteria", "candidates", "evidence", "verify_next"], "response_keys": ["ideas", "generation"]},
+    {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared", "sections": ["evidence_summary", "cohorts", "outcomes", "review_cases"], "response_keys": ["calibration"]},
+    {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/system-health", "auth": "required", "status": "shared", "sections": ["status", "coverage", "issues", "worker_jobs", "checks"], "response_keys": ["status", "coverage", "issues", "worker_jobs", "checks"]},
+    {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": "/v1/methodology", "auth": "public", "status": "shared", "sections": ["disclaimer", "actions", "methodology_sections", "quality_classifications"], "response_keys": ["disclaimer", "actions", "sections", "quality_classifications"]},
+    {"key": "engine_updates", "label": "Engine Updates", "route": "/engine-updates", "endpoint": "/v1/operator/engine-updates", "auth": "owner", "status": "shared", "sections": ["rules_releases", "change_log", "validation"], "response_keys": ["updates"]},
+]
 
 
 QUALITY_CLASSIFICATIONS = [
@@ -24,21 +40,11 @@ QUALITY_CLASSIFICATIONS = [
 
 def app_manifest_payload() -> dict[str, Any]:
     """Publish the backend-owned page map every frontend must implement."""
-    pages = [
-        {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "partial", "missing": ["daily_workflow_summary"], "sections": ["daily_decision_workflow", "attention_inbox"]},
-        {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared", "sections": ["outlook", "entry_timing", "todays_context", "market_highlights", "market_implications", "forward_watch", "framework_gauges", "market_news", "crypto_regime", "metric_guide"]},
-        {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared", "sections": ["decision_header", "hero", "company_overview", "decision_evidence", "why_action", "call_changes", "technical_picture", "portfolio_manager", "full_research_report"]},
-        {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared", "sections": ["decision_rows"]},
-        {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared", "sections": ["attention_inbox"]},
-        {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "shared", "sections": ["holdings", "position_notes", "position_decisions", "portfolio_risk_summary"]},
-        {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "shared", "sections": ["screen_request", "saved_screens", "criteria", "candidates", "evidence", "verify_next"]},
-        {"key": "calibration", "label": "Calibration", "route": "/calibration", "endpoint": "/v1/calibration", "auth": "required", "status": "shared", "sections": ["evidence_summary", "cohorts", "outcomes", "review_cases"]},
-        {"key": "health", "label": "System Health", "route": "/health", "endpoint": "/v1/system-health", "auth": "required", "status": "shared", "sections": ["status", "coverage", "issues", "worker_jobs", "checks"]},
-        {"key": "methodology", "label": "Methodology", "route": "/methodology", "endpoint": "/v1/methodology", "auth": "public", "status": "shared", "sections": ["disclaimer", "actions", "methodology_sections", "quality_classifications"]},
-        {"key": "engine_updates", "label": "Engine Updates", "route": "/engine-updates", "endpoint": "/v1/operator/engine-updates", "auth": "owner", "status": "shared", "sections": ["rules_releases", "change_log", "validation"]},
-    ]
+    pages = [dict(page) for page in PAGE_CONTRACTS]
+    fingerprint = hashlib.sha256(json.dumps(pages, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
+        "contract_fingerprint": fingerprint,
         "meta": response_meta(engine_version="saved-canonical-output", freshness="live"),
         "navigation": [page["key"] for page in pages],
         "pages": pages,
@@ -50,6 +56,9 @@ def app_manifest_payload() -> dict[str, Any]:
             "no_client_decision_logic": True,
             "no_placeholder_market_data": True,
             "research_may_not_override_action": True,
+            "show_data_as_of_on_every_page": True,
+            "stale_state_must_be_red": True,
+            "disable_actionable_language_when_blocked": True,
         },
     }
 
@@ -122,14 +131,30 @@ def response_meta(
     data_as_of: str | None = None,
     freshness: str = "unknown",
     request_id: str | None = None,
+    refresh_url: str | None = None,
+    refresh_method: str = "POST",
 ) -> dict[str, Any]:
     """Metadata every frontend response can render without interpreting rules."""
+    normalized_freshness = str(freshness or "unknown").lower()
+    is_stale = normalized_freshness in {"stale", "blocked", "expired"}
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
         "generated_at": generated_at or _iso_now(),
         "engine_version": engine_version or "unknown",
         "data_as_of": data_as_of,
         "freshness": freshness,
+        "stale": is_stale,
+        "refresh_required": is_stale,
+        "refresh": {
+            "available": bool(refresh_url),
+            "url": refresh_url,
+            "method": refresh_method if refresh_url else None,
+        },
+        "display": {
+            "show_data_as_of": True,
+            "stale_color": "red",
+            "disable_actionable_language_when_blocked": True,
+        },
         "request_id": request_id,
     }
 
@@ -198,6 +223,7 @@ def decision_payload(
             engine_version=str(receipt.get("engine_version") or "unknown"),
             data_as_of=(trust.get("as_of") if isinstance(trust, Mapping) else None),
             freshness=str((trust.get("freshness") if isinstance(trust, Mapping) else None) or "unknown"),
+            refresh_url=f"/v1/decisions/{str(receipt.get('ticker') or '').upper()}/requests",
         ),
         "decision": decision,
         "security_profile": dict(security_profile or {}),
@@ -477,11 +503,37 @@ def attention_payload(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     allowed = ("event_id", "ticker", "kind", "priority", "title", "detail")
     for event in events:
         safe_events.append({key: event.get(key) for key in allowed if key in event})
+    priority_counts: dict[str, int] = {}
+    kind_counts: dict[str, int] = {}
+    tickers = []
+    for event in safe_events:
+        priority = str(event.get("priority") or "normal").lower()
+        kind = str(event.get("kind") or "other").lower()
+        priority_counts[priority] = priority_counts.get(priority, 0) + 1
+        kind_counts[kind] = kind_counts.get(kind, 0) + 1
+        ticker = str(event.get("ticker") or "").upper()
+        if ticker and ticker not in tickers:
+            tickers.append(ticker)
+    urgent = sum(priority_counts.get(key, 0) for key in ("critical", "high"))
+    workflow = {
+        "status": "needs_attention" if urgent else ("review" if safe_events else "clear"),
+        "headline": (
+            f"{urgent} high-priority item{'s' if urgent != 1 else ''} need review."
+            if urgent else (f"{len(safe_events)} item{'s' if len(safe_events) != 1 else ''} to review." if safe_events else "Nothing needs attention right now.")
+        ),
+        "total_items": len(safe_events),
+        "urgent_items": urgent,
+        "affected_tickers": tickers,
+        "priority_counts": priority_counts,
+        "event_type_counts": kind_counts,
+        "next_step": "Review the highest-priority event first." if safe_events else "No action is required.",
+    }
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
         "meta": response_meta(),
         "events": safe_events,
         "count": len(safe_events),
+        "daily_workflow_summary": workflow,
     }
 
 
@@ -522,6 +574,7 @@ def regime_payload(snapshot: Mapping[str, Any]) -> dict[str, Any]:
             engine_version=str(snapshot.get("engine_version") or "unknown"),
             data_as_of=str(snapshot.get("data_as_of") or "") or None,
             freshness=str(snapshot.get("freshness") or "unknown"),
+            refresh_url="/v1/regime/requests",
         ),
         "regime": safe,
     }
@@ -542,9 +595,11 @@ def watchlist_payload(items: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "data_trust",
     )
     safe_items = [{key: item.get(key) for key in allowed if key in item} for item in items]
+    freshness_values = [str((item.get("data_trust") or {}).get("freshness") or "unknown").lower() for item in safe_items]
+    aggregate_freshness = "stale" if any(value in {"stale", "blocked", "expired"} for value in freshness_values) else ("fresh" if freshness_values and all(value in {"fresh", "live", "trusted"} for value in freshness_values) else "unknown")
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
-        "meta": response_meta(),
+        "meta": response_meta(freshness=aggregate_freshness),
         "items": safe_items,
         "count": len(safe_items),
     }
@@ -559,6 +614,9 @@ def user_workspace_payload(state: Mapping[str, Any]) -> dict[str, Any]:
         "position_notes",
         "settings",
         "notification_preferences",
+        "account_size",
+        "risk_per_trade",
+        "max_position_pct",
         "position_decisions",
         "portfolio_risk_summary",
     )

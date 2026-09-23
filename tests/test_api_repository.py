@@ -87,6 +87,41 @@ class ApiRepositoryTests(unittest.TestCase):
         self.assertEqual(payload["items"][0]["ticker"], "DEMO")
         self.assertEqual(payload["items"][0]["trigger_price"], 105)
 
+    def test_portfolio_uses_streamlit_root_risk_settings_and_publishes_summary(self):
+        state = {
+            "holdings": {"AAPL": {"shares": 100, "entry_price": 150}},
+            "account_size": 50000,
+            "risk_per_trade": 0.02,
+            "max_position_pct": 0.30,
+            "settings": {"account_size": 999999},
+            "_revision": "abc",
+        }
+        with (
+            mock.patch.object(api_repository, "_workspace_state", return_value=state),
+            mock.patch.object(api_repository.backend_layer, "read_json_table_many", side_effect=[
+                {"AAPL": {"price": 200, "security_profile": {"sector": "Technology"}}},
+                {"AAPL": {"decision_receipt": {
+                    "action": "watch", "price": 200, "invalidation": {"price": 180},
+                }}},
+            ]),
+        ):
+            payload = api_repository.portfolio("trusted-user-id")
+        workspace = payload["workspace"]
+        self.assertEqual(workspace["settings"]["account_size"], 50000)
+        self.assertEqual(workspace["risk_per_trade"], 0.02)
+        self.assertEqual(workspace["portfolio_risk_summary"]["gross_position_value"], 20000)
+        self.assertEqual(workspace["portfolio_risk_summary"]["gross_exposure_pct"], 40.0)
+        self.assertEqual(workspace["portfolio_risk_summary"]["largest_positions"][0]["ticker"], "AAPL")
+
+    @mock.patch.object(api_repository.backend_layer, "enqueue_job", return_value="regime-job")
+    def test_regime_refresh_is_user_scoped(self, enqueue):
+        payload = api_repository.request_regime("user-1")
+        self.assertEqual(payload["poll_url"], "/v1/regime-requests/regime-job")
+        enqueue.assert_called_once_with(
+            "market_regime_daily", payload={"source": "frontend_api"}, priority=20,
+            requested_by="api:user-1", dedupe_active=True,
+        )
+
     def test_missing_decision_is_queued_for_authenticated_user(self):
         with (
             mock.patch.object(api_repository, "decision", side_effect=api_repository.NotFoundError("missing")),

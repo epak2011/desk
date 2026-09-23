@@ -38,6 +38,27 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/RegimeResponse"}
         "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /v1/regime/requests:
+    post:
+      tags: [Shared]
+      summary: Queue a canonical market-regime refresh
+      responses:
+        "202": {description: Market refresh queued; poll the returned poll_url}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /v1/regime-requests/{job_id}:
+    get:
+      tags: [Operations]
+      summary: Poll an authenticated market-regime refresh
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200": {description: Refresh status and canonical regime when ready}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
   /v1/decisions/{ticker}:
     get:
       tags: [Shared]
@@ -242,7 +263,11 @@ components:
         generated_at: {type: string, format: date-time}
         engine_version: {type: string}
         data_as_of: {type: [string, "null"], format: date-time}
-        freshness: {type: string, enum: [live, fresh, delayed, stale, unknown]}
+        freshness: {type: string, enum: [live, fresh, delayed, stale, blocked, expired, unknown]}
+        stale: {type: boolean}
+        refresh_required: {type: boolean}
+        refresh: {type: object, additionalProperties: true}
+        display: {type: object, additionalProperties: true}
         request_id: {type: [string, "null"]}
     PriceLevel:
       type: object
