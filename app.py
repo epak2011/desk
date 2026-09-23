@@ -8990,46 +8990,7 @@ def decision_confidence_label(t_state):
     """Readable confidence label from the same inputs that drive the final action."""
     if not isinstance(t_state, dict):
         return "Pending"
-    action = normalize_action_key(t_state.get("action"))
-    try:
-        score = float(t_state.get("setup_score") or 0)
-    except (TypeError, ValueError):
-        score = 0.0
-    try:
-        rr = float(t_state.get("reward_risk") or 0)
-    except (TypeError, ValueError):
-        rr = 0.0
-    trigger_fired = bool(t_state.get("trigger_fired"))
-    rs_ok = float(t_state.get("rs") or 0) >= 1.0
-    vol_ok = float(t_state.get("vol_ratio") or 0) >= 0.75
-
-    points = 0
-    points += 1 if score >= 7 else 0
-    points += 1 if rr >= 1.3 else 0
-    points += 1 if trigger_fired or action in {"avoid", "hold_off"} else 0
-    points += 1 if rs_ok else 0
-    points += 1 if vol_ok else 0
-
-    if points >= 4:
-        confidence = "High"
-    elif points >= 2:
-        confidence = "Medium"
-    else:
-        confidence = "Low"
-
-    if action == "enter_now":
-        base = "continuation"
-    elif action == "watch":
-        base = "setup forming"
-    elif action == "hold_off":
-        base = "sideways repair"
-    elif action == "avoid":
-        base = "continued weakness"
-    elif action == "accumulate":
-        base = "base building"
-    else:
-        base = "review"
-    return f"{confidence} · base case: {base}"
+    return decision_contract.decision_confidence(t_state)
 
 
 def action_reason_title(t_state):

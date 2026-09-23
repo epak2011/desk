@@ -28,6 +28,32 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         rule_write = next(call for call in upsert.call_args_list if call.args[0] == "rule_outputs")
         self.assertIn("decision_receipt", rule_write.args[3])
 
+    @patch("worker._quote_meta", return_value={
+        "company_name": "Broadcom Inc.", "sector": "Technology",
+        "industry": "Semiconductors", "market_cap": 123456,
+    })
+    @patch("worker.backend.read_json_table", return_value={})
+    def test_market_identity_is_published_for_normal_refresh(self, _read, _meta):
+        payload, profile = worker._enrich_market_identity(
+            "AVGO", {"ticker": "AVGO", "price": 350, "updated_at": "now"}
+        )
+        self.assertEqual(payload["company_name"], "Broadcom Inc.")
+        self.assertEqual(profile["industry"], "Semiconductors")
+        self.assertEqual(profile["market_cap"], 123456)
+
+    @patch("worker._quote_meta", return_value={"company_name": "AVGO", "sector": None})
+    @patch("worker.backend.read_json_table", return_value={
+        "AVGO": {"company_name": "Broadcom Inc.", "security_profile": {
+            "company_name": "Broadcom Inc.", "sector": "Technology",
+        }}
+    })
+    def test_sparse_metadata_does_not_erase_verified_identity(self, _read, _meta):
+        payload, profile = worker._enrich_market_identity(
+            "AVGO", {"ticker": "AVGO", "price": 350, "updated_at": "now"}
+        )
+        self.assertEqual(payload["company_name"], "Broadcom Inc.")
+        self.assertEqual(profile["sector"], "Technology")
+
     @patch("worker.backend.enqueue_job")
     @patch("worker.backend.stale_watchlist_market_tickers", return_value=["NVDA", "BTC-USD"])
     @patch("worker.market_freshness.worker_should_refresh", side_effect=lambda ticker: ticker == "BTC-USD")

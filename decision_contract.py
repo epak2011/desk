@@ -23,6 +23,30 @@ def normalize_action(value):
     return {"enter": "enter_now", "buy": "enter_now", "holdoff": "hold_off"}.get(action, action)
 
 
+def decision_confidence(state):
+    """Deterministic confidence label shared by every frontend receipt."""
+    state = state if isinstance(state, dict) else {}
+    action = normalize_action(state.get("action"))
+    score = _number(state.get("setup_score")) or 0.0
+    reward_risk = _number(state.get("reward_risk")) or 0.0
+    rs = _number(state.get("rs")) or 0.0
+    volume = _number(state.get("vol_ratio")) or 0.0
+    points = sum((
+        score >= 7,
+        reward_risk >= 1.3,
+        bool(state.get("trigger_fired")) or action in {"avoid", "hold_off"},
+        rs >= 1.0,
+        volume >= 0.75,
+    ))
+    level = "High" if points >= 4 else "Medium" if points >= 2 else "Low"
+    base = {
+        "enter_now": "continuation", "watch": "setup forming",
+        "hold_off": "sideways repair", "avoid": "continued weakness",
+        "accumulate": "base building",
+    }.get(action, "review")
+    return f"{level} · base case: {base}"
+
+
 def _trace_factors(trace, limit=3):
     factors = []
     for step in reversed(trace or []):
@@ -181,7 +205,7 @@ def build_decision_receipt(ticker, state, *, engine_version, captured_at=None, p
         "price": round(price, 4) if price is not None else None,
         "market_regime": state.get("market_regime"),
         "setup_score": _number(state.get("setup_score")),
-        "confidence": state.get("decision_confidence") or state.get("confidence"),
+        "confidence": state.get("decision_confidence") or state.get("confidence") or decision_confidence(state),
         "entry_size": state.get("entry_size"),
         "setup_stage": state.get("entry_status") or state.get("state"),
         "top_factors": factors[:3],

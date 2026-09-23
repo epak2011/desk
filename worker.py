@@ -988,6 +988,39 @@ def _quote_meta(ticker: str) -> dict:
     }
 
 
+def _enrich_market_identity(ticker: str, market_payload: dict) -> tuple[dict, dict]:
+    """Attach durable company identity without erasing previously verified fields.
+
+    Price downloads and quote metadata are separate Yahoo calls.  The scheduled
+    market refresh previously saved only the price payload, which meant Lovable
+    received complete identity data only after a full research job happened to
+    run.  Preserve an existing profile when a metadata request is temporarily
+    sparse and fill it with any newly returned values.
+    """
+    existing_rows = backend.read_json_table("market_snapshots", ticker)
+    existing = existing_rows.get(ticker) if isinstance(existing_rows, dict) else {}
+    existing = existing if isinstance(existing, dict) else {}
+    existing_profile = existing.get("security_profile")
+    existing_profile = existing_profile if isinstance(existing_profile, dict) else {}
+    fresh = _quote_meta(ticker)
+    fresh = fresh if isinstance(fresh, dict) else {}
+
+    profile = dict(existing_profile)
+    for key, value in fresh.items():
+        if value not in (None, "", [], {}):
+            # A bare ticker is the metadata failure fallback, not a better name.
+            if key == "company_name" and str(value).upper() == ticker and profile.get(key):
+                continue
+            profile[key] = value
+    company_name = profile.get("company_name") or existing.get("company_name")
+    if company_name:
+        market_payload["company_name"] = company_name
+        profile["company_name"] = company_name
+    profile["updated_at"] = market_payload.get("updated_at")
+    market_payload["security_profile"] = profile
+    return market_payload, profile
+
+
 def refresh_market_snapshot(ticker: str, bench=None) -> dict:
     ticker = str(ticker or "").upper().strip()
     if not ticker:
@@ -1001,6 +1034,7 @@ def refresh_market_snapshot(ticker: str, bench=None) -> dict:
         raise RuntimeError(f"Rule engine could not compute {ticker}")
     t_state = tactical.apply_extension_execution_overlay(t_state) or t_state
     market_payload = _market_payload(ticker, hist, t_state)
+    market_payload, _ = _enrich_market_identity(ticker, market_payload)
     t_state["price"] = market_payload.get("price", t_state.get("price"))
     rule_payload = dict(t_state)
     trigger = rule_payload.get("trigger") or {}
@@ -1043,9 +1077,7 @@ def _fresh_tactical_state(ticker: str) -> tuple[dict, dict]:
         raise RuntimeError(f"Rule engine could not compute {ticker}")
     t_state = tactical.apply_extension_execution_overlay(t_state) or t_state
     market_payload = _market_payload(ticker, hist, t_state)
-    meta = _quote_meta(ticker)
-    market_payload["company_name"] = meta.get("company_name")
-    market_payload["security_profile"] = {**meta, "updated_at": market_payload.get("updated_at")}
+    market_payload, meta = _enrich_market_identity(ticker, market_payload)
     t_state["price"] = market_payload.get("price", t_state.get("price"))
     rule_payload = dict(t_state)
     trigger = rule_payload.get("trigger") or {}

@@ -26,7 +26,15 @@ class DecisionContractTests(unittest.TestCase):
         self.assertEqual(receipt["trigger"]["price"], 99)
         self.assertEqual(receipt["invalidation"]["price"], 94)
         self.assertEqual(receipt["top_factors"], ["Strong trend", "Trigger fired and held"])
+        self.assertEqual(receipt["confidence"], "Low · base case: continuation")
         self.assertEqual(len(receipt["receipt_id"]), 16)
+
+    def test_explicit_confidence_is_preserved(self):
+        receipt = decision_contract.build_decision_receipt(
+            "AAPL", {"action": "watch", "confidence": "Reviewed"},
+            engine_version="rules-test",
+        )
+        self.assertEqual(receipt["confidence"], "Reviewed")
 
     def test_receipt_reports_material_change(self):
         prior = {"action": "watch", "trigger": {"price": 105}}
