@@ -470,6 +470,12 @@ def system_health(user_id: str) -> dict[str, Any]:
         age = _age_minutes(market.get("updated_at") or market.get("ts") or market.get("market_updated_at"))
         if age is not None and age > 1440:
             issues.append({"ticker": ticker, "kind": "market_stale", "severity": "medium", "age_minutes": age})
+        research_age = _age_minutes(report.get("_worker_generated_at") or report.get("generated_at"))
+        research_threshold_minutes = 7 * 1440
+        if not report:
+            issues.append({"ticker": ticker, "kind": "research_missing", "severity": "low"})
+        elif research_age is None or research_age >= research_threshold_minutes:
+            issues.append({"ticker": ticker, "kind": "research_stale", "severity": "low", "age_minutes": research_age})
     jobs = []
     try:
         jobs = backend_layer.latest_jobs(limit=25)
@@ -493,10 +499,68 @@ def system_health(user_id: str) -> dict[str, Any]:
     }
 
 
-def calibration() -> dict[str, Any]:
+def _shadow_rule_summary(tickers: list[str], rules: dict[str, Any]) -> list[dict[str, Any]]:
+    """Aggregate live-state shadow_evaluations already computed by the worker.
+
+    Each ticker's rule_outputs row carries a shadow_evaluations list (see
+    engine_candidates.shadow_evaluations) — candidate rule variants evaluated
+    beside the live engine but never wired into the production action. This
+    turns that per-ticker data, already computed and stored, into a
+    watchlist-wide view of how often each candidate would have called it
+    differently from what's actually live, so a candidate's real-world
+    divergence is visible before anyone considers promoting it.
+    """
+    candidates: dict[str, dict[str, Any]] = {}
+    for ticker in tickers:
+        rule = rules.get(ticker) or {}
+        evaluations = rule.get("shadow_evaluations")
+        if not isinstance(evaluations, list):
+            continue
+        for entry in evaluations:
+            if not isinstance(entry, dict):
+                continue
+            key = entry.get("candidate")
+            if not key:
+                continue
+            bucket = candidates.setdefault(key, {
+                "candidate": key,
+                "version": entry.get("version"),
+                "evaluated_count": 0,
+                "differs_count": 0,
+                "examples": [],
+            })
+            bucket["evaluated_count"] += 1
+            if entry.get("differs_from_live"):
+                bucket["differs_count"] += 1
+                if len(bucket["examples"]) < 5:
+                    bucket["examples"].append({
+                        "ticker": ticker,
+                        "candidate_action": entry.get("action"),
+                        "reason": entry.get("reason"),
+                    })
+    rows = []
+    for bucket in candidates.values():
+        evaluated = bucket["evaluated_count"]
+        rows.append({
+            "candidate": bucket["candidate"],
+            "version": bucket["version"],
+            "evaluated_count": evaluated,
+            "differs_count": bucket["differs_count"],
+            "differs_pct": round(bucket["differs_count"] / evaluated * 100, 1) if evaluated else None,
+            "examples": bucket["examples"],
+        })
+    rows.sort(key=lambda row: row["candidate"])
+    return rows
+
+
+def calibration(user_id: str) -> dict[str, Any]:
+    state = _workspace_state(user_id)
+    tickers = [normalize_ticker(item) for item in state.get("watchlist", []) if str(item or "").strip()]
+    rules = backend_layer.read_json_table_many("rule_outputs", tickers) if tickers else {}
     return {
         "meta": public_contract.response_meta(),
         "calibration": backend_layer.read_engine_review_status(),
+        "shadow_rules": _shadow_rule_summary(tickers, rules),
     }
 
 

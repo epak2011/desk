@@ -223,7 +223,7 @@ def methodology(request: Request):
 
 @app.get("/v1/calibration")
 def calibration(request: Request, identity: Identity):
-    return _run(request, api_repository.calibration)
+    return _run(request, api_repository.calibration, identity.user_id)
 
 
 @app.get("/v1/operator/engine-updates")
