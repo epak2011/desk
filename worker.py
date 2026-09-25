@@ -1175,6 +1175,7 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
     )
     tickers = [ticker for ticker in tickers if market_freshness.worker_should_refresh(ticker)]
     failure_counts = {}
+    hard_unavailable = set()
     now = datetime.now(timezone.utc)
     for job in backend.latest_jobs(limit=100):
         stamp = job.get("completed_at") or job.get("updated_at") or job.get("created_at")
@@ -1192,13 +1193,20 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
         errors = result.get("errors") if isinstance(result.get("errors"), dict) else {}
         if job.get("job_type") == "watchlist_market_scan":
             failed_tickers.extend(errors)
+            for ticker, detail in errors.items():
+                message = str(detail or "").lower()
+                if any(token in message for token in ("quote not found", "may be delisted", "no data found")):
+                    hard_unavailable.add(str(ticker or "").upper().strip())
         if job.get("job_type") == "market_snapshot" and job.get("status") == "failed":
             failed_tickers.append(job.get("ticker"))
         for ticker in failed_tickers:
             clean = str(ticker or "").upper().strip()
             if clean:
                 failure_counts[clean] = failure_counts.get(clean, 0) + 1
-    cooldown_tickers = sorted(ticker for ticker in tickers if failure_counts.get(ticker, 0) >= 3)
+    cooldown_tickers = sorted(
+        ticker for ticker in tickers
+        if ticker in hard_unavailable or failure_counts.get(ticker, 0) >= 3
+    )
     tickers = [ticker for ticker in tickers if ticker not in cooldown_tickers]
     if not tickers:
         return {

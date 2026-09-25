@@ -121,6 +121,25 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertEqual(result["cooldown_tickers"], ["SATS"])
         self.assertEqual(enqueue.call_args.kwargs["payload"]["tickers"], ["NVDA"])
 
+    @patch("worker.backend.enqueue_job", return_value="job-1")
+    @patch("worker.backend.latest_jobs")
+    @patch("worker.backend.stale_watchlist_market_tickers", return_value=["SATS", "NVDA"])
+    @patch("worker.market_freshness.worker_should_refresh", return_value=True)
+    def test_definitive_unavailable_symbol_is_cooled_down_after_one_failure(
+        self, _refresh, _stale, latest_jobs, enqueue
+    ):
+        latest_jobs.return_value = [{
+            "job_type": "watchlist_market_scan",
+            "status": "succeeded",
+            "completed_at": pd.Timestamp.now(tz="UTC"),
+            "result": {"errors": {"SATS": "No data found, symbol may be delisted"}},
+        }]
+
+        result = worker.queue_stale_watchlist_market_scan()
+
+        self.assertEqual(result["cooldown_tickers"], ["SATS"])
+        self.assertEqual(enqueue.call_args.kwargs["payload"]["tickers"], ["NVDA"])
+
     @patch("worker._api_key", return_value="test-key")
     @patch("worker.backend.enqueue_job", side_effect=["legacy-job", "missing-job", "stale-job"])
     @patch("worker.backend.read_json_table_many")
