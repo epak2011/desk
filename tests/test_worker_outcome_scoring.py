@@ -77,6 +77,7 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
         self.assertTrue(saved_entries[0]["outcome"]["auto_scored"])
         self.assertEqual(saved_statuses[0]["score_version"], worker.OUTCOME_SCORE_VERSION)
         self.assertEqual(saved_statuses[0]["flags"][0]["count"], 1)
+        self.assertEqual(result["flags"][0]["count"], 1)
 
     def test_same_day_partial_score_is_not_downloaded_again(self):
         entry = {

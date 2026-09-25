@@ -18,7 +18,6 @@ import hashlib
 import json
 import os
 import ssl
-import traceback
 import time
 import urllib.parse
 import urllib.request
@@ -1175,10 +1174,37 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
         limit=limit,
     )
     tickers = [ticker for ticker in tickers if market_freshness.worker_should_refresh(ticker)]
+    failure_counts = {}
+    now = datetime.now(timezone.utc)
+    for job in backend.latest_jobs(limit=100):
+        stamp = job.get("completed_at") or job.get("updated_at") or job.get("created_at")
+        try:
+            if isinstance(stamp, str):
+                stamp = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            if (now - stamp).total_seconds() > 24 * 60 * 60:
+                continue
+        except (TypeError, ValueError, AttributeError):
+            continue
+        failed_tickers = []
+        result = job.get("result") if isinstance(job.get("result"), dict) else {}
+        errors = result.get("errors") if isinstance(result.get("errors"), dict) else {}
+        if job.get("job_type") == "watchlist_market_scan":
+            failed_tickers.extend(errors)
+        if job.get("job_type") == "market_snapshot" and job.get("status") == "failed":
+            failed_tickers.append(job.get("ticker"))
+        for ticker in failed_tickers:
+            clean = str(ticker or "").upper().strip()
+            if clean:
+                failure_counts[clean] = failure_counts.get(clean, 0) + 1
+    cooldown_tickers = sorted(ticker for ticker in tickers if failure_counts.get(ticker, 0) >= 3)
+    tickers = [ticker for ticker in tickers if ticker not in cooldown_tickers]
     if not tickers:
         return {
             "queued": False,
             "tickers": [],
+            "cooldown_tickers": cooldown_tickers,
             "reason": "snapshots current for the active or last completed market session",
         }
     job_id = backend.enqueue_job(
@@ -1191,7 +1217,12 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
         priority=30,
         requested_by="worker-maintenance",
     )
-    return {"queued": True, "job_id": job_id, "tickers": tickers}
+    return {
+        "queued": True,
+        "job_id": job_id,
+        "tickers": tickers,
+        "cooldown_tickers": cooldown_tickers,
+    }
 
 
 def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
@@ -1434,6 +1465,7 @@ def score_due_rule_outcomes(max_entries: int = 12) -> dict:
         "shadow_backfilled": backfilled,
         "errors": errors,
         "alerts": len(alerting),
+        "flags": flags,
         "remaining_due": status["remaining_due"],
     }
 
@@ -1509,7 +1541,7 @@ def run_once(worker_name: str = "worker", job_types: list[str] | None = None) ->
         return True, False
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true", help="Process one queued job and exit.")
     parser.add_argument("--drain", action="store_true", help="Process a batch of queued jobs and exit.")
@@ -1531,7 +1563,7 @@ def main():
     if not backend.has_database():
         print("::warning::DATABASE_URL is not configured for this worker environment. "
               "Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs.")
-        return
+        return 1
 
     try:
         backend.ensure_backend_schema()
@@ -1540,7 +1572,8 @@ def main():
             "Worker could not connect to the database or prepare backend tables. "
             f"Queued refreshes will try again on the next run. Detail: {exc}"
         )
-        return
+        return 1
+    maintenance_failed = False
     try:
         recovered = backend.recover_stale_running_jobs(max_age_minutes=30, limit=100)
         if recovered:
@@ -1560,6 +1593,7 @@ def main():
                 print(f"queued backend maintenance: {', '.join(maintenance_jobs['queued'])}")
         except Exception as exc:
             _gha_warning(f"Backend maintenance queue skipped: {exc}")
+            maintenance_failed = True
         try:
             digest_queue = queue_daily_user_digests()
             if digest_queue.get("enabled"):
@@ -1604,6 +1638,7 @@ def main():
                 print("scheduled maintenance: market snapshots fresh")
         except Exception as exc:
             print(f"scheduled maintenance skipped: {exc}")
+            maintenance_failed = True
         try:
             research = queue_stale_research_refresh(max_age_days=7, limit=3)
             if research.get("queued"):
@@ -1612,6 +1647,7 @@ def main():
                 print(f"scheduled maintenance: {research.get('reason') or 'research current'}")
         except Exception as exc:
             _gha_warning(f"Scheduled research refresh skipped: {exc}")
+            maintenance_failed = True
         try:
             outcome_result = score_due_rule_outcomes(max_entries=12)
             print(
@@ -1619,8 +1655,16 @@ def main():
                 f"{outcome_result.get('scored', 0)} updated, "
                 f"{outcome_result.get('alerts', 0)} review alert(s)"
             )
+            for flag in outcome_result.get("flags") or []:
+                print(
+                    "logic review gate: "
+                    f"{flag.get('label')} status={flag.get('status')} "
+                    f"n={flag.get('count')} success={flag.get('success_rate_pct')}% "
+                    f"decision_return={flag.get('avg_decision_return_pct')}%"
+                )
         except Exception as exc:
             _gha_warning(f"Scheduled outcome scoring skipped: {exc}")
+            maintenance_failed = True
     if args.drain:
         processed = 0
         failed = 0
@@ -1637,10 +1681,10 @@ def main():
                 failed += 1
             processed += 1
         print(f"drained {processed} job(s), {failed} failed job(s)")
-        return
+        return 1 if failed or maintenance_failed else 0
     if args.once or not args.loop:
-        run_once(worker_name=args.worker_name, job_types=allowed_job_types)
-        return
+        _did_work, ok = run_once(worker_name=args.worker_name, job_types=allowed_job_types)
+        return 0 if ok else 1
     while True:
         did_work, _ok = run_once(worker_name=args.worker_name, job_types=allowed_job_types)
         if not did_work:
@@ -1648,8 +1692,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        _gha_warning(f"Worker run degraded instead of failing the workflow: {exc}")
-        print(traceback.format_exc())
+    raise SystemExit(main())

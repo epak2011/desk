@@ -27,7 +27,6 @@ jobs:
       DIGEST_SEND_HOUR_ET: "17"
     steps:
       - name: Check out repository
-        continue-on-error: true
         uses: actions/checkout@v4
 
       - name: Drain queued refresh jobs safely
@@ -45,9 +44,8 @@ jobs:
           fi
 
           if [ -z "$DATABASE_URL" ]; then
-            echo "::warning::DATABASE_URL is not configured. Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs."
-            echo "Worker skipped successfully."
-            exit 0
+            echo "::error::DATABASE_URL is not configured. Add the GitHub Actions DATABASE_URL secret to enable background refresh jobs."
+            exit 1
           fi
 
           if [ -z "$ANTHROPIC_API_KEY" ]; then
@@ -55,29 +53,29 @@ jobs:
           fi
 
           if [ ! -f "worker.py" ]; then
-            echo "::warning::Repository checkout did not provide worker.py; scheduled worker skipped."
-            exit 0
+            echo "::error::Repository checkout did not provide worker.py."
+            exit 1
           fi
 
           PYTHON_BIN="$(command -v python3 || command -v python)"
           if [ -z "$PYTHON_BIN" ]; then
-            echo "::warning::Python is not available on this runner; scheduled worker skipped."
-            exit 0
+            echo "::error::Python is not available on this runner."
+            exit 1
           fi
 
           "$PYTHON_BIN" --version
           "$PYTHON_BIN" -m pip install -r requirements.txt
           install_status=$?
           if [ "$install_status" -ne 0 ]; then
-            echo "::warning::Dependency install failed with status ${install_status}; scheduled worker skipped."
-            exit 0
+            echo "::error::Dependency install failed with status ${install_status}."
+            exit "$install_status"
           fi
 
           "$PYTHON_BIN" worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 240 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan,market_regime_daily,repair_missing_data,full_report
           worker_status=$?
           if [ "$worker_status" -ne 0 ]; then
-            echo "::warning::Worker exited with status ${worker_status}; scheduled maintenance is treated as a soft failure to avoid notification spam."
+            echo "::error::Worker exited with status ${worker_status}."
+            exit "$worker_status"
           fi
 
           echo "Trading Desk worker finished."
-          exit 0

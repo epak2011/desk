@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
@@ -9,6 +10,26 @@ import worker
 class WorkerMarketScheduleTests(unittest.TestCase):
     def test_scheduled_worker_drains_research_jobs(self):
         self.assertIn("full_report", worker.SCHEDULED_SAFE_JOB_TYPES)
+
+    @patch("worker.backend.has_database", return_value=False)
+    @patch("worker.argparse.ArgumentParser.parse_args")
+    def test_worker_fails_when_database_is_unavailable(self, args, _database):
+        args.return_value = type("Args", (), {
+            "job_types": "", "maintenance": False, "drain": False,
+            "max_runtime_seconds": 0, "once": True, "loop": False,
+            "max_jobs": 1, "worker_name": "test", "sleep": 0,
+            "market_max_age_minutes": 10,
+        })()
+        self.assertEqual(worker.main(), 1)
+
+    def test_workflows_fail_loudly_and_trigger_render(self):
+        root = Path(__file__).resolve().parents[1]
+        worker_workflow = (root / ".github/workflows/desk-worker.yml").read_text()
+        deploy_workflow = (root / ".github/workflows/deployment-verification.yml").read_text()
+        self.assertNotIn("continue-on-error: true", worker_workflow)
+        self.assertIn('exit "$worker_status"', worker_workflow)
+        self.assertIn("RENDER_DEPLOY_HOOK_URL", deploy_workflow)
+        self.assertIn('curl --fail --silent --show-error --request POST', deploy_workflow)
 
     @patch("worker._quote_meta", return_value={"company_name": "Demo Inc."})
     @patch("worker.backend.upsert_json_table")
@@ -55,9 +76,10 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertEqual(profile["sector"], "Technology")
 
     @patch("worker.backend.enqueue_job")
+    @patch("worker.backend.latest_jobs", return_value=[])
     @patch("worker.backend.stale_watchlist_market_tickers", return_value=["NVDA", "BTC-USD"])
     @patch("worker.market_freshness.worker_should_refresh", side_effect=lambda ticker: ticker == "BTC-USD")
-    def test_closed_market_filters_equities_but_keeps_crypto(self, _refresh, _stale, enqueue):
+    def test_closed_market_filters_equities_but_keeps_crypto(self, _refresh, _stale, _jobs, enqueue):
         enqueue.return_value = "job-1"
         result = worker.queue_stale_watchlist_market_scan()
 
@@ -66,13 +88,38 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertEqual(payload["tickers"], ["BTC-USD"])
 
     @patch("worker.backend.enqueue_job")
+    @patch("worker.backend.latest_jobs", return_value=[])
     @patch("worker.backend.stale_watchlist_market_tickers", return_value=["NVDA"])
     @patch("worker.market_freshness.worker_should_refresh", return_value=False)
-    def test_closed_market_does_not_enqueue_equity_scan(self, _refresh, _stale, enqueue):
+    def test_closed_market_does_not_enqueue_equity_scan(self, _refresh, _stale, _jobs, enqueue):
         result = worker.queue_stale_watchlist_market_scan()
 
         self.assertFalse(result["queued"])
         enqueue.assert_not_called()
+
+    @patch("worker.backend.enqueue_job", return_value="job-1")
+    @patch("worker.backend.latest_jobs")
+    @patch("worker.backend.stale_watchlist_market_tickers", return_value=["SATS", "NVDA"])
+    @patch("worker.market_freshness.worker_should_refresh", return_value=True)
+    def test_repeated_provider_failure_puts_ticker_on_cooldown(
+        self, _refresh, _stale, latest_jobs, enqueue
+    ):
+        now = pd.Timestamp.now(tz="UTC")
+        latest_jobs.return_value = [
+            {
+                "job_type": "watchlist_market_scan",
+                "status": "succeeded",
+                "completed_at": now,
+                "result": {"errors": {"SATS": "quote not found"}},
+            }
+            for _ in range(3)
+        ]
+
+        result = worker.queue_stale_watchlist_market_scan()
+
+        self.assertEqual(result["tickers"], ["NVDA"])
+        self.assertEqual(result["cooldown_tickers"], ["SATS"])
+        self.assertEqual(enqueue.call_args.kwargs["payload"]["tickers"], ["NVDA"])
 
     @patch("worker._api_key", return_value="test-key")
     @patch("worker.backend.enqueue_job", side_effect=["legacy-job", "missing-job", "stale-job"])
