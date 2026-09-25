@@ -74,6 +74,44 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertFalse(result["queued"])
         enqueue.assert_not_called()
 
+    @patch("worker._api_key", return_value="test-key")
+    @patch("worker.backend.enqueue_job", side_effect=["legacy-job", "missing-job", "stale-job"])
+    @patch("worker.backend.read_json_table_many")
+    @patch("worker.backend.enabled_watchlist_tickers", return_value=["FRESH", "LEGACY", "MISSING", "STALE"])
+    def test_stale_research_refresh_queues_missing_and_old_reports(
+        self, _tickers, reports, enqueue, _api_key
+    ):
+        now = pd.Timestamp.now(tz="UTC")
+        reports.return_value = {
+            "FRESH": {"_worker_generated_at": (now - pd.Timedelta(days=1)).isoformat()},
+            "LEGACY": {"updated_at": now.isoformat()},
+            "STALE": {"_worker_generated_at": (now - pd.Timedelta(days=8)).isoformat()},
+        }
+
+        result = worker.queue_stale_research_refresh(max_age_days=7, limit=3)
+
+        self.assertTrue(result["queued"])
+        self.assertEqual(result["tickers"], ["MISSING", "LEGACY", "STALE"])
+        self.assertEqual(result["candidate_count"], 3)
+        self.assertEqual(
+            [call.kwargs["ticker"] for call in enqueue.call_args_list],
+            ["MISSING", "LEGACY", "STALE"],
+        )
+        self.assertEqual(enqueue.call_args_list[0].args[0], "full_report")
+        self.assertEqual(enqueue.call_args_list[0].kwargs["payload"]["reason"], "research_missing")
+        self.assertEqual(enqueue.call_args_list[1].kwargs["payload"]["reason"], "research_stale")
+        self.assertEqual(enqueue.call_args_list[2].kwargs["payload"]["reason"], "research_stale")
+        self.assertEqual(enqueue.call_args_list[2].kwargs["requested_by"], "worker-maintenance")
+
+    @patch("worker._api_key", return_value="")
+    @patch("worker.backend.enqueue_job")
+    def test_stale_research_refresh_skips_without_claude_key(self, enqueue, _api_key):
+        result = worker.queue_stale_research_refresh()
+
+        self.assertFalse(result["queued"])
+        self.assertIn("API key", result["reason"])
+        enqueue.assert_not_called()
+
     @patch("worker.backend.upsert_json_table")
     @patch("worker._fetch_regime_news", return_value=([{
         "title": "Digital asset policy update", "url": "https://example.com/story",

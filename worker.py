@@ -1194,6 +1194,62 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
     return {"queued": True, "job_id": job_id, "tickers": tickers}
 
 
+def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
+    """Queue bounded report refreshes for missing or stale watchlist research."""
+    if not _api_key():
+        return {
+            "queued": False,
+            "tickers": [],
+            "reason": "Claude API key is not configured",
+        }
+
+    tickers = backend.enabled_watchlist_tickers(limit=250)
+    reports = backend.read_json_table_many("research_reports", tickers)
+    now = datetime.now(timezone.utc)
+    threshold_minutes = max(1, int(max_age_days)) * 1440
+    candidates = []
+    for ticker in tickers:
+        report = reports.get(ticker) or {}
+        stamp = (
+            report.get("_worker_generated_at")
+            or report.get("generated_at")
+        )
+        try:
+            parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            age_minutes = max(0.0, (now - parsed).total_seconds() / 60.0)
+        except (TypeError, ValueError):
+            age_minutes = None
+        if not report:
+            candidates.append((0, ticker, "research_missing", None))
+        elif age_minutes is None or age_minutes >= threshold_minutes:
+            candidates.append((1, ticker, "research_stale", age_minutes))
+
+    queued = []
+    for _, ticker, reason, age_minutes in sorted(candidates)[:max(1, int(limit))]:
+        job_id = backend.enqueue_job(
+            "full_report",
+            ticker=ticker,
+            payload={
+                "source": "scheduled_research_maintenance",
+                "reason": reason,
+                "age_minutes": round(age_minutes, 1) if age_minutes is not None else None,
+                "max_age_days": max(1, int(max_age_days)),
+            },
+            priority=35,
+            requested_by="worker-maintenance",
+        )
+        if job_id:
+            queued.append({"ticker": ticker, "job_id": job_id, "reason": reason})
+    return {
+        "queued": bool(queued),
+        "tickers": [item["ticker"] for item in queued],
+        "jobs": queued,
+        "candidate_count": len(candidates),
+    }
+
+
 def queue_scheduled_backend_maintenance() -> dict:
     """Keep regime intraday-current; run slower repair work once per UTC day."""
     today = date.today()
@@ -1548,6 +1604,14 @@ def main():
                 print("scheduled maintenance: market snapshots fresh")
         except Exception as exc:
             print(f"scheduled maintenance skipped: {exc}")
+        try:
+            research = queue_stale_research_refresh(max_age_days=7, limit=3)
+            if research.get("queued"):
+                print(f"queued stale research refresh for {len(research.get('tickers') or [])} ticker(s)")
+            else:
+                print(f"scheduled maintenance: {research.get('reason') or 'research current'}")
+        except Exception as exc:
+            _gha_warning(f"Scheduled research refresh skipped: {exc}")
         try:
             outcome_result = score_due_rule_outcomes(max_entries=12)
             print(
