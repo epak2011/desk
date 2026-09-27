@@ -94,7 +94,7 @@ User request: {cleaned}
 {universe_note}: {', '.join(names)}
 
 Research the theme on the web using current, attributable information. Find up
-to 12 US-listed stocks or ETFs that plausibly match. This is a research screen,
+to 8 US-listed stocks or ETFs that plausibly match. This is a research screen,
 not a buy list and not an investment recommendation. The thematic score must
 measure theme fit only; never infer or fabricate a Trading Desk action.
 
@@ -102,8 +102,8 @@ Requirements:
 - Translate the request into 4-6 explicit screening criteria.
 - Use current evidence and state caveats and disconfirming facts.
 - Distinguish theme fit from financial fit.
-- Prefer primary sources and include source URL, title, and publication date
-  when known. Never fabricate a citation or metric.
+- Prefer primary sources and include at most 2 sources per candidate, with URL,
+  title, and publication date when known. Never fabricate a citation or metric.
 - Mark unknown facts as unknown and put them in verify_next.
 
 Return ONLY JSON with this shape:
@@ -121,7 +121,9 @@ Return ONLY JSON with this shape:
         "model": os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip(),
         "max_tokens": 8000,
         "messages": messages,
-        "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 6}],
+        # Dynamic filtering keeps irrelevant search results out of context and
+        # helps the research turn finish inside the background-worker window.
+        "tools": [{"type": "web_search_20260209", "name": "web_search", "max_uses": 3}],
     }
     try:
         response = client.messages.create(**kwargs)
@@ -133,7 +135,7 @@ Return ONLY JSON with this shape:
     # has produced the final text. Resume with the assistant content unchanged,
     # preserving the tool definition, until the turn is actually complete.
     # Without this, a legitimate research run is misreported as "no candidates".
-    for _ in range(3):
+    for _ in range(2):
         if getattr(response, "stop_reason", None) != "pause_turn":
             break
         messages.append({"role": "assistant", "content": response.content})
@@ -145,9 +147,14 @@ Return ONLY JSON with this shape:
     candidates = [
         row for row in (parsed.get("candidates") or [])
         if isinstance(row, dict) and str(row.get("ticker") or "").strip()
-    ][:12]
+    ][:8]
     if not candidates:
-        raise ValueError("Claude did not return usable candidates. Try a narrower prompt.")
+        stop_reason = str(getattr(response, "stop_reason", "unknown") or "unknown")
+        raise ValueError(
+            "Claude research ended without a complete candidate payload "
+            f"(stop_reason={stop_reason}, response_chars={len(final_text)}). "
+            "Try the screen again."
+        )
 
     allowed = set(names)
     if explicit:

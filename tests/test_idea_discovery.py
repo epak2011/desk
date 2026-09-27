@@ -36,7 +36,7 @@ class IdeaDiscoveryTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[1]["messages"][1]["role"], "assistant")
         self.assertIs(calls[1]["messages"][1]["content"], paused_content)
-        self.assertEqual(calls[1]["tools"][0]["type"], "web_search_20250305")
+        self.assertEqual(calls[1]["tools"][0]["type"], "web_search_20260209")
 
     def test_default_universe_is_broad_and_web_researched(self):
         captured = {}
@@ -68,7 +68,7 @@ class IdeaDiscoveryTests(unittest.TestCase):
             result = idea_discovery.generate("AI data-center power", None, "key")
 
         self.assertGreater(len(idea_discovery.DEFAULT_UNIVERSE.split(",")), 100)
-        self.assertEqual(captured["tools"][0]["type"], "web_search_20250305")
+        self.assertEqual(captured["tools"][0]["type"], "web_search_20260209")
         self.assertTrue(result["web_researched"])
         self.assertEqual(result["universe_mode"], "broad_default")
         self.assertEqual(result["candidates"][0]["financial_fit"], "Growing")
