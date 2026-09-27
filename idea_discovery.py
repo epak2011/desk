@@ -88,15 +88,20 @@ def generate(query: str, universe: str | None, api_key: str) -> dict:
         "Use only these securities" if explicit else
         "Use these liquid securities as the primary screen; add another liquid US-listed stock or ETF only when web evidence shows it is a substantially better fit"
     )
-    prompt = f"""You are an equity idea-discovery analyst inside Trading Desk.
+    research_prompt = f"""You are researching an equity theme for Trading Desk.
 
 User request: {cleaned}
 {universe_note}: {', '.join(names)}
 
-Research the theme on the web using current, attributable information. Find up
-to 8 US-listed stocks or ETFs that plausibly match. This is a research screen,
-not a buy list and not an investment recommendation. The thematic score must
-measure theme fit only; never infer or fabricate a Trading Desk action.
+Run one focused web search for current, attributable evidence. Identify up to 8
+US-listed stocks or ETFs that plausibly match. Prefer primary sources. Return
+concise research notes naming the tickers, relevant facts, caveats, dates, and
+source URLs. Do not make a buy/sell recommendation and do not return JSON."""
+
+    synthesis_prompt = """Using only the web research above, create the saved
+Trading Desk idea screen. This is a research screen, not a buy list or an
+investment recommendation. The thematic score measures theme fit only; never
+infer or fabricate a Trading Desk action.
 
 Requirements:
 - Translate the request into 4-6 explicit screening criteria.
@@ -115,34 +120,44 @@ Return ONLY JSON with this shape:
 "verify_next":["..."],"sources":[{{"url":"https://...","title":"...",
 "published_at":"ISO date or null"}}]}}]}}"""
 
-    client = Anthropic(api_key=api_key)
-    messages = [{"role": "user", "content": prompt}]
-    kwargs = {
-        "model": os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip(),
-        "max_tokens": 8000,
-        "messages": messages,
-        # Dynamic filtering keeps irrelevant search results out of context and
-        # helps the research turn finish inside the background-worker window.
-        "tools": [{"type": "web_search_20260209", "name": "web_search", "max_uses": 3}],
+    # Bound each network round trip so a provider-side stall cannot consume an
+    # entire scheduled worker run. A paused search may make one continuation.
+    client = Anthropic(api_key=api_key, timeout=75.0)
+    model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
+    research_messages = [{"role": "user", "content": research_prompt}]
+    research_kwargs = {
+        "model": model,
+        "max_tokens": 3000,
+        "messages": research_messages,
+        # A single direct search returns several results without allowing an
+        # open-ended server-side research loop to consume the worker runtime.
+        "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}],
     }
     try:
-        response = client.messages.create(**kwargs)
+        research_response = client.messages.create(**research_kwargs)
     except TypeError:
-        kwargs.pop("tools", None)
-        response = client.messages.create(**kwargs)
+        research_kwargs.pop("tools", None)
+        research_response = client.messages.create(**research_kwargs)
 
-    # Anthropic can pause a long-running server-side web-search loop before it
-    # has produced the final text. Resume with the assistant content unchanged,
-    # preserving the tool definition, until the turn is actually complete.
-    # Without this, a legitimate research run is misreported as "no candidates".
-    for _ in range(2):
-        if getattr(response, "stop_reason", None) != "pause_turn":
-            break
-        messages.append({"role": "assistant", "content": response.content})
-        kwargs["messages"] = messages
-        response = client.messages.create(**kwargs)
+    if getattr(research_response, "stop_reason", None) == "pause_turn":
+        research_messages.append({"role": "assistant", "content": research_response.content})
+        research_kwargs["messages"] = research_messages
+        research_response = client.messages.create(**research_kwargs)
 
-    final_text, sdk_sources = _response_text_and_sources(response)
+    _research_text, sdk_sources = _response_text_and_sources(research_response)
+    synthesis_messages = [
+        {"role": "user", "content": research_prompt},
+        {"role": "assistant", "content": research_response.content},
+        {"role": "user", "content": synthesis_prompt},
+    ]
+    response = client.messages.create(
+        model=model,
+        max_tokens=8000,
+        messages=synthesis_messages,
+    )
+
+    final_text, final_sources = _response_text_and_sources(response)
+    sdk_sources = list({row["url"]: row for row in [*sdk_sources, *final_sources]}.values())
     parsed = _json_object(final_text)
     candidates = [
         row for row in (parsed.get("candidates") or [])

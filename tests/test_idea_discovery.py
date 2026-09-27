@@ -16,6 +16,9 @@ class IdeaDiscoveryTests(unittest.TestCase):
         responses = [
             types.SimpleNamespace(content=paused_content, stop_reason="pause_turn"),
             types.SimpleNamespace(content=[types.SimpleNamespace(
+                text="VRT is exposed to data-center power demand.", citations=[], content=None,
+            )], stop_reason="end_turn"),
+            types.SimpleNamespace(content=[types.SimpleNamespace(
                 text=json.dumps(payload), citations=[], content=None,
             )], stop_reason="end_turn"),
         ]
@@ -27,19 +30,20 @@ class IdeaDiscoveryTests(unittest.TestCase):
                 return responses.pop(0)
 
         fake_module = types.SimpleNamespace(
-            Anthropic=lambda api_key: types.SimpleNamespace(messages=Messages())
+            Anthropic=lambda **_kwargs: types.SimpleNamespace(messages=Messages())
         )
         with mock.patch.dict(sys.modules, {"anthropic": fake_module}):
             result = idea_discovery.generate("AI data-center power", None, "key")
 
         self.assertEqual(result["candidates"][0]["ticker"], "VRT")
-        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(calls), 3)
         self.assertEqual(calls[1]["messages"][1]["role"], "assistant")
         self.assertIs(calls[1]["messages"][1]["content"], paused_content)
-        self.assertEqual(calls[1]["tools"][0]["type"], "web_search_20260209")
+        self.assertEqual(calls[1]["tools"][0]["type"], "web_search_20250305")
+        self.assertNotIn("tools", calls[2])
 
     def test_default_universe_is_broad_and_web_researched(self):
-        captured = {}
+        calls = []
         payload = {
             "criteria": ["Grid demand"],
             "summary": "Current opportunity set.",
@@ -58,17 +62,18 @@ class IdeaDiscoveryTests(unittest.TestCase):
 
         class Messages:
             def create(self, **kwargs):
-                captured.update(kwargs)
+                calls.append(kwargs)
                 return response
 
         fake_module = types.SimpleNamespace(
-            Anthropic=lambda api_key: types.SimpleNamespace(messages=Messages())
+            Anthropic=lambda **_kwargs: types.SimpleNamespace(messages=Messages())
         )
         with mock.patch.dict(sys.modules, {"anthropic": fake_module}):
             result = idea_discovery.generate("AI data-center power", None, "key")
 
         self.assertGreater(len(idea_discovery.DEFAULT_UNIVERSE.split(",")), 100)
-        self.assertEqual(captured["tools"][0]["type"], "web_search_20260209")
+        self.assertEqual(calls[0]["tools"][0]["type"], "web_search_20250305")
+        self.assertNotIn("tools", calls[1])
         self.assertTrue(result["web_researched"])
         self.assertEqual(result["universe_mode"], "broad_default")
         self.assertEqual(result["candidates"][0]["financial_fit"], "Growing")
@@ -87,7 +92,7 @@ class IdeaDiscoveryTests(unittest.TestCase):
                 return response
 
         fake_module = types.SimpleNamespace(
-            Anthropic=lambda api_key: types.SimpleNamespace(messages=Messages())
+            Anthropic=lambda **_kwargs: types.SimpleNamespace(messages=Messages())
         )
         with mock.patch.dict(sys.modules, {"anthropic": fake_module}):
             result = idea_discovery.generate("Power infrastructure", "VRT, ETN", "key")
