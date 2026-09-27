@@ -116,16 +116,28 @@ Return ONLY JSON with this shape:
 "published_at":"ISO date or null"}}]}}]}}"""
 
     client = Anthropic(api_key=api_key)
+    messages = [{"role": "user", "content": prompt}]
     kwargs = {
         "model": os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip(),
-        "max_tokens": 5000,
-        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 8000,
+        "messages": messages,
         "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 6}],
     }
     try:
         response = client.messages.create(**kwargs)
     except TypeError:
         kwargs.pop("tools", None)
+        response = client.messages.create(**kwargs)
+
+    # Anthropic can pause a long-running server-side web-search loop before it
+    # has produced the final text. Resume with the assistant content unchanged,
+    # preserving the tool definition, until the turn is actually complete.
+    # Without this, a legitimate research run is misreported as "no candidates".
+    for _ in range(3):
+        if getattr(response, "stop_reason", None) != "pause_turn":
+            break
+        messages.append({"role": "assistant", "content": response.content})
+        kwargs["messages"] = messages
         response = client.messages.create(**kwargs)
 
     final_text, sdk_sources = _response_text_and_sources(response)

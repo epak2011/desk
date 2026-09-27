@@ -8,6 +8,36 @@ import idea_discovery
 
 
 class IdeaDiscoveryTests(unittest.TestCase):
+    def test_paused_web_search_is_resumed_before_parsing(self):
+        payload = {"candidates": [{"ticker": "VRT", "score": 90}]}
+        paused_content = [types.SimpleNamespace(
+            text=None, citations=[], content=None, type="server_tool_use",
+        )]
+        responses = [
+            types.SimpleNamespace(content=paused_content, stop_reason="pause_turn"),
+            types.SimpleNamespace(content=[types.SimpleNamespace(
+                text=json.dumps(payload), citations=[], content=None,
+            )], stop_reason="end_turn"),
+        ]
+        calls = []
+
+        class Messages:
+            def create(self, **kwargs):
+                calls.append(kwargs)
+                return responses.pop(0)
+
+        fake_module = types.SimpleNamespace(
+            Anthropic=lambda api_key: types.SimpleNamespace(messages=Messages())
+        )
+        with mock.patch.dict(sys.modules, {"anthropic": fake_module}):
+            result = idea_discovery.generate("AI data-center power", None, "key")
+
+        self.assertEqual(result["candidates"][0]["ticker"], "VRT")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1]["messages"][1]["role"], "assistant")
+        self.assertIs(calls[1]["messages"][1]["content"], paused_content)
+        self.assertEqual(calls[1]["tools"][0]["type"], "web_search_20250305")
+
     def test_default_universe_is_broad_and_web_researched(self):
         captured = {}
         payload = {
