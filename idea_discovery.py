@@ -68,6 +68,15 @@ def _response_text_and_sources(response: Any) -> tuple[str, list[dict[str, Any]]
     return "\n".join(text_parts).strip(), list(unique.values())
 
 
+def _create_message(client: Any, **kwargs: Any) -> Any:
+    """Create a message using streaming when the installed SDK supports it."""
+    stream_method = getattr(client.messages, "stream", None)
+    if callable(stream_method):
+        with stream_method(**kwargs) as stream:
+            return stream.get_final_message()
+    return client.messages.create(**kwargs)
+
+
 def generate(query: str, universe: str | None, api_key: str) -> dict:
     cleaned = str(query or "").strip()
     if len(cleaned) < 8:
@@ -122,7 +131,7 @@ Return ONLY JSON with this shape:
 
     # Bound each network round trip so a provider-side stall cannot consume an
     # entire scheduled worker run. A paused search may make one continuation.
-    client = Anthropic(api_key=api_key, timeout=75.0)
+    client = Anthropic(api_key=api_key, timeout=120.0, max_retries=0)
     model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
     research_messages = [{"role": "user", "content": research_prompt}]
     research_kwargs = {
@@ -134,15 +143,15 @@ Return ONLY JSON with this shape:
         "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}],
     }
     try:
-        research_response = client.messages.create(**research_kwargs)
+        research_response = _create_message(client, **research_kwargs)
     except TypeError:
         research_kwargs.pop("tools", None)
-        research_response = client.messages.create(**research_kwargs)
+        research_response = _create_message(client, **research_kwargs)
 
     if getattr(research_response, "stop_reason", None) == "pause_turn":
         research_messages.append({"role": "assistant", "content": research_response.content})
         research_kwargs["messages"] = research_messages
-        research_response = client.messages.create(**research_kwargs)
+        research_response = _create_message(client, **research_kwargs)
 
     _research_text, sdk_sources = _response_text_and_sources(research_response)
     synthesis_messages = [
@@ -150,7 +159,8 @@ Return ONLY JSON with this shape:
         {"role": "assistant", "content": research_response.content},
         {"role": "user", "content": synthesis_prompt},
     ]
-    response = client.messages.create(
+    response = _create_message(
+        client,
         model=model,
         max_tokens=8000,
         messages=synthesis_messages,

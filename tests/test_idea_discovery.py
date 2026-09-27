@@ -8,6 +8,27 @@ import idea_discovery
 
 
 class IdeaDiscoveryTests(unittest.TestCase):
+    def test_message_helper_prefers_streaming(self):
+        response = types.SimpleNamespace(content=[], stop_reason="end_turn")
+
+        class Stream:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def get_final_message(self):
+                return response
+
+        messages = types.SimpleNamespace(
+            stream=lambda **_kwargs: Stream(),
+            create=mock.Mock(side_effect=AssertionError("non-streaming path used")),
+        )
+        result = idea_discovery._create_message(types.SimpleNamespace(messages=messages), model="demo")
+        self.assertIs(result, response)
+        messages.create.assert_not_called()
+
     def test_paused_web_search_is_resumed_before_parsing(self):
         payload = {"candidates": [{"ticker": "VRT", "score": 90}]}
         paused_content = [types.SimpleNamespace(
