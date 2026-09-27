@@ -45,6 +45,7 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         deploy_workflow = (root / ".github/workflows/deployment-verification.yml").read_text()
         self.assertNotIn("continue-on-error: true", worker_workflow)
         self.assertIn('exit "$worker_status"', worker_workflow)
+        self.assertIn("full_report,idea_discovery", worker_workflow)
         self.assertIn("RENDER_DEPLOY_HOOK_URL", deploy_workflow)
         self.assertIn('curl --fail --silent --show-error --request POST', deploy_workflow)
 

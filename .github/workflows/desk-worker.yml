@@ -71,7 +71,7 @@ jobs:
             exit "$install_status"
           fi
 
-          "$PYTHON_BIN" worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 240 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan,market_regime_daily,repair_missing_data,full_report
+          "$PYTHON_BIN" worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 240 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan,market_regime_daily,repair_missing_data,full_report,idea_discovery
           worker_status=$?
           if [ "$worker_status" -ne 0 ]; then
             echo "::error::Worker exited with status ${worker_status}."
