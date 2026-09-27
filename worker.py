@@ -21,6 +21,7 @@ import ssl
 import time
 import urllib.parse
 import urllib.request
+import uuid
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
@@ -1478,6 +1479,48 @@ def score_due_rule_outcomes(max_entries: int = 12) -> dict:
     }
 
 
+def _enrich_idea_candidates(candidates: list[dict]) -> list[dict]:
+    """Join saved canonical data without turning theme relevance into an action."""
+    clean = []
+    for candidate in candidates or []:
+        if not isinstance(candidate, dict):
+            continue
+        ticker = str(candidate.get("ticker") or "").upper().strip()
+        if ticker:
+            clean.append((ticker, candidate))
+    tickers = list(dict.fromkeys(ticker for ticker, _ in clean))
+    markets = backend.read_json_table_many("market_snapshots", tickers)
+    rules = backend.read_json_table_many("rule_outputs", tickers)
+    enriched = []
+    for ticker, candidate in clean:
+        market = markets.get(ticker) or {}
+        rule = rules.get(ticker) or {}
+        receipt = rule.get("decision_receipt") if isinstance(rule.get("decision_receipt"), dict) else {}
+        profile = market.get("security_profile") if isinstance(market.get("security_profile"), dict) else {}
+        trust = receipt.get("data_trust") if isinstance(receipt.get("data_trust"), dict) else {}
+        enriched.append({
+            **candidate,
+            "ticker": ticker,
+            "_name": market.get("company_name") or profile.get("company_name") or candidate.get("company") or ticker,
+            "_price": market.get("price") or market.get("last") or receipt.get("price"),
+            "_change": market.get("change_pct"),
+            # Canonical, deterministic output; never derived from the theme score.
+            "_action": receipt.get("action") or rule.get("action"),
+            "_action_confidence": receipt.get("confidence") or rule.get("decision_confidence"),
+            "_state": receipt.get("state") or rule.get("state"),
+            "_rs": rule.get("rs") or market.get("rs"),
+            "_market_cap": profile.get("market_cap") or market.get("market_cap"),
+            "_sector": profile.get("sector") or market.get("sector"),
+            "_industry": profile.get("industry") or market.get("industry"),
+            "_revenue_growth": profile.get("revenue_growth") or market.get("revenue_growth"),
+            "_debt_equity": profile.get("debt_to_equity") or market.get("debt_to_equity"),
+            "_earnings_days": profile.get("earnings_days") or rule.get("earnings_days"),
+            "_data_as_of": receipt.get("source_as_of") or market.get("updated_at") or market.get("data_as_of"),
+            "_data_freshness": trust.get("freshness") or "unknown",
+        })
+    return enriched
+
+
 def process_job(job: dict) -> dict:
     job_type = job.get("job_type")
     ticker = job.get("ticker")
@@ -1500,16 +1543,37 @@ def process_job(job: dict) -> dict:
     if job_type == "idea_discovery":
         query = str(payload.get("query") or "").strip()
         user_id = str(payload.get("user_id") or "").strip()
-        result = idea_discovery.generate(query, payload.get("universe") or idea_discovery.DEFAULT_UNIVERSE, _api_key())
-        run = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "query": query,
-               "universe": payload.get("universe") or idea_discovery.DEFAULT_UNIVERSE, "result": result}
+        mode = str(payload.get("mode") or "generate")
         with backend.db_connection() as conn:
             with conn.cursor() as cur:
                 state = user_state_store.load(cur, user_id) or {}
                 runs = state.get("idea_discovery_runs") if isinstance(state.get("idea_discovery_runs"), list) else []
+                if mode == "metrics_refresh":
+                    run_id = str(payload.get("run_id") or "")
+                    target = next((row for row in runs if str(row.get("run_id") or "") == run_id), None)
+                    if target is None:
+                        raise ValueError("Saved idea screen was not found.")
+                    result = target.get("result") if isinstance(target.get("result"), dict) else {}
+                    result["candidates"] = _enrich_idea_candidates(result.get("candidates") or [])
+                    target["result"] = result
+                    target["metrics_refreshed_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    state["idea_discovery_runs"] = runs
+                    user_state_store.save(cur, user_id, state)
+                    return {"run_id": run_id, "candidate_count": len(result["candidates"]), "metrics_refreshed": True}
+
+                result = idea_discovery.generate(query, payload.get("universe"), _api_key())
+                result["candidates"] = _enrich_idea_candidates(result.get("candidates") or [])
+                run = {
+                    "run_id": uuid.uuid4().hex,
+                    "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "query": query,
+                    "universe": payload.get("universe") or "",
+                    "result": result,
+                    "metrics_refreshed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                }
                 state["idea_discovery_runs"] = [run, *runs][:8]
                 user_state_store.save(cur, user_id, state)
-        return {"query": query, "candidate_count": len(result.get("candidates") or [])}
+        return {"query": query, "run_id": run["run_id"], "candidate_count": len(result.get("candidates") or [])}
     raise ValueError(f"Unsupported job type: {job_type}")
 
 

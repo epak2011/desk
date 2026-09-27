@@ -1,0 +1,69 @@
+import json
+import sys
+import types
+import unittest
+from unittest import mock
+
+import idea_discovery
+
+
+class IdeaDiscoveryTests(unittest.TestCase):
+    def test_default_universe_is_broad_and_web_researched(self):
+        captured = {}
+        payload = {
+            "criteria": ["Grid demand"],
+            "summary": "Current opportunity set.",
+            "candidates": [{
+                "ticker": "VRT", "company": "Vertiv", "score": 90,
+                "theme_fit": "Cooling", "financial_fit": "Growing",
+                "risks": "Valuation", "evidence": ["Demand"],
+                "verify_next": ["Orders"], "sources": [{"url": "https://example.com"}],
+            }],
+        }
+        response = types.SimpleNamespace(content=[types.SimpleNamespace(
+            text=json.dumps(payload), citations=[types.SimpleNamespace(
+                url="https://example.com", title="Primary source"
+            )], content=None,
+        )])
+
+        class Messages:
+            def create(self, **kwargs):
+                captured.update(kwargs)
+                return response
+
+        fake_module = types.SimpleNamespace(
+            Anthropic=lambda api_key: types.SimpleNamespace(messages=Messages())
+        )
+        with mock.patch.dict(sys.modules, {"anthropic": fake_module}):
+            result = idea_discovery.generate("AI data-center power", None, "key")
+
+        self.assertGreater(len(idea_discovery.DEFAULT_UNIVERSE.split(",")), 100)
+        self.assertEqual(captured["tools"][0]["type"], "web_search_20250305")
+        self.assertTrue(result["web_researched"])
+        self.assertEqual(result["universe_mode"], "broad_default")
+        self.assertEqual(result["candidates"][0]["financial_fit"], "Growing")
+
+    def test_explicit_universe_excludes_out_of_scope_candidates(self):
+        payload = {"candidates": [
+            {"ticker": "VRT", "score": 90},
+            {"ticker": "NVDA", "score": 80},
+        ]}
+        response = types.SimpleNamespace(content=[types.SimpleNamespace(
+            text=json.dumps(payload), citations=[], content=None,
+        )])
+
+        class Messages:
+            def create(self, **_kwargs):
+                return response
+
+        fake_module = types.SimpleNamespace(
+            Anthropic=lambda api_key: types.SimpleNamespace(messages=Messages())
+        )
+        with mock.patch.dict(sys.modules, {"anthropic": fake_module}):
+            result = idea_discovery.generate("Power infrastructure", "VRT, ETN", "key")
+        self.assertEqual([row["ticker"] for row in result["candidates"]], ["VRT"])
+        self.assertEqual(result["universe_mode"], "explicit")
+
+
+if __name__ == "__main__":
+    unittest.main()

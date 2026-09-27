@@ -171,6 +171,39 @@ class ApiRepositoryTests(unittest.TestCase):
             requested_by="api:user-1", dedupe_active=False,
         )
 
+    def test_saved_idea_can_be_rerun_and_metrics_refreshed(self):
+        state = {"idea_discovery_runs": [{
+            "run_id": "run-1", "query": "Power grid beneficiaries",
+            "universe": "VRT, ETN", "result": {"candidates": []},
+        }], "_revision": "abc"}
+        with (
+            mock.patch.object(api_repository, "_workspace_state", return_value=state),
+            mock.patch.object(api_repository.backend_layer, "enqueue_job", side_effect=["rerun-job", "metrics-job"]) as enqueue,
+        ):
+            rerun = api_repository.rerun_ideas("user-1", "run-1")
+            refresh = api_repository.refresh_idea_metrics("user-1", "run-1")
+        self.assertEqual(rerun["request_id"], "rerun-job")
+        self.assertEqual(refresh["request_id"], "metrics-job")
+        self.assertEqual(enqueue.call_args_list[0].args[0], "idea_discovery")
+        self.assertEqual(enqueue.call_args_list[0].kwargs["payload"]["query"], "Power grid beneficiaries")
+        self.assertEqual(enqueue.call_args_list[1].kwargs["payload"]["mode"], "metrics_refresh")
+
+    def test_delete_saved_idea_is_user_scoped(self):
+        state = {"idea_discovery_runs": [
+            {"run_id": "keep", "query": "Keep this", "result": {}},
+            {"run_id": "remove", "query": "Remove this", "result": {}},
+        ], "_revision": "abc"}
+        saved = {}
+        with (
+            mock.patch.object(api_repository, "_workspace_state", return_value=state),
+            mock.patch.object(api_repository.user_state_store, "save", side_effect=lambda _cur, _user, value: saved.update(value)),
+            mock.patch.object(api_repository.backend_layer, "db_connection"),
+            mock.patch.object(api_repository, "ideas", return_value={"count": 1}),
+        ):
+            payload = api_repository.delete_idea_run("user-1", "remove")
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual([row["run_id"] for row in saved["idea_discovery_runs"]], ["keep"])
+
 
 if __name__ == "__main__":
     unittest.main()

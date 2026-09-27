@@ -206,6 +206,21 @@ def request_ideas(payload: dict[str, Any], request: Request, identity: Identity)
     return _run(request, api_repository.request_ideas, identity.user_id, payload)
 
 
+@app.post("/v1/ideas/{run_id}/rerun", status_code=202)
+def rerun_ideas(run_id: str, request: Request, identity: Identity):
+    return _run(request, api_repository.rerun_ideas, identity.user_id, run_id)
+
+
+@app.post("/v1/ideas/{run_id}/metrics/requests", status_code=202)
+def refresh_idea_metrics(run_id: str, request: Request, identity: Identity):
+    return _run(request, api_repository.refresh_idea_metrics, identity.user_id, run_id)
+
+
+@app.delete("/v1/ideas/{run_id}")
+def delete_idea_run(run_id: str, request: Request, identity: Identity):
+    return _run(request, api_repository.delete_idea_run, identity.user_id, run_id)
+
+
 @app.get("/v1/idea-requests/{job_id}")
 def idea_request(job_id: str, request: Request, identity: Identity):
     return _run(request, api_repository.idea_request, job_id, identity.user_id)

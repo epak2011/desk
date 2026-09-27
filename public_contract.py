@@ -73,24 +73,45 @@ def ideas_payload(runs: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
             if not isinstance(candidate, Mapping):
                 continue
             candidates.append({key: candidate.get(key) for key in (
-                "ticker", "company", "score", "theme_fit", "why_it_matters", "evidence", "verify_next",
-                "_name", "_price", "_change", "_action", "_rs", "_market_cap", "_sector", "_industry",
-                "_revenue_growth", "_debt_equity", "_starter",
+                "ticker", "company", "score", "theme_fit", "financial_fit", "why_it_matters",
+                "risks", "caveats", "evidence", "verify_next", "sources",
+                "_name", "_price", "_change", "_action", "_action_confidence", "_state",
+                "_rs", "_market_cap", "_sector", "_industry", "_revenue_growth",
+                "_debt_equity", "_earnings_days", "_data_as_of", "_data_freshness", "_starter",
             ) if key in candidate})
         safe_runs.append({
+            "run_id": run.get("run_id"),
             "created_at": run.get("ts") or run.get("created_at"),
             "query": run.get("query"),
+            "universe": run.get("universe"),
             "criteria": list(result.get("criteria") or []),
             "summary": result.get("summary"),
+            "research_as_of": result.get("research_as_of"),
+            "web_researched": bool(result.get("web_researched")),
+            "sources": list(result.get("sources") or []),
             "candidates": candidates,
             "metrics_refreshed_at": run.get("metrics_refreshed_at"),
         })
+    latest_at = next((row.get("created_at") for row in safe_runs if row.get("created_at")), None)
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
-        "meta": response_meta(),
+        "meta": response_meta(data_as_of=latest_at, freshness="fresh" if latest_at else "unknown"),
         "ideas": safe_runs,
         "count": len(safe_runs),
-        "generation": {"available": True, "request_url": "/v1/ideas/requests", "method": "POST", "poll_url_template": "/v1/idea-requests/{request_id}"},
+        "generation": {
+            "available": True,
+            "request_url": "/v1/ideas/requests",
+            "method": "POST",
+            "poll_url_template": "/v1/idea-requests/{request_id}",
+            "max_candidates": 12,
+            "thematic_score_is_not_action": True,
+        },
+        "management": {
+            "rerun_url_template": "/v1/ideas/{run_id}/rerun",
+            "refresh_metrics_url_template": "/v1/ideas/{run_id}/metrics/requests",
+            "delete_url_template": "/v1/ideas/{run_id}",
+            "export_format": "client_csv_json",
+        },
     }
 
 

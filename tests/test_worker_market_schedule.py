@@ -8,6 +8,23 @@ import worker
 
 
 class WorkerMarketScheduleTests(unittest.TestCase):
+    @patch("worker.backend.read_json_table_many")
+    def test_idea_enrichment_uses_canonical_action_not_theme_score(self, read_many):
+        read_many.side_effect = [
+            {"VRT": {"last": 120, "change_pct": 1.5, "security_profile": {
+                "company_name": "Vertiv", "sector": "Industrials", "market_cap": 50_000_000_000,
+            }}},
+            {"VRT": {"decision_receipt": {
+                "action": "hold_off", "confidence": "Medium", "state": "TRANSITION",
+                "data_trust": {"freshness": "fresh"}, "source_as_of": "2026-09-27T12:00:00Z",
+            }}},
+        ]
+        rows = worker._enrich_idea_candidates([{"ticker": "VRT", "score": 99, "theme_fit": "AI power"}])
+        self.assertEqual(rows[0]["score"], 99)
+        self.assertEqual(rows[0]["_action"], "hold_off")
+        self.assertEqual(rows[0]["_action_confidence"], "Medium")
+        self.assertEqual(rows[0]["_data_freshness"], "fresh")
+
     def test_scheduled_worker_drains_research_jobs(self):
         self.assertIn("full_report", worker.SCHEDULED_SAFE_JOB_TYPES)
 

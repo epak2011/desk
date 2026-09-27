@@ -401,7 +401,31 @@ def portfolio(user_id: str) -> dict[str, Any]:
 def ideas(user_id: str) -> dict[str, Any]:
     state = _workspace_state(user_id)
     runs = state.get("idea_discovery_runs") if isinstance(state.get("idea_discovery_runs"), list) else []
-    return public_contract.ideas_payload(runs[:8])
+    normalized = []
+    for run in runs[:8]:
+        if not isinstance(run, dict):
+            continue
+        run = dict(run)
+        run["run_id"] = _idea_run_id(run)
+        normalized.append(run)
+    return public_contract.ideas_payload(normalized)
+
+
+def _idea_run_id(run: dict[str, Any]) -> str:
+    existing = str(run.get("run_id") or "").strip()
+    if existing:
+        return existing
+    seed = f"{run.get('ts') or run.get('created_at') or ''}|{run.get('query') or ''}"
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:20]
+
+
+def _saved_idea_run(user_id: str, run_id: str) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+    state = _workspace_state(user_id)
+    runs = [row for row in (state.get("idea_discovery_runs") or []) if isinstance(row, dict)]
+    target = next((row for row in runs if _idea_run_id(row) == str(run_id)), None)
+    if target is None:
+        raise NotFoundError("Saved idea screen was not found.")
+    return state, runs, target
 
 
 def request_ideas(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -414,6 +438,41 @@ def request_ideas(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         priority=30, requested_by=f"api:{user_id}", dedupe_active=False,
     )
     return {"status": "queued", "request_id": job_id, "poll_url": f"/v1/idea-requests/{job_id}"}
+
+
+def rerun_ideas(user_id: str, run_id: str) -> dict[str, Any]:
+    _state, _runs, target = _saved_idea_run(user_id, run_id)
+    return request_ideas(user_id, {
+        "query": target.get("query"),
+        "universe": target.get("universe") or "",
+    })
+
+
+def refresh_idea_metrics(user_id: str, run_id: str) -> dict[str, Any]:
+    _state, _runs, target = _saved_idea_run(user_id, run_id)
+    job_id = backend_layer.enqueue_job(
+        "idea_discovery",
+        payload={
+            "mode": "metrics_refresh",
+            "run_id": _idea_run_id(target),
+            "user_id": user_id,
+        },
+        priority=25,
+        requested_by=f"api:{user_id}",
+        dedupe_active=False,
+    )
+    return {"status": "queued", "request_id": job_id, "poll_url": f"/v1/idea-requests/{job_id}"}
+
+
+def delete_idea_run(user_id: str, run_id: str) -> dict[str, Any]:
+    state, runs, _target = _saved_idea_run(user_id, run_id)
+    updated = [row for row in runs if _idea_run_id(row) != str(run_id)]
+    clean_state = {key: value for key, value in state.items() if key != "_revision"}
+    clean_state["idea_discovery_runs"] = updated
+    with backend_layer.db_connection() as conn:
+        with conn.cursor() as cur:
+            user_state_store.save(cur, user_id, clean_state)
+    return ideas(user_id)
 
 
 def idea_request(job_id: str, user_id: str) -> dict[str, Any]:

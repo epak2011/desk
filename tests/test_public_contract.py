@@ -38,9 +38,20 @@ class PublicContractTests(unittest.TestCase):
     def test_ideas_payload_only_exposes_renderable_saved_screen_fields(self):
         payload = ideas_payload([{"query": "AI power", "secret": "no", "result": {
             "summary": "Grid beneficiaries", "criteria": ["Power demand"],
-            "candidates": [{"ticker": "VRT", "score": 91, "theme_fit": "Cooling", "secret": "no"}],
+            "web_researched": True, "research_as_of": "2026-09-27T12:00:00+00:00",
+            "sources": [{"url": "https://example.com", "title": "Primary source"}],
+            "candidates": [{"ticker": "VRT", "score": 91, "theme_fit": "Cooling",
+                            "financial_fit": "Growing", "risks": "Valuation",
+                            "caveats": ["Cyclical"], "sources": [{"url": "https://example.com"}],
+                            "_action": "watch", "secret": "no"}],
         }}])
         self.assertEqual(payload["ideas"][0]["candidates"][0]["ticker"], "VRT")
+        self.assertEqual(payload["ideas"][0]["candidates"][0]["financial_fit"], "Growing")
+        self.assertEqual(payload["ideas"][0]["candidates"][0]["risks"], "Valuation")
+        self.assertEqual(payload["ideas"][0]["candidates"][0]["_action"], "watch")
+        self.assertTrue(payload["ideas"][0]["web_researched"])
+        self.assertTrue(payload["generation"]["thematic_score_is_not_action"])
+        self.assertIn("rerun_url_template", payload["management"])
         self.assertNotIn("secret", payload["ideas"][0])
         self.assertNotIn("secret", payload["ideas"][0]["candidates"][0])
 
