@@ -1522,6 +1522,10 @@ def _enrich_idea_candidates(candidates: list[dict], *, refresh: bool = False) ->
         receipt = rule.get("decision_receipt") if isinstance(rule.get("decision_receipt"), dict) else {}
         profile = market.get("security_profile") if isinstance(market.get("security_profile"), dict) else {}
         trust = receipt.get("data_trust") if isinstance(receipt.get("data_trust"), dict) else {}
+        revenue_growth = profile.get("revenue_growth") or market.get("revenue_growth")
+        earnings_days = profile.get("earnings_days") or rule.get("earnings_days")
+        if not isinstance(earnings_days, (int, float)) or earnings_days < 0:
+            earnings_days = None
         enriched.append({
             **candidate,
             "ticker": ticker,
@@ -1536,11 +1540,18 @@ def _enrich_idea_candidates(candidates: list[dict], *, refresh: bool = False) ->
             "_market_cap": profile.get("market_cap") or market.get("market_cap"),
             "_sector": profile.get("sector") or market.get("sector"),
             "_industry": profile.get("industry") or market.get("industry"),
-            "_revenue_growth": profile.get("revenue_growth") or market.get("revenue_growth"),
+            "_revenue_growth": revenue_growth,
+            "_revenue_growth_pct": (
+                round(float(revenue_growth) * 100, 2)
+                if isinstance(revenue_growth, (int, float)) else None
+            ),
             "_debt_equity": profile.get("debt_to_equity") or market.get("debt_to_equity"),
-            "_earnings_days": profile.get("earnings_days") or rule.get("earnings_days"),
+            "_earnings_days": earnings_days,
             "_data_as_of": receipt.get("source_as_of") or market.get("updated_at") or market.get("data_as_of"),
-            "_data_freshness": trust.get("freshness") or "unknown",
+            "_data_freshness": (
+                "fresh" if refresh and ticker not in refresh_errors
+                else trust.get("freshness") or "unknown"
+            ),
             "_metrics_error": refresh_errors.get(ticker),
         })
     return enriched

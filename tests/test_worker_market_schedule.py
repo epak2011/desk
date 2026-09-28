@@ -38,6 +38,18 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertEqual(rows[0]["_action_confidence"], "Medium")
         self.assertEqual(rows[0]["_data_freshness"], "fresh")
 
+    @patch("worker.backend.read_json_table_many")
+    def test_idea_enrichment_publishes_display_safe_growth_and_earnings(self, read_many):
+        read_many.side_effect = [
+            {"VRT": {"security_profile": {
+                "revenue_growth": 0.241, "earnings_days": -10,
+            }}},
+            {"VRT": {}},
+        ]
+        row = worker._enrich_idea_candidates([{"ticker": "VRT"}])[0]
+        self.assertEqual(row["_revenue_growth_pct"], 24.1)
+        self.assertIsNone(row["_earnings_days"])
+
     def test_scheduled_worker_drains_research_jobs(self):
         self.assertIn("full_report", worker.SCHEDULED_SAFE_JOB_TYPES)
 

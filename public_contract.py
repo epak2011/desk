@@ -77,6 +77,7 @@ def ideas_payload(runs: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
                 "risks", "caveats", "evidence", "verify_next", "sources",
                 "_name", "_price", "_change", "_action", "_action_confidence", "_state",
                 "_rs", "_market_cap", "_sector", "_industry", "_revenue_growth",
+                "_revenue_growth_pct",
                 "_debt_equity", "_earnings_days", "_data_as_of", "_data_freshness", "_starter",
                 "_metrics_error",
             ) if key in candidate})
