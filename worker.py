@@ -960,6 +960,9 @@ def _quote_meta(ticker: str) -> dict:
             earnings_days = (datetime.fromisoformat(earnings_date).date() - datetime.now(timezone.utc).date()).days
         except (TypeError, ValueError):
             earnings_days = None
+    if earnings_days is not None and earnings_days < 0:
+        earnings_date = None
+        earnings_days = None
     quote_type = str(info.get("quoteType") or "").lower() or None
     return {
         "company_name": info.get("shortName") or info.get("longName") or ticker,
@@ -1012,6 +1015,28 @@ def _enrich_market_identity(ticker: str, market_payload: dict) -> tuple[dict, di
             if key == "company_name" and str(value).upper() == ticker and profile.get(key):
                 continue
             profile[key] = value
+    # A cached provider date must never masquerade as the next earnings event.
+    # Providers sometimes leave the just-reported quarter in quote metadata.
+    earnings_date = profile.get("earnings_date")
+    earnings_days = profile.get("earnings_days")
+    try:
+        parsed_earnings = datetime.fromisoformat(str(earnings_date).replace("Z", "+00:00")) if earnings_date else None
+        if parsed_earnings is not None and parsed_earnings.tzinfo is None:
+            parsed_earnings = parsed_earnings.replace(tzinfo=timezone.utc)
+        computed_days = (
+            parsed_earnings.astimezone(timezone.utc).date() - datetime.now(timezone.utc).date()
+        ).days if parsed_earnings is not None else None
+    except (TypeError, ValueError):
+        computed_days = None
+    try:
+        supplied_days = int(earnings_days) if earnings_days is not None else None
+    except (TypeError, ValueError):
+        supplied_days = None
+    if (earnings_date and computed_days is None) or (computed_days is not None and computed_days < 0) or (supplied_days is not None and supplied_days < 0):
+        profile["earnings_date"] = None
+        profile["earnings_days"] = None
+        profile["earnings_status"] = "unconfirmed"
+        profile["earnings_verified"] = False
     company_name = profile.get("company_name") or existing.get("company_name")
     if company_name:
         market_payload["company_name"] = company_name

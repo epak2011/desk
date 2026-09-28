@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from public_contract import (
     PUBLIC_CONTRACT_VERSION,
@@ -85,6 +86,37 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(payload["why_action"]["title"], "Why WATCH")
         self.assertEqual(len(payload["portfolio_manager"]["quality_classifications"]), 4)
         self.assertTrue(payload["full_research_report"]["available"])
+
+    def test_analyze_page_rejects_past_earnings_as_next_event(self):
+        past = datetime.now(timezone.utc) - timedelta(days=49)
+        payload = analyze_page_payload("DEMO", market={"security_profile": {
+            "earnings_date": past.isoformat(), "earnings_days": -49, "expected_eps": 1.23,
+        }})
+        event = payload["portfolio_manager"]["next_earnings"]
+        self.assertIsNone(event["date"])
+        self.assertIsNone(event["days"])
+        self.assertIsNone(event["expected_eps"])
+        self.assertFalse(event["verified"])
+        self.assertEqual(event["status"], "unconfirmed")
+
+    def test_analyze_page_recomputes_future_earnings_countdown(self):
+        future = datetime.now(timezone.utc) + timedelta(days=12)
+        payload = analyze_page_payload("DEMO", market={"security_profile": {
+            "earnings_date": future.isoformat(), "earnings_days": -200, "expected_eps": 1.23,
+        }})
+        event = payload["portfolio_manager"]["next_earnings"]
+        self.assertEqual(event["days"], 12)
+        self.assertTrue(event["verified"])
+        self.assertEqual(event["status"], "confirmed_upcoming")
+
+    def test_security_profile_strips_past_earnings_date(self):
+        past = datetime.now(timezone.utc) - timedelta(days=2)
+        payload = security_profile_payload("DEMO", market={"security_profile": {
+            "earnings_date": past.isoformat(), "earnings_days": -2,
+        }})
+        self.assertIsNone(payload["earnings_date"])
+        self.assertIsNone(payload["earnings_days"])
+        self.assertFalse(payload["earnings_verified"])
 
     def test_decision_payload_uses_receipt_and_blocks_untrusted_execution(self):
         payload = decision_payload(

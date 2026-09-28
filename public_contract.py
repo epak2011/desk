@@ -15,6 +15,47 @@ from typing import Any, Iterable, Mapping
 
 PUBLIC_CONTRACT_VERSION = 2
 
+
+def validated_next_earnings(
+    fields: Mapping[str, Any], *, as_of: datetime | None = None,
+) -> dict[str, Any]:
+    """Return only a genuinely future earnings event."""
+    now = as_of or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    raw_date = fields.get("earnings_date")
+    try:
+        supplied_days = float(fields.get("earnings_days")) if fields.get("earnings_days") is not None else None
+    except (TypeError, ValueError):
+        supplied_days = None
+    parsed = None
+    if raw_date not in (None, ""):
+        try:
+            parsed = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            parsed = None
+    if parsed is not None:
+        days = (parsed.astimezone(timezone.utc).date() - now.astimezone(timezone.utc).date()).days
+        if days >= 0:
+            return {
+                "date": parsed.isoformat(), "days": days,
+                "expected_eps": fields.get("expected_eps"),
+                "status": "confirmed_upcoming", "verified": True, "reason": None,
+            }
+    elif raw_date in (None, "") and supplied_days is not None and supplied_days >= 0:
+        return {
+            "date": None, "days": int(supplied_days), "expected_eps": fields.get("expected_eps"),
+            "status": "unconfirmed", "verified": False,
+            "reason": "The provider supplied a day count without a confirmed date.",
+        }
+    return {
+        "date": None, "days": None, "expected_eps": None,
+        "status": "unconfirmed", "verified": False,
+        "reason": "The provider did not supply a confirmed future earnings date.",
+    }
+
 PAGE_CONTRACTS = [
     {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "shared", "sections": ["daily_decision_workflow", "attention_inbox"], "response_keys": ["daily_workflow_summary", "events"]},
     {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared", "sections": ["outlook", "entry_timing", "todays_context", "market_highlights", "market_implications", "forward_watch", "framework_gauges", "market_news", "crypto_regime", "metric_guide"], "response_keys": ["regime"]},
@@ -361,6 +402,7 @@ def analyze_page_payload(
     }
     target = number(profile_fields.get("analyst_target"))
     analyst_upside = ((target / price - 1) * 100) if target is not None and price else None
+    next_earnings = validated_next_earnings(profile_fields)
     return {
         "schema_version": 1,
         "ticker": str(ticker or "").upper(),
@@ -390,7 +432,7 @@ def analyze_page_payload(
             "thesis": research.get("thesis"), "drivers": list(research.get("drivers") or []),
             "risks": list(research.get("risks") or []), "valuation": research.get("valuation"),
             "timing_watchpoint": research.get("timing_watchpoint"),
-            "next_earnings": {"date": profile_fields.get("earnings_date"), "days": profile_fields.get("earnings_days"), "expected_eps": profile_fields.get("expected_eps")},
+            "next_earnings": next_earnings,
             "analyst_consensus": {"rating": profile_fields.get("analyst_rec"), "analyst_count": profile_fields.get("analyst_n"), "target": target, "upside_pct": analyst_upside},
             "lynch_check": {key: profile_fields.get(key) for key in ("earnings_growth", "peg", "forward_pe", "debt_to_equity")},
         },
@@ -432,9 +474,16 @@ def security_profile_payload(
         "analyst_rec", "analyst_target", "analyst_n", "forward_pe", "trailing_pe",
         "peg", "ev_ebitda", "debt_to_equity", "earnings_growth", "revenue_growth",
     )
+    safe_fields = {key: first(key) for key in fields}
+    next_earnings = validated_next_earnings(safe_fields)
+    safe_fields["earnings_date"] = next_earnings["date"]
+    safe_fields["earnings_days"] = next_earnings["days"]
+    safe_fields["earnings_status"] = next_earnings["status"]
+    safe_fields["earnings_verified"] = next_earnings["verified"]
+    safe_fields["earnings_reason"] = next_earnings["reason"]
     return {
         "ticker": str(ticker or "").upper(),
-        **{key: first(key) for key in fields},
+        **safe_fields,
         "updated_at": first("updated_at"),
     }
 

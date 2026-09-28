@@ -118,6 +118,21 @@ class WorkerMarketScheduleTests(unittest.TestCase):
         self.assertEqual(payload["company_name"], "Broadcom Inc.")
         self.assertEqual(profile["sector"], "Technology")
 
+    @patch("worker._quote_meta", return_value={"company_name": "AVGO"})
+    @patch("worker.backend.read_json_table", return_value={
+        "AVGO": {"security_profile": {
+            "company_name": "Broadcom Inc.",
+            "earnings_date": "2026-08-05T12:00:00+00:00", "earnings_days": -49,
+        }}
+    })
+    def test_market_identity_purges_cached_past_earnings(self, _read, _meta):
+        _, profile = worker._enrich_market_identity(
+            "AVGO", {"ticker": "AVGO", "price": 350, "updated_at": "now"}
+        )
+        self.assertIsNone(profile["earnings_date"])
+        self.assertIsNone(profile["earnings_days"])
+        self.assertFalse(profile["earnings_verified"])
+
     @patch("worker.backend.enqueue_job")
     @patch("worker.backend.latest_jobs", return_value=[])
     @patch("worker.backend.stale_watchlist_market_tickers", return_value=["NVDA", "BTC-USD"])

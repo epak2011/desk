@@ -6457,9 +6457,13 @@ def fetch_quote_meta(ticker, include_slow_fallbacks=False):
             try:
                 normalized_earnings_date = normalize_earnings_date(out["earnings_date"])
                 if normalized_earnings_date is not None:
-                    out["earnings_date"] = normalized_earnings_date
                     days = (normalized_earnings_date.date() - datetime.now().date()).days
-                    out["earnings_days"] = days
+                    if days >= 0:
+                        out["earnings_date"] = normalized_earnings_date
+                        out["earnings_days"] = days
+                    else:
+                        out["earnings_date"] = None
+                        out["earnings_days"] = None
             except Exception:
                 pass
     except Exception:
@@ -8471,7 +8475,11 @@ def render_research_report(ticker):
     earnings_label = "Next earnings"
     if meta.get("earnings_date") and meta.get("earnings_days") is not None:
         d = meta["earnings_days"]
-        earnings_value = format_earnings_date_label(meta.get("earnings_date")) + (f" · in {d}d" if d >= 0 else f" · {abs(d)}d ago")
+        if d >= 0:
+            earnings_value = format_earnings_date_label(meta.get("earnings_date")) + f" · in {d}d"
+        else:
+            earnings_label = "Last reported earnings"
+            earnings_value = format_earnings_date_label(meta.get("earnings_date")) + f" · {abs(d)}d ago"
     else:
         earnings_value = "—"
     earnings_rows = [
