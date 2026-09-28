@@ -8,6 +8,19 @@ import worker
 
 
 class WorkerMarketScheduleTests(unittest.TestCase):
+    @patch("worker.refresh_market_snapshot")
+    @patch("worker._flatten_yfinance", return_value=pd.DataFrame({"Close": [1.0]}))
+    @patch("worker._download_benchmark")
+    @patch("worker.backend.read_json_table_many", return_value={})
+    def test_idea_enrichment_refreshes_every_candidate(
+        self, _read_many, _download, _flatten, refresh,
+    ):
+        rows = worker._enrich_idea_candidates(
+            [{"ticker": "VRT"}, {"ticker": "ETN"}], refresh=True,
+        )
+        self.assertEqual({call.args[0] for call in refresh.call_args_list}, {"VRT", "ETN"})
+        self.assertEqual([row["_metrics_error"] for row in rows], [None, None])
+
     @patch("worker.backend.read_json_table_many")
     def test_idea_enrichment_uses_canonical_action_not_theme_score(self, read_many):
         read_many.side_effect = [

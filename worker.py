@@ -1479,8 +1479,14 @@ def score_due_rule_outcomes(max_entries: int = 12) -> dict:
     }
 
 
-def _enrich_idea_candidates(candidates: list[dict]) -> list[dict]:
-    """Join saved canonical data without turning theme relevance into an action."""
+def _enrich_idea_candidates(candidates: list[dict], *, refresh: bool = False) -> list[dict]:
+    """Attach canonical market/rules data without converting theme fit to action.
+
+    New research candidates often are not on the user's watchlist, so they do
+    not necessarily have a saved market snapshot. A generated screen and an
+    explicit metrics refresh recompute every candidate through the same market
+    and tactical engine used by Analyze before publishing the joined fields.
+    """
     clean = []
     for candidate in candidates or []:
         if not isinstance(candidate, dict):
@@ -1489,6 +1495,24 @@ def _enrich_idea_candidates(candidates: list[dict]) -> list[dict]:
         if ticker:
             clean.append((ticker, candidate))
     tickers = list(dict.fromkeys(ticker for ticker, _ in clean))
+    refresh_errors: dict[str, str] = {}
+    if refresh and tickers:
+        bench = _flatten_yfinance(_download_benchmark(), "SPY")
+        if bench is None or bench.empty:
+            refresh_errors = {ticker: "Benchmark data was unavailable." for ticker in tickers}
+        else:
+            max_workers = min(6, len(tickers))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(refresh_market_snapshot, ticker, bench): ticker
+                    for ticker in tickers
+                }
+                for future in as_completed(futures):
+                    ticker = futures[future]
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        refresh_errors[ticker] = str(exc)[:240]
     markets = backend.read_json_table_many("market_snapshots", tickers)
     rules = backend.read_json_table_many("rule_outputs", tickers)
     enriched = []
@@ -1517,6 +1541,7 @@ def _enrich_idea_candidates(candidates: list[dict]) -> list[dict]:
             "_earnings_days": profile.get("earnings_days") or rule.get("earnings_days"),
             "_data_as_of": receipt.get("source_as_of") or market.get("updated_at") or market.get("data_as_of"),
             "_data_freshness": trust.get("freshness") or "unknown",
+            "_metrics_error": refresh_errors.get(ticker),
         })
     return enriched
 
@@ -1554,7 +1579,9 @@ def process_job(job: dict) -> dict:
                     if target is None:
                         raise ValueError("Saved idea screen was not found.")
                     result = target.get("result") if isinstance(target.get("result"), dict) else {}
-                    result["candidates"] = _enrich_idea_candidates(result.get("candidates") or [])
+                    result["candidates"] = _enrich_idea_candidates(
+                        result.get("candidates") or [], refresh=True,
+                    )
                     target["result"] = result
                     target["metrics_refreshed_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
                     state["idea_discovery_runs"] = runs
@@ -1562,7 +1589,9 @@ def process_job(job: dict) -> dict:
                     return {"run_id": run_id, "candidate_count": len(result["candidates"]), "metrics_refreshed": True}
 
                 result = idea_discovery.generate(query, payload.get("universe"), _api_key())
-                result["candidates"] = _enrich_idea_candidates(result.get("candidates") or [])
+                result["candidates"] = _enrich_idea_candidates(
+                    result.get("candidates") or [], refresh=True,
+                )
                 run = {
                     "run_id": uuid.uuid4().hex,
                     "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
