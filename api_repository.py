@@ -86,7 +86,7 @@ def decision(ticker: str) -> dict[str, Any]:
     report = (backend_layer.read_json_table("research_reports", ticker) or {}).get(ticker) or {}
     memo = (backend_layer.read_json_table("pm_memos", ticker) or {}).get(ticker) or {}
     market = (backend_layer.read_json_table("market_snapshots", ticker) or {}).get(ticker) or {}
-    research = public_contract.research_payload(ticker, report=report, memo=memo, market=market)
+    research = public_contract.research_payload(ticker, report=report, memo=memo, market=market, rule=rule)
     security_profile = public_contract.security_profile_payload(ticker, report=report, market=market)
     analyze_page = public_contract.analyze_page_payload(
         ticker, rule=rule, market=market, report=report, memo=memo, research=research,

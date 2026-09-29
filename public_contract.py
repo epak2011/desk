@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
@@ -54,6 +55,48 @@ def validated_next_earnings(
         "date": None, "days": None, "expected_eps": None,
         "status": "unconfirmed", "verified": False,
         "reason": "The provider did not supply a confirmed future earnings date.",
+    }
+
+
+def _parsed_utc(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _freshness(value: Any, *, max_age_days: int) -> dict[str, Any]:
+    parsed = _parsed_utc(value)
+    if parsed is None:
+        return {"status": "unknown", "as_of": None, "age_hours": None, "refresh_required": True}
+    age_hours = max(0.0, (datetime.now(timezone.utc) - parsed).total_seconds() / 3600)
+    stale = age_hours > max(1, int(max_age_days)) * 24
+    return {
+        "status": "stale" if stale else "fresh", "as_of": parsed.isoformat(),
+        "age_hours": round(age_hours, 1), "refresh_required": stale,
+    }
+
+
+def validated_analyst_consensus(fields: Mapping[str, Any], *, price: float | None) -> dict[str, Any]:
+    freshness = _freshness(fields.get("analyst_data_as_of"), max_age_days=7)
+    if freshness["status"] != "fresh":
+        return {
+            "rating": None, "analyst_count": None, "target": None, "upside_pct": None,
+            "status": "unverified", "verified": False,
+            "reason": "Analyst data is undated or older than seven days.", "freshness": freshness,
+        }
+    try:
+        target = float(fields.get("analyst_target")) if fields.get("analyst_target") is not None else None
+    except (TypeError, ValueError):
+        target = None
+    upside = ((target / price - 1) * 100) if target is not None and price else None
+    return {
+        "rating": fields.get("analyst_rec"), "analyst_count": fields.get("analyst_n"),
+        "target": target, "upside_pct": upside, "status": "current_snapshot",
+        "verified": True, "reason": None, "freshness": freshness,
     }
 
 PAGE_CONTRACTS = [
@@ -395,14 +438,26 @@ def analyze_page_payload(
     profile_fields = {
         key: first(meta.get(key), (market.get("security_profile") or {}).get(key) if isinstance(market.get("security_profile"), Mapping) else None)
         for key in (
-            "earnings_date", "earnings_days", "expected_eps", "analyst_rec", "analyst_target", "analyst_n",
+            "earnings_date", "earnings_days", "expected_eps", "analyst_rec", "analyst_target", "analyst_n", "analyst_data_as_of",
             "forward_pe", "trailing_pe", "peg", "ev_ebitda", "debt_to_equity", "earnings_growth",
             "revenue_growth", "gross_margins", "operating_margins", "profit_margins",
         )
     }
-    target = number(profile_fields.get("analyst_target"))
-    analyst_upside = ((target / price - 1) * 100) if target is not None and price else None
     next_earnings = validated_next_earnings(profile_fields)
+    analyst_consensus = validated_analyst_consensus(profile_fields, price=price)
+    market_as_of = first(market.get("updated_at"), market.get("ts"), receipt.get("captured_at"))
+    profile = market.get("security_profile") if isinstance(market.get("security_profile"), Mapping) else {}
+    section_freshness = {
+        "decision": _freshness(first(receipt.get("captured_at"), market_as_of), max_age_days=1),
+        "technical_picture": _freshness(market_as_of, max_age_days=1),
+        "fundamentals": _freshness(first(profile.get("updated_at"), market_as_of), max_age_days=2),
+        "analyst_consensus": analyst_consensus["freshness"],
+        "research": {
+            "status": research.get("status") or "unknown", "as_of": report_generated,
+            "refresh_required": bool(research.get("refresh_required") or research.get("status") == "stale"),
+            "reasons": list(research.get("stale_reasons") or []),
+        },
+    }
     return {
         "schema_version": 1,
         "ticker": str(ticker or "").upper(),
@@ -433,7 +488,7 @@ def analyze_page_payload(
             "risks": list(research.get("risks") or []), "valuation": research.get("valuation"),
             "timing_watchpoint": research.get("timing_watchpoint"),
             "next_earnings": next_earnings,
-            "analyst_consensus": {"rating": profile_fields.get("analyst_rec"), "analyst_count": profile_fields.get("analyst_n"), "target": target, "upside_pct": analyst_upside},
+            "analyst_consensus": analyst_consensus,
             "lynch_check": {key: profile_fields.get(key) for key in ("earnings_growth", "peg", "forward_pe", "debt_to_equity")},
         },
         "full_research_report": {
@@ -446,6 +501,7 @@ def analyze_page_payload(
                 "portfolio_manager_view": research.get("pm_narrative"),
             },
         },
+        "section_freshness": section_freshness,
     }
 
 
@@ -471,7 +527,7 @@ def security_profile_payload(
         "company_name", "quote_type", "asset_category", "sector", "industry",
         "market_cap", "short_pct_float", "institutional_ownership_pct",
         "dividend_yield", "earnings_date", "earnings_days", "expected_eps",
-        "analyst_rec", "analyst_target", "analyst_n", "forward_pe", "trailing_pe",
+        "analyst_rec", "analyst_target", "analyst_n", "analyst_data_as_of", "forward_pe", "trailing_pe",
         "peg", "ev_ebitda", "debt_to_equity", "earnings_growth", "revenue_growth",
     )
     safe_fields = {key: first(key) for key in fields}
@@ -481,6 +537,13 @@ def security_profile_payload(
     safe_fields["earnings_status"] = next_earnings["status"]
     safe_fields["earnings_verified"] = next_earnings["verified"]
     safe_fields["earnings_reason"] = next_earnings["reason"]
+    analyst = validated_analyst_consensus(safe_fields, price=None)
+    safe_fields["analyst_rec"] = analyst["rating"]
+    safe_fields["analyst_target"] = analyst["target"]
+    safe_fields["analyst_n"] = analyst["analyst_count"]
+    safe_fields["analyst_status"] = analyst["status"]
+    safe_fields["analyst_verified"] = analyst["verified"]
+    safe_fields["analyst_reason"] = analyst["reason"]
     return {
         "ticker": str(ticker or "").upper(),
         **safe_fields,
@@ -494,11 +557,13 @@ def research_payload(
     report: Mapping[str, Any] | None = None,
     memo: Mapping[str, Any] | None = None,
     market: Mapping[str, Any] | None = None,
+    rule: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Normalize saved AI research without allowing it to alter the rule decision."""
     report = report if isinstance(report, Mapping) else {}
     memo = memo if isinstance(memo, Mapping) else {}
     market = market if isinstance(market, Mapping) else {}
+    rule = rule if isinstance(rule, Mapping) else {}
     pm = report.get("pm") if isinstance(report.get("pm"), Mapping) else {}
     dossier = report.get("dossier") if isinstance(report.get("dossier"), Mapping) else {}
     bullets = dossier.get("bullets") if isinstance(dossier.get("bullets"), Mapping) else {}
@@ -549,27 +614,47 @@ def research_payload(
                 stale_reasons.append(f"Price has moved {price_move:.0f}% since this research was generated.")
         except (TypeError, ValueError, ZeroDivisionError):
             pass
+        receipt = rule.get("decision_receipt") if isinstance(rule.get("decision_receipt"), Mapping) else {}
+        current_action = first(receipt.get("action"), rule.get("action"))
+        if report.get("_rule_action") and current_action and str(report.get("_rule_action")).lower() != str(current_action).lower():
+            stale_reasons.append("The canonical decision changed after this research was generated.")
+        profile = market.get("security_profile") if isinstance(market.get("security_profile"), Mapping) else {}
+        if report.get("_earnings_date") != profile.get("earnings_date") and (report.get("_earnings_date") or profile.get("earnings_date")):
+            stale_reasons.append("The earnings calendar changed after this research was generated.")
+        fingerprint_values = {
+            key: profile.get(key) for key in
+            ("forward_pe", "peg", "debt_to_equity", "earnings_growth", "revenue_growth", "market_cap")
+        }
+        current_fingerprint = (
+            hashlib.sha256(json.dumps(fingerprint_values, sort_keys=True, default=str).encode()).hexdigest()[:16]
+            if any(value is not None for value in fingerprint_values.values()) else None
+        )
+        if report.get("_fundamentals_fingerprint") and current_fingerprint and report.get("_fundamentals_fingerprint") != current_fingerprint:
+            stale_reasons.append("Fundamentals changed after this research was generated.")
     status = "unavailable" if not has_research else ("stale" if stale_reasons else "ready")
+    blocked = status == "stale"
     result = {
         "status": status,
         "ticker": str(ticker or "").upper(),
         "company_name": first((report.get("meta") or {}).get("company_name") if isinstance(report.get("meta"), Mapping) else None, market.get("company_name")),
-        "company_overview": company_overview,
-        "thesis": thesis,
+        "company_overview": None if blocked else company_overview,
+        "thesis": None if blocked else thesis,
         # Once Claude completed a dossier, never splice rule-fallback prose into
         # missing dossier fields. Empty is more honest than a contradictory
         # hybrid memo that claims Claude did not complete.
-        "drivers": strings(bullets.get("drivers") if dossier_completed else first(bullets.get("drivers"), pm.get("drivers"), memo.get("drivers"), [])),
-        "risks": strings(bullets.get("risks") if dossier_completed else first(bullets.get("risks"), pm.get("risks"), memo.get("risks"), [])),
-        "valuation": bullets.get("valuation") if dossier_completed else first(bullets.get("valuation"), pm.get("valuation"), memo.get("valuation")),
-        "timing_watchpoint": bullets.get("timing_watchpoint") if dossier_completed else first(bullets.get("timing_watchpoint"), pm.get("timing_watchpoint"), memo.get("timing_watchpoint")),
-        "decision_memo": first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier")),
-        "technical_narrative": first(dossier.get("technical_narrative"), memo.get("technical_narrative")),
-        "pm_narrative": first(dossier.get("pm_narrative"), memo.get("pm_narrative")),
-        "quality": dict(quality) if isinstance(quality, Mapping) else {},
+        "drivers": [] if blocked else strings(bullets.get("drivers") if dossier_completed else first(bullets.get("drivers"), pm.get("drivers"), memo.get("drivers"), [])),
+        "risks": [] if blocked else strings(bullets.get("risks") if dossier_completed else first(bullets.get("risks"), pm.get("risks"), memo.get("risks"), [])),
+        "valuation": None if blocked else (bullets.get("valuation") if dossier_completed else first(bullets.get("valuation"), pm.get("valuation"), memo.get("valuation"))),
+        "timing_watchpoint": None if blocked else (bullets.get("timing_watchpoint") if dossier_completed else first(bullets.get("timing_watchpoint"), pm.get("timing_watchpoint"), memo.get("timing_watchpoint"))),
+        "decision_memo": None if blocked else first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier")),
+        "technical_narrative": None if blocked else first(dossier.get("technical_narrative"), memo.get("technical_narrative")),
+        "pm_narrative": None if blocked else first(dossier.get("pm_narrative"), memo.get("pm_narrative")),
+        "quality": {} if blocked else (dict(quality) if isinstance(quality, Mapping) else {}),
         "generated_at": generated_at,
         "age_days": age_days,
         "stale_reasons": stale_reasons,
+        "content_blocked": blocked,
+        "refresh_required": blocked,
         "source": source,
     }
     return result
@@ -645,6 +730,7 @@ def regime_payload(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         "data_trust",
     )
     safe = {key: snapshot.get(key) for key in allowed if key in snapshot}
+    safe["news"] = _top_contract_news(snapshot.get("news"), limit=5)
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
         "meta": response_meta(
@@ -656,6 +742,39 @@ def regime_payload(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "regime": safe,
     }
+
+
+def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
+    """Defensively collapse old saved news snapshots at the API boundary."""
+    rows = [dict(row) for row in value or [] if isinstance(row, Mapping) and row.get("title")]
+    stopwords = {"the", "and", "for", "from", "with", "after", "amid", "into", "says", "new", "update", "updates"}
+
+    def tokens(title: Any) -> set[str]:
+        clean = re.sub(r"\s+-\s+[^-]{2,60}$", "", str(title or "").lower())
+        return {token for token in re.findall(r"[a-z0-9]+", clean) if len(token) > 2 and token not in stopwords}
+
+    selected = []
+    category_counts: dict[str, int] = {}
+    rows.sort(key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""), reverse=True)
+    for row in rows:
+        row_tokens = tokens(row.get("title"))
+        duplicate = False
+        for prior in selected:
+            prior_tokens = tokens(prior.get("title"))
+            shared = len(row_tokens & prior_tokens)
+            if row_tokens and prior_tokens and shared >= 4 and shared / min(len(row_tokens), len(prior_tokens)) >= 0.62:
+                duplicate = True
+                break
+        if duplicate:
+            continue
+        category = str(row.get("category") or "other")
+        if category_counts.get(category, 0) >= 2:
+            continue
+        selected.append(row)
+        category_counts[category] = category_counts.get(category, 0) + 1
+        if len(selected) >= max(1, int(limit)):
+            break
+    return selected
 
 
 def watchlist_payload(items: Iterable[Mapping[str, Any]]) -> dict[str, Any]:

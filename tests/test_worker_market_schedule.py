@@ -8,6 +8,25 @@ import worker
 
 
 class WorkerMarketScheduleTests(unittest.TestCase):
+    def test_regime_news_clusters_syndicated_variants_and_caps_top_five(self):
+        stories = [
+            {"title": "CLARITY Act advances in Senate as crypto bill gains support - Source A", "source": "A", "category": "crypto_policy", "impact_score": 8, "published_at": "2026-09-28T12:00:00Z"},
+            {"title": "Crypto CLARITY Act gains support as bill advances in the Senate - Source B", "source": "B", "category": "crypto_policy", "impact_score": 7, "published_at": "2026-09-28T11:00:00Z"},
+        ] + [
+            {"title": title, "source": "Wire", "category": category, "impact_score": score, "published_at": published}
+            for title, category, score, published in (
+                ("Federal Reserve signals patience on interest rates", "economy", 5.9, "2026-09-28T09:00:00Z"),
+                ("Payroll growth cools while unemployment holds steady", "economy", 5.8, "2026-09-28T08:00:00Z"),
+                ("Credit spreads tighten as corporate bonds rally", "markets", 5.7, "2026-09-28T07:00:00Z"),
+                ("Oil prices rise after major production disruption", "markets", 5.6, "2026-09-28T06:00:00Z"),
+                ("Ethereum ETF demand lifts digital asset flows", "crypto_markets", 5.5, "2026-09-28T05:00:00Z"),
+                ("Stablecoin supply expands with liquidity conditions", "crypto_markets", 5.4, "2026-09-28T04:00:00Z"),
+            )
+        ]
+        selected = worker._select_top_regime_news(stories, limit=5)
+        self.assertEqual(len(selected), 5)
+        self.assertEqual(sum("CLARITY" in row["title"] for row in selected), 1)
+        self.assertEqual(selected[0]["related_source_count"], 2)
     @patch("worker.refresh_market_snapshot")
     @patch("worker._flatten_yfinance", return_value=pd.DataFrame({"Close": [1.0]}))
     @patch("worker._download_benchmark")

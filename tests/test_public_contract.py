@@ -173,6 +173,24 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(payload["regime"]["news"][0]["category"], "crypto_policy")
         self.assertNotIn("database_url", payload["regime"])
 
+    def test_regime_payload_deduplicates_and_caps_news(self):
+        news = [
+            {"title": "CLARITY Act advances as Senate crypto bill gains support - A", "category": "crypto_policy", "impact_score": 9},
+            {"title": "Senate crypto CLARITY Act gains support as bill advances - B", "category": "crypto_policy", "impact_score": 8},
+        ] + [
+            {"title": title, "category": category, "impact_score": score}
+            for title, category, score in (
+                ("Federal Reserve holds rates steady", "economy", 7),
+                ("Payroll growth cools in latest report", "economy", 6),
+                ("Credit spreads tighten across bond market", "markets", 5),
+                ("Oil rises after production disruption", "markets", 4),
+                ("Ethereum ETF records new inflows", "crypto_markets", 3),
+            )
+        ]
+        result = regime_payload({"news": news})["regime"]["news"]
+        self.assertEqual(len(result), 5)
+        self.assertEqual(sum("CLARITY" in row["title"] for row in result), 1)
+
     def test_watchlist_payload_blocks_private_notes(self):
         payload = watchlist_payload([{"ticker": "NVDA", "action": "watch", "private_note": "x"}])
         self.assertEqual(payload["count"], 1)
@@ -224,7 +242,7 @@ class PublicContractTests(unittest.TestCase):
                     },
                     "_source": "claude · fast refresh",
                 },
-                "_worker_generated_at": "2026-09-15T22:00:00+00:00",
+                "_worker_generated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -232,6 +250,31 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(payload["drivers"], ["Blackwell demand."])
         self.assertEqual(payload["risks"], ["Custom silicon adoption."])
         self.assertEqual(payload["valuation"], "Forward P/E provides the anchor.")
+
+    def test_undated_analyst_consensus_is_not_published_as_current(self):
+        payload = analyze_page_payload("DEMO", rule={"price": 100}, market={"security_profile": {
+            "analyst_rec": "buy", "analyst_target": 150, "analyst_n": 20,
+        }})
+        consensus = payload["portfolio_manager"]["analyst_consensus"]
+        self.assertFalse(consensus["verified"])
+        self.assertIsNone(consensus["rating"])
+        self.assertIsNone(consensus["target"])
+        self.assertTrue(consensus["freshness"]["refresh_required"])
+
+    def test_stale_research_content_is_blocked_after_decision_change(self):
+        payload = research_payload(
+            "DEMO",
+            report={
+                "pm": {"thesis": "Old thesis."},
+                "_worker_generated_at": datetime.now(timezone.utc).isoformat(),
+                "_rule_action": "watch",
+            },
+            rule={"action": "avoid"},
+        )
+        self.assertEqual(payload["status"], "stale")
+        self.assertTrue(payload["content_blocked"])
+        self.assertIsNone(payload["thesis"])
+        self.assertTrue(any("decision changed" in reason for reason in payload["stale_reasons"]))
 
     def test_completed_dossier_never_splices_in_rules_fallback(self):
         payload = research_payload(

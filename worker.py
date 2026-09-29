@@ -17,6 +17,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import ssl
 import time
 import urllib.parse
@@ -93,6 +94,70 @@ _NEWS_IMPACT_TERMS = {
     "sec": 3, "cftc": 3, "bitcoin": 3, "ethereum": 3, "crypto etf": 4,
 }
 
+_NEWS_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has",
+    "in", "is", "it", "its", "of", "on", "or", "that", "the", "this", "to",
+    "with", "after", "before", "amid", "says", "new", "update", "updates",
+}
+
+
+def _news_title_tokens(title: str) -> set[str]:
+    title = re.sub(r"\s+-\s+[^-]{2,60}$", "", str(title or "").lower())
+    return {
+        token for token in re.findall(r"[a-z0-9]+", title)
+        if len(token) > 2 and token not in _NEWS_STOPWORDS
+    }
+
+
+def _same_news_event(left: dict, right: dict) -> bool:
+    a, b = _news_title_tokens(left.get("title")), _news_title_tokens(right.get("title"))
+    if not a or not b:
+        return False
+    shared = len(a & b)
+    return shared >= 4 and (shared / min(len(a), len(b)) >= 0.62 or shared / len(a | b) >= 0.48)
+
+
+def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict]:
+    """Collapse syndicated variants and return a small, high-signal news slate."""
+    ranked = sorted(
+        stories,
+        key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""),
+        reverse=True,
+    )
+    clusters: list[list[dict]] = []
+    for story in ranked:
+        cluster = next((group for group in clusters if _same_news_event(story, group[0])), None)
+        if cluster is None:
+            clusters.append([story])
+        else:
+            cluster.append(story)
+
+    representatives = []
+    for cluster in clusters:
+        best = max(
+            cluster,
+            key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""),
+        )
+        representatives.append({
+            **best,
+            "related_source_count": len({row.get("source") for row in cluster if row.get("source")}),
+        })
+    representatives.sort(
+        key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""),
+        reverse=True,
+    )
+
+    selected, category_counts = [], {}
+    for story in representatives:
+        category = str(story.get("category") or "other")
+        if category_counts.get(category, 0) >= 2:
+            continue
+        selected.append(story)
+        category_counts[category] = category_counts.get(category, 0) + 1
+        if len(selected) >= max(1, int(limit)):
+            break
+    return selected
+
 
 def _fetch_regime_news(*, per_topic: int = 5) -> tuple[list[dict], dict]:
     """Collect and rank fresh market-moving news across the regime's full remit."""
@@ -139,35 +204,7 @@ def _fetch_regime_news(*, per_topic: int = 5) -> tuple[list[dict], dict]:
             if error:
                 errors[topic] = error
 
-    deduped = {}
-    for story in collected:
-        key = " ".join(story["title"].lower().split())
-        existing = deduped.get(key)
-        if existing is None or story["impact_score"] > existing["impact_score"]:
-            deduped[key] = story
-    ranked = sorted(
-        deduped.values(),
-        key=lambda row: (row["impact_score"], row.get("published_at") or ""),
-        reverse=True,
-    )
-    # Guarantee breadth before filling remaining slots by impact. Otherwise a
-    # busy macro day can silently crowd all crypto policy (or vice versa) out
-    # of the client payload even though collection succeeded.
-    selected, selected_urls = [], set()
-    for topic in REGIME_NEWS_QUERIES:
-        for story in (row for row in ranked if row["category"] == topic):
-            if len([row for row in selected if row["category"] == topic]) >= 3:
-                break
-            selected.append(story)
-            selected_urls.add(story["url"])
-    for story in ranked:
-        if len(selected) >= 16:
-            break
-        if story["url"] not in selected_urls:
-            selected.append(story)
-            selected_urls.add(story["url"])
-    selected.sort(key=lambda row: (row["impact_score"], row.get("published_at") or ""), reverse=True)
-    return selected, errors
+    return _select_top_regime_news(collected, limit=5), errors
 
 
 def _series_snapshot(frame, ticker: str) -> dict:
@@ -964,6 +1001,9 @@ def _quote_meta(ticker: str) -> dict:
         earnings_date = None
         earnings_days = None
     quote_type = str(info.get("quoteType") or "").lower() or None
+    has_analyst_data = any(info.get(key) is not None for key in (
+        "recommendationKey", "targetMeanPrice", "numberOfAnalystOpinions",
+    ))
     return {
         "company_name": info.get("shortName") or info.get("longName") or ticker,
         "long_business_summary": info.get("longBusinessSummary"),
@@ -987,6 +1027,7 @@ def _quote_meta(ticker: str) -> dict:
         "analyst_rec": info.get("recommendationKey"),
         "analyst_target": info.get("targetMeanPrice"),
         "analyst_n": info.get("numberOfAnalystOpinions"),
+        "analyst_data_as_of": datetime.now(timezone.utc).isoformat() if has_analyst_data else None,
         "trailing_pe": info.get("trailingPE"),
     }
 
@@ -1159,6 +1200,9 @@ def refresh_full_report(ticker: str) -> dict:
         "meta": meta,
         "_worker_generated_at": generated_at,
         "_market_price": t_state.get("price"),
+        "_rule_action": t_state.get("action"),
+        "_earnings_date": meta.get("earnings_date"),
+        "_fundamentals_fingerprint": _fundamentals_fingerprint(meta),
     }
     backend.upsert_json_table("research_reports", "ticker", ticker, payload, source=(dossier or {}).get("_source") or "claude")
     return {
@@ -1259,6 +1303,15 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
     }
 
 
+def _fundamentals_fingerprint(profile: dict | None) -> str | None:
+    profile = profile if isinstance(profile, dict) else {}
+    keys = ("forward_pe", "peg", "debt_to_equity", "earnings_growth", "revenue_growth", "market_cap")
+    values = {key: profile.get(key) for key in keys}
+    if not any(value is not None for value in values.values()):
+        return None
+    return hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
 def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
     """Queue bounded report refreshes for missing or stale watchlist research."""
     if not _api_key():
@@ -1270,6 +1323,8 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
 
     tickers = backend.enabled_watchlist_tickers(limit=250)
     reports = backend.read_json_table_many("research_reports", tickers)
+    markets = backend.read_json_table_many("market_snapshots", tickers)
+    rules = backend.read_json_table_many("rule_outputs", tickers)
     now = datetime.now(timezone.utc)
     threshold_minutes = max(1, int(max_age_days)) * 1440
     candidates = []
@@ -1286,8 +1341,28 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
             age_minutes = max(0.0, (now - parsed).total_seconds() / 60.0)
         except (TypeError, ValueError):
             age_minutes = None
+        market = markets.get(ticker) or {}
+        profile = market.get("security_profile") if isinstance(market.get("security_profile"), dict) else {}
+        rule = rules.get(ticker) or {}
+        current_action = ((rule.get("decision_receipt") or {}).get("action") if isinstance(rule.get("decision_receipt"), dict) else None) or rule.get("action")
+        change_reasons = []
+        if report.get("_rule_action") and current_action and str(report.get("_rule_action")).lower() != str(current_action).lower():
+            change_reasons.append("decision_changed")
+        if report.get("_earnings_date") != profile.get("earnings_date") and (report.get("_earnings_date") or profile.get("earnings_date")):
+            change_reasons.append("earnings_changed")
+        current_fingerprint = _fundamentals_fingerprint(profile)
+        if report.get("_fundamentals_fingerprint") and current_fingerprint and report.get("_fundamentals_fingerprint") != current_fingerprint:
+            change_reasons.append("fundamentals_changed")
+        try:
+            price_move = abs(float(market.get("price") or market.get("last")) / float(report.get("_market_price")) - 1) * 100
+            if price_move >= 10:
+                change_reasons.append("price_moved")
+        except (TypeError, ValueError, ZeroDivisionError):
+            pass
         if not report:
             candidates.append((0, ticker, "research_missing", None))
+        elif change_reasons:
+            candidates.append((0, ticker, "+".join(change_reasons), age_minutes))
         elif age_minutes is None or age_minutes >= threshold_minutes:
             candidates.append((1, ticker, "research_stale", age_minutes))
 
