@@ -151,13 +151,17 @@ def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict
         reverse=True,
     )
 
-    selected, category_counts = [], {}
+    selected, category_counts, crypto_count = [], {}, 0
     for story in representatives:
         category = str(story.get("category") or "other")
         if category_counts.get(category, 0) >= 2:
             continue
+        if category.startswith("crypto") and crypto_count >= 2:
+            continue
         selected.append(story)
         category_counts[category] = category_counts.get(category, 0) + 1
+        if category.startswith("crypto"):
+            crypto_count += 1
         if len(selected) >= max(1, int(limit)):
             break
     return selected

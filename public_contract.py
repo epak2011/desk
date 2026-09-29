@@ -756,6 +756,7 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
 
     selected = []
     category_counts: dict[str, int] = {}
+    crypto_count = 0
     rows.sort(key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""), reverse=True)
     for row in rows:
         if re.match(r"^(how|what|why)\b", str(row.get("title") or "").strip(), re.I):
@@ -778,8 +779,12 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
         category = str(row.get("category") or "other")
         if category_counts.get(category, 0) >= 2:
             continue
+        if category.startswith("crypto") and crypto_count >= 2:
+            continue
         selected.append(row)
         category_counts[category] = category_counts.get(category, 0) + 1
+        if category.startswith("crypto"):
+            crypto_count += 1
         if len(selected) >= max(1, int(limit)):
             break
     return selected
