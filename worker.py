@@ -129,6 +129,7 @@ def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict
         return bool(
             title
             and not re.match(r"^(how|what|why|who|watch)\b", title, re.I)
+            and not re.search(r":\s*what\b", title, re.I)
             and not re.search(r"\b(may|could|outlook)\b|lessons from history", title, re.I)
             and ".." not in title
             and (not source or source.isascii())
@@ -165,7 +166,8 @@ def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict
     selected, category_counts, crypto_count = [], {}, 0
     for story in representatives:
         category = str(story.get("category") or "other")
-        if category_counts.get(category, 0) >= 2:
+        category_limit = 1 if category == "crypto_policy" else 2
+        if category_counts.get(category, 0) >= category_limit:
             continue
         if category.startswith("crypto") and crypto_count >= 2:
             continue

@@ -790,6 +790,8 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
         source = str(row.get("source") or "").strip()
         if (
             re.match(r"^(how|what|why|who|watch)\b", title, re.I)
+            or re.search(r":\s*what\b", title, re.I)
+            or re.search(r"\b(may|could|outlook)\b|lessons from history", title, re.I)
             or ".." in title
             or (source and not source.isascii())
         ):
@@ -810,7 +812,8 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
         if duplicate:
             continue
         category = str(row.get("category") or "other")
-        if category_counts.get(category, 0) >= 2:
+        category_limit = 1 if category == "crypto_policy" else 2
+        if category_counts.get(category, 0) >= category_limit:
             continue
         if category.startswith("crypto") and crypto_count >= 2:
             continue
