@@ -423,7 +423,7 @@ def analyze_page_payload(
     price = number(first(rule.get("price"), market.get("price")))
     ma20, ma50, ma200 = number(rule.get("ma20")), number(rule.get("ma50")), number(rule.get("ma200"))
     rs, tech_delta, vol_ratio = number(rule.get("rs")), number(rule.get("tech_delta")), number(rule.get("vol_ratio"))
-    range_position = number(rule.get("pct_of_52w_range"))
+    range_position = number(rule.get("pct_of_52u_range"))
     technical = [
         {"key": "trend", "label": "Trend", "status": "Strong" if price and ma50 and ma200 and price > ma50 and price > ma200 else "Mixed", "detail": "Above both major moving averages." if price and ma50 and ma200 and price > ma50 and price > ma200 else "Price is not above both major moving averages."},
         {"key": "momentum", "label": "Momentum", "status": "Improving" if tech_delta is not None and tech_delta > 0 else ("Fading" if tech_delta is not None and tech_delta < 0 else "Stable"), "detail": "Technical score change over the last 10 sessions."},
@@ -700,6 +700,31 @@ def attention_payload(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+REGIME_STALE_MINUTES = 4 * 60
+
+
+def _computed_freshness(generated_at: Any, stored_freshness: Any, stale_after_minutes: int) -> str:
+    """Recompute freshness from elapsed time instead of trusting a value written once at save time.
+
+    A worker writes "fresh" the moment it saves a snapshot; that string never
+    changes again, so a page reading it hours later still shows "fresh" no
+    matter how old the data actually is. An explicit blocked/expired state
+    from the snapshot itself is preserved rather than overridden, since that
+    reflects a real data-quality problem the age check cannot see.
+    """
+    stored = str(stored_freshness or "").lower()
+    if stored in {"blocked", "expired"}:
+        return stored
+    try:
+        stamp = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        age_minutes = (datetime.now(timezone.utc) - stamp).total_seconds() / 60.0
+    except (TypeError, ValueError):
+        return stored or "unknown"
+    return "stale" if age_minutes >= stale_after_minutes else "fresh"
+
+
 def regime_payload(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     """Package the saved canonical regime without recomputing it in the client."""
     allowed = (
@@ -731,13 +756,15 @@ def regime_payload(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     )
     safe = {key: snapshot.get(key) for key in allowed if key in snapshot}
     safe["news"] = _top_contract_news(snapshot.get("news"), limit=5)
+    generated_at = str(snapshot.get("generated_at") or "") or None
+    freshness = _computed_freshness(generated_at, snapshot.get("freshness"), REGIME_STALE_MINUTES)
     return {
         "contract_version": PUBLIC_CONTRACT_VERSION,
         "meta": response_meta(
-            generated_at=str(snapshot.get("generated_at") or "") or None,
+            generated_at=generated_at,
             engine_version=str(snapshot.get("engine_version") or "unknown"),
             data_as_of=str(snapshot.get("data_as_of") or "") or None,
-            freshness=str(snapshot.get("freshness") or "unknown"),
+            freshness=freshness,
             refresh_url="/v1/regime/requests",
         ),
         "regime": safe,
@@ -763,7 +790,6 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
         source = str(row.get("source") or "").strip()
         if (
             re.match(r"^(how|what|why|who|watch)\b", title, re.I)
-            or re.search(r"\b(may|could|outlook)\b|lessons from history", title, re.I)
             or ".." in title
             or (source and not source.isascii())
         ):
@@ -774,12 +800,10 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
             prior_tokens = tokens(prior.get("title"))
             shared = len(row_tokens & prior_tokens)
             same_category = row.get("category") == prior.get("category")
-            if row_tokens and prior_tokens and (
-                (shared >= 4 and (
-                    shared / min(len(row_tokens), len(prior_tokens)) >= 0.42
-                    or shared / len(row_tokens | prior_tokens) >= 0.34
-                ))
-                or (same_category and shared >= 3)
+            if row_tokens and prior_tokens and shared >= 4 and (
+                shared / min(len(row_tokens), len(prior_tokens)) >= 0.42
+                or shared / len(row_tokens | prior_tokens) >= 0.34
+                or same_category
             ):
                 duplicate = True
                 break
