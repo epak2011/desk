@@ -435,6 +435,11 @@ def analyze_page_payload(
     meta = report.get("meta") if isinstance(report.get("meta"), Mapping) else {}
     quality = research.get("quality") if isinstance(research.get("quality"), Mapping) else {}
     report_generated = first(report.get("_worker_generated_at"), report.get("generated_at"), research.get("generated_at"))
+    full_report_available = bool(research.get("decision_memo"))
+    full_report_status = (
+        "stale" if research.get("status") == "stale"
+        else ("ready" if full_report_available else "unavailable")
+    )
     profile_fields = {
         key: first(meta.get(key), (market.get("security_profile") or {}).get(key) if isinstance(market.get("security_profile"), Mapping) else None)
         for key in (
@@ -492,7 +497,10 @@ def analyze_page_payload(
             "lynch_check": {key: profile_fields.get(key) for key in ("earnings_growth", "peg", "forward_pe", "debt_to_equity")},
         },
         "full_research_report": {
-            "status": research.get("status"), "available": bool(research.get("decision_memo")),
+            # A rules-backed PM summary is useful, but it is not a completed
+            # research report. Keep these states separate so clients cannot
+            # label a fallback snapshot "Ready" beside an unavailable report.
+            "status": full_report_status, "available": full_report_available,
             "generated_at": report_generated, "request_endpoint": f"/v1/decisions/{str(ticker or '').upper()}/research/requests",
             "polling_note": "POST the request endpoint when signed in, then poll the returned poll_url until ready.",
             "sections": {
@@ -635,6 +643,8 @@ def research_payload(
     blocked = status == "stale"
     result = {
         "status": status,
+        "completeness": "full_report" if first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier")) else ("summary_only" if has_research else "unavailable"),
+        "full_report_available": bool(first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier"))),
         "ticker": str(ticker or "").upper(),
         "company_name": first((report.get("meta") or {}).get("company_name") if isinstance(report.get("meta"), Mapping) else None, market.get("company_name")),
         "company_overview": None if blocked else company_overview,

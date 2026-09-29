@@ -251,6 +251,26 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(payload["risks"], ["Custom silicon adoption."])
         self.assertEqual(payload["valuation"], "Forward P/E provides the anchor.")
 
+    def test_rules_fallback_is_not_labeled_as_a_full_research_report(self):
+        research = research_payload(
+            "RGTI",
+            report={
+                "pm": {
+                    "thesis": "Rules-backed monitoring summary.",
+                    "drivers": ["Wait for a cleaner trigger."],
+                    "_source": "rules fallback",
+                },
+                "_worker_generated_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        page = analyze_page_payload("RGTI", research=research)
+
+        self.assertEqual(research["status"], "ready")
+        self.assertEqual(research["completeness"], "summary_only")
+        self.assertFalse(research["full_report_available"])
+        self.assertEqual(page["full_research_report"]["status"], "unavailable")
+        self.assertFalse(page["full_research_report"]["available"])
+
     def test_undated_analyst_consensus_is_not_published_as_current(self):
         payload = analyze_page_payload("DEMO", rule={"price": 100}, market={"security_profile": {
             "analyst_rec": "buy", "analyst_target": 150, "analyst_n": 20,
