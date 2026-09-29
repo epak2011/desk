@@ -123,8 +123,18 @@ def _same_news_event(left: dict, right: dict) -> bool:
 
 def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict]:
     """Collapse syndicated variants and return a small, high-signal news slate."""
+    def publishable(story: dict) -> bool:
+        title = str(story.get("title") or "").strip()
+        source = str(story.get("source") or "").strip()
+        return bool(
+            title
+            and not re.match(r"^(how|what|why|who|watch)\b", title, re.I)
+            and ".." not in title
+            and (not source or source.isascii())
+        )
+
     ranked = sorted(
-        [story for story in stories if not re.match(r"^(how|what|why)\b", str(story.get("title") or "").strip(), re.I)],
+        [story for story in stories if publishable(story)],
         key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""),
         reverse=True,
     )

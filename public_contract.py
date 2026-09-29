@@ -759,7 +759,13 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
     crypto_count = 0
     rows.sort(key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""), reverse=True)
     for row in rows:
-        if re.match(r"^(how|what|why)\b", str(row.get("title") or "").strip(), re.I):
+        title = str(row.get("title") or "").strip()
+        source = str(row.get("source") or "").strip()
+        if (
+            re.match(r"^(how|what|why|who|watch)\b", title, re.I)
+            or ".." in title
+            or (source and not source.isascii())
+        ):
             continue
         row_tokens = tokens(row.get("title"))
         duplicate = False
