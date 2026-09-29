@@ -763,6 +763,7 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
         source = str(row.get("source") or "").strip()
         if (
             re.match(r"^(how|what|why|who|watch)\b", title, re.I)
+            or re.search(r"\b(may|could|outlook)\b|lessons from history", title, re.I)
             or ".." in title
             or (source and not source.isascii())
         ):
@@ -773,10 +774,12 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
             prior_tokens = tokens(prior.get("title"))
             shared = len(row_tokens & prior_tokens)
             same_category = row.get("category") == prior.get("category")
-            if row_tokens and prior_tokens and shared >= 4 and (
-                shared / min(len(row_tokens), len(prior_tokens)) >= 0.42
-                or shared / len(row_tokens | prior_tokens) >= 0.34
-                or same_category
+            if row_tokens and prior_tokens and (
+                (shared >= 4 and (
+                    shared / min(len(row_tokens), len(prior_tokens)) >= 0.42
+                    or shared / len(row_tokens | prior_tokens) >= 0.34
+                ))
+                or (same_category and shared >= 3)
             ):
                 duplicate = True
                 break

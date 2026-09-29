@@ -118,7 +118,7 @@ def _same_news_event(left: dict, right: dict) -> bool:
     same_category = left.get("category") == right.get("category")
     return (
         shared >= 4 and (shared / min(len(a), len(b)) >= 0.42 or shared / len(a | b) >= 0.34)
-    ) or (same_category and shared >= 4)
+    ) or (same_category and shared >= 3)
 
 
 def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict]:
@@ -129,6 +129,7 @@ def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict
         return bool(
             title
             and not re.match(r"^(how|what|why|who|watch)\b", title, re.I)
+            and not re.search(r"\b(may|could|outlook)\b|lessons from history", title, re.I)
             and ".." not in title
             and (not source or source.isascii())
         )
