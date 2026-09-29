@@ -750,19 +750,27 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
     stopwords = {"the", "and", "for", "from", "with", "after", "amid", "into", "says", "new", "update", "updates"}
 
     def tokens(title: Any) -> set[str]:
-        clean = re.sub(r"\s+-\s+[^-]{2,60}$", "", str(title or "").lower())
+        clean = str(title or "").lower().replace("federal reserve", "fed").replace("global assets", "markets")
+        clean = re.sub(r"\s+-\s+[^-]{2,60}$", "", clean)
         return {token for token in re.findall(r"[a-z0-9]+", clean) if len(token) > 2 and token not in stopwords}
 
     selected = []
     category_counts: dict[str, int] = {}
     rows.sort(key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""), reverse=True)
     for row in rows:
+        if re.match(r"^(how|what|why)\b", str(row.get("title") or "").strip(), re.I):
+            continue
         row_tokens = tokens(row.get("title"))
         duplicate = False
         for prior in selected:
             prior_tokens = tokens(prior.get("title"))
             shared = len(row_tokens & prior_tokens)
-            if row_tokens and prior_tokens and shared >= 4 and shared / min(len(row_tokens), len(prior_tokens)) >= 0.62:
+            same_category = row.get("category") == prior.get("category")
+            if row_tokens and prior_tokens and shared >= 4 and (
+                shared / min(len(row_tokens), len(prior_tokens)) >= 0.42
+                or shared / len(row_tokens | prior_tokens) >= 0.34
+                or same_category
+            ):
                 duplicate = True
                 break
         if duplicate:

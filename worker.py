@@ -102,7 +102,8 @@ _NEWS_STOPWORDS = {
 
 
 def _news_title_tokens(title: str) -> set[str]:
-    title = re.sub(r"\s+-\s+[^-]{2,60}$", "", str(title or "").lower())
+    title = str(title or "").lower().replace("federal reserve", "fed").replace("global assets", "markets")
+    title = re.sub(r"\s+-\s+[^-]{2,60}$", "", title)
     return {
         token for token in re.findall(r"[a-z0-9]+", title)
         if len(token) > 2 and token not in _NEWS_STOPWORDS
@@ -114,13 +115,16 @@ def _same_news_event(left: dict, right: dict) -> bool:
     if not a or not b:
         return False
     shared = len(a & b)
-    return shared >= 4 and (shared / min(len(a), len(b)) >= 0.62 or shared / len(a | b) >= 0.48)
+    same_category = left.get("category") == right.get("category")
+    return (
+        shared >= 4 and (shared / min(len(a), len(b)) >= 0.42 or shared / len(a | b) >= 0.34)
+    ) or (same_category and shared >= 4)
 
 
 def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict]:
     """Collapse syndicated variants and return a small, high-signal news slate."""
     ranked = sorted(
-        stories,
+        [story for story in stories if not re.match(r"^(how|what|why)\b", str(story.get("title") or "").strip(), re.I)],
         key=lambda row: (row.get("impact_score") or 0, row.get("published_at") or ""),
         reverse=True,
     )
