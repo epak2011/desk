@@ -227,10 +227,33 @@ def patch_workspace(user_id: str, patch: dict[str, Any]) -> dict[str, Any]:
     return workspace(user_id)
 
 
-def _watchlist_items(tickers: Iterable[str]) -> list[dict[str, Any]]:
+def _holding_quantity(holding: Any):
+    value = holding
+    if isinstance(holding, dict):
+        value = next((holding.get(key) for key in ("shares", "quantity", "qty", "units") if holding.get(key) is not None), None)
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _position_value(quantity: Any, price: Any):
+    try:
+        return float(quantity) * float(price) if quantity is not None and price is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _watchlist_items(
+    tickers: Iterable[str],
+    *,
+    holdings: dict[str, Any] | None = None,
+    rule_rows: dict[str, Any] | None = None,
+    market_rows: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     clean = [normalize_ticker(ticker) for ticker in tickers]
-    rule_rows = backend_layer.read_json_table_many("rule_outputs", clean)
-    market_rows = backend_layer.read_json_table_many("market_snapshots", clean)
+    rule_rows = rule_rows if rule_rows is not None else backend_layer.read_json_table_many("rule_outputs", clean)
+    market_rows = market_rows if market_rows is not None else backend_layer.read_json_table_many("market_snapshots", clean)
     items = []
     for ticker in clean:
         rule = rule_rows.get(ticker) or {}
@@ -238,24 +261,42 @@ def _watchlist_items(tickers: Iterable[str]) -> list[dict[str, Any]]:
         receipt = rule.get("decision_receipt") if isinstance(rule.get("decision_receipt"), dict) else {}
         trigger = receipt.get("trigger") if isinstance(receipt.get("trigger"), dict) else {}
         invalidation = receipt.get("invalidation") if isinstance(receipt.get("invalidation"), dict) else {}
+        profile = market.get("security_profile") if isinstance(market.get("security_profile"), dict) else {}
+        price = market.get("price") or market.get("last") or receipt.get("price")
+        quantity = _holding_quantity((holdings or {}).get(ticker))
         items.append({
             "ticker": ticker,
             "company_name": market.get("company_name") or rule.get("company_name"),
-            "price": market.get("price") or market.get("last") or receipt.get("price"),
+            "price": price,
             "change_pct": market.get("change_pct"),
             "action": receipt.get("action") or rule.get("action"),
             "confidence": receipt.get("confidence") or rule.get("decision_confidence"),
             "trigger_price": trigger.get("price"),
             "invalidation_price": invalidation.get("price"),
+            "setup_score": receipt.get("setup_score") or rule.get("setup_score"),
+            "reward_risk": rule.get("reward_risk"),
+            "earnings_date": profile.get("earnings_date") or rule.get("earnings_date"),
+            "updated_at": market.get("updated_at") or market.get("ts") or receipt.get("captured_at"),
+            "position_quantity": quantity,
+            "position_value": _position_value(quantity, price),
             "data_trust": receipt.get("data_trust") or rule.get("data_trust") or {},
         })
     return items
 
 
-def watchlist(user_id: str) -> dict[str, Any]:
+def watchlist(user_id: str, *, sort_by: str | None = None, direction: str = "default") -> dict[str, Any]:
     state = _workspace_state(user_id)
-    tickers = state.get("watchlist") if isinstance(state.get("watchlist"), list) else []
-    return public_contract.watchlist_payload(_watchlist_items(tickers))
+    tickers = [normalize_ticker(item) for item in state.get("watchlist", []) if str(item or "").strip()]
+    holdings = state.get("holdings") if isinstance(state.get("holdings"), dict) else {}
+    rules = backend_layer.read_json_table_many("rule_outputs", tickers)
+    markets = backend_layer.read_json_table_many("market_snapshots", tickers)
+    events = _attention_events(tickers, rules=rules, markets=markets, holdings=holdings)
+    return public_contract.watchlist_payload(
+        _watchlist_items(tickers, holdings=holdings, rule_rows=rules, market_rows=markets),
+        events=events,
+        sort_by=sort_by,
+        direction=direction,
+    )
 
 
 def set_watchlist_ticker(user_id: str, ticker: str, *, present: bool) -> dict[str, Any]:
@@ -269,12 +310,13 @@ def set_watchlist_ticker(user_id: str, ticker: str, *, present: bool) -> dict[st
     return patch_workspace(user_id, {"watchlist": tickers, "revision": state["_revision"]}) and watchlist(user_id)
 
 
-def attention(user_id: str) -> dict[str, Any]:
-    state = _workspace_state(user_id)
-    tickers = [normalize_ticker(item) for item in state.get("watchlist", []) if str(item or "").strip()]
-    rules = backend_layer.read_json_table_many("rule_outputs", tickers)
-    markets = backend_layer.read_json_table_many("market_snapshots", tickers)
-    holdings = state.get("holdings") if isinstance(state.get("holdings"), dict) else {}
+def _attention_events(
+    tickers: Iterable[str],
+    *,
+    rules: dict[str, Any],
+    markets: dict[str, Any],
+    holdings: dict[str, Any],
+) -> list[dict[str, Any]]:
     rows = []
     for ticker in tickers:
         rule = rules.get(ticker) or {}
@@ -296,7 +338,16 @@ def attention(user_id: str) -> dict[str, Any]:
             "earnings_days": rule.get("earnings_days"),
         })
     events = attention_engine.build_attention_events(rows, holdings=holdings.keys())
-    normalized = [{**event, "event_id": event.get("event_id") or event.get("id")} for event in events]
+    return [{**event, "event_id": event.get("event_id") or event.get("id")} for event in events]
+
+
+def attention(user_id: str) -> dict[str, Any]:
+    state = _workspace_state(user_id)
+    tickers = [normalize_ticker(item) for item in state.get("watchlist", []) if str(item or "").strip()]
+    rules = backend_layer.read_json_table_many("rule_outputs", tickers)
+    markets = backend_layer.read_json_table_many("market_snapshots", tickers)
+    holdings = state.get("holdings") if isinstance(state.get("holdings"), dict) else {}
+    normalized = _attention_events(tickers, rules=rules, markets=markets, holdings=holdings)
     return public_contract.attention_payload(normalized)
 
 

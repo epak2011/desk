@@ -100,10 +100,10 @@ def validated_analyst_consensus(fields: Mapping[str, Any], *, price: float | Non
     }
 
 PAGE_CONTRACTS = [
-    {"key": "today", "label": "Today", "route": "/today", "endpoint": "/v1/attention", "auth": "required", "status": "shared", "sections": ["daily_decision_workflow", "attention_inbox"], "response_keys": ["daily_workflow_summary", "events"]},
+    {"key": "today", "label": "Today", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "redirect", "redirect_to": "/watchlist", "sections": [], "response_keys": []},
     {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared", "sections": ["outlook", "entry_timing", "todays_context", "market_highlights", "market_implications", "forward_watch", "framework_gauges", "market_news", "crypto_regime", "metric_guide"], "response_keys": ["regime"]},
     {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared", "sections": ["decision_header", "hero", "company_overview", "decision_evidence", "why_action", "call_changes", "technical_picture", "portfolio_manager", "full_research_report"], "response_keys": ["decision", "security_profile", "research", "analyze_page"]},
-    {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared", "sections": ["decision_rows"], "response_keys": ["items"]},
+    {"key": "watchlist", "label": "Watchlist", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "shared", "sections": ["workflow_summary", "needs_attention_rows", "watchlist_rows"], "response_keys": ["summary", "items", "groups", "sortable_columns", "sort"]},
     {"key": "alerts", "label": "Alerts", "route": "/alerts", "endpoint": "/v1/attention", "auth": "required", "status": "shared", "sections": ["attention_inbox"], "response_keys": ["events"]},
     {"key": "portfolio", "label": "Portfolio", "route": "/portfolio", "endpoint": "/v1/portfolio", "auth": "required", "status": "shared", "sections": ["holdings", "position_notes", "position_decisions", "portfolio_risk_summary"], "response_keys": ["workspace.holdings", "workspace.position_notes", "workspace.position_decisions", "workspace.portfolio_risk_summary"]},
     {"key": "ideas", "label": "Ideas", "route": "/ideas", "endpoint": "/v1/ideas", "auth": "required", "status": "shared", "sections": ["screen_request", "saved_screens", "criteria", "candidates", "evidence", "verify_next"], "response_keys": ["ideas", "generation"]},
@@ -673,7 +673,7 @@ def research_payload(
 def attention_payload(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     """Return ordered, privacy-safe attention events for a client inbox."""
     safe_events = []
-    allowed = ("event_id", "ticker", "kind", "priority", "title", "detail")
+    allowed = ("event_id", "ticker", "kind", "priority", "title", "detail", "action")
     for event in events:
         safe_events.append({key: event.get(key) for key in allowed if key in event})
     priority_counts: dict[str, int] = {}
@@ -836,8 +836,62 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
     return selected
 
 
-def watchlist_payload(items: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
-    """Return decision summaries for an authenticated user's ordered watchlist."""
+WATCHLIST_SORTABLE_COLUMNS = (
+    {"key": "ticker", "label": "Ticker", "type": "text", "default_direction": "asc"},
+    {"key": "company_name", "label": "Company", "type": "text", "default_direction": "asc"},
+    {"key": "action", "label": "Action", "type": "action", "default_direction": "desc"},
+    {"key": "price", "label": "Price", "type": "currency", "default_direction": "desc"},
+    {"key": "change_pct", "label": "Daily change", "type": "percentage", "default_direction": "desc"},
+    {"key": "position_quantity", "label": "Position", "type": "number", "default_direction": "desc"},
+    {"key": "position_value", "label": "Position value", "type": "currency", "default_direction": "desc"},
+    {"key": "setup_score", "label": "Setup score", "type": "number", "default_direction": "desc"},
+    {"key": "confidence", "label": "Confidence", "type": "confidence", "default_direction": "desc"},
+    {"key": "reward_risk", "label": "Reward / risk", "type": "number", "default_direction": "desc"},
+    {"key": "attention_priority", "label": "Priority", "type": "priority", "default_direction": "desc"},
+    {"key": "trigger_price", "label": "Entry trigger", "type": "currency", "default_direction": "desc"},
+    {"key": "invalidation_price", "label": "Invalidation", "type": "currency", "default_direction": "desc"},
+    {"key": "earnings_date", "label": "Earnings", "type": "date", "default_direction": "asc"},
+    {"key": "updated_at", "label": "Last updated", "type": "datetime", "default_direction": "desc"},
+)
+WATCHLIST_SORT_KEYS = {column["key"] for column in WATCHLIST_SORTABLE_COLUMNS}
+_ACTION_SORT = {"avoid": 0, "hold_off": 1, "watch": 2, "accumulate": 3, "enter": 4, "enter_now": 4}
+_CONFIDENCE_SORT = {"low": 1, "medium": 2, "moderate": 2, "high": 3}
+_PRIORITY_SORT = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+
+
+def _watchlist_sort_value(item: Mapping[str, Any], key: str):
+    value = item.get(key)
+    if value in (None, ""):
+        return None
+    if key == "action":
+        return _ACTION_SORT.get(str(value).lower(), -1)
+    if key == "confidence":
+        label = str(value).split("·", 1)[0].strip().lower()
+        return _CONFIDENCE_SORT.get(label, -1)
+    if key == "attention_priority":
+        return _PRIORITY_SORT.get(str(value).lower(), 0)
+    if isinstance(value, str):
+        return value.casefold()
+    return value
+
+
+def _sort_watchlist_group(rows: list[dict[str, Any]], sort_by: str | None, direction: str) -> list[dict[str, Any]]:
+    if not sort_by:
+        return sorted(rows, key=lambda row: (row.get("attention_rank", 99), row.get("watchlist_index", 0)))
+    present = [row for row in rows if _watchlist_sort_value(row, sort_by) is not None]
+    missing = [row for row in rows if _watchlist_sort_value(row, sort_by) is None]
+    present.sort(key=lambda row: _watchlist_sort_value(row, sort_by), reverse=direction == "desc")
+    return present + missing
+
+
+def watchlist_payload(
+    items: Iterable[Mapping[str, Any]],
+    *,
+    events: Iterable[Mapping[str, Any]] = (),
+    sort_by: str | None = None,
+    direction: str = "default",
+) -> dict[str, Any]:
+    """Return one deduplicated, prioritized, sortable daily decision table."""
     allowed = (
         "ticker",
         "company_name",
@@ -847,10 +901,55 @@ def watchlist_payload(items: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "confidence",
         "trigger_price",
         "invalidation_price",
+        "setup_score",
+        "reward_risk",
+        "earnings_date",
+        "updated_at",
+        "position_quantity",
+        "position_value",
         "attention_priority",
         "data_trust",
     )
-    safe_items = [{key: item.get(key) for key in allowed if key in item} for item in items]
+    event_fields = ("event_id", "kind", "priority", "title", "detail", "action")
+    events_by_ticker: dict[str, list[dict[str, Any]]] = {}
+    for event in events:
+        ticker = str(event.get("ticker") or "").upper()
+        if not ticker or ticker == "ENGINE":
+            continue
+        safe_event = {key: event.get(key) for key in event_fields if key in event}
+        events_by_ticker.setdefault(ticker, []).append(safe_event)
+    for ticker_events in events_by_ticker.values():
+        ticker_events.sort(
+            key=lambda event: -_PRIORITY_SORT.get(str(event.get("priority") or "").lower(), 0)
+        )
+
+    safe_items = []
+    for index, item in enumerate(items):
+        row = {key: item.get(key) for key in allowed if key in item}
+        ticker = str(row.get("ticker") or "").upper()
+        ticker_events = events_by_ticker.get(ticker, [])
+        top_event = ticker_events[0] if ticker_events else None
+        priority = str((top_event or {}).get("priority") or "").lower() or None
+        row.update({
+            "ticker": ticker,
+            "watchlist_index": index,
+            "needs_attention": bool(top_event),
+            "attention_priority": priority,
+            "attention_rank": 4 - _PRIORITY_SORT.get(priority or "", 0) if top_event else 99,
+            "attention_reason": (top_event or {}).get("title"),
+            "attention_detail": (top_event or {}).get("detail"),
+            "attention_kind": (top_event or {}).get("kind"),
+            "attention_events": ticker_events,
+        })
+        safe_items.append(row)
+
+    sort_by = sort_by if sort_by in WATCHLIST_SORT_KEYS else None
+    direction = direction.lower() if str(direction).lower() in {"asc", "desc"} else "default"
+    attention_rows = [row for row in safe_items if row["needs_attention"]]
+    ordinary_rows = [row for row in safe_items if not row["needs_attention"]]
+    attention_rows = _sort_watchlist_group(attention_rows, sort_by, direction)
+    ordinary_rows = _sort_watchlist_group(ordinary_rows, sort_by, direction)
+    safe_items = attention_rows + ordinary_rows
     freshness_values = [str((item.get("data_trust") or {}).get("freshness") or "unknown").lower() for item in safe_items]
     aggregate_freshness = "stale" if any(value in {"stale", "blocked", "expired"} for value in freshness_values) else ("fresh" if freshness_values and all(value in {"fresh", "live", "trusted"} for value in freshness_values) else "unknown")
     return {
@@ -858,6 +957,23 @@ def watchlist_payload(items: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "meta": response_meta(freshness=aggregate_freshness),
         "items": safe_items,
         "count": len(safe_items),
+        "summary": {
+            "needs_attention": len(attention_rows),
+            "watchlist": len(safe_items),
+            "headline": f"{len(attention_rows)} need attention · {len(safe_items)} on watchlist",
+        },
+        "groups": [
+            {"key": "needs_attention", "label": "Needs attention", "start": 0, "count": len(attention_rows), "pinned": True},
+            {"key": "watchlist", "label": "Watchlist", "start": len(attention_rows), "count": len(ordinary_rows), "pinned": False},
+        ],
+        "sortable_columns": [dict(column) for column in WATCHLIST_SORTABLE_COLUMNS],
+        "sort": {
+            "by": sort_by,
+            "direction": direction,
+            "missing_values": "last",
+            "pinned_group_preserved": True,
+            "cycle": ["desc", "asc", "default"],
+        },
     }
 
 

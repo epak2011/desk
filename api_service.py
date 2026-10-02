@@ -171,8 +171,19 @@ def patch_workspace(payload: dict[str, Any], request: Request, identity: Identit
 
 
 @app.get("/v1/watchlist")
-def watchlist(request: Request, identity: Identity):
-    return _run(request, api_repository.watchlist, identity.user_id)
+def watchlist(
+    request: Request,
+    identity: Identity,
+    sort_by: str | None = None,
+    direction: str = "default",
+):
+    return _run(
+        request,
+        api_repository.watchlist,
+        identity.user_id,
+        sort_by=sort_by,
+        direction=direction,
+    )
 
 
 @app.put("/v1/watchlist/{ticker}")

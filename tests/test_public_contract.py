@@ -27,7 +27,9 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(pages["ideas"]["status"], "shared")
         self.assertEqual(pages["health"]["endpoint"], "/v1/system-health")
         self.assertEqual(pages["methodology"]["status"], "shared")
-        self.assertTrue(all(page["status"] == "shared" for page in pages.values()))
+        self.assertEqual(pages["today"]["status"], "redirect")
+        self.assertEqual(pages["today"]["redirect_to"], "/watchlist")
+        self.assertTrue(all(page["status"] == "shared" for key, page in pages.items() if key != "today"))
         self.assertNotIn("missing", pages["today"])
         self.assertTrue(payload["rules"]["backend_is_authoritative"])
         self.assertTrue(payload["rules"]["render_endpoint_payload_directly"])
@@ -195,6 +197,40 @@ class PublicContractTests(unittest.TestCase):
         payload = watchlist_payload([{"ticker": "NVDA", "action": "watch", "private_note": "x"}])
         self.assertEqual(payload["count"], 1)
         self.assertNotIn("private_note", payload["items"][0])
+
+    def test_watchlist_merges_attention_and_pins_each_ticker_once(self):
+        payload = watchlist_payload(
+            [
+                {"ticker": "MSFT", "price": 500, "change_pct": 1.0},
+                {"ticker": "NVDA", "price": 200, "change_pct": -2.0},
+            ],
+            events=[
+                {"event_id": "n1", "ticker": "NVDA", "priority": "medium", "title": "Near trigger"},
+                {"event_id": "n2", "ticker": "NVDA", "priority": "critical", "title": "Invalidation breached"},
+            ],
+        )
+        self.assertEqual([row["ticker"] for row in payload["items"]], ["NVDA", "MSFT"])
+        self.assertEqual(payload["items"][0]["attention_reason"], "Invalidation breached")
+        self.assertEqual(len(payload["items"][0]["attention_events"]), 2)
+        self.assertEqual(payload["summary"]["needs_attention"], 1)
+        self.assertTrue(payload["groups"][0]["pinned"])
+
+    def test_watchlist_sorts_each_group_and_keeps_missing_values_last(self):
+        items = [
+            {"ticker": "A", "price": 10},
+            {"ticker": "B", "price": None},
+            {"ticker": "C", "price": 30},
+            {"ticker": "D", "price": 20},
+        ]
+        events = [{"event_id": "a", "ticker": "A", "priority": "high", "title": "Review"}]
+        descending = watchlist_payload(items, events=events, sort_by="price", direction="desc")
+        ascending = watchlist_payload(items, events=events, sort_by="price", direction="asc")
+
+        self.assertEqual([row["ticker"] for row in descending["items"]], ["A", "C", "D", "B"])
+        self.assertEqual([row["ticker"] for row in ascending["items"]], ["A", "D", "C", "B"])
+        self.assertTrue(descending["sort"]["pinned_group_preserved"])
+        self.assertEqual(descending["sort"]["cycle"], ["desc", "asc", "default"])
+        self.assertIn("setup_score", {column["key"] for column in descending["sortable_columns"]})
 
     def test_workspace_payload_exposes_only_user_owned_sections(self):
         payload = user_workspace_payload({"watchlist": ["AAPL"], "api_key": "secret"})
