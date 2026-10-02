@@ -27,14 +27,22 @@ def verify(base_url: str, expected_revision: str) -> dict:
 
     manifest = fetch_json(f"{base}/v1/app-manifest")
     pages = manifest.get("pages") or []
-    incomplete = [page.get("key") for page in pages if page.get("status") != "shared" or page.get("missing")]
-    if incomplete:
-        raise RuntimeError(f"Incomplete frontend page contracts: {', '.join(map(str, incomplete))}")
     if not manifest.get("contract_fingerprint"):
         raise RuntimeError("Frontend contract fingerprint is missing")
     for page in pages:
-        if not page.get("sections") or not page.get("response_keys"):
+        status = page.get("status")
+        if page.get("missing"):
             raise RuntimeError(f"Page contract is incomplete: {page.get('key')}")
+        if status == "shared":
+            if not page.get("sections") or not page.get("response_keys"):
+                raise RuntimeError(f"Page contract is incomplete: {page.get('key')}")
+            continue
+        if status == "redirect":
+            redirect_to = str(page.get("redirect_to") or "")
+            if not redirect_to.startswith("/") or redirect_to == page.get("route"):
+                raise RuntimeError(f"Page redirect is invalid: {page.get('key')}")
+            continue
+        raise RuntimeError(f"Unsupported frontend page status: {page.get('key')} ({status})")
 
     regime = fetch_json(f"{base}/v1/regime")
     if not isinstance(regime.get("regime"), dict):

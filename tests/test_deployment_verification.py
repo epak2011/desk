@@ -29,6 +29,58 @@ class DeploymentVerificationTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             verify_deployment.verify("https://example.com", "abcdef123456")
 
+    @mock.patch("scripts.verify_deployment.fetch_json")
+    def test_verify_accepts_explicit_page_redirect(self, fetch):
+        fetch.side_effect = [
+            {"deployment_revision": "abcdef123456"},
+            {
+                "contract_version": 2,
+                "contract_fingerprint": "fingerprint",
+                "pages": [
+                    {
+                        "key": "today",
+                        "route": "/today",
+                        "status": "redirect",
+                        "redirect_to": "/watchlist",
+                        "sections": [],
+                        "response_keys": [],
+                    },
+                    {
+                        "key": "market",
+                        "route": "/market",
+                        "status": "shared",
+                        "sections": ["outlook"],
+                        "response_keys": ["regime"],
+                    },
+                ],
+            },
+            {"regime": {}},
+            {"decision": {}, "security_profile": {}, "research": {}, "analyze_page": {}},
+        ]
+        result = verify_deployment.verify("https://example.com", "abcdef123456789")
+        self.assertEqual(result["page_count"], 2)
+
+    @mock.patch("scripts.verify_deployment.fetch_json")
+    def test_verify_rejects_invalid_page_redirect(self, fetch):
+        fetch.side_effect = [
+            {"deployment_revision": "abcdef123456"},
+            {
+                "contract_fingerprint": "fingerprint",
+                "pages": [
+                    {
+                        "key": "today",
+                        "route": "/today",
+                        "status": "redirect",
+                        "redirect_to": "/today",
+                        "sections": [],
+                        "response_keys": [],
+                    }
+                ],
+            },
+        ]
+        with self.assertRaises(RuntimeError):
+            verify_deployment.verify("https://example.com", "abcdef123456")
+
 
 if __name__ == "__main__":
     unittest.main()
