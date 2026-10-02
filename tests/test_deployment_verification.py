@@ -39,15 +39,15 @@ class DeploymentVerificationTests(unittest.TestCase):
                 "pages": [
                     {
                         "key": "today",
-                        "route": "/today",
+                        "route": "/watchlist",
                         "status": "redirect",
                         "redirect_to": "/watchlist",
                         "sections": [],
                         "response_keys": [],
                     },
                     {
-                        "key": "market",
-                        "route": "/market",
+                        "key": "watchlist",
+                        "route": "/watchlist",
                         "status": "shared",
                         "sections": ["outlook"],
                         "response_keys": ["regime"],
@@ -69,9 +69,9 @@ class DeploymentVerificationTests(unittest.TestCase):
                 "pages": [
                     {
                         "key": "today",
-                        "route": "/today",
+                        "route": "/watchlist",
                         "status": "redirect",
-                        "redirect_to": "/today",
+                        "redirect_to": "/missing",
                         "sections": [],
                         "response_keys": [],
                     }

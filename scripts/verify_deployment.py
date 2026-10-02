@@ -39,7 +39,13 @@ def verify(base_url: str, expected_revision: str) -> dict:
             continue
         if status == "redirect":
             redirect_to = str(page.get("redirect_to") or "")
-            if not redirect_to.startswith("/") or redirect_to == page.get("route"):
+            has_shared_target = any(
+                candidate is not page
+                and candidate.get("status") == "shared"
+                and candidate.get("route") == redirect_to
+                for candidate in pages
+            )
+            if not redirect_to.startswith("/") or not has_shared_target:
                 raise RuntimeError(f"Page redirect is invalid: {page.get('key')}")
             continue
         raise RuntimeError(f"Unsupported frontend page status: {page.get('key')} ({status})")
