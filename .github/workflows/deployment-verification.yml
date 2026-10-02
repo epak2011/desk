@@ -12,7 +12,7 @@ concurrency:
 jobs:
   verify-render-and-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Trigger Render deployment
@@ -29,5 +29,5 @@ jobs:
           python3 scripts/verify_deployment.py
           --base-url https://trading-desk-api-ofxs.onrender.com
           --revision "${GITHUB_SHA}"
-          --attempts 24
+          --attempts 48
           --interval 15
