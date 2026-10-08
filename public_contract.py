@@ -13,6 +13,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
+import market_news
+
 
 PUBLIC_CONTRACT_VERSION = 2
 
@@ -799,7 +801,8 @@ def _top_contract_news(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
         title = str(row.get("title") or "").strip()
         source = str(row.get("source") or "").strip()
         if (
-            re.match(r"^(how|what|why|who|watch)\b", title, re.I)
+            not market_news.is_us_or_global_market_story(row)
+            or re.match(r"^(how|what|why|who|watch)\b", title, re.I)
             or re.search(r":\s*what\b", title, re.I)
             or re.search(r"\b(may|could|outlook)\b|lessons from history", title, re.I)
             or ".." in title

@@ -193,6 +193,13 @@ class PublicContractTests(unittest.TestCase):
         self.assertEqual(len(result), 5)
         self.assertEqual(sum("CLARITY" in row["title"] for row in result), 1)
 
+    def test_regime_payload_removes_saved_regional_news(self):
+        result = regime_payload({"news": [
+            {"title": "Australian shares rise before RBA decision", "source": "Yahoo Finance Australia", "category": "markets", "impact_score": 99},
+            {"title": "Federal Reserve signals patience on interest rates", "source": "Reuters", "category": "economy", "impact_score": 7},
+        ]})["regime"]["news"]
+        self.assertEqual([row["source"] for row in result], ["Reuters"])
+
     def test_watchlist_payload_blocks_private_notes(self):
         payload = watchlist_payload([{"ticker": "NVDA", "action": "watch", "private_note": "x"}])
         self.assertEqual(payload["count"], 1)

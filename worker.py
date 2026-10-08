@@ -39,6 +39,7 @@ import engine_candidates
 import data_trust
 import engine_evaluation
 import market_freshness
+import market_news
 import crypto_regime
 import ism_data
 import email_delivery
@@ -128,6 +129,7 @@ def _select_top_regime_news(stories: list[dict], *, limit: int = 5) -> list[dict
         source = str(story.get("source") or "").strip()
         return bool(
             title
+            and market_news.is_us_or_global_market_story(story)
             and not re.match(r"^(how|what|why|who|watch)\b", title, re.I)
             and not re.search(r":\s*what\b", title, re.I)
             and not re.search(r"\b(may|could|outlook)\b|lessons from history", title, re.I)

@@ -8,6 +8,22 @@ import worker
 
 
 class WorkerMarketScheduleTests(unittest.TestCase):
+    def test_regime_news_is_us_focused_and_blocks_regional_yahoo_editions(self):
+        stories = [
+            {"title": "Australian shares rise before RBA decision", "source": "Yahoo Finance Australia", "category": "markets", "impact_score": 99},
+            {"title": "ASX miners lift Sydney market", "source": "ABC News", "category": "markets", "impact_score": 98},
+            {"title": "Federal Reserve signals patience on interest rates", "source": "Reuters", "category": "economy", "impact_score": 7},
+            {"title": "Bank of Japan shock sends global bond yields higher", "source": "Reuters", "category": "markets", "impact_score": 6},
+        ]
+        selected = worker._select_top_regime_news(stories, limit=5)
+        self.assertEqual(
+            [row["title"] for row in selected],
+            [
+                "Federal Reserve signals patience on interest rates",
+                "Bank of Japan shock sends global bond yields higher",
+            ],
+        )
+
     def test_regime_news_clusters_syndicated_variants_and_caps_top_five(self):
         stories = [
             {"title": "CLARITY Act advances in Senate as crypto bill gains support - Source A", "source": "A", "category": "crypto_policy", "impact_score": 8, "published_at": "2026-09-28T12:00:00Z"},
