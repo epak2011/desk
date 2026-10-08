@@ -53,11 +53,46 @@ def _revision(state: dict[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
 
 
+def _maybe_import_legacy_owner_state(cur, user_id: str, state: dict[str, Any]) -> dict[str, Any]:
+    """One-time merge of the pre-auth single-user kv_store row into the owner's account.
+
+    Streamlit's load_store() has run this for years, but only when the owner
+    actually opens Streamlit — the API never did, so an owner who used Lovable
+    first (or exclusively) would see an empty workspace even though their real
+    holdings/watchlist/notes were sitting in the legacy kv_store row the whole
+    time. Running the same check here closes that gap regardless of which
+    frontend the owner happens to open. Safe to call on every load: once
+    legacy_owner_imported_at is set, owner_claim_allowed returns False and this
+    is a no-op. Any failure here (e.g. kv_store not provisioned yet) is
+    swallowed so a workspace read never breaks on it.
+    """
+    owner_email = os.environ.get("TRADING_DESK_OWNER_EMAIL", "").strip()
+    if not owner_email:
+        return state
+    try:
+        cur.execute("SELECT email FROM auth.users WHERE id = %s::uuid", (user_id,))
+        row = cur.fetchone()
+        identity_email = str(row[0] if row else "")
+        if not user_state_store.owner_claim_allowed(identity_email, owner_email, state):
+            return state
+        cur.execute("SELECT value FROM kv_store WHERE key = 'default'")
+        legacy_row = cur.fetchone()
+        legacy_store = legacy_row[0] if legacy_row and isinstance(legacy_row[0], dict) else {}
+        merged = user_state_store.merge_owner_legacy_state(legacy_store, state)
+        merged["onboarding_complete"] = True
+        merged["legacy_owner_imported_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        user_state_store.save(cur, user_id, merged)
+        return merged
+    except Exception:
+        return state
+
+
 def _workspace_state(user_id: str) -> dict[str, Any]:
     with backend_layer.db_connection() as conn:
         with conn.cursor() as cur:
             state = user_state_store.load(cur, user_id) or {}
-    state = dict(state) if isinstance(state, dict) else {}
+            state = dict(state) if isinstance(state, dict) else {}
+            state = _maybe_import_legacy_owner_state(cur, user_id, state)
     state["_revision"] = str(state.get("_revision") or _revision(state))
     return state
 
