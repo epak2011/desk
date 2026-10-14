@@ -94,6 +94,19 @@ class ApiServiceTests(unittest.TestCase):
         response = self.client.get("/v1/operator/engine-updates")
         self.assertEqual(response.status_code, 401)
 
+    def test_calibration_case_review_is_owner_only(self):
+        with mock.patch.dict(api_service.os.environ, {"TRADING_DESK_OWNER_EMAIL": "owner@example.invalid"}):
+            for email, allowed in (("OWNER@example.invalid", True), ("other@example.invalid", False)):
+                api_service.app.dependency_overrides[api_service.current_identity] = (
+                    lambda email=email: VerifiedIdentity("trusted-user", email, "Demo")
+                )
+                with mock.patch.object(api_service.api_repository, "calibration", return_value={}) as calibration:
+                    response = self.client.get("/v1/calibration")
+                self.assertEqual(response.status_code, 200)
+                calibration.assert_called_once_with("trusted-user", include_cases=allowed)
+        api_service.app.dependency_overrides.clear()
+        self.assertEqual(self.client.get("/v1/calibration").status_code, 401)
+
     def test_methodology_is_public(self):
         expected = {"contract_version": 2, "actions": [{"key": "watch"}]}
         with mock.patch.object(api_service.api_repository, "methodology", return_value=expected):

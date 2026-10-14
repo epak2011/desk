@@ -55,6 +55,7 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
             "price": 100,
             "rule_action": "enter_now",
             "outcome": None,
+            "auto_logged": True,
         }
         stored = [entry]
         saved_entries = []
@@ -92,6 +93,7 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
                 "score_version": worker.OUTCOME_SCORE_VERSION,
                 "evaluation_complete": False,
             },
+            "auto_logged": True,
         }
         with (
             patch.object(worker.backend, "read_decision_logs", return_value=[entry]),
