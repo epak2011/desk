@@ -927,7 +927,8 @@ def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker"
     price = _num_or_none(t_state.get("price") or t_state.get("last"))
     if price is None:
         return False
-    signature = _rule_log_signature(t_state)
+    provenance = engine_evaluation.engine_provenance("worker")
+    signature = _rule_log_signature(t_state) + "|" + provenance["rule_code_fingerprint"]
     if backend.recent_auto_rule_decision_exists(tkr, signature, within_days=7):
         return False
 
@@ -968,6 +969,7 @@ def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker"
         "source_label": f"{emoji} {label}",
         "rule_engine_version": RULE_ENGINE_VERSION,
         "decision_receipt": receipt,
+        **provenance,
         "decision_attribution": decision_contract.build_rule_attribution(t_state),
         "decision_inputs": decision_contract.build_input_snapshot(t_state, captured_at=receipt["captured_at"]),
         "decision_invariant_issues": decision_contract.decision_invariant_issues(t_state),
@@ -1530,6 +1532,19 @@ def score_due_rule_outcomes(max_entries: int = 12) -> dict:
         if not scored_today:
             due.append(entry)
     total_due = len(due)
+    # Finish mature 14-session evidence before repeatedly topping up already
+    # scored paths to 30 sessions. The old oldest-first queue delayed the audit
+    # of newer rule calls while rescoring the same partial older cohorts daily.
+    def score_priority(entry):
+        outcome = entry.get("outcome") or {}
+        logged = engine_evaluation._entry_date(entry) or today
+        needs_primary = (
+            outcome.get("evaluation_version") != OUTCOME_SCORE_VERSION
+            or outcome.get("forward_return_pct") is None
+        )
+        priority = 0 if needs_primary and (today - logged).days >= 20 else 2 if needs_primary else 1
+        return priority, logged, str(entry.get("id") or "")
+    due.sort(key=score_priority)
     due = due[:max(1, int(max_entries))]
 
     benchmark = None
@@ -1537,12 +1552,15 @@ def score_due_rule_outcomes(max_entries: int = 12) -> dict:
         benchmark = _flatten_yfinance(_download_benchmark(), "SPY")
     updated = 0
     errors = {}
+    history_cache = {}
     for entry in due:
         ticker = str(entry.get("ticker") or "").upper().strip()
         if not ticker:
             continue
         try:
-            hist = _flatten_yfinance(_download_history(ticker), ticker)
+            if ticker not in history_cache:
+                history_cache[ticker] = _flatten_yfinance(_download_history(ticker), ticker)
+            hist = history_cache[ticker]
             if hist is None or hist.empty:
                 raise RuntimeError("No market history returned")
             scored = engine_evaluation.score_forward_outcome(

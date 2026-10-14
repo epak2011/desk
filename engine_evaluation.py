@@ -6,6 +6,9 @@ from datetime import date, datetime, timedelta
 import hashlib
 import json
 import math
+import os
+from functools import lru_cache
+from pathlib import Path
 from statistics import median
 
 
@@ -580,12 +583,14 @@ def performance_slices(entries, minimum_count=3):
         confidence = str(receipt.get("confidence") or "").split("·", 1)[0].strip()
         setup = number_or_none(entry.get("setup_score"))
         dimensions = [
-            ("Engine", entry.get("rule_engine_version") or receipt.get("engine_version")),
+            ("Engine", entry.get("rule_engine_version") or receipt.get("engine_version") or "Unrecorded"),
+            ("Code version", entry.get("rule_code_fingerprint") or "Unrecorded"),
+            ("Signal source", entry.get("rule_source") or entry.get("rule_implementation") or "Unrecorded"),
             ("Ticker", entry.get("ticker")),
             ("Action", str(entry.get("rule_action") or "").replace("_now", "").replace("_", " ").title()),
             ("Entry trigger", entry.get("trigger_kind")),
-            ("Entry warning", "Extended" if context.get("extension_warning") else "No extension warning"),
-            ("Regime", context.get("market_regime")),
+            ("Entry warning", "Unrecorded" if "extension_warning" not in context else "Extended" if context.get("extension_warning") else "No extension warning"),
+            ("Regime", context.get("market_regime") or "Unrecorded"),
             ("Tape", context.get("tape_class")),
             ("Confidence", confidence or None),
             ("Setup", "≥8" if setup is not None and setup >= 8 else "6–8" if setup is not None and setup >= 6 else "<6" if setup is not None else None),
@@ -762,6 +767,30 @@ def _finite(value):
     return value if value is not None and math.isfinite(value) else None
 
 
+@lru_cache(maxsize=8)
+def _code_fingerprint(paths):
+    digest = hashlib.sha256()
+    for name, _mtime, _size in paths:
+        path = Path(name)
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:16]
+
+
+def engine_provenance(implementation):
+    """Freeze actual code identity; the historic friendly version was reused."""
+    implementation = "streamlit" if implementation == "streamlit" else "worker"
+    root = Path(__file__).resolve().parent
+    files = [root / "tactical.py", root / "decision_contract.py", root / ("app.py" if implementation == "streamlit" else "worker.py")]
+    paths = tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files)
+    revision = str(os.environ.get("GITHUB_SHA") or os.environ.get("RENDER_GIT_COMMIT") or "").strip()
+    return {
+        "rule_implementation": implementation,
+        "rule_code_fingerprint": _code_fingerprint(paths),
+        "deployment_revision": revision or None,
+    }
+
+
 def _mature_directional(entry):
     outcome = entry.get("outcome") or {}
     return bool(
@@ -842,6 +871,10 @@ def _review_case(entry):
         "action": str(entry.get("rule_action") or "").replace("_now", "").replace("_", " ").title(),
         "rule_state": entry.get("rule_state"),
         "engine_version": entry.get("rule_engine_version") or receipt.get("engine_version"),
+        "rule_source": entry.get("rule_source"),
+        "rule_implementation": entry.get("rule_implementation"),
+        "rule_code_fingerprint": entry.get("rule_code_fingerprint"),
+        "deployment_revision": entry.get("deployment_revision"),
         "reference_price": _finite(outcome.get("reference_price") or entry.get("price")),
         "setup_score": _finite(entry.get("setup_score")),
         "reward_risk": _finite(entry.get("reward_risk")),
@@ -849,13 +882,13 @@ def _review_case(entry):
         "vol_ratio": _finite(entry.get("vol_ratio")),
         "market_regime": context.get("market_regime"),
         "confidence": str(receipt.get("confidence") or "").split("·", 1)[0].strip() or None,
-        "extension_warning": bool(context.get("extension_warning")),
+        "extension_warning": bool(context["extension_warning"]) if "extension_warning" in context else None,
         "extension_warning_severity": context.get("extension_warning_severity"),
         "trigger_kind": entry.get("trigger_kind"),
         "trigger_summary": str(entry.get("trigger_summary") or ""),
         "trigger_price": _finite(entry.get("trigger_price")),
         "invalidation_price": _finite(entry.get("invalidation_price") or entry.get("stop_price")),
-        "entry_is_projected": bool(entry.get("entry_is_projected")),
+        "entry_is_projected": bool(entry["entry_is_projected"]) if "entry_is_projected" in entry else None,
         "directional_success": bool(outcome.get("directional_success")),
         **{key: _finite(outcome.get(key)) for key in (
             "forward_return_pct", "benchmark_return_pct", "excess_return_pct",
@@ -904,6 +937,12 @@ def rules_performance_snapshot(entries, *, as_of=None):
     fingerprint = [{"id": row["id"], "date": row["logged_date"], "return": row["decision_return_pct"], "success": row["directional_success"]} for row in cases]
     flags = logic_review_flags(directional)
     nonoverlap = non_overlapping_cohorts(directional)
+    version_names = sorted({str(row.get("rule_engine_version") or (row.get("decision_receipt") or {}).get("engine_version") or "Unrecorded") for row in directional})
+    versions = []
+    for version in version_names:
+        version_rows = [row for row in directional if str(row.get("rule_engine_version") or (row.get("decision_receipt") or {}).get("engine_version") or "Unrecorded") == version]
+        versions.extend({**_family_evidence(version_rows, family, label), "engine_version": version}
+                        for family, label in families if any(decision_family(row.get("rule_action")) == family for row in version_rows))
     return {
         "decisions": decisions,
         "scored": [row for row in decisions if (row.get("outcome") or {}).get("auto_scored")],
@@ -923,6 +962,7 @@ def rules_performance_snapshot(entries, *, as_of=None):
         "alerting": [row for row in flags if row["status"] in {"watch", "review_logic"}],
         "directional_families": [_family_evidence(directional, family, label) for family, label in families],
         "non_overlapping_families": [_family_evidence(nonoverlap, family, label) for family, label in families],
+        "engine_version_families": versions,
         "failure_patterns": sorted(patterns, key=lambda row: row["avg_decision_return_pct"]),
         "performance_slices": slices,
         "confidence_calibration": confidence_calibration(directional),
@@ -941,11 +981,20 @@ def rules_performance_snapshot(entries, *, as_of=None):
             "path_updates_due": len(mature_open), "excluded_directional_reasons": exclusions,
             "cohort_spacing_calendar_days": 7,
             "non_overlapping_count": len(nonoverlap),
+            "recorded_input_coverage": {
+                "engine_version": sum(bool(row.get("rule_engine_version") or (row.get("decision_receipt") or {}).get("engine_version")) for row in directional),
+                "code_fingerprint": sum(bool(row.get("rule_code_fingerprint")) for row in directional),
+                "regime": sum(bool((row.get("decision_context") or {}).get("market_regime")) for row in directional),
+                "confidence": sum(bool((row.get("decision_receipt") or {}).get("confidence")) for row in directional),
+                "extension_warning": sum("extension_warning" in (row.get("decision_context") or {}) for row in directional),
+                "frozen_input_snapshot": sum(isinstance(row.get("decision_inputs"), dict) for row in directional),
+            },
             "notes": [
                 "Seven-day cohorts can share part of the same 14-session price path; the non-overlapping view checks that sensitivity.",
                 "These are equal-weight signal returns, before fees and without simulated position sizing or stop execution.",
                 "Success for Enter/Accumulate requires both a positive stock return and SPY outperformance.",
                 "Historical results are grouped by their recorded engine version; current rules do not rewrite old calls.",
+                "Older friendly engine labels were reused across code changes. A missing code fingerprint cannot establish performance of the currently deployed rules.",
             ],
         },
     }
@@ -955,7 +1004,7 @@ def evidence_payload(snapshot, *, include_cases=False):
     """Publish the shared report without raw logs, receipts or user content."""
     fields = (
         "score_version", "evidence_id", "summary", "flags", "alerting",
-        "directional_families", "non_overlapping_families", "patience_summary",
+        "directional_families", "non_overlapping_families", "engine_version_families", "patience_summary",
         "evidence_quality", "shadow_performance", "shadow_promotion",
         "confidence_calibration", "confidence_calibration_by_family",
     )

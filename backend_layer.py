@@ -665,6 +665,7 @@ def import_rule_decision_logs(entries: Iterable[dict[str, Any]]) -> int:
         "decision_inputs", "decision_invariant_issues", "shadow_evaluations",
         "entry_price", "stop_price", "target1_price", "target2_price",
         "trigger_price", "invalidation_price",
+        "rule_implementation", "rule_code_fingerprint", "deployment_revision",
     }
     rows = []
     for entry in entries:

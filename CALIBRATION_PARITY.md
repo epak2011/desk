@@ -35,6 +35,13 @@ historical evidence. They describe different observations.
   fully independent. `non_overlapping_families` gives the sensitivity check.
 - `confidence_calibration_by_family`: compare confidence within the same
   directional family. Do not silently mix long and avoid returns.
+- `engine_version_families`: separate recorded labels from the unrecorded
+  historical cohort, showing count, success and return for each action family.
+  Friendly labels such as `rules-2026.08-d` were reused; they do not establish
+  results for today's deployed code. `evidence_quality.recorded_input_coverage`
+  reports the counts with engine version, code fingerprint, regime, confidence,
+  extension-warning evidence and frozen inputs. Missing warnings are unknown,
+  not proof that there was no extension warning.
 - `shadow_performance` and `shadow_promotion`: show maturity and improvement
   evidence. Never change a live action from a shadow candidate.
 
@@ -52,6 +59,9 @@ generation. Authentication is Supabase Bearer as for the existing workspace.
   forward_return_pct, benchmark_return_pct, excess_return_pct,
   decision_return_pct, decision_excess_pct, mfe_pct, mae_pct and invalidation
   status/date. Make columns sortable; link ticker to `/analyze/{ticker}`.
+  Newly captured cases also carry `rule_source`, `rule_implementation`,
+  `rule_code_fingerprint` and `deployment_revision`; old calls are never assigned
+  today's provenance. Put fingerprints in advanced owner diagnostics only.
 - `weakest_cases`: compact list of failed calls for priority review.
 - `failure_patterns`: grouped decision-time attributes. Every row includes
   `family`; keep long and avoid panels separate.

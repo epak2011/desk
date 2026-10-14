@@ -24,10 +24,12 @@ RULES_UPDATES = (
             "Read owner performance from canonical worker-scored logs; append missing automatic calls without replacing existing outcomes.",
             "Use deterministic cohort selection and the same current-version eligibility checks in the worker, API and Streamlit.",
             "Publish cash/SPY comparisons, medians, loss concentration, ticker and entry-condition breakdowns, and non-overlapping sample checks.",
+            "Separate recorded engine labels from missing provenance and capture exact code fingerprints for new calls.",
+            "Prioritize missing mature 14-session scores over 30-session top-ups and reuse each ticker's history within a run.",
             "Keep scored case details owner-only and remove private notes and discretionary user decisions from the report.",
             "Correct the watch-gate explanation so it does not claim 52 cases are below the minimum sample threshold.",
         ),
-        "validation": "230 automated checks pass, including stale-copy reconciliation, case privacy, version eligibility and deterministic sample selection. Production trading rules are unchanged.",
+        "validation": "233 automated checks pass, including stale-copy reconciliation, case privacy, code provenance, scoring priority, version eligibility and deterministic sample selection. Production trading rules are unchanged.",
     },
     {
         "date": "2026-09-23",

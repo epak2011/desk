@@ -9716,7 +9716,8 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
         return False
 
     decisions = st.session_state.store.setdefault("decisions_log", [])
-    signature = _rule_log_signature(t_state)
+    provenance = engine_evaluation.engine_provenance("streamlit")
+    signature = _rule_log_signature(t_state) + "|" + provenance["rule_code_fingerprint"]
     today_key = datetime.now().strftime("%Y-%m-%d")
     last_matching = None
     for entry in decisions:
@@ -9775,6 +9776,7 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
         "rule_autolog_version": RULE_AUTOLOG_VERSION,
         "rule_engine_version": RULE_ENGINE_VERSION,
         "rule_trace": t_state.get("_rule_trace") or [],
+        **provenance,
         "setup_score": t_state.get("setup_score"),
         "reward_risk": t_state.get("reward_risk"),
         "rs": t_state.get("rs"),
@@ -9943,6 +9945,16 @@ def render_rules_performance_dashboard():
     with st.expander("Scored cases and sample checks", expanded=False):
         for note in snap["evidence_quality"]["notes"]:
             st.caption(note)
+        st.write("Recorded engine labels")
+        st.dataframe([
+            {"Engine label": row["engine_version"], "Decision": row["label"],
+             "Cases": row["count"], "Success %": row["success_rate_pct"],
+             "Average decision return %": row["avg_decision_return_pct"]}
+            for row in snap["engine_version_families"]
+        ], hide_index=True, use_container_width=True)
+        st.caption("A reused engine label does not identify today's code. Newly logged calls also record their code fingerprint and source.")
+        st.write("Recorded input coverage")
+        st.json(snap["evidence_quality"]["recorded_input_coverage"])
         st.write("Non-overlapping 14-session paths")
         st.dataframe([
             {"Decision": row["label"], "Cases": row["count"],
