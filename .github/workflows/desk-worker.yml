@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: "*/15 * * * *"
 
+permissions:
+  contents: read
+  actions: write
+
 concurrency:
   group: trading-desk-worker
   cancel-in-progress: false
@@ -12,7 +16,7 @@ concurrency:
 jobs:
   drain-refresh-queue:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 9
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -34,6 +38,8 @@ jobs:
         run: |
           set +e
           echo "Starting Trading Desk background worker."
+          JOB_START_TS=$(date +%s)
+          echo "$JOB_START_TS" > /tmp/job_start_ts
 
           if [ -n "$ANTHROPIC_API_KEY" ]; then
             export ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
@@ -71,11 +77,44 @@ jobs:
             exit "$install_status"
           fi
 
-          "$PYTHON_BIN" worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 360 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan,market_regime_daily,repair_missing_data,full_report,idea_discovery
+          "$PYTHON_BIN" worker.py --maintenance --drain --max-jobs 10 --max-runtime-seconds 180 --market-max-age-minutes 10 --job-types market_snapshot,watchlist_market_scan,market_regime_daily,repair_missing_data,full_report,idea_discovery
           worker_status=$?
           if [ "$worker_status" -ne 0 ]; then
             echo "::error::Worker exited with status ${worker_status}."
-            exit "$worker_status"
           fi
 
-          echo "Trading Desk worker finished."
+          echo "Trading Desk worker finished (status ${worker_status})."
+          exit 0
+
+      - name: Pace to a ~5 minute cycle
+        if: always()
+        shell: bash
+        run: |
+          JOB_START_TS="$(cat /tmp/job_start_ts 2>/dev/null || date +%s)"
+          TARGET_SECONDS=300
+          NOW_TS=$(date +%s)
+          ELAPSED=$(( NOW_TS - JOB_START_TS ))
+          REMAINING=$(( TARGET_SECONDS - ELAPSED ))
+          if [ "$REMAINING" -gt 0 ]; then
+            echo "Drain cycle took ${ELAPSED}s; sleeping ${REMAINING}s to pace ~5 minutes between runs."
+            sleep "$REMAINING"
+          else
+            echo "Drain cycle took ${ELAPSED}s, already at or past the 5 minute target; continuing immediately."
+          fi
+
+      - name: Re-dispatch this workflow to keep the loop alive
+        if: always()
+        shell: bash
+        run: |
+          echo "Re-triggering ${{ github.workflow }} via workflow_dispatch to keep the ~5 minute drain cadence going."
+          http_status=$(curl -s -o /tmp/dispatch_response.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/desk-worker.yml/dispatches" \
+            -d '{"ref":"main"}')
+          echo "Dispatch API responded with HTTP ${http_status}."
+          if [ "$http_status" -ge 300 ]; then
+            echo "::warning::Self re-dispatch failed (HTTP ${http_status}). The loop will resume on the next scheduled run or the next manual trigger."
+            cat /tmp/dispatch_response.json || true
+          fi
