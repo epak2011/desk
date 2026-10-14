@@ -249,7 +249,11 @@ def methodology(request: Request):
 
 @app.get("/v1/calibration")
 def calibration(request: Request, identity: Identity):
-    return _run(request, api_repository.calibration, identity.user_id)
+    include_cases = owner_access_allowed(
+        {"user_id": identity.user_id, "email": identity.email},
+        os.environ.get("TRADING_DESK_OWNER_EMAIL", ""),
+    )
+    return _run(request, api_repository.calibration, identity.user_id, include_cases=include_cases)
 
 
 @app.get("/v1/operator/engine-updates")

@@ -9818,6 +9818,14 @@ def auto_log_rule_decision(ticker, t_state, *, source="rules_engine", save=True)
         **levels,
     }
     decisions.insert(0, entry)
+    if _is_owner_account() and backend_layer.has_database():
+        try:
+            backend_layer.import_rule_decision_logs([entry])
+            st.session_state.pop("_rule_evidence_sync_error", None)
+        except Exception:
+            # The account copy is still saved below and reconciled on backtest
+            # load; a temporary scoring-store outage must not break Analyze.
+            st.session_state["_rule_evidence_sync_error"] = True
     if save:
         save_store(st.session_state.store)
     return True
@@ -9850,88 +9858,25 @@ def auto_log_rule_decisions_from_rows(rows):
     return changed
 
 
+def _rules_evidence_entries():
+    """Use worker-owned evidence for the owner and keep other accounts private."""
+    local = st.session_state.store.get("decisions_log", [])
+    if not (_is_owner_account() and backend_layer.has_database()):
+        return local
+    canonical = backend_layer.read_decision_logs()
+    known_ids = {row.get("id") for row in canonical}
+    missing = [
+        row for row in local if row.get("id") not in known_ids
+        and (row.get("auto_logged") or row.get("source") == "rules_engine")
+    ]
+    if missing and backend_layer.import_rule_decision_logs(missing):
+        canonical = backend_layer.read_decision_logs()
+    return canonical
+
+
 def rules_performance_snapshot():
-    """Summarize auto-logged rules calls without reviving the old trial UI."""
-    decisions = [
-        d for d in st.session_state.store.get("decisions_log", [])
-        if d.get("auto_logged") or d.get("source") == "rules_engine"
-    ]
-    scored = [
-        d for d in decisions
-        if isinstance(d.get("outcome"), dict)
-        and d.get("outcome", {}).get("auto_scored")
-    ]
-    open_rows = [d for d in decisions if d.get("outcome") is None]
-    cohorts = engine_evaluation.independent_cohorts(decisions, spacing_days=7)
-    scored_cohorts = [
-        entry for entry in cohorts
-        if isinstance(entry.get("outcome"), dict)
-        and entry.get("outcome", {}).get("forward_return_pct") is not None
-    ]
-    evaluated_cohorts = [
-        entry for entry in cohorts
-        if isinstance(entry.get("outcome"), dict)
-        and entry.get("outcome", {}).get("evaluation_version") == AUTO_SCORE_VERSION
-    ]
-    directional_cohorts = [
-        entry for entry in evaluated_cohorts
-        if engine_evaluation.decision_family(entry.get("rule_action")) in {"long", "avoid"}
-        and engine_evaluation.calibration_eligible(entry)
-    ]
-    patience_cohorts = [
-        entry for entry in evaluated_cohorts
-        if engine_evaluation.decision_family(entry.get("rule_action")) == "wait"
-    ]
-    today = datetime.now().date()
-    mature_open = []
-    for entry in cohorts:
-        try:
-            logged = datetime.fromisoformat(str(entry.get("ts")).replace("Z", "+00:00")).date()
-        except (TypeError, ValueError):
-            continue
-        outcome = entry.get("outcome") or {}
-        needs_evaluation = (
-            not outcome
-            or outcome.get("evaluation_version") != AUTO_SCORE_VERSION
-            or not outcome.get("evaluation_complete")
-        )
-        if needs_evaluation and (today - logged).days >= EVALUATION_MIN_AGE_DAYS:
-            mature_open.append(entry)
-    action_counts = {}
-    right_by_action = {}
-    total_by_action = {}
-    for entry in decisions:
-        action = normalize_action_key(entry.get("rule_action")) or "unknown"
-        action_counts[action] = action_counts.get(action, 0) + 1
-    for entry in scored:
-        action = normalize_action_key(entry.get("rule_action")) or "unknown"
-        total_by_action[action] = total_by_action.get(action, 0) + 1
-        outcome = entry.get("outcome") or {}
-        if "rules" in (outcome.get("right_sources") or []):
-            right_by_action[action] = right_by_action.get(action, 0) + 1
-    return {
-        "decisions": decisions,
-        "scored": scored,
-        "open": open_rows,
-        "cohorts": cohorts,
-        "scored_cohorts": scored_cohorts,
-        "evaluated_cohorts": evaluated_cohorts,
-        "directional_cohorts": directional_cohorts,
-        "patience_cohorts": patience_cohorts,
-        "mature_open": mature_open,
-        "summary": engine_evaluation.summarize_outcomes(directional_cohorts),
-        "patience_summary": engine_evaluation.summarize_patience(patience_cohorts),
-        "failure_patterns": engine_evaluation.failure_patterns(directional_cohorts),
-        "logic_review_flags": engine_evaluation.logic_review_flags(directional_cohorts),
-        "weakest_cases": engine_evaluation.weakest_directional_cases(directional_cohorts),
-        "performance_slices": engine_evaluation.performance_slices(directional_cohorts),
-        "confidence_calibration": engine_evaluation.confidence_calibration(directional_cohorts),
-        "shadow_performance": engine_evaluation.shadow_performance(directional_cohorts),
-        "shadow_promotion": engine_evaluation.shadow_promotion_readiness(directional_cohorts),
-        "action_counts": action_counts,
-        "right_by_action": right_by_action,
-        "total_by_action": total_by_action,
-    }
+    """The worker, API and owner backtest share one evidence population."""
+    return engine_evaluation.rules_performance_snapshot(_rules_evidence_entries())
 
 
 def render_rules_performance_dashboard():
@@ -9946,7 +9891,11 @@ def render_rules_performance_dashboard():
             f"Scored {scored_now} due outcome"
             f"{'' if scored_now == 1 else 's'}."
         )
-    snap = rules_performance_snapshot()
+    try:
+        snap = rules_performance_snapshot()
+    except Exception:
+        st.error("The scored evidence could not be loaded. Reload after the database reconnects.")
+        return
     decisions = snap["decisions"]
     scored = snap["scored"]
     open_rows = snap["open"]
@@ -9968,12 +9917,54 @@ def render_rules_performance_dashboard():
     def _metric(value, suffix="%"):
         return f"{float(value):+.1f}{suffix}" if value is not None else "—"
 
+    st.caption(
+        "The owner backtest and Lovable use the same worker-scored history. "
+        "These are equal-weight signal returns; cash is compared at 0% before interest."
+        if _is_owner_account() and backend_layer.has_database() else
+        "This view uses this account's private decision history."
+    )
+    st.markdown("#### Cash and SPY comparison")
+    st.dataframe([
+        {
+            "Decision": row["label"], "Cases": row["count"],
+            "Positive direction %": row["positive_direction_rate_pct"],
+            "Success %": row["success_rate_pct"],
+            "Average stock return %": row["avg_return_pct"],
+            "Average decision return %": row["avg_decision_return_pct"],
+            "Median decision return %": row["median_decision_return_pct"],
+            "SPY return %": row["avg_benchmark_return_pct"],
+            "Decision edge vs SPY %": row["avg_decision_excess_pct"],
+            "Distinct stocks": row["distinct_tickers"],
+            "Worst 3 share of losses %": row["worst_3_loss_share_pct"],
+        }
+        for row in snap["directional_families"]
+    ], hide_index=True, use_container_width=True)
+    st.caption("For Avoid, negative decision return means missed upside. Positive stock returns are gains in the avoided stocks.")
+    with st.expander("Scored cases and sample checks", expanded=False):
+        for note in snap["evidence_quality"]["notes"]:
+            st.caption(note)
+        st.write("Non-overlapping 14-session paths")
+        st.dataframe([
+            {"Decision": row["label"], "Cases": row["count"],
+             "Success %": row["success_rate_pct"],
+             "Average decision return %": row["avg_decision_return_pct"]}
+            for row in snap["non_overlapping_families"]
+        ], hide_index=True, use_container_width=True)
+        if snap["evidence_quality"]["excluded_directional_reasons"]:
+            st.write("Excluded or pending evidence")
+            st.json(snap["evidence_quality"]["excluded_directional_reasons"])
+        st.write("All mature directional cases, worst first")
+        if snap["review_cases"]:
+            st.dataframe(snap["review_cases"], hide_index=True, use_container_width=True)
+        else:
+            st.caption("No current-version, integrity-approved directional cases are available yet.")
+
     st.markdown(
         '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));'
         'gap:10px;margin:8px 0 14px;">'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Rules logged</div>'
         f'<div class="watch-queue-count">{len(decisions)}</div><div class="watch-queue-preview">auto decision history</div></div>'
-        f'<div class="watch-queue-card"><div class="watch-queue-label">Independent cohorts</div>'
+        f'<div class="watch-queue-card"><div class="watch-queue-label">Spaced cohorts</div>'
         f'<div class="watch-queue-count">{len(cohorts)}</div><div class="watch-queue-preview">7-day ticker/action spacing</div></div>'
         f'<div class="watch-queue-card"><div class="watch-queue-label">Directional observed</div>'
         f'<div class="watch-queue-count">{len(directional_cohorts)}</div><div class="watch-queue-preview">Enter / Accumulate / Avoid</div></div>'
@@ -10184,7 +10175,7 @@ def render_rules_performance_dashboard():
         st.caption("No auto-logged rules decisions yet. The app will begin logging as Analyze and Watchlist compute fresh rules calls.")
         return
 
-    recent = decisions[:12]
+    recent = sorted(decisions, key=lambda row: str(row.get("ts") or ""), reverse=True)[:12]
     rows_html = []
     for entry in recent:
         action = normalize_action_key(entry.get("rule_action")) or "watch"
@@ -10761,7 +10752,7 @@ def _tracker_first_hit(hist, start_date, level, direction):
 def auto_close_tracker_outcomes(force_all=False):
     """Score mature rules calls at one fixed horizon with benchmark context."""
     decisions = engine_evaluation.independent_cohorts(
-        st.session_state.store.get("decisions_log", []),
+        _rules_evidence_entries(),
         spacing_days=7,
     )
     changed = 0
@@ -10843,10 +10834,22 @@ def auto_close_tracker_outcomes(force_all=False):
         }
         if existing_comparable != new_comparable:
             entry["outcome"] = new_outcome
+            if _is_owner_account() and backend_layer.has_database():
+                backend_layer.upsert_decision_log(entry)
             changed += 1
 
     if changed:
-        save_store(st.session_state.store)
+        if _is_owner_account() and backend_layer.has_database():
+            evidence = engine_evaluation.rules_performance_snapshot(backend_layer.read_decision_logs())
+            backend_layer.write_engine_review_status({
+                **engine_evaluation.evidence_payload(evidence),
+                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "scored_now": changed,
+                "remaining_due": len(evidence["mature_open"]),
+            })
+            backend_engine_review_status.clear()
+        else:
+            save_store(st.session_state.store)
     return changed
 
 

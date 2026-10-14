@@ -1506,7 +1506,9 @@ def _backfill_shadow_candidates(entries: list[dict]) -> int:
 
 def score_due_rule_outcomes(max_entries: int = 12) -> dict:
     """Refresh due outcome paths once daily and persist the current review gate."""
-    all_entries = backend.read_decision_logs()
+    all_entries = [row for row in backend.read_decision_logs() if (
+        row.get("auto_logged") or row.get("source") == "rules_engine"
+    )]
     backfilled = _backfill_shadow_candidates(all_entries)
     cohorts = engine_evaluation.independent_cohorts(all_entries, spacing_days=7)
     today = date.today()
@@ -1574,22 +1576,17 @@ def score_due_rule_outcomes(max_entries: int = 12) -> dict:
             errors[ticker] = str(exc)[:180]
 
     refreshed = backend.read_decision_logs()
-    refreshed_cohorts = engine_evaluation.independent_cohorts(refreshed, spacing_days=7)
-    directional = [
-        entry for entry in refreshed_cohorts
-        if engine_evaluation.decision_family(entry.get("rule_action")) in {"long", "avoid"}
-    ]
-    flags = engine_evaluation.logic_review_flags(directional)
+    evidence = engine_evaluation.rules_performance_snapshot(refreshed, as_of=today)
+    flags = evidence["flags"]
     alerting = [row for row in flags if row.get("status") in {"watch", "review_logic"}]
-    shadow_promotion = engine_evaluation.shadow_promotion_readiness(directional)
     status = {
+        **engine_evaluation.evidence_payload(evidence),
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "score_version": OUTCOME_SCORE_VERSION,
         "scored_now": updated,
         "remaining_due": max(0, total_due - updated),
         "flags": flags,
         "alerting": alerting,
-        "shadow_promotion": shadow_promotion,
     }
     backend.write_engine_review_status(status)
     return {

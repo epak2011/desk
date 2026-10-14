@@ -650,6 +650,68 @@ def read_decision_logs(*, limit: int | None = None) -> list[dict[str, Any]]:
             return [row[0] for row in cur.fetchall() if row and isinstance(row[0], dict)]
 
 
+def import_rule_decision_logs(entries: Iterable[dict[str, Any]]) -> int:
+    """Append missing frozen engine calls; never replace worker-scored records.
+
+    The caller must verify owner access before importing account history. Private
+    notes, positions, user/Claude choices and manually scored rows are excluded.
+    """
+    allowed = {
+        "id", "ts", "ticker", "price", "rule_action", "rule_state", "rule_signature",
+        "rule_source", "rule_autolog_version", "rule_engine_version", "rule_trace",
+        "setup_score", "reward_risk", "rs", "vol_ratio", "decision_context",
+        "trigger_kind", "trigger_summary", "trigger_status", "entry_is_projected",
+        "auto_logged", "source", "source_label", "decision_receipt", "decision_attribution",
+        "decision_inputs", "decision_invariant_issues", "shadow_evaluations",
+        "entry_price", "stop_price", "target1_price", "target2_price",
+        "trigger_price", "invalidation_price",
+    }
+    rows = []
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("id") or not entry.get("ts"):
+            continue
+        if not (entry.get("auto_logged") or entry.get("source") == "rules_engine"):
+            continue
+        row = {key: value for key, value in entry.items() if key in allowed}
+        outcome = entry.get("outcome")
+        row["outcome"] = outcome if isinstance(outcome, dict) and outcome.get("auto_scored") else None
+        rows.append(row)
+    if not rows:
+        return 0
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO decisions_log (id, entry, entry_ts, updated_at)
+                SELECT item->>'id', item, NULLIF(item->>'ts', '')::timestamptz, NOW()
+                FROM jsonb_array_elements(%s::jsonb) AS item
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (json_dumps(rows),),
+            )
+            return max(0, cur.rowcount)
+
+
+def read_rule_evidence(*, include_cases: bool = False) -> dict[str, Any]:
+    """Read the exact worker-scored population through the common report builder."""
+    import engine_evaluation
+
+    report = engine_evaluation.evidence_payload(
+        engine_evaluation.rules_performance_snapshot(read_decision_logs()),
+        include_cases=include_cases,
+    )
+    status = read_engine_review_status()
+    report.update({
+        "generated_at": status.get("generated_at"),
+        "scored_now": status.get("scored_now"),
+        "remaining_due": status.get("remaining_due"),
+        "evidence_scope": "engine",
+        "source": "canonical_decisions_log",
+    })
+    return report
+
+
 def write_engine_review_status(payload: dict[str, Any]) -> None:
     """Persist the latest calibration alert snapshot for cheap UI reads."""
     ensure_backend_schema()

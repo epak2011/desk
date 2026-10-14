@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+import hashlib
+import json
+import math
+from statistics import median
 
 
 EVALUATION_VERSION = 6
@@ -376,7 +380,9 @@ def independent_cohorts(entries, spacing_days=7):
         ticker = str(entry.get("ticker") or "").upper().strip()
         if logged and ticker:
             dated.append((logged, ticker, decision_family(entry.get("rule_action")), entry))
-    dated.sort(key=lambda item: item[0])
+    # Both clients and the worker must choose the same observation when their
+    # database readers return opposite row orders or multiple calls on one day.
+    dated.sort(key=lambda item: (item[0], str(item[3].get("ts") or ""), str(item[3].get("id") or "")))
     selected = []
     last_by_key = {}
     for logged, ticker, family, entry in dated:
@@ -508,7 +514,11 @@ def logic_review_flags(
             reason = "Both success rate and decision return crossed the review threshold."
         elif weak_watch:
             status = "watch"
-            reason = "Early weakness is persistent enough to watch, but the sample is not yet sufficient for a rule change."
+            reason = (
+                f"Success is below {float(watch_success_rate):g}% with poor decision return. "
+                f"Review logic requires at least {int(review_minimum)} observations, "
+                f"success below {float(review_success_rate):g}%, and return at or below {float(poor_edge_pct):g}%."
+            )
         else:
             status = "collecting" if count < int(review_minimum) else "stable"
             reason = (
@@ -571,6 +581,10 @@ def performance_slices(entries, minimum_count=3):
         setup = number_or_none(entry.get("setup_score"))
         dimensions = [
             ("Engine", entry.get("rule_engine_version") or receipt.get("engine_version")),
+            ("Ticker", entry.get("ticker")),
+            ("Action", str(entry.get("rule_action") or "").replace("_now", "").replace("_", " ").title()),
+            ("Entry trigger", entry.get("trigger_kind")),
+            ("Entry warning", "Extended" if context.get("extension_warning") else "No extension warning"),
             ("Regime", context.get("market_regime")),
             ("Tape", context.get("tape_class")),
             ("Confidence", confidence or None),
@@ -741,3 +755,214 @@ def shadow_promotion_readiness(
             "reason": reason,
         })
     return sorted(readiness, key=lambda row: (row["status"] != "review_for_promotion", -row["return_lift_pct"], row["candidate"]))
+
+
+def _finite(value):
+    value = number_or_none(value)
+    return value if value is not None and math.isfinite(value) else None
+
+
+def _mature_directional(entry):
+    outcome = entry.get("outcome") or {}
+    return bool(
+        outcome.get("evaluation_version") == EVALUATION_VERSION
+        and calibration_eligible(entry)
+        and outcome.get("directional_success") is not None
+        and _finite(outcome.get("decision_return_pct")) is not None
+        and _finite(outcome.get("forward_return_pct")) is not None
+    )
+
+
+def non_overlapping_cohorts(entries):
+    """Sensitivity check using one matured 14-session path per ticker/family.
+
+    The existing seven-calendar-day gate remains published, but these rows
+    expose how much its overlapping price paths reduce the effective sample.
+    """
+    selected, last_exit = [], {}
+    for entry in sorted(entries, key=lambda row: (str(row.get("ts") or ""), str(row.get("id") or ""))):
+        logged = _entry_date(entry)
+        primary = ((entry.get("outcome") or {}).get("horizons") or {}).get("14") or {}
+        try:
+            exit_date = date.fromisoformat(str(primary.get("scored_date")))
+        except ValueError:
+            continue
+        key = (str(entry.get("ticker") or "").upper(), decision_family(entry.get("rule_action")))
+        if logged is None or (key in last_exit and logged <= last_exit[key]):
+            continue
+        selected.append(entry)
+        last_exit[key] = exit_date
+    return selected
+
+
+def _family_evidence(entries, family, label):
+    rows = [entry for entry in entries if decision_family(entry.get("rule_action")) == family]
+    returns = sorted(_finite(row["outcome"]["decision_return_pct"]) for row in rows)
+    summary = summarize_outcomes(rows)
+    count = len(rows)
+    losses = [value for value in returns if value < 0]
+    trim = int(count * 0.1)
+    trimmed = returns[trim:count - trim] if trim else returns
+    tickers = {str(row.get("ticker") or "").upper() for row in rows}
+    benchmark = [_finite(row["outcome"].get("benchmark_return_pct")) for row in rows]
+    benchmark = [value for value in benchmark if value is not None]
+    return {
+        **summary,
+        "family": family,
+        "label": label,
+        "success_rate_pct": summary["hit_rate_pct"],
+        "successes": summary["successful_count"],
+        "positive_direction_rate_pct": round(100 * sum(value > 0 for value in returns) / count, 1) if count else None,
+        "median_decision_return_pct": round(median(returns), 2) if returns else None,
+        "trimmed_mean_decision_return_pct": round(sum(trimmed) / len(trimmed), 2) if trimmed else None,
+        "avg_benchmark_return_pct": round(sum(benchmark) / len(benchmark), 2) if benchmark else None,
+        "benchmark_count": len(benchmark),
+        "distinct_tickers": len(tickers),
+        "worst_3_loss_share_pct": round(100 * sum(losses[:3]) / sum(losses), 1) if losses else None,
+        "cash_reference_return_pct": 0.0,
+        "interpretation": (
+            "Unweighted stock return from the logged reference price. Cash is compared at 0%, before interest."
+            if family == "long" else
+            "Negative stock return measures losses avoided; a negative decision return means missed upside."
+        ),
+    }
+
+
+def _review_case(entry):
+    """An allowlist of frozen rule inputs and outcomes, without private notes."""
+    outcome = entry.get("outcome") or {}
+    context = entry.get("decision_context") or {}
+    receipt = entry.get("decision_receipt") or {}
+    return {
+        "id": str(entry.get("id") or ""),
+        "ticker": str(entry.get("ticker") or "").upper(),
+        "logged_date": outcome.get("logged_date") or str(entry.get("ts") or "")[:10],
+        "scored_date": ((outcome.get("horizons") or {}).get("14") or {}).get("scored_date"),
+        "family": decision_family(entry.get("rule_action")),
+        "action": str(entry.get("rule_action") or "").replace("_now", "").replace("_", " ").title(),
+        "rule_state": entry.get("rule_state"),
+        "engine_version": entry.get("rule_engine_version") or receipt.get("engine_version"),
+        "reference_price": _finite(outcome.get("reference_price") or entry.get("price")),
+        "setup_score": _finite(entry.get("setup_score")),
+        "reward_risk": _finite(entry.get("reward_risk")),
+        "rs": _finite(entry.get("rs")),
+        "vol_ratio": _finite(entry.get("vol_ratio")),
+        "market_regime": context.get("market_regime"),
+        "confidence": str(receipt.get("confidence") or "").split("·", 1)[0].strip() or None,
+        "extension_warning": bool(context.get("extension_warning")),
+        "extension_warning_severity": context.get("extension_warning_severity"),
+        "trigger_kind": entry.get("trigger_kind"),
+        "trigger_summary": str(entry.get("trigger_summary") or ""),
+        "trigger_price": _finite(entry.get("trigger_price")),
+        "invalidation_price": _finite(entry.get("invalidation_price") or entry.get("stop_price")),
+        "entry_is_projected": bool(entry.get("entry_is_projected")),
+        "directional_success": bool(outcome.get("directional_success")),
+        **{key: _finite(outcome.get(key)) for key in (
+            "forward_return_pct", "benchmark_return_pct", "excess_return_pct",
+            "decision_return_pct", "decision_excess_pct", "mfe_pct", "mae_pct",
+        )},
+        "invalidation_fired": bool(outcome.get("invalidation_fired")),
+        "invalidation_date": outcome.get("invalidation_date"),
+    }
+
+
+def rules_performance_snapshot(entries, *, as_of=None):
+    """One evidence population and report builder for worker, API and Streamlit."""
+    as_of = as_of or date.today()
+    decisions = [row for row in entries or [] if isinstance(row, dict) and (
+        row.get("auto_logged") or row.get("source") == "rules_engine"
+    )]
+    decisions.sort(key=lambda row: (str(row.get("ts") or ""), str(row.get("id") or "")), reverse=True)
+    cohorts = independent_cohorts(decisions, spacing_days=7)
+    evaluated = [row for row in cohorts if (row.get("outcome") or {}).get("evaluation_version") == EVALUATION_VERSION]
+    directional = [row for row in evaluated if decision_family(row.get("rule_action")) in {"long", "avoid"} and _mature_directional(row)]
+    patience = [row for row in evaluated if decision_family(row.get("rule_action")) == "wait"]
+    mature_open, exclusions = [], {}
+    for entry in cohorts:
+        outcome = entry.get("outcome") or {}
+        logged = _entry_date(entry)
+        if logged and (as_of - logged).days >= 7 and (
+            outcome.get("evaluation_version") != EVALUATION_VERSION or not outcome.get("evaluation_complete")
+        ):
+            mature_open.append(entry)
+        if decision_family(entry.get("rule_action")) not in {"long", "avoid"} or _mature_directional(entry):
+            continue
+        reasons = (
+            ["unscored"] if not outcome else
+            ["old_evaluation_version"] if outcome.get("evaluation_version") != EVALUATION_VERSION else
+            (outcome.get("integrity") or {}).get("issues") or ["14_session_result_pending"]
+        )
+        for reason in reasons:
+            exclusions[str(reason)] = exclusions.get(str(reason), 0) + 1
+    families = [("long", "Enter / Accumulate"), ("avoid", "Avoid")]
+    patterns, slices = [], []
+    for family, _label in families:
+        rows = [row for row in directional if decision_family(row.get("rule_action")) == family]
+        patterns.extend({**row, "family": family} for row in failure_patterns(rows))
+        slices.extend({**row, "family": family} for row in performance_slices(rows))
+    cases = sorted((_review_case(row) for row in directional), key=lambda row: (row["decision_return_pct"], row["id"]))
+    fingerprint = [{"id": row["id"], "date": row["logged_date"], "return": row["decision_return_pct"], "success": row["directional_success"]} for row in cases]
+    flags = logic_review_flags(directional)
+    nonoverlap = non_overlapping_cohorts(directional)
+    return {
+        "decisions": decisions,
+        "scored": [row for row in decisions if (row.get("outcome") or {}).get("auto_scored")],
+        "open": [row for row in decisions if not row.get("outcome")],
+        "cohorts": cohorts,
+        "scored_cohorts": [row for row in cohorts if _finite((row.get("outcome") or {}).get("forward_return_pct")) is not None],
+        "evaluated_cohorts": evaluated,
+        "directional_cohorts": directional,
+        "patience_cohorts": patience,
+        "mature_open": mature_open,
+        "score_version": EVALUATION_VERSION,
+        "evidence_id": hashlib.sha256(json.dumps(fingerprint, sort_keys=True).encode()).hexdigest()[:16],
+        "summary": summarize_outcomes(directional),
+        "patience_summary": summarize_patience(patience),
+        "logic_review_flags": flags,
+        "flags": flags,
+        "alerting": [row for row in flags if row["status"] in {"watch", "review_logic"}],
+        "directional_families": [_family_evidence(directional, family, label) for family, label in families],
+        "non_overlapping_families": [_family_evidence(nonoverlap, family, label) for family, label in families],
+        "failure_patterns": sorted(patterns, key=lambda row: row["avg_decision_return_pct"]),
+        "performance_slices": slices,
+        "confidence_calibration": confidence_calibration(directional),
+        "confidence_calibration_by_family": {
+            family: confidence_calibration([row for row in directional if decision_family(row.get("rule_action")) == family])
+            for family, _label in families
+        },
+        "weakest_cases": weakest_directional_cases(directional),
+        "review_cases": cases,
+        "shadow_performance": shadow_performance(directional),
+        "shadow_promotion": shadow_promotion_readiness(directional),
+        "evidence_quality": {
+            "logged_count": len(decisions), "cohort_count": len(cohorts),
+            "ignored_non_rule_log_count": len(entries or []) - len(decisions),
+            "directional_count": len(directional), "patience_count": len(patience),
+            "path_updates_due": len(mature_open), "excluded_directional_reasons": exclusions,
+            "cohort_spacing_calendar_days": 7,
+            "non_overlapping_count": len(nonoverlap),
+            "notes": [
+                "Seven-day cohorts can share part of the same 14-session price path; the non-overlapping view checks that sensitivity.",
+                "These are equal-weight signal returns, before fees and without simulated position sizing or stop execution.",
+                "Success for Enter/Accumulate requires both a positive stock return and SPY outperformance.",
+                "Historical results are grouped by their recorded engine version; current rules do not rewrite old calls.",
+            ],
+        },
+    }
+
+
+def evidence_payload(snapshot, *, include_cases=False):
+    """Publish the shared report without raw logs, receipts or user content."""
+    fields = (
+        "score_version", "evidence_id", "summary", "flags", "alerting",
+        "directional_families", "non_overlapping_families", "patience_summary",
+        "evidence_quality", "shadow_performance", "shadow_promotion",
+        "confidence_calibration", "confidence_calibration_by_family",
+    )
+    result = {key: snapshot[key] for key in fields}
+    if include_cases:
+        result.update({key: snapshot[key] for key in (
+            "performance_slices", "failure_patterns", "weakest_cases", "review_cases",
+        )})
+    result["case_review_available"] = bool(include_cases)
+    return result

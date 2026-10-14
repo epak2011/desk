@@ -13,6 +13,23 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-10-14",
+        "title": "One scored evidence history across Streamlit and Lovable",
+        "status": "Repository updated",
+        "summary": (
+            "Repair the owner backtest's stale account-copy history and publish the worker's "
+            "actual scored cases through a shared report builder."
+        ),
+        "changes": (
+            "Read owner performance from canonical worker-scored logs; append missing automatic calls without replacing existing outcomes.",
+            "Use deterministic cohort selection and the same current-version eligibility checks in the worker, API and Streamlit.",
+            "Publish cash/SPY comparisons, medians, loss concentration, ticker and entry-condition breakdowns, and non-overlapping sample checks.",
+            "Keep scored case details owner-only and remove private notes and discretionary user decisions from the report.",
+            "Correct the watch-gate explanation so it does not claim 52 cases are below the minimum sample threshold.",
+        ),
+        "validation": "230 automated checks pass, including stale-copy reconciliation, case privacy, version eligibility and deterministic sample selection. Production trading rules are unchanged.",
+    },
+    {
         "date": "2026-09-23",
         "title": "Complete frontend parity and deployment governance",
         "status": "Repository updated",
