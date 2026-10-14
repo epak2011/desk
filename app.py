@@ -111,9 +111,12 @@ def _is_owner_account():
 # helper module during deployment. Reload only across that temporary version gap.
 if any(
     not hasattr(engine_evaluation, export)
-    for export in ("logic_review_flags", "performance_slices", "confidence_calibration")
+    for export in ("logic_review_flags", "performance_slices", "confidence_calibration", "rules_performance_snapshot", "evidence_payload", "engine_provenance")
 ):
     engine_evaluation = importlib.reload(engine_evaluation)
+
+if any(not hasattr(backend_layer, export) for export in ("import_rule_decision_logs", "read_rule_evidence")):
+    backend_layer = importlib.reload(backend_layer)
 
 if not hasattr(rules_updates, "engine_updates_payload"):
     rules_updates = importlib.reload(rules_updates)
