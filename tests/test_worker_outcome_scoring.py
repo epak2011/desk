@@ -105,6 +105,30 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
         self.assertEqual(result["scored"], 0)
         download.assert_not_called()
 
+    def test_unscored_mature_call_precedes_old_30_session_followup(self):
+        old = {
+            "id": "old-followup", "ticker": "OLD", "auto_logged": True,
+            "ts": (datetime.now(timezone.utc) - timedelta(days=60)).isoformat(),
+            "price": 100, "rule_action": "enter_now",
+            "outcome": {"evaluation_version": worker.OUTCOME_SCORE_VERSION,
+                        "forward_return_pct": -4, "evaluation_complete": False},
+        }
+        primary = {
+            "id": "new-primary", "ticker": "NEW", "auto_logged": True,
+            "ts": (datetime.now(timezone.utc) - timedelta(days=35)).isoformat(),
+            "price": 100, "rule_action": "enter_now", "outcome": None,
+        }
+        saved = []
+        with (
+            patch.object(worker.backend, "read_decision_logs", return_value=[old, primary]),
+            patch.object(worker.backend, "upsert_decision_log", side_effect=lambda row: saved.append(row)),
+            patch.object(worker.backend, "write_engine_review_status"),
+            patch.object(worker, "_download_history", return_value=market_history()),
+            patch.object(worker, "_download_benchmark", return_value=market_history(500)),
+        ):
+            worker.score_due_rule_outcomes(max_entries=1)
+        self.assertEqual([row["id"] for row in saved], ["new-primary"])
+
 
 if __name__ == "__main__":
     unittest.main()

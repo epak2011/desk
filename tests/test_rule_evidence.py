@@ -141,6 +141,23 @@ class RuleEvidenceTests(unittest.TestCase):
         self.assertNotIn("private_note", rows[0])
         self.assertEqual(count, 1)
 
+    def test_missing_old_inputs_are_unknown_not_clean_entry_evidence(self):
+        entry = case(rule_engine_version=None)
+        snap = evaluation.rules_performance_snapshot([entry])
+        self.assertEqual(snap["engine_version_families"][0]["engine_version"], "Unrecorded")
+        self.assertIsNone(snap["review_cases"][0]["extension_warning"])
+        self.assertIsNone(snap["review_cases"][0]["entry_is_projected"])
+        self.assertEqual(snap["evidence_quality"]["recorded_input_coverage"]["code_fingerprint"], 0)
+        self.assertEqual(snap["evidence_quality"]["recorded_input_coverage"]["regime"], 1)
+
+    def test_provenance_distinguishes_implementations_without_relabelling_old_calls(self):
+        worker = evaluation.engine_provenance("worker")
+        streamlit = evaluation.engine_provenance("streamlit")
+        self.assertNotEqual(worker["rule_code_fingerprint"], streamlit["rule_code_fingerprint"])
+        self.assertEqual(worker, evaluation.engine_provenance("worker"))
+        snap = evaluation.rules_performance_snapshot([case()])
+        self.assertIsNone(snap["review_cases"][0]["rule_code_fingerprint"])
+
 
 if __name__ == "__main__":
     unittest.main()
