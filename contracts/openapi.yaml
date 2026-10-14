@@ -200,6 +200,14 @@ paths:
     get:
       tags: [Operations]
       summary: Versioned engine calibration summary
+      description: >-
+        Shared worker-scored evidence used by Streamlit and Lovable. The nested
+        calibration object contains directional_families, non_overlapping_families,
+        flags, evidence_quality, patience_summary, confidence_calibration_by_family,
+        shadow_performance, shadow_promotion and evidence_id. Owner responses also
+        contain review_cases, weakest_cases, failure_patterns and performance_slices;
+        these details are omitted for other verified accounts. All _pct numbers
+        are percentage points, not fractions. Cash comparison is zero before interest.
       responses:
         "200":
           description: Read-only calibration evidence
