@@ -39,6 +39,13 @@ class ReplayTests(unittest.TestCase):
     def test_missing_confirmation_stays_unknown(self):
         self.assertEqual(policy({"action": "enter_now"}, "v2_entry"), "unknown")
 
+    def test_known_gap_target_precedes_later_intraday_low(self):
+        frame = bars()
+        frame.loc[frame.index[2], ["Open", "High", "Low", "Close"]] = [115, 120, 90, 100]
+        result = simulate(frame, {frame.index[0]: enter()}, "v3_execution", Assumptions(0))
+        self.assertEqual(result["trades"][0]["exit_price"], 115)
+        self.assertEqual(result["trades"][0]["reason"], "gap_target")
+
     def test_control_does_not_require_candidate_confirmation(self):
         self.assertEqual(policy({"action": "enter_now"}, "original"), "enter_now")
 
