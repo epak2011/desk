@@ -1472,7 +1472,7 @@ def _backfill_shadow_candidates(entries: list[dict]) -> int:
     Only missing candidate versions are appended. Existing historical shadow
     records are never rewritten, and the production action remains untouched.
     """
-    target_candidates = {"entry_timing_guard", "regime_quality_gate"}
+    target_candidates = {"entry_timing_guard", "regime_quality_gate", "confirmed_structural_avoid", "confirmed_entry_hold"}
     updated = 0
     for entry in entries or []:
         if not isinstance(entry, dict) or not entry.get("id"):

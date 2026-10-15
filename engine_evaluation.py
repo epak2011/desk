@@ -58,9 +58,16 @@ def shadow_outcomes(entry, primary):
     for row in rows or []:
         if not isinstance(row, dict):
             continue
+        if row.get("eligible") is False:
+            continue
         family = decision_family(row.get("action"))
         evaluation_mode = str(row.get("evaluation_mode") or "directional")
-        if evaluation_mode == "avoided_long_exposure":
+        if evaluation_mode == "cash_control":
+            # Waiting holds cash, not a synthetic short position. Do not
+            # count a flat cash control as a successful directional call.
+            decision_return = 0.0
+            success = None
+        elif evaluation_mode == "avoided_long_exposure":
             # A filtered Enter/Accumulate earns positive counterfactual return
             # when it avoids a subsequent loss and negative return when it
             # sidelines a winner.  This makes timing/regime filters directly
@@ -636,6 +643,48 @@ def confidence_calibration(entries, minimum_count=5):
     return {"rows": rows, "calibrated": calibrated, "note": note}
 
 
+def paired_shadow_comparison(entries):
+    """Matched long/cash policy returns; Avoid is not treated as a short.
+
+    A weakened Avoid -> Hold off remains no exposure in both arms. It cannot
+    earn invented investment gains merely by relabeling the recommendation.
+    Unknown input rows stay visible in coverage but out of return averages.
+    """
+    groups = {}
+    for entry in entries or []:
+        if not calibration_eligible(entry):
+            continue
+        forward = number_or_none((entry.get("outcome") or {}).get("forward_return_pct"))
+        if forward is None or not math.isfinite(forward):
+            continue
+        original = forward if decision_family(entry.get("rule_action")) == "long" else 0.0
+        for row in entry.get("shadow_evaluations") or []:
+            if not isinstance(row, dict) or row.get("candidate") not in {"confirmed_structural_avoid", "confirmed_entry_hold"}:
+                continue
+            key = (row.get("candidate"), row.get("version"))
+            group = groups.setdefault(key, {"eligible_count": 0, "unknown_count": 0, "changed_count": 0, "original": [], "candidate": []})
+            if row.get("eligible") is not True:
+                group["unknown_count"] += 1
+                continue
+            candidate_return = forward if decision_family(row.get("action")) == "long" else 0.0
+            group["eligible_count"] += 1
+            group["changed_count"] += bool(row.get("differs_from_live"))
+            group["original"].append(original)
+            group["candidate"].append(candidate_return)
+    results = []
+    for (candidate, version), group in sorted(groups.items()):
+        n = group["eligible_count"]
+        originals, alternatives = group.pop("original"), group.pop("candidate")
+        original = sum(originals) / n if n else None
+        alternative = sum(alternatives) / n if n else None
+        results.append({"candidate": candidate, "version": version, **group,
+                        "original_avg_policy_return_pct": original,
+                        "candidate_avg_policy_return_pct": alternative,
+                        "paired_lift_pct": alternative - original if n else None,
+                        "basis": "Matched logged-price horizon; long or cash, before costs. Not stop-executed P&L."})
+    return results
+
+
 def shadow_performance(entries, minimum_count=3):
     """Compare candidate shadow actions using only integrity-approved outcomes."""
     groups = {}
@@ -973,6 +1022,7 @@ def rules_performance_snapshot(entries, *, as_of=None):
         "weakest_cases": weakest_directional_cases(directional),
         "review_cases": cases,
         "shadow_performance": shadow_performance(directional),
+        "paired_shadow_comparison": paired_shadow_comparison(directional),
         "shadow_promotion": shadow_promotion_readiness(directional),
         "evidence_quality": {
             "logged_count": len(decisions), "cohort_count": len(cohorts),
@@ -1005,7 +1055,7 @@ def evidence_payload(snapshot, *, include_cases=False):
     fields = (
         "score_version", "evidence_id", "summary", "flags", "alerting",
         "directional_families", "non_overlapping_families", "engine_version_families", "patience_summary",
-        "evidence_quality", "shadow_performance", "shadow_promotion",
+        "evidence_quality", "shadow_performance", "shadow_promotion", "paired_shadow_comparison",
         "confidence_calibration", "confidence_calibration_by_family",
     )
     result = {key: snapshot[key] for key in fields}

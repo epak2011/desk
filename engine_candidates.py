@@ -115,7 +115,36 @@ def shadow_evaluations(state: dict) -> list[dict]:
         if not (strong_setup and strong_reward_risk):
             regime_gate = "watch"
 
-    return [
+    targeted = []
+    if live_action == "avoid":
+        required = ("price", "ma50", "ma200", "rs", "rs_delta", "tech_delta")
+        complete = all(_number(state.get(key)) is not None for key in required)
+        confirmed = complete and proposed_structure["state"] == "BROKEN"
+        targeted.append({
+            "candidate": "confirmed_structural_avoid",
+            "version": "shadow-2026.10-a",
+            "action": "avoid" if confirmed else "hold_off",
+            "differs_from_live": complete and not confirmed,
+            "evaluation_mode": "directional" if confirmed else "cash_control",
+            "eligible": complete,
+            "reason": "Reserve Avoid for confirmed structural breakdown; otherwise wait. Missing inputs are not evidence.",
+        })
+    if live_action in {"enter_now", "accumulate"}:
+        fired = state.get("entry_trigger_fired")
+        held = state.get("entry_level_held")
+        complete = isinstance(fired, bool) and isinstance(held, bool)
+        confirmed = complete and fired and held
+        targeted.append({
+            "candidate": "confirmed_entry_hold",
+            "version": "shadow-2026.10-b",
+            "action": live_action if confirmed else "watch",
+            "differs_from_live": complete and not confirmed,
+            "evaluation_mode": "directional" if confirmed else "cash_control",
+            "eligible": complete,
+            "reason": "Require an explicitly recorded fired trigger and held entry level. Unknown confirmation is unscored, not a failed signal.",
+        })
+
+    return targeted + [
         {
             "candidate": "strict_extreme_extension",
             "version": "shadow-2026.09-a",

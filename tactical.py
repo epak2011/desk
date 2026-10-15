@@ -7,6 +7,29 @@ price levels and volume conditions for Buy / Abort, not just prose.
 import pandas as pd
 
 
+def shadow_entry_confirmation(history, trigger, trigger_fired, *, as_of=None):
+    """Shadow-only: a fired trigger held by two completed daily closes.
+
+    Exclude today's bar conservatively, even after market close. This adds
+    audit inputs only and never changes the production action or trigger.
+    """
+    result = {"entry_trigger_fired": bool(trigger_fired), "entry_level_held": None}
+    levels = (trigger or {}).get("levels") or {}
+    try:
+        level = float(levels.get("buy_above"))
+        if level <= 0 or not pd.notna(level):
+            return result
+        today = pd.Timestamp(as_of or pd.Timestamp.now(tz="UTC")).date()
+        completed = history[history.index.date < today].sort_index()
+        completed = completed[~completed.index.duplicated(keep="last")]
+        closes = completed["Close"].tail(2)
+        if len(closes) == 2 and closes.notna().all():
+            result["entry_level_held"] = bool((closes >= level).all())
+    except (TypeError, ValueError, KeyError, AttributeError):
+        pass
+    return result
+
+
 def _sma(series, window):
     return series.rolling(window).mean()
 
@@ -1784,4 +1807,5 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     result["price_vs_50_pct"] = round((price / ma50 - 1) * 100, 2) if ma50 > 0 else None
     result["price_vs_200_pct"] = round((price / ma200 - 1) * 100, 2) if ma200 > 0 else None
     result["extension_warning"] = extension_momentum_warning(result)
+    result.update(shadow_entry_confirmation(ticker_hist, trigger, trigger_fired))
     return result

@@ -130,6 +130,9 @@ def build_input_snapshot(state, *, captured_at=None):
         "source_as_of": state.get("data_as_of") or state.get("market_data_as_of") or state.get("updated_at"),
         "inputs": {field: _number(state.get(field)) for field in numeric_fields},
     }
+    for field in ("entry_trigger_fired", "entry_level_held"):
+        value = state.get(field)
+        snapshot["inputs"][field] = value if isinstance(value, bool) else None
     identity = {key: value for key, value in snapshot.items() if key != "captured_at"}
     snapshot["input_hash"] = hashlib.sha256(
         json.dumps(identity, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
