@@ -53,7 +53,7 @@ class EngineCandidateTests(unittest.TestCase):
         self.assertEqual(state, original)
         self.assertEqual({row["candidate"] for row in rows}, {
             "strict_extreme_extension", "unified_structural_state", "no_momentum_exception",
-            "entry_timing_guard", "regime_quality_gate",
+            "entry_timing_guard", "regime_quality_gate", "confirmed_entry_hold",
         })
 
     def test_entry_timing_guard_shadows_medium_extension_without_changing_live_action(self):
