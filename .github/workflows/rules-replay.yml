@@ -1,0 +1,55 @@
+name: Compare versioned Trading Desk rules
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: Comma-separated fixed historical universe (max 30)
+        required: true
+        default: AAPL,MSFT,NVDA,AMZN,GOOGL
+      start:
+        description: First sample date YYYY-MM-DD (450-day warm-up downloaded)
+        required: true
+        default: '2024-01-02'
+      end:
+        description: Last completed sample date YYYY-MM-DD
+        required: true
+        default: '2026-10-14'
+      validation_start:
+        description: Preselected validation start YYYY-MM-DD (no automatic tuning)
+        required: true
+        default: '2026-01-02'
+permissions:
+  contents: read
+concurrency:
+  group: rules-replay
+  cancel-in-progress: false
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - name: Verify simulator invariants
+        run: python -m unittest discover -s tests -p 'test_backtest*.py' -v
+      - name: Replay and publish owner summary
+        env:
+          REPLAY_TICKERS: ${{ inputs.tickers }}
+          REPLAY_START: ${{ inputs.start }}
+          REPLAY_END: ${{ inputs.end }}
+          REPLAY_VALIDATION: ${{ inputs.validation_start }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: >-
+          python scripts/run_rules_replay.py --tickers "$REPLAY_TICKERS"
+          --start "$REPLAY_START" --end "$REPLAY_END"
+          --validation-start "$REPLAY_VALIDATION"
+          --output-dir replay-artifact --publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: versioned-rules-replay-${{ github.run_id }}
+          path: replay-artifact/
+          retention-days: 90
