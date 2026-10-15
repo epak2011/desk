@@ -82,6 +82,8 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
     structural-exit next open and a maximum holding period. Stop wins when
     both stop and target are touched in the same daily bar.
     """
+    if version not in VERSIONS:
+        raise ValueError("Unknown rule version.")
     bars = validate_bars(bars)
     cost = assumptions.cost_bps_per_side / 10000
     cash, position, pending, equities, trades, decisions = 1.0, None, None, [], [], []
@@ -92,6 +94,7 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
         trades.append({"entry_date": position["entry_date"], "exit_date": str(date.date()),
                        "signal_date": position["signal_date"], "entry_price": position["entry"],
                        "exit_price": price, "reason": reason,
+                       "gross_traded_notional": position["shares"] * (position["entry"] + price),
                        "net_return_pct": (proceeds / position["capital"] - 1) * 100})
         cash, position = proceeds, None
 
@@ -120,10 +123,10 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
                 stop, target = position["stop"], position["target"]
                 if float(bar.Open) <= stop:
                     close(float(bar.Open), date, "gap_stop")
-                elif float(bar.Low) <= stop:
-                    close(stop, date, "stop_first_conservative")
                 elif float(bar.Open) >= target:
                     close(float(bar.Open), date, "gap_target")
+                elif float(bar.Low) <= stop:
+                    close(stop, date, "stop_first_conservative")
                 elif float(bar.High) >= target:
                     close(target, date, "target")
             if position and position["age"] >= assumptions.holding_sessions:
@@ -149,7 +152,7 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
     return {"curve": pd.DataFrame(equities).set_index("date"), "trades": trades, "decisions": decisions}
 
 
-def metrics(curve, trades):
+def metrics(curve, trades, sleeves=1):
     equity = curve.equity
     # Include the initial unit of capital when measuring the first drawdown.
     peaks = equity.cummax().clip(lower=1.0)
@@ -157,6 +160,7 @@ def metrics(curve, trades):
             "max_drawdown_pct": float(((equity / peaks - 1) * 100).min()),
             "exposure_pct": float(curve.exposed.mean() * 100),
             "round_trips": len(trades),
+            "gross_turnover_pct": sum(t["gross_traded_notional"] for t in trades) / sleeves * 100,
             "win_rate_pct": 100 * sum(t["net_return_pct"] > 0 for t in trades) / len(trades) if trades else None,
             "avg_trade_return_pct": sum(t["net_return_pct"] for t in trades) / len(trades) if trades else None}
 
@@ -174,6 +178,8 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
     if len(dates) < 2 or not len(benchmark.loc[benchmark.index < start]) >= 200:
         raise ValueError("Require sample sessions and at least 200 pre-start benchmark bars.")
     report = {"assumptions": asdict(assumptions), "versions": list(VERSIONS),
+              "sample_start": str(start.date()), "sample_end": str(end.date()),
+              "universe": sorted(histories),
               "validation_start": str(split.date()), "results": {},
               "limitations": ["Technical-engine replay only; no reconstructed historical AI, news or fundamental inputs.",
                               "Original means this frozen implementation, not an unspecified historical release.",
@@ -212,7 +218,7 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
         for version in VERSIONS:
             curve = pd.concat([c.equity.rename(i) for i, c in enumerate(curves[version])], axis=1).mean(axis=1)
             exposure = pd.concat([c.exposed.rename(i) for i, c in enumerate(curves[version])], axis=1).mean(axis=1)
-            report["results"][label][version] = {**metrics(pd.DataFrame({"equity": curve, "exposed": exposure}), trade_sets[version]),
+            report["results"][label][version] = {**metrics(pd.DataFrame({"equity": curve, "exposed": exposure}), trade_sets[version], len(histories)),
                                                    "trades": trade_sets[version],
                                                    "decision_counts": dict(decision_counts[version])}
         original_return = report["results"][label]["original"]["total_return_pct"]
