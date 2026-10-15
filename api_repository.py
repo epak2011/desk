@@ -312,6 +312,7 @@ def _watchlist_items(
             "reward_risk": rule.get("reward_risk"),
             "earnings_date": profile.get("earnings_date") or rule.get("earnings_date"),
             "updated_at": market.get("updated_at") or market.get("ts") or receipt.get("captured_at"),
+            "owned": ticker in (holdings or {}),
             "position_quantity": quantity,
             "position_value": _position_value(quantity, price),
             "data_trust": receipt.get("data_trust") or rule.get("data_trust") or {},

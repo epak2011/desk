@@ -1209,7 +1209,7 @@ def save_store(store):
     record_perf_metric("save_store", _perf_t0)
 
 
-ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "alerts", "backtest", "triggers", "health", "holdings", "ideas", "trust", "updates"}
+ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "alerts", "backtest", "triggers", "health", "ideas", "trust", "updates"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -12096,7 +12096,6 @@ with st.sidebar:
         "analyze": "⌁  Analyze",
         "watchlist": "☆  Watchlist",
         "alerts": "!  Alerts",
-        "holdings": "▦  Portfolio",
         "ideas": "✎  Ideas",
     }
     operator_view_labels = {
@@ -12107,7 +12106,6 @@ with st.sidebar:
     if _is_owner_account():
         operator_view_labels["updates"] = "Engine Updates"
     if PUBLIC_DEMO_MODE:
-        primary_view_labels.pop("holdings", None)
         operator_view_labels.pop("health", None)
     if SHOW_ARCHIVED_TRACKER:
         operator_view_labels["tracker"] = "Tracker"
@@ -22997,6 +22995,11 @@ if view == "watchlist":
             except (TypeError, ValueError):
                 return default
 
+        _watchlist_holdings_keys = {
+            str(k).upper()
+            for k in (st.session_state.store.get("holdings") or {}).keys()
+        }
+
         def _cached_watchlist_row(tkr):
             """Fast watchlist row from the canonical per-ticker snapshot."""
             key = str(tkr).upper().strip()
@@ -23082,6 +23085,7 @@ if view == "watchlist":
             return {
                 "ticker": key,
                 "name": display_security_name(key, key, meta, fallback_profile) or key,
+                "owned": key in _watchlist_holdings_keys,
                 "price": t_stub["price"],
                 "change": t_stub["change"],
                 "action": action,
@@ -23218,6 +23222,7 @@ if view == "watchlist":
                     rows.append({
                         "ticker": tkr,
                         "name": display_security_name(tkr, name, meta, fallback_profile) or tkr,
+                        "owned": str(tkr).upper() in _watchlist_holdings_keys,
                         "price": t["price"],
                         "change": t["change"],
                         "action": t["action"],
@@ -23673,12 +23678,18 @@ if view == "watchlist":
                 # Streamlit picks up the param on rerun (handler at top of
                 # this block) and switches the active ticker.
                 action_emoji = sty.get("emoji", "")
+                owned_marker_html = (
+                    f'<span title="Owned position" '
+                    f'style="margin-left:5px;font-size:11px;vertical-align:1px;">🟢</span>'
+                    if row.get("owned") else ""
+                )
                 ticker_link = (
                     f'<a href="?open={row["ticker"]}" target="_self" '
                     f'style="font-weight:600;color:var(--color-text);'
                     f'text-decoration:none;cursor:pointer;">'
                     f'{row["ticker"]}'
                     f'<span style="margin-left:5px;font-size:11px;vertical-align:1px;">{html.escape(action_emoji)}</span>'
+                    f'{owned_marker_html}'
                     f'</a>'
                 )
                 personality_html = (
