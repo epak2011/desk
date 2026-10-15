@@ -13,6 +13,7 @@ COPY attention_engine.py backend_layer.py public_contract.py user_state_store.py
 COPY portfolio_context.py ./
 COPY market_news.py ./
 COPY engine_evaluation.py ./
+COPY backtest_store.py ./
 
 RUN useradd --create-home --uid 10001 apiuser
 USER apiuser

@@ -710,6 +710,9 @@ def read_rule_evidence(*, include_cases: bool = False) -> dict[str, Any]:
         "evidence_scope": "engine",
         "source": "canonical_decisions_log",
     })
+    if include_cases:
+        import backtest_store
+        report["historical_replay"] = backtest_store.read(__import__(__name__))
     return report
 
 
