@@ -84,7 +84,7 @@ jobs:
           fi
 
           echo "Trading Desk worker finished (status ${worker_status})."
-          exit 0
+          exit "$worker_status"
 
       - name: Pace to a ~5 minute cycle
         if: always()
@@ -118,3 +118,4 @@ jobs:
             echo "::warning::Self re-dispatch failed (HTTP ${http_status}). The loop will resume on the next scheduled run or the next manual trigger."
             cat /tmp/dispatch_response.json || true
           fi
+
