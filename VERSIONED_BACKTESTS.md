@@ -4,6 +4,30 @@ Research-only; never changes production recommendations or promotes a winner.
 
 ## Experiments run together
 
+### Corrected default: signal entries / technical invalidation exits
+
+`signal_invalidation` is now the default exit policy. Each version buys at the
+next open after its own qualifying signal, provided the entry-time stop is valid.
+The Original control does not require the additional two-close confirmation.
+V2 entry/combined retain that gate strictly as comparison controls, not promotions.
+All versions use the same full-exit conditions: a close at/below the frozen entry
+stop, or Avoid with the close below both MA50 and MA200; fill on the next open.
+There is no calendar exit, automatic full target sale, or invented trailing level.
+V3 therefore duplicates V2 combined under this exit policy, intentionally isolating
+the entry comparison. Optional discretionary partial trims, earnings review and
+Raise stop instructions cannot be reconstructed here and are not simulated.
+This is a technical exit subset, not complete historical live-PM parity.
+
+5/14/30-session checkpoints record gross marked returns only when still held;
+they do not sell. End-of-sample liquidation is separately flagged as accounting,
+not a sell recommendation. Reports remain research-only; live rules are unchanged.
+
+### Archived legacy experiment (not the actual full strategy)
+
+Run with `--exit-policy legacy_14_session` to reproduce the prior **forced
+14-session holding-period experiment**, including its V3 target/trailing rules.
+Never compare its results with the corrected policy without showing this label.
+
 - Original: frozen current tactical computation plus its extension overlay.
 - V2 structure: reserve Avoid for confirmed structural breakdown.
 - V2 entry: require a fired trigger and two closes holding its entry level.

@@ -29,12 +29,15 @@ class Assumptions:
     holding_sessions: int = 14
     trail_r: float = 2.0
     target_r: float = 2.0
+    exit_policy: str = "signal_invalidation"
 
     def __post_init__(self):
         if not math.isfinite(self.cost_bps_per_side) or not 0 <= self.cost_bps_per_side < 1000:
             raise ValueError("Cost must be finite and between 0 and 1000 bps per side.")
         if self.holding_sessions < 1 or self.trail_r <= 0 or self.target_r <= 0:
             raise ValueError("Horizon, trailing risk and target risk must be positive.")
+        if self.exit_policy not in {"signal_invalidation", "legacy_14_session"}:
+            raise ValueError("Unknown exit policy.")
 
 
 def validate_bars(frame):
@@ -78,7 +81,10 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
     """Signals at close can only affect the next session, never that day's OHLC.
 
     One fully funded long position per ticker; uninvested cash earns zero.
-    V3 uses a valid frozen stop, 2R target, closing-high 2R trailing stop,
+    The default uses close-confirmed frozen-stop or Avoid/broken-trend exits
+    on the following open, without time limits or automatic target sales.
+    Only the explicitly selected legacy experiment's V3 uses a 2R target,
+    closing-high 2R trailing stop,
     structural-exit next open and a maximum holding period. Stop wins when
     both stop and target are touched in the same daily bar.
     """
@@ -86,6 +92,7 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
         raise ValueError("Unknown rule version.")
     bars = validate_bars(bars)
     cost = assumptions.cost_bps_per_side / 10000
+    legacy = assumptions.exit_policy == "legacy_14_session"
     cash, position, pending, equities, trades, decisions = 1.0, None, None, [], [], []
 
     def close(price, date, reason):
@@ -94,24 +101,27 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
         trades.append({"entry_date": position["entry_date"], "exit_date": str(date.date()),
                        "signal_date": position["signal_date"], "entry_price": position["entry"],
                        "exit_price": price, "reason": reason,
+                       "exit_is_sample_boundary": reason == "end_of_sample",
+                       "checkpoint_gross_returns_pct": dict(position["checkpoints"]),
                        "gross_traded_notional": position["shares"] * (position["entry"] + price),
                        "net_return_pct": (proceeds / position["capital"] - 1) * 100})
         cash, position = proceeds, None
 
     for date, bar in bars.iterrows():
         if position and pending and pending["kind"] == "exit":
-            close(float(bar.Open), date, "structural_exit_next_open")
+            close(float(bar.Open), date, pending.get("reason", "structural_exit_next_open"))
         elif not position and pending and pending["kind"] == "entry":
             entry = float(bar.Open)
             stop = pending["state"].get("stop")
             valid_stop = isinstance(stop, (int, float)) and math.isfinite(stop) and 0 < stop < entry
-            if version != "v3_execution" or valid_stop:
+            if (legacy and version != "v3_execution") or valid_stop:
                 risk = entry - float(stop) if valid_stop else None
                 position = {"entry": entry, "shares": cash / (entry * (1 + cost)),
                             "capital": cash, "entry_date": str(date.date()),
                             "signal_date": pending["date"], "age": 0,
                             "stop": float(stop) if valid_stop else None,
                             "risk": risk, "peak": entry,
+                            "checkpoints": {},
                             "target": entry + assumptions.target_r * risk if risk else None}
                 cash = 0.0
             else:
@@ -119,7 +129,7 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
         pending = None
         if position:
             position["age"] += 1
-            if version == "v3_execution":
+            if legacy and version == "v3_execution":
                 stop, target = position["stop"], position["target"]
                 if float(bar.Open) <= stop:
                     close(float(bar.Open), date, "gap_stop")
@@ -129,21 +139,28 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
                     close(stop, date, "stop_first_conservative")
                 elif float(bar.High) >= target:
                     close(target, date, "target")
-            if position and position["age"] >= assumptions.holding_sessions:
+            if position and legacy and position["age"] >= assumptions.holding_sessions:
                 close(float(bar.Close), date, "max_horizon")
-            if position and version == "v3_execution":
+            if position and legacy and version == "v3_execution":
                 position["peak"] = max(position["peak"], float(bar.Close))
                 position["stop"] = max(position["stop"], position["peak"] - assumptions.trail_r * position["risk"])
+            if position and position["age"] in {5, 14, 30}:
+                position["checkpoints"][str(position["age"])] = (
+                    float(bar.Close) / position["entry"] - 1) * 100
         state = signals.get(date)
         if state:
             action = policy(state, version)
             decisions.append({"date": str(date.date()), "action": action})
             if not position and action in {"enter_now", "accumulate"}:
                 pending = {"kind": "entry", "state": dict(state), "date": str(date.date())}
-            elif position and version == "v3_execution" and action == "avoid":
+            elif position and (not legacy or version == "v3_execution") and action == "avoid":
                 ma50, ma200 = state.get("ma50"), state.get("ma200")
                 if ma50 and ma200 and float(bar.Close) < min(ma50, ma200):
                     pending = {"kind": "exit"}
+        # A close-confirmed invalidation is executable only on the next open.
+        # Never move the saved stop down using a freshly recomputed setup stop.
+        if position and not legacy and float(bar.Close) <= position["stop"]:
+            pending = {"kind": "exit", "reason": "invalidation_exit_next_open"}
         equities.append({"date": date, "equity": cash + (position["shares"] * float(bar.Close) if position else 0),
                          "exposed": position is not None})
     if position:
@@ -178,6 +195,9 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
     if len(dates) < 2 or not len(benchmark.loc[benchmark.index < start]) >= 200:
         raise ValueError("Require sample sessions and at least 200 pre-start benchmark bars.")
     report = {"assumptions": asdict(assumptions), "versions": list(VERSIONS),
+              "experiment": ("signal entries / technical invalidation exits"
+                             if assumptions.exit_policy == "signal_invalidation"
+                             else "forced 14-session holding-period experiment"),
               "sample_start": str(start.date()), "sample_end": str(end.date()),
               "universe": sorted(histories),
               "validation_start": str(split.date()), "results": {},
@@ -187,6 +207,12 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
                               "No automatic tuning or promotion. Validation is only untouched if chosen before inspecting it.",
                               "Avoid and Hold off both remain cash in this long-only simulation; no invented short gains.",
                               "Equal-capital ticker sleeves, no cross-ticker rebalancing; universe selection may introduce survivorship bias."]}
+    if assumptions.exit_policy == "signal_invalidation":
+        report["limitations"].extend([
+            "Full exits use a frozen entry stop breached at close or Avoid below both MA50/MA200, filled next open. No historical earnings gate is reconstructed.",
+            "Discretionary partial trims and Raise stop instructions are not simulated; this is not the complete live PM process.",
+            "V3 has the same exit policy as V2 combined in this controlled comparison; its legacy targets/trailing/time limit are disabled.",
+            "Sample-boundary liquidation is an accounting convention, not a sell signal. Checkpoints are gross marked returns for positions still held at 5/14/30 sessions."])
     for label, mask in (("development", dates < split), ("validation", dates >= split)):
         report["results"][label] = {}
         period = dates[mask]
@@ -240,6 +266,8 @@ def main():
     parser.add_argument("--validation-start", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cost-bps", type=float, default=10)
+    parser.add_argument("--exit-policy", choices=["signal_invalidation", "legacy_14_session"],
+                        default="signal_invalidation")
     parser.add_argument("--confirm-adjusted-ohlcv", action="store_true", required=True)
     args = parser.parse_args()
     if args.output.exists():
@@ -250,7 +278,8 @@ def main():
         return pd.read_csv(args.data_dir / f"{ticker}.csv", parse_dates=["Date"]).set_index("Date")
     histories = {t: read(t) for t in args.tickers}
     report = replay(histories, read("SPY"), start=args.start, end=args.end,
-                    validation_start=args.validation_start, assumptions=Assumptions(cost_bps_per_side=args.cost_bps))
+                    validation_start=args.validation_start, assumptions=Assumptions(
+                        cost_bps_per_side=args.cost_bps, exit_policy=args.exit_policy))
     root = Path(__file__).parent
     report["code_sha256"] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest()
                              for p in ("tactical.py", "engine_candidates.py", "backtest_runner.py")}

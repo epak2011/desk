@@ -8,6 +8,7 @@ def publish(report, backend):
                "validation_start": report["validation_start"], "limitations": report["limitations"],
                "sample_start": report.get("sample_start"), "sample_end": report.get("sample_end"),
                "universe": report.get("universe", []),
+               "experiment": report.get("experiment", "forced 14-session holding-period experiment"),
                "code_sha256": report.get("code_sha256", {}), "results": {}}
     for period, results in report["results"].items():
         summary["results"][period] = {
