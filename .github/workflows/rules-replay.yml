@@ -18,6 +18,13 @@ on:
         description: Preselected validation start YYYY-MM-DD (no automatic tuning)
         required: true
         default: '2026-01-02'
+      exit_policy:
+        description: Exit experiment (14 sessions is a checkpoint, not a sell rule)
+        type: choice
+        options:
+          - signal_invalidation
+          - legacy_14_session
+        default: signal_invalidation
 permissions:
   contents: read
 concurrency:
@@ -41,11 +48,13 @@ jobs:
           REPLAY_START: ${{ inputs.start }}
           REPLAY_END: ${{ inputs.end }}
           REPLAY_VALIDATION: ${{ inputs.validation_start }}
+          REPLAY_EXIT_POLICY: ${{ inputs.exit_policy }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: >-
           python scripts/run_rules_replay.py --tickers "$REPLAY_TICKERS"
           --start "$REPLAY_START" --end "$REPLAY_END"
           --validation-start "$REPLAY_VALIDATION"
+          --exit-policy "$REPLAY_EXIT_POLICY"
           --output-dir replay-artifact --publish
       - uses: actions/upload-artifact@v4
         if: always()
