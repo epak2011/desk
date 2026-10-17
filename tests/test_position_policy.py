@@ -1,6 +1,7 @@
 import ast
 from pathlib import Path
 import unittest
+import subprocess
 import pandas as pd
 import position_policy
 import tactical
@@ -8,6 +9,18 @@ from backtest_runner import replay, simulate, metrics, Assumptions
 
 
 class PositionPolicyTests(unittest.TestCase):
+    def test_worker_workflow_preserves_success_and_failure_status(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = (root / ".github/workflows/desk-worker.yml").read_text()
+        tail = workflow.split("          worker_status=$?",1)[1].split("\n      - name:",1)[0]
+        tail = "worker_status=$?\n" + "\n".join(line[10:] if line.startswith("          ") else line for line in tail.splitlines())
+        for command, expected in (("true",0),("false",1)):
+            result = subprocess.run(["bash","-c","set +e\n"+command+"\n"+tail],capture_output=True,text=True)
+            self.assertEqual(result.returncode,expected)
+        if "Re-dispatch this workflow" in workflow:
+            redispatch = workflow.split("Re-dispatch this workflow",1)[1]
+            self.assertIn("if: always()",redispatch)
+
     def test_stop_and_structural_exit_are_shared(self):
         self.assertEqual(position_policy.full_exit_reason(dict(price=90), 95), "invalidation")
         self.assertIsNone(position_policy.full_exit_reason(dict(price=100, action="avoid"), 95))
