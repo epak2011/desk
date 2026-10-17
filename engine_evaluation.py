@@ -830,7 +830,8 @@ def engine_provenance(implementation):
     """Freeze actual code identity; the historic friendly version was reused."""
     implementation = "streamlit" if implementation == "streamlit" else "worker"
     root = Path(__file__).resolve().parent
-    files = [root / "tactical.py", root / "decision_contract.py", root / ("app.py" if implementation == "streamlit" else "worker.py")]
+    files = [root / "tactical.py", root / "decision_contract.py", root / "engine_candidates.py",
+             root / "position_policy.py", root / ("app.py" if implementation == "streamlit" else "worker.py")]
     paths = tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files)
     revision = str(os.environ.get("GITHUB_SHA") or os.environ.get("RENDER_GIT_COMMIT") or "").strip()
     return {

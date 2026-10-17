@@ -2,6 +2,33 @@
 
 Research-only; never changes production recommendations or promotes a winner.
 
+## October 17 audit corrections
+
+- Strategy manifests assign a content-addressed ID to entry/exit/sizing/fill/cost
+  and source definitions. "Original" is displayed as Technical control; it is
+  not a claim of full historic app parity. Prior artifacts remain immutable.
+- Closed-trade counts, win rate and average trade return exclude sample-boundary
+  valuations. Those values still contribute to total portfolio return, with a
+  disclosed hypothetical terminal liquidation cost.
+- Corrected mode emits four independent arms. V3 is an explicit alias of V2
+  combined, not a duplicate fifth result. Legacy mode retains five arms.
+- App and replay share `position_policy.full_exit_reason`. A stop breach or
+  structural exit outranks earnings review; trims/raise-stop remain discretionary.
+- The retrospective catch-up path respects the existing ATR hard gate. This is
+  a production precedence correction, not a candidate promotion or new threshold.
+- Shadow confirmation remains the existing snapshot-based test, not a persisted
+  trigger-event state machine. Replay now uses the same prior-date close cutoff
+  as live logging. Direct Enter and fresh event-crossing/staged adds must not be
+  claimed as implemented by that candidate. Unknown fired flags remain unknown.
+- Candidate numeric inputs reject NaN/infinity. Live code fingerprints now cover
+  candidate and shared exit-policy source too.
+- The replay workflow runs the full test suite, not only replay/storage tests.
+- Same-universe equal-capital buy-and-hold return and drawdown accompany cash/SPY.
+
+These changes create new strategy IDs. They must not be presented as an isolated
+exit-only test against an older control, nor as untouched validation. No candidate
+promotion, numerical starter/add percentages, or automatic trading is introduced.
+
 ## Experiments run together
 
 ### Corrected default: signal entries / technical invalidation exits

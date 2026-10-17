@@ -9,6 +9,8 @@ def publish(report, backend):
                "sample_start": report.get("sample_start"), "sample_end": report.get("sample_end"),
                "universe": report.get("universe", []),
                "experiment": report.get("experiment", "forced 14-session holding-period experiment"),
+               "strategy_manifests": report.get("strategy_manifests", {}),
+               "version_aliases": report.get("version_aliases", {}),
                "code_sha256": report.get("code_sha256", {}), "results": {}}
     for period, results in report["results"].items():
         summary["results"][period] = {
@@ -17,6 +19,12 @@ def publish(report, backend):
     backend.ensure_backend_schema()
     with backend.db_connection() as conn:
         with conn.cursor() as cur:
+            # Retain each exact experiment independently of the latest pointer.
+            import hashlib
+            identity = hashlib.sha256(backend.json_dumps(summary).encode()).hexdigest()
+            cur.execute("""INSERT INTO engine_review_status (key, payload, updated_at)
+                           VALUES (%s, %s::jsonb, NOW()) ON CONFLICT (key) DO NOTHING""",
+                        ("historical_replay:" + identity, backend.json_dumps(summary)))
             cur.execute("""INSERT INTO engine_review_status (key, payload, updated_at)
                            VALUES ('historical_replay', %s::jsonb, NOW())
                            ON CONFLICT (key) DO UPDATE SET payload=EXCLUDED.payload, updated_at=NOW()""",

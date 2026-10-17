@@ -43,6 +43,7 @@ import ism_data
 import engine_candidates
 import portfolio_context
 import tactical
+import position_policy
 import user_state_store
 import onboarding
 import crypto_regime
@@ -9458,21 +9459,22 @@ def position_management_read(entry, t):
         (ma200 is not None and price < ma200)
     )
 
-    if earnings_days is not None and 0 <= earnings_days <= 2:
-        action = "Review after earnings"
-        emoji = "📅"
-        color = "var(--color-warning-text)"
-        summary = "Earnings are imminent. Do not add before the print; decide whether to trim risk or hold through the event deliberately."
-    elif stop_broken:
+    exit_reason = position_policy.full_exit_reason(t, stop_px)
+    if exit_reason == "invalidation":
         action = "Exit"
         emoji = "⛔"
         color = "var(--color-negative)"
         summary = "Stop is broken. Close the position unless you are deliberately re-underwriting the thesis."
-    elif setup_action == "avoid" and trend_broken:
+    elif exit_reason == "structural":
         action = "Exit"
         emoji = "⛔"
         color = "var(--color-negative)"
         summary = "The position is now in avoid territory with trend support broken. Exit or deliberately re-underwrite from scratch."
+    elif earnings_days is not None and 0 <= earnings_days <= 2:
+        action = "Review after earnings"
+        emoji = "📅"
+        color = "var(--color-warning-text)"
+        summary = "Earnings are imminent. Do not add before the print; decide whether to trim risk or hold through the event deliberately."
     elif target_hit and (extended_vs_20 or hot_rsi):
         action = "Take profit"
         emoji = "💰"

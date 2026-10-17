@@ -5,6 +5,7 @@ to make proposed rule changes replayable and measurable on identical price paths
 """
 
 from __future__ import annotations
+import math
 
 
 STRUCTURAL_CANDIDATE_VERSION = "shadow-2026.09-b"
@@ -15,7 +16,8 @@ REGIME_QUALITY_GATE_VERSION = "shadow-2026.09-e"
 
 def _number(value, default=None):
     try:
-        return default if value is None else float(value)
+        number = float(value) if value is not None else None
+        return number if number is not None and math.isfinite(number) else default
     except (TypeError, ValueError):
         return default
 

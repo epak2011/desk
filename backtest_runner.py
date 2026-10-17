@@ -18,9 +18,11 @@ import pandas as pd
 
 import engine_candidates
 import tactical
+import position_policy
 
 
 VERSIONS = ("original", "v2_structure", "v2_entry", "v2_combined", "v3_execution")
+ACTIVE_VERSIONS = VERSIONS[:-1]
 
 
 @dataclass(frozen=True)
@@ -153,14 +155,19 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
             decisions.append({"date": str(date.date()), "action": action})
             if not position and action in {"enter_now", "accumulate"}:
                 pending = {"kind": "entry", "state": dict(state), "date": str(date.date())}
-            elif position and (not legacy or version == "v3_execution") and action == "avoid":
+            elif position and legacy and version == "v3_execution" and action == "avoid":
                 ma50, ma200 = state.get("ma50"), state.get("ma200")
                 if ma50 and ma200 and float(bar.Close) < min(ma50, ma200):
                     pending = {"kind": "exit"}
         # A close-confirmed invalidation is executable only on the next open.
         # Never move the saved stop down using a freshly recomputed setup stop.
-        if position and not legacy and float(bar.Close) <= position["stop"]:
-            pending = {"kind": "exit", "reason": "invalidation_exit_next_open"}
+        if position and not legacy:
+            exit_state = {**(state or {}), "price": float(bar.Close)}
+            if state:
+                exit_state["action"] = action
+            reason = position_policy.full_exit_reason(exit_state, position["stop"])
+            if reason:
+                pending = {"kind": "exit", "reason": reason + "_exit_next_open"}
         equities.append({"date": date, "equity": cash + (position["shares"] * float(bar.Close) if position else 0),
                          "exposed": position is not None})
     if position:
@@ -173,13 +180,17 @@ def metrics(curve, trades, sleeves=1):
     equity = curve.equity
     # Include the initial unit of capital when measuring the first drawdown.
     peaks = equity.cummax().clip(lower=1.0)
+    closed = [t for t in trades if not t.get("exit_is_sample_boundary")]
     return {"total_return_pct": float((equity.iloc[-1] - 1) * 100),
             "max_drawdown_pct": float(((equity / peaks - 1) * 100).min()),
             "exposure_pct": float(curve.exposed.mean() * 100),
-            "round_trips": len(trades),
+            "round_trips": len(closed),
+            "closed_trade_count": len(closed),
+            "sample_boundary_valuation_count": len(trades) - len(closed),
             "gross_turnover_pct": sum(t["gross_traded_notional"] for t in trades) / sleeves * 100,
-            "win_rate_pct": 100 * sum(t["net_return_pct"] > 0 for t in trades) / len(trades) if trades else None,
-            "avg_trade_return_pct": sum(t["net_return_pct"] for t in trades) / len(trades) if trades else None}
+            "win_rate_pct": 100 * sum(t["net_return_pct"] > 0 for t in closed) / len(closed) if closed else None,
+            "avg_trade_return_pct": sum(t["net_return_pct"] for t in closed) / len(closed) if closed else None,
+            "valuation_basis": "Open positions included in total return at sample-end value less hypothetical liquidation costs; excluded from closed-trade statistics."}
 
 
 def replay(histories, benchmark, *, start, end, validation_start, assumptions=Assumptions(), compute=None):
@@ -194,7 +205,27 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
     dates = benchmark.loc[start:end].index
     if len(dates) < 2 or not len(benchmark.loc[benchmark.index < start]) >= 200:
         raise ValueError("Require sample sessions and at least 200 pre-start benchmark bars.")
-    report = {"assumptions": asdict(assumptions), "versions": list(VERSIONS),
+    versions = VERSIONS if assumptions.exit_policy == "legacy_14_session" else ACTIVE_VERSIONS
+    source_files = ("tactical.py", "engine_candidates.py", "backtest_runner.py", "position_policy.py")
+    source_hashes = {p: hashlib.sha256((Path(__file__).parent / p).read_bytes()).hexdigest() for p in source_files}
+    manifests = {}
+    for version in versions:
+        manifest = {
+            "label": "Technical control" if version == "original" else version,
+            "entry_policy": version, "exit_policy": assumptions.exit_policy,
+            "shared_exit_version": position_policy.POLICY_VERSION,
+            "sizing_policy": "full equal-capital ticker sleeve; NOT live starter/portfolio sizing",
+            "fill_policy": "signal close then next open; no same-bar decision fills",
+            "cost_bps_per_side": assumptions.cost_bps_per_side,
+            "confirmation_basis": "snapshot fired flag plus two prior-date closes versus snapshot level; not two closes after a persisted trigger event",
+            "source_sha256": source_hashes,
+            "legacy_parameters": asdict(assumptions) if assumptions.exit_policy == "legacy_14_session" else None,
+            "scope": "technical-only; no historical AI/fundamentals/discretionary PM"}
+        manifest["strategy_id"] = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+        manifests[version] = manifest
+    report = {"assumptions": asdict(assumptions), "versions": list(versions),
+              "strategy_manifests": manifests,
+              "version_aliases": {"v3_execution": "v2_combined"} if "v3_execution" not in versions else {},
               "experiment": ("signal entries / technical invalidation exits"
                              if assumptions.exit_policy == "signal_invalidation"
                              else "forced 14-session holding-period experiment"),
@@ -218,42 +249,52 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
         period = dates[mask]
         if len(period) < 2:
             raise ValueError("Each period requires at least two sessions.")
-        curves = {v: [] for v in VERSIONS}
-        trade_sets = {v: [] for v in VERSIONS}
-        decision_counts = {v: Counter() for v in VERSIONS}
+        curves = {v: [] for v in versions}
+        trade_sets = {v: [] for v in versions}
+        decision_counts = {v: Counter() for v in versions}
+        passive_curves = []
         for ticker, raw in sorted(histories.items()):
             bars = validate_bars(raw)
             if not period.isin(bars.index).all() or len(bars.loc[bars.index < start]) < 200:
                 raise ValueError(f"{ticker}: missing sessions or insufficient warm-up.")
             signals = {}
+            sample_bars = bars.loc[period]
+            cost = assumptions.cost_bps_per_side / 10000
+            passive = sample_bars.Close / (sample_bars.Open.iloc[0] * (1 + cost))
+            passive.iloc[-1] *= 1 - cost
+            passive_curves.append(passive)
             for date in period:
                 # Each engine call sees only data available by this close.
                 state = compute(bars.loc[:date], benchmark.loc[:date])
                 if state:
                     state = dict(state)
                     state.update(tactical.shadow_entry_confirmation(bars.loc[:date], state.get("trigger"),
-                                 state.get("trigger_fired"), as_of=date + pd.Timedelta(days=1)))
+                                 state.get("trigger_fired"), as_of=date))
                     signals[date] = state
-            for version in VERSIONS:
+            for version in versions:
                 result = simulate(bars.loc[period], signals, version, assumptions)
                 curves[version].append(result["curve"])
                 trade_sets[version].extend({"ticker": ticker, **t} for t in result["trades"])
                 decision_counts[version].update(d["action"] for d in result["decisions"])
         if not histories:
             raise ValueError("Provide at least one ticker.")
-        for version in VERSIONS:
+        for version in versions:
             curve = pd.concat([c.equity.rename(i) for i, c in enumerate(curves[version])], axis=1).mean(axis=1)
             exposure = pd.concat([c.exposed.rename(i) for i, c in enumerate(curves[version])], axis=1).mean(axis=1)
             report["results"][label][version] = {**metrics(pd.DataFrame({"equity": curve, "exposed": exposure}), trade_sets[version], len(histories)),
                                                    "trades": trade_sets[version],
                                                    "decision_counts": dict(decision_counts[version])}
         original_return = report["results"][label]["original"]["total_return_pct"]
-        for version in VERSIONS:
+        for version in versions:
             report["results"][label][version]["return_lift_vs_original_pct"] = (
                 report["results"][label][version]["total_return_pct"] - original_return)
         spy = float(benchmark.loc[period[-1], "Close"] / benchmark.loc[period[0], "Open"] *
                     (1 - assumptions.cost_bps_per_side / 10000) / (1 + assumptions.cost_bps_per_side / 10000) - 1) * 100
-        report["results"][label]["benchmarks"] = {"cash_return_pct": 0, "spy_buy_hold_return_pct": spy}
+        basket = pd.concat(passive_curves, axis=1).mean(axis=1)
+        report["results"][label]["benchmarks"] = {
+            "cash_return_pct": 0, "spy_buy_hold_return_pct": spy,
+            "same_universe_buy_hold_return_pct": float((basket.iloc[-1] - 1) * 100),
+            "same_universe_buy_hold_max_drawdown_pct": float(((basket / basket.cummax().clip(lower=1) - 1) * 100).min())}
     return report
 
 
@@ -282,7 +323,7 @@ def main():
                         cost_bps_per_side=args.cost_bps, exit_policy=args.exit_policy))
     root = Path(__file__).parent
     report["code_sha256"] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest()
-                             for p in ("tactical.py", "engine_candidates.py", "backtest_runner.py")}
+                             for p in ("tactical.py", "engine_candidates.py", "backtest_runner.py", "position_policy.py")}
     report["frozen_sources"] = {p: (root / p).read_text() for p in report["code_sha256"]}
     report["runtime"] = {"pandas": pd.__version__}
     report["input_sha256"] = {t: hashlib.sha256((args.data_dir / f"{t}.csv").read_bytes()).hexdigest()

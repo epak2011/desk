@@ -13,7 +13,8 @@ def shadow_entry_confirmation(history, trigger, trigger_fired, *, as_of=None):
     Exclude today's bar conservatively, even after market close. This adds
     audit inputs only and never changes the production action or trigger.
     """
-    result = {"entry_trigger_fired": bool(trigger_fired), "entry_level_held": None}
+    result = {"entry_trigger_fired": trigger_fired if isinstance(trigger_fired, bool) else None,
+              "entry_level_held": None}
     levels = (trigger or {}).get("levels") or {}
     try:
         level = float(levels.get("buy_above"))
@@ -1605,7 +1606,7 @@ def compute(ticker_hist, bench_hist, atr_threshold=0.015):
     # price cleared X. That is moving the goalpost. If recent price action
     # already crossed and held a prior 20-day resistance pivot, treat it as
     # a fired trigger instead of asking for a fresh breakout.
-    if action in ("watch", "hold_off") and price > ma50 and rs >= 1.0 and setup >= 6:
+    if atr_ok and action in ("watch", "hold_off") and price > ma50 and rs >= 1.0 and setup >= 6:
         fired_level = None
         sessions_ago = None
         max_scan = min(15, len(prices) - 22)

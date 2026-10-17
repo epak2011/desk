@@ -13,6 +13,22 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-10-17",
+        "title": "Audit corrections: explicit controls, real exit precedence and honest trade statistics",
+        "status": "Implementation prepared; deployment verification required",
+        "summary": "Separate technical research from full investment performance and enforce already documented risk precedence.",
+        "changes": (
+            "Record content-addressed strategy manifests; retain archived experiments separately from the latest summary.",
+            "Exclude sample-boundary valuations from closed-trade hit rates while retaining them in portfolio value.",
+            "Remove duplicate V3 results in corrected mode and publish the alias explicitly.",
+            "Share deterministic invalidation checks between Streamlit PM and replay; existing exits outrank earnings warnings.",
+            "Prevent retrospective breakout catch-up from bypassing the existing ATR gate; reject non-finite candidate inputs.",
+            "Align replay confirmation with the conservative prior-date live cutoff; preserve unknown trigger flags.",
+            "Add same-universe passive benchmarks and run the complete test suite in the replay workflow.",
+        ),
+        "validation": "265 local tests pass. Exact archived-data rerun in progress. No candidate promotion, invented sizing percentages or automatic execution.",
+    },
+    {
         "date": "2026-10-14",
         "title": "One scored evidence history across Streamlit and Lovable",
         "status": "Repository updated",
