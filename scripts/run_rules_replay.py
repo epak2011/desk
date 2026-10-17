@@ -19,6 +19,8 @@ def main():
     parser.add_argument("--validation-start", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--exit-policy", choices=["signal_invalidation", "legacy_14_session"],
+                        default="signal_invalidation")
     args = parser.parse_args()
     start = datetime.strptime(args.start, "%Y-%m-%d").date()
     end = datetime.strptime(args.end, "%Y-%m-%d").date()
@@ -44,7 +46,7 @@ def main():
     subprocess.run([sys.executable, str(ROOT / "backtest_runner.py"), "--data-dir", str(data),
                     "--tickers", *tickers, "--start", args.start, "--end", args.end,
                     "--validation-start", args.validation_start, "--output", str(output),
-                    "--confirm-adjusted-ohlcv"], check=True)
+                    "--exit-policy", args.exit_policy, "--confirm-adjusted-ohlcv"], check=True)
     if args.publish:
         import backend_layer
         import backtest_store
