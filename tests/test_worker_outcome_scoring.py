@@ -41,7 +41,7 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(
             {row["candidate"] for row in entry["shadow_evaluations"]},
-            {"entry_timing_guard", "regime_quality_gate"},
+            {"entry_timing_guard", "regime_quality_gate", "confirmed_entry_hold"},
         )
         self.assertTrue(all(row["directional_success"] for row in entry["outcome"]["shadow_results"]))
         self.assertEqual(len(saved), 1)
