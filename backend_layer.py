@@ -11,6 +11,7 @@ import json
 import math
 import os
 import re
+import time
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -634,10 +635,32 @@ def upsert_decision_log(entry: dict[str, Any]) -> None:
                 """,
                 (entry_id, json_dumps(entry), str(entry_ts or "")),
             )
+    _invalidate_decision_logs_cache()
+
+
+_DECISION_LOGS_CACHE_TTL_SECONDS = 90
+_decision_logs_cache: dict[str, Any] = {"at": 0.0, "rows": None}
+
+
+def _invalidate_decision_logs_cache() -> None:
+    _decision_logs_cache["rows"] = None
 
 
 def read_decision_logs(*, limit: int | None = None) -> list[dict[str, Any]]:
-    """Read durable decision entries for background evaluation."""
+    """Read durable decision entries for background evaluation.
+
+    The unbounded read (limit=None) is the most expensive query in this app —
+    the full decisions_log table, which runs into double-digit megabytes of
+    JSON — and several call sites (the worker's own scoring pass, and every
+    /v1/calibration request) were re-running it repeatedly within seconds of
+    each other. That is what drove Supabase egress past quota. It is cached
+    in-process for a short window and invalidated on every write, so a
+    read-after-write in the same process always sees its own changes.
+    """
+    if limit is None:
+        cached = _decision_logs_cache["rows"]
+        if cached is not None and (time.monotonic() - _decision_logs_cache["at"]) < _DECISION_LOGS_CACHE_TTL_SECONDS:
+            return cached
     ensure_backend_schema()
     query = "SELECT entry FROM decisions_log ORDER BY COALESCE(entry_ts, updated_at) ASC"
     params: tuple[Any, ...] = ()
@@ -647,7 +670,11 @@ def read_decision_logs(*, limit: int | None = None) -> list[dict[str, Any]]:
     with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(query, params)
-            return [row[0] for row in cur.fetchall() if row and isinstance(row[0], dict)]
+            rows = [row[0] for row in cur.fetchall() if row and isinstance(row[0], dict)]
+    if limit is None:
+        _decision_logs_cache["rows"] = rows
+        _decision_logs_cache["at"] = time.monotonic()
+    return rows
 
 
 def import_rule_decision_logs(entries: Iterable[dict[str, Any]]) -> int:
@@ -691,7 +718,10 @@ def import_rule_decision_logs(entries: Iterable[dict[str, Any]]) -> int:
                 """,
                 (json_dumps(rows),),
             )
-            return max(0, cur.rowcount)
+            inserted = max(0, cur.rowcount)
+    if inserted:
+        _invalidate_decision_logs_cache()
+    return inserted
 
 
 def read_rule_evidence(*, include_cases: bool = False) -> dict[str, Any]:
