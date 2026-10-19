@@ -1130,7 +1130,7 @@ def _capture_entry_event(ticker, hist, bench):
         fingerprint=engine_evaluation.engine_provenance("worker")["rule_code_fingerprint"],
         completed_before=datetime.now(ZoneInfo("America/New_York")).date())
     root = Path(__file__).resolve().parent
-    spec_path = root / "experiments" / "entry-events-v2.json"
+    spec_path = root / "experiments" / "entry-events-v3.json"
     spec = json.loads(spec_path.read_text()) if spec_path.exists() else {}
     sources = {name: hashlib.sha256((root / name).read_bytes()).hexdigest()
                for name in spec.get("source_hashes", {})}

@@ -23,10 +23,11 @@ RULES_UPDATES = (
             "Replay explicit cash allocations, adds, partial trims and non-decreasing stop instructions; missing quantities remain unresolved.",
             "Publish per-arm exposure-matched SPY diagnostics and separate non-overlapping exact-code control comparisons.",
             "Freeze a future-only eight-stock study starting October 20; runtime rejects changed sources, outside-universe stocks and pre-start event origins.",
-            "Retain the initial registration rather than rewriting it when the pre-start origin-date guard was tightened; active registration is entry-events-v2.",
+            "Retain earlier registrations rather than rewriting them when pre-start clock guards were tightened; active registration is entry-events-v3.",
+            "Separate an older price-basis date from actual observation day; never backdate live arming or count an already-completed crossing as fresh.",
             "Preserve all original archives, production recommendations and manual-only promotion; no calendar-based selling.",
         ),
-        "validation": "278 local tests passed, including staged current worker. Hosted replay 39240364228 passed its full suite and archived source-consistent results. Both new arms returned about -11.34% in the inspected 2026 period; not an improvement claim. Backend verification passed; Lovable reported 39 tests passing and publication was confirmed. Full discretionary PM parity is not claimed.",
+        "validation": "279 local tests passed, including staged current worker and observation-clock regression. Hosted replay 39240364228 passed 285 tests and archived source-consistent results; post-replay clock protection is a separately versioned prospective patch. Both event arms returned about -11.34% in the inspected 2026 period; not an improvement claim. Lovable reported 39 tests passing and publication was confirmed. Full discretionary PM parity is not claimed.",
     },
     {
         "date": "2026-10-17",

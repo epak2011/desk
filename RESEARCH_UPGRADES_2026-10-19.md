@@ -48,12 +48,16 @@ passive basket. These repeatedly inspected dates are exploratory. There is no
 demonstrated entry-rule improvement and no promotion. The published live domain
 still requires its own sign-in session; authenticated acceptance was in preview.
 
-The active runtime registration is `experiments/entry-events-v2.json`. The first
-registration is retained, not overwritten: a pre-start review tightened the live
+The active runtime registration is `experiments/entry-events-v3.json`. Earlier
+registrations are retained, not overwritten: a pre-start review tightened the live
 eligibility guard to use the event's FIRED session, not a later refresh date.
 An event originating before the registered start cannot join later merely by
 being refreshed. Both registrations precede the October 20 trial start; changing
 source again invalidates eligibility until a new future-only registration exists.
+The observation-clock guard additionally distinguishes an older price-basis date
+from the date its level was actually observed. Live arming cannot backdate to that
+old bar, and crossings on/before the observation day cannot establish a new event.
+This conservative rule may miss a same-day crossing rather than falsely record one.
 
 - Verify the first registered-origin event persists across real worker runs once
   an actual crossing occurs. The serialization/idempotence paths are tested;

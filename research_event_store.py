@@ -34,6 +34,11 @@ def capture(backend, *, ticker, history, benchmark, compute, fingerprint, comple
                 state = compute(completed.loc[:session], benchmark.loc[:session]) or {}
                 journal = research_protocol.advance_event(journal, ticker=ticker,
                     session=str(session.date()), close=float(bar.Close), state=state, fingerprint=fingerprint)
+                # A prior-day price basis observed TODAY cannot claim a level
+                # was armed yesterday. Skip crossings on/before observation day.
+                if journal.get("armed") and "basis_session" not in journal["armed"]:
+                    journal["armed"]["basis_session"] = str(session.date())
+                    journal["armed"]["session"] = completed_before.isoformat()
                 journal["observed_at"] = datetime.now(timezone.utc).isoformat()
                 event = journal.get("event")
                 if event:

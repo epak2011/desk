@@ -9,7 +9,7 @@ import hashlib
 import json
 import math
 
-VERSION = "event-study-2026.10-v1"
+VERSION = "event-study-2026.10-v2"
 
 
 def identity(value):
@@ -56,7 +56,7 @@ def advance_event(previous, *, ticker, session, close, state, fingerprint):
     elif armed and journal.get("last_close") is not None:
         if armed.get("stop") is not None and close <= armed["stop"]:
             journal["armed"] = None
-        elif journal["last_close"] < armed["level"] <= close:
+        elif session > armed["session"] and journal["last_close"] < armed["level"] <= close:
             origin = {"ticker": ticker, "armed_session": armed["session"],
                       "fired_session": session, "level": armed["level"],
                       "stop": armed.get("stop"), "fingerprint": fingerprint,
