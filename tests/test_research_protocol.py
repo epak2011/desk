@@ -30,16 +30,19 @@ class ProtocolTests(unittest.TestCase):
             yield SimpleNamespace(cursor=lambda: cur)
         backend = SimpleNamespace(has_database=lambda: True, ensure_backend_schema=lambda: None,
                                   db_connection=connection, json_dumps=json.dumps)
-        idx = pd.bdate_range("2026-10-05", periods=4)
-        bars = pd.DataFrame({"Close": [99, 101, 102, 103]}, index=idx)
+        idx = pd.bdate_range("2026-10-05", periods=5)
+        bars = pd.DataFrame({"Close": [99, 99, 101, 102, 103]}, index=idx)
         args = dict(backend=backend, ticker="TEST", benchmark=bars, fingerprint="code",
             compute=lambda a,b: {"trigger": {"levels": {"buy_above": 100, "abort_below": 90}}})
         first = research_event_store.capture(history=bars, completed_before=date(2026,10,6), **args)
         self.assertNotIn("event", first)
-        final = research_event_store.capture(history=bars, completed_before=date(2026,10,9), **args)
-        self.assertEqual(final["event"]["confirmed_session"], "2026-10-08")
+        self.assertEqual(first["armed"]["session"], "2026-10-06")
+        self.assertEqual(first["armed"]["basis_session"], "2026-10-05")
+        final = research_event_store.capture(history=bars, completed_before=date(2026,10,10), **args)
+        self.assertEqual(final["event"]["fired_session"], "2026-10-07")
+        self.assertEqual(final["event"]["confirmed_session"], "2026-10-09")
         n = len(cur.observations)
-        research_event_store.capture(history=bars, completed_before=date(2026,10,9), **args)
+        research_event_store.capture(history=bars, completed_before=date(2026,10,10), **args)
         self.assertEqual(len(cur.observations), n)
 
     def advance(self, previous, day, price, level=100):
@@ -66,6 +69,15 @@ class ProtocolTests(unittest.TestCase):
         j = self.advance({}, 5, 105)
         self.assertIsNone(j.get("event"))
         self.assertEqual(policy({"action": "enter_now"}, "event_early"), "unknown")
+
+    def test_old_price_basis_does_not_backdate_live_arming(self):
+        j = self.advance({}, 5, 99)
+        j["armed"]["basis_session"] = "2026-10-05"
+        j["armed"]["session"] = "2026-10-06"  # First actually observed on Oct 6.
+        j = self.advance(j, 6, 101)
+        self.assertIsNone(j.get("event"))
+        j = self.advance(j, 7, 102)
+        self.assertIsNone(j.get("event"))  # Already above: not a fresh crossing.
 
     def test_crossing_requires_prior_observation_and_stop_invalidates(self):
         j = self.advance({}, 5, 99)
