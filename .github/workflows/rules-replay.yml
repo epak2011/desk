@@ -32,6 +32,10 @@ on:
           - standard
           - event
         default: standard
+      tests_only:
+        description: Run all tests without downloading data or replacing the replay summary
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -50,6 +54,7 @@ jobs:
       - name: Verify simulator invariants
         run: python -m unittest discover -s tests -v
       - name: Replay and publish owner summary
+        if: ${{ inputs.tests_only != true }}
         env:
           REPLAY_TICKERS: ${{ inputs.tickers }}
           REPLAY_START: ${{ inputs.start }}
@@ -66,7 +71,7 @@ jobs:
           --study "$REPLAY_STUDY"
           --output-dir replay-artifact --publish
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && inputs.tests_only != true }}
         with:
           name: versioned-rules-replay-${{ github.run_id }}
           path: replay-artifact/
