@@ -1506,8 +1506,66 @@ def _backfill_shadow_candidates(entries: list[dict]) -> int:
     return updated
 
 
-def score_due_rule_outcomes(max_entries: int = 12) -> dict:
-    """Refresh due outcome paths once daily and persist the current review gate."""
+OUTCOME_SCORING_MIN_INTERVAL_HOURS = 20
+
+
+def _outcome_scoring_recently_ran(min_interval_hours: float) -> dict | None:
+    """Return the last engine_review_status payload if it is still fresh, else None.
+
+    Reading it is a single small-row lookup, unlike the unbounded decisions_log
+    scan below, so it is safe to do on every worker maintenance pass.
+    """
+    if min_interval_hours <= 0:
+        return None
+    try:
+        last_status = backend.read_engine_review_status()
+    except Exception:
+        return None
+    if not isinstance(last_status, dict):
+        return None
+    generated_at = last_status.get("generated_at")
+    if not generated_at:
+        return None
+    try:
+        last_run = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+        if last_run.tzinfo is None:
+            last_run = last_run.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+    age_hours = (datetime.now(timezone.utc) - last_run).total_seconds() / 3600
+    return last_status if age_hours < min_interval_hours else None
+
+
+def score_due_rule_outcomes(
+    max_entries: int = 12,
+    *,
+    min_interval_hours: float = OUTCOME_SCORING_MIN_INTERVAL_HOURS,
+) -> dict:
+    """Refresh due outcome paths once daily and persist the current review gate.
+
+    This is invoked on every scheduled worker maintenance pass (roughly every
+    5 minutes, 24/7 via the GitHub Actions self-dispatch loop), but scoring is
+    only meaningful once a day. It used to read the entire unbounded
+    decisions_log table (into the double-digit megabytes) on every one of
+    those passes regardless, which is what kept Supabase egress elevated even
+    after decisions_log reads were cached in-process elsewhere: the worker is
+    a fresh process on every run, so that in-process cache never carries over
+    between runs. Gate on the cheap engine_review_status row instead (a single
+    small JSON document, written at the end of a real run) and skip the
+    expensive unbounded read entirely when the last run is still fresh.
+    """
+    recent = _outcome_scoring_recently_ran(min_interval_hours)
+    if recent is not None:
+        return {
+            "scored": 0,
+            "shadow_backfilled": 0,
+            "errors": {},
+            "alerts": len(recent.get("alerting") or []),
+            "flags": recent.get("flags") or [],
+            "remaining_due": recent.get("remaining_due", 0),
+            "skipped": "scored_recently",
+            "last_scored_at": recent.get("generated_at"),
+        }
     all_entries = [row for row in backend.read_decision_logs() if (
         row.get("auto_logged") or row.get("source") == "rules_engine"
     )]

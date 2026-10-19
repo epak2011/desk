@@ -105,6 +105,56 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
         self.assertEqual(result["scored"], 0)
         download.assert_not_called()
 
+    def test_skips_the_unbounded_read_when_scored_recently(self):
+        """Guards the fix for the worker's share of the Supabase egress spike: the
+        worker is a fresh process every ~5-minute maintenance pass, so scoring must
+        gate on the cheap engine_review_status timestamp instead of re-reading the
+        entire decisions_log table every pass.
+        """
+        recent_status = {
+            "generated_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "flags": [{"label": "x"}],
+            "alerting": [{"label": "x"}],
+            "remaining_due": 3,
+        }
+        with (
+            patch.object(worker.backend, "read_engine_review_status", return_value=recent_status),
+            patch.object(worker.backend, "read_decision_logs") as read_logs,
+        ):
+            result = worker.score_due_rule_outcomes(max_entries=12)
+
+        read_logs.assert_not_called()
+        self.assertEqual(result["scored"], 0)
+        self.assertEqual(result["skipped"], "scored_recently")
+        self.assertEqual(result["alerts"], 1)
+        self.assertEqual(result["remaining_due"], 3)
+
+    def test_runs_normally_when_last_score_is_stale(self):
+        stale_status = {
+            "generated_at": (datetime.now(timezone.utc) - timedelta(hours=30)).isoformat(),
+        }
+        with (
+            patch.object(worker.backend, "read_engine_review_status", return_value=stale_status),
+            patch.object(worker.backend, "read_decision_logs", return_value=[]) as read_logs,
+            patch.object(worker.backend, "write_engine_review_status"),
+        ):
+            result = worker.score_due_rule_outcomes(max_entries=12)
+
+        read_logs.assert_called()
+        self.assertNotIn("skipped", result)
+
+    def test_min_interval_hours_zero_disables_the_gate(self):
+        recent_status = {"generated_at": datetime.now(timezone.utc).isoformat()}
+        with (
+            patch.object(worker.backend, "read_engine_review_status", return_value=recent_status),
+            patch.object(worker.backend, "read_decision_logs", return_value=[]) as read_logs,
+            patch.object(worker.backend, "write_engine_review_status"),
+        ):
+            result = worker.score_due_rule_outcomes(max_entries=12, min_interval_hours=0)
+
+        read_logs.assert_called()
+        self.assertNotIn("skipped", result)
+
     def test_unscored_mature_call_precedes_old_30_session_followup(self):
         old = {
             "id": "old-followup", "ticker": "OLD", "auto_logged": True,
