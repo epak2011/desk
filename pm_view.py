@@ -14,19 +14,29 @@ import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from datetime import date, datetime, timezone
 
-CLAUDE_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
+# These were pinned to claude-sonnet-4-6 / claude-haiku-4-5-20251001, both of
+# which Anthropic has since deprecated. Every PM-memo and dossier call was
+# failing with a 400 invalid_request_error as a result, and because that
+# error doesn't say "not found" it slipped past _is_model_not_found below —
+# so the fallback chain was never tried and every ticker silently fell back
+# to the rule-only snapshot. Default to the current model line; keep the old
+# ids as a last-resort tail in case this account still has transitional
+# access to them.
+CLAUDE_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5").strip()
 CLAUDE_FAST_MODEL = os.environ.get(
-    "ANTHROPIC_FAST_MODEL", "claude-haiku-4-5-20251001"
+    "ANTHROPIC_FAST_MODEL", "claude-haiku-5-5"
 ).strip()
 CLAUDE_MODEL_FALLBACKS = [
     CLAUDE_MODEL,
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
     "claude-sonnet-4-5-20250929",
-    "claude-haiku-4-5-20251001",
 ]
 CLAUDE_FAST_MODEL_FALLBACKS = [
     CLAUDE_FAST_MODEL,
+    "claude-haiku-4-5-20251001",
     CLAUDE_MODEL,
-    "claude-sonnet-4-5-20250929",
+    "claude-sonnet-5",
 ]
 CLAUDE_PM_TIMEOUT_SECONDS = max(12, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "24")))
 CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(24, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "45")))
@@ -54,8 +64,25 @@ def _model_candidates(models=None):
 
 
 def _is_model_not_found(exc):
+    """True when the model itself is the problem, not the request content.
+
+    Anthropic returns a 404 not_found_error for a model id that never
+    existed, but a *deprecated* model id — the actual failure mode that
+    silently broke every PM memo and dossier call here — comes back as a
+    400 invalid_request_error whose message talks about the model without
+    ever saying "not found". Catch that shape too so the fallback chain
+    below actually gets a chance to run instead of raising on the first
+    (possibly stale) candidate.
+    """
     text = str(exc).lower()
-    return "not_found_error" in text or "model" in text and "not found" in text
+    if "not_found_error" in text:
+        return True
+    if "model" not in text:
+        return False
+    return any(
+        phrase in text
+        for phrase in ("not found", "deprecat", "does not exist", "unknown model", "retired")
+    )
 
 
 def _messages_create(client, **kwargs):
@@ -736,7 +763,12 @@ def _rule_backed_pm_snapshot(ticker, tactical_output=None, company_name=None, re
         "risks": risks,
         "valuation": valuation,
         "deep_dive": _empty_deep_dive(ticker),
-        "_source": f"rules fallback ({str(reason)[:80]})",
+        # 80 chars used to cut off right before the useful part of an API
+        # error (e.g. "Error code: 400 - {'type': 'error', 'error': {'type':
+        # 'invalid_request_error', ..." with the actual message past char
+        # 80). Wide enough now to actually diagnose the next failure from
+        # research_reports.payload without needing provider-side logs.
+        "_source": f"rules fallback ({str(reason)[:300]})",
     }
 
 
@@ -1048,7 +1080,7 @@ Return ONLY the JSON, nothing else."""
         return {
             **snap,
             "deep_dive": _empty_deep_dive(ticker),
-            "_source": f"static (claude call failed: {str(e)[:80]})",
+            "_source": f"static (claude call failed: {str(e)[:300]})",
         }
 
 

@@ -79,6 +79,49 @@ class FastModelTests(unittest.TestCase):
         )
         self.assertEqual(result["model"], "full-model")
 
+    def test_fast_messages_fall_back_on_a_deprecated_model_error(self):
+        """Guards the fix for the silent PM-research outage: a deprecated
+        model's 400 invalid_request_error never says "not found", so the
+        fallback chain must still trigger on it or every call raises on the
+        first (stale) candidate and every ticker falls back to rules-only.
+        """
+        class _DeprecatedMessages(_Messages):
+            def create(self, model, **kwargs):
+                self.models.append(model)
+                if model == "deprecated-model":
+                    raise RuntimeError(
+                        "Error code: 400 - {'type': 'error', 'error': "
+                        "{'type': 'invalid_request_error', 'message': "
+                        "'model: deprecated-model has been deprecated and "
+                        "will reach end-of-life on 2026-01-01. Please use "
+                        "a current model instead.'}}"
+                    )
+                return {"model": model, "kwargs": kwargs}
+
+        client = _Client()
+        client.messages = _DeprecatedMessages()
+        with mock.patch.object(
+            pm_view,
+            "CLAUDE_FAST_MODEL_FALLBACKS",
+            ["deprecated-model", "current-model"],
+        ):
+            result = pm_view._messages_create_fast(client, max_tokens=100)
+
+        self.assertEqual(client.messages.models, ["deprecated-model", "current-model"])
+        self.assertEqual(result["model"], "current-model")
+
+    def test_unrelated_api_errors_are_not_treated_as_model_not_found(self):
+        """A content/parameter error on a valid model must still raise
+        immediately rather than burning through the whole fallback chain.
+        """
+        self.assertFalse(pm_view._is_model_not_found(
+            RuntimeError(
+                "Error code: 400 - {'type': 'error', 'error': {'type': "
+                "'invalid_request_error', 'message': 'max_tokens: 999999 "
+                "is too large'}}"
+            )
+        ))
+
     def test_dossier_contract_rejects_missing_required_sections(self):
         payload = self._complete_dossier()
         payload["bullets"]["risks"] = ["Only one risk"]
