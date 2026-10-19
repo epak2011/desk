@@ -4,7 +4,7 @@ No production action thresholds or automatic trading are changed. The archived
 October 17 control/report remain available; a new source manifest is a new
 research release, never a silent rewrite of that archive.
 
-## Implemented in this working release (deployment still to verify)
+## Implemented in this research release
 
 1. Durable event origins: a level must be observed and armed before a close
    crosses it. Level, stop, session and source fingerprint are frozen. Two
@@ -35,6 +35,19 @@ research release, never a silent rewrite of that archive.
 
 ## Outstanding acceptance / policy choices
 
+Verification: 278 local tests pass; the hosted full-suite/event replay succeeded
+in run 39240364228. Its downloaded ZIP digest matches GitHub and all frozen source
+hashes match the archived text. Backend verification succeeded at the strict-origin
+release (run 39240962140). Lovable reported 39 tests passing, publication was
+confirmed, and the signed-in preview's six arms, separate non-overlap evidence,
+and per-arm matched SPY tables reconcile with the archived report.
+
+The inspected 2026 period returned 18.12% for technical control, 20.92% for V2
+combined and about -11.34% for BOTH new event arms, versus 30.19% for the same-stock
+passive basket. These repeatedly inspected dates are exploratory. There is no
+demonstrated entry-rule improvement and no promotion. The published live domain
+still requires its own sign-in session; authenticated acceptance was in preview.
+
 The active runtime registration is `experiments/entry-events-v2.json`. The first
 registration is retained, not overwritten: a pre-start review tightened the live
 eligibility guard to use the event's FIRED session, not a later refresh date.
@@ -42,8 +55,9 @@ An event originating before the registered start cannot join later merely by
 being refreshed. Both registrations precede the October 20 trial start; changing
 source again invalidates eligibility until a new future-only registration exists.
 
-- Run hosted full tests, verify event-journal persistence and owner API fields,
-  run/archive the opt-in historical study, then reconcile Lovable with the report.
+- Verify the first registered-origin event persists across real worker runs once
+  an actual crossing occurs. The serialization/idempotence paths are tested;
+  future observations and mature outcomes cannot exist before the trial starts.
 - Historical event replay is simulated point-in-time observation, NOT historical
   proof that the live worker recorded those events. Prospective evidence starts
   only after registration and observation; earlier data remain exploratory.

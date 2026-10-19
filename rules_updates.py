@@ -13,6 +13,22 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-10-19",
+        "title": "Observed entry events, explicit PM replay and frozen prospective testing",
+        "status": "Research implementation published; no rule promotion; PM choices remain manual",
+        "summary": "Separate observed trigger origins from retrospective flags and compare entry timing without inventing sizing or sell instructions.",
+        "changes": (
+            "Persist armed levels, observed crossing sessions and source fingerprints in a serialized journal with append-only observations.",
+            "Add separate early-event and two-post-event-close entry arms; freeze the event stop and use shared next-open technical exits.",
+            "Replay explicit cash allocations, adds, partial trims and non-decreasing stop instructions; missing quantities remain unresolved.",
+            "Publish per-arm exposure-matched SPY diagnostics and separate non-overlapping exact-code control comparisons.",
+            "Freeze a future-only eight-stock study starting October 20; runtime rejects changed sources, outside-universe stocks and pre-start event origins.",
+            "Retain the initial registration rather than rewriting it when the pre-start origin-date guard was tightened; active registration is entry-events-v2.",
+            "Preserve all original archives, production recommendations and manual-only promotion; no calendar-based selling.",
+        ),
+        "validation": "278 local tests passed, including staged current worker. Hosted replay 39240364228 passed its full suite and archived source-consistent results. Both new arms returned about -11.34% in the inspected 2026 period; not an improvement claim. Backend verification passed; Lovable reported 39 tests passing and publication was confirmed. Full discretionary PM parity is not claimed.",
+    },
+    {
         "date": "2026-10-17",
         "title": "Audit corrections: explicit controls, real exit precedence and honest trade statistics",
         "status": "Implementation prepared; deployment verification required",
