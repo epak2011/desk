@@ -35,6 +35,13 @@ research release, never a silent rewrite of that archive.
 
 ## Outstanding acceptance / policy choices
 
+The active runtime registration is `experiments/entry-events-v2.json`. The first
+registration is retained, not overwritten: a pre-start review tightened the live
+eligibility guard to use the event's FIRED session, not a later refresh date.
+An event originating before the registered start cannot join later merely by
+being refreshed. Both registrations precede the October 20 trial start; changing
+source again invalidates eligibility until a new future-only registration exists.
+
 - Run hosted full tests, verify event-journal persistence and owner API fields,
   run/archive the opt-in historical study, then reconcile Lovable with the report.
 - Historical event replay is simulated point-in-time observation, NOT historical
