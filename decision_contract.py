@@ -133,6 +133,15 @@ def build_input_snapshot(state, *, captured_at=None):
     for field in ("entry_trigger_fired", "entry_level_held"):
         value = state.get(field)
         snapshot["inputs"][field] = value if isinstance(value, bool) else None
+    event = state.get("entry_event")
+    if isinstance(event, dict):
+        snapshot["inputs"]["entry_event"] = {key: event.get(key) for key in (
+            "protocol", "event_id", "ticker", "armed_session", "fired_session", "level", "stop",
+            "fingerprint", "status", "held_closes", "confirmed_session", "invalidated_session")}
+    experiment = state.get("entry_experiment")
+    if isinstance(experiment, dict):
+        snapshot["inputs"]["entry_experiment"] = {k: experiment.get(k) for k in (
+            "experiment_id", "eligible", "reason", "starts_on")}
     identity = {key: value for key, value in snapshot.items() if key != "captured_at"}
     snapshot["input_hash"] = hashlib.sha256(
         json.dumps(identity, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")

@@ -49,6 +49,9 @@ from pm_view import _messages_create, get_decision_dossier, get_pm_view
 import tactical
 import idea_discovery
 import user_state_store
+import research_event_store
+import research_protocol
+from pathlib import Path
 
 
 SCHEDULED_SAFE_JOB_TYPES = [
@@ -928,7 +931,13 @@ def auto_log_rule_decision(ticker: str, t_state: dict, *, source: str = "worker"
     if price is None:
         return False
     provenance = engine_evaluation.engine_provenance("worker")
-    signature = _rule_log_signature(t_state) + "|" + provenance["rule_code_fingerprint"]
+    event = t_state.get("entry_event") or {}
+    experiment = t_state.get("entry_experiment") or {}
+    event_stage = [event.get("event_id"), event.get("status"),
+                   bool(event.get("confirmed_session") and event.get("held_closes", 0) >= 2),
+                   experiment.get("experiment_id"), experiment.get("eligible")]
+    signature = (_rule_log_signature(t_state) + "|" + provenance["rule_code_fingerprint"]
+                 + "|event:" + hashlib.sha256(json.dumps(event_stage).encode()).hexdigest()[:12])
     if backend.recent_auto_rule_decision_exists(tkr, signature, within_days=7):
         return False
 
@@ -1112,6 +1121,25 @@ def _enrich_market_identity(ticker: str, market_payload: dict) -> tuple[dict, di
     return market_payload, profile
 
 
+
+def _capture_entry_event(ticker, hist, bench):
+    """Shadow only; persist prior-date completed-session origins, never move live action."""
+    journal = research_event_store.capture(backend, ticker=ticker, history=hist, benchmark=bench,
+        compute=lambda stock, benchmark: tactical.apply_extension_execution_overlay(
+            tactical.compute(stock, benchmark) or {}),
+        fingerprint=engine_evaluation.engine_provenance("worker")["rule_code_fingerprint"],
+        completed_before=datetime.now(ZoneInfo("America/New_York")).date())
+    root = Path(__file__).resolve().parent
+    spec_path = root / "experiments" / "entry-events-v1.json"
+    spec = json.loads(spec_path.read_text()) if spec_path.exists() else {}
+    sources = {name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+               for name in spec.get("source_hashes", {})}
+    status = research_protocol.registration_status(spec, source_hashes=sources, ticker=ticker,
+                session=journal.get("last_session", "0001-01-01"))
+    return (journal.get("event") or {"status": "unavailable",
+            "reason": journal.get("reason", "No observed crossing yet.")}), status
+
+
 def refresh_market_snapshot(ticker: str, bench=None) -> dict:
     ticker = str(ticker or "").upper().strip()
     if not ticker:
@@ -1128,6 +1156,7 @@ def refresh_market_snapshot(ticker: str, bench=None) -> dict:
     market_payload, _ = _enrich_market_identity(ticker, market_payload)
     t_state["price"] = market_payload.get("price", t_state.get("price"))
     rule_payload = dict(t_state)
+    rule_payload["entry_event"], rule_payload["entry_experiment"] = _capture_entry_event(ticker, hist, bench)
     trigger = rule_payload.get("trigger") or {}
     if isinstance(trigger, dict):
         rule_payload["trigger_summary"] = trigger.get("summary")
@@ -1171,6 +1200,7 @@ def _fresh_tactical_state(ticker: str) -> tuple[dict, dict]:
     market_payload, meta = _enrich_market_identity(ticker, market_payload)
     t_state["price"] = market_payload.get("price", t_state.get("price"))
     rule_payload = dict(t_state)
+    rule_payload["entry_event"], rule_payload["entry_experiment"] = _capture_entry_event(ticker, hist, bench)
     trigger = rule_payload.get("trigger") or {}
     if isinstance(trigger, dict):
         rule_payload["trigger_summary"] = trigger.get("summary")

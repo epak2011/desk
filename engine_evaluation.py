@@ -643,7 +643,7 @@ def confidence_calibration(entries, minimum_count=5):
     return {"rows": rows, "calibrated": calibrated, "note": note}
 
 
-def paired_shadow_comparison(entries):
+def paired_shadow_comparison(entries, *, separate_fingerprints=False):
     """Matched long/cash policy returns; Avoid is not treated as a short.
 
     A weakened Avoid -> Hold off remains no exposure in both arms. It cannot
@@ -659,9 +659,10 @@ def paired_shadow_comparison(entries):
             continue
         original = forward if decision_family(entry.get("rule_action")) == "long" else 0.0
         for row in entry.get("shadow_evaluations") or []:
-            if not isinstance(row, dict) or row.get("candidate") not in {"confirmed_structural_avoid", "confirmed_entry_hold"}:
+            if not isinstance(row, dict) or row.get("candidate") not in {"confirmed_structural_avoid", "confirmed_entry_hold", "event_early", "event_confirmed"}:
                 continue
-            key = (row.get("candidate"), row.get("version"))
+            key = (row.get("candidate"), row.get("version"), row.get("experiment_id") or "unregistered",
+                   str(entry.get("rule_code_fingerprint") or "Unrecorded") if separate_fingerprints else "pooled")
             group = groups.setdefault(key, {"eligible_count": 0, "unknown_count": 0, "changed_count": 0, "original": [], "candidate": []})
             if row.get("eligible") is not True:
                 group["unknown_count"] += 1
@@ -672,12 +673,15 @@ def paired_shadow_comparison(entries):
             group["original"].append(original)
             group["candidate"].append(candidate_return)
     results = []
-    for (candidate, version), group in sorted(groups.items()):
+    for (candidate, version, experiment_id, fingerprint), group in sorted(groups.items()):
         n = group["eligible_count"]
         originals, alternatives = group.pop("original"), group.pop("candidate")
         original = sum(originals) / n if n else None
         alternative = sum(alternatives) / n if n else None
         results.append({"candidate": candidate, "version": version, **group,
+                        "experiment_id": experiment_id,
+                        "original_code_fingerprint": fingerprint,
+                        "control_identity_verified": fingerprint not in {"pooled", "Unrecorded"},
                         "original_avg_policy_return_pct": original,
                         "candidate_avg_policy_return_pct": alternative,
                         "paired_lift_pct": alternative - original if n else None,
@@ -831,7 +835,8 @@ def engine_provenance(implementation):
     implementation = "streamlit" if implementation == "streamlit" else "worker"
     root = Path(__file__).resolve().parent
     files = [root / "tactical.py", root / "decision_contract.py", root / "engine_candidates.py",
-             root / "position_policy.py", root / ("app.py" if implementation == "streamlit" else "worker.py")]
+             root / "position_policy.py", root / "research_protocol.py", root / "research_event_store.py",
+             root / ("app.py" if implementation == "streamlit" else "worker.py")]
     paths = tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files)
     revision = str(os.environ.get("GITHUB_SHA") or os.environ.get("RENDER_GIT_COMMIT") or "").strip()
     return {
@@ -1024,6 +1029,8 @@ def rules_performance_snapshot(entries, *, as_of=None):
         "review_cases": cases,
         "shadow_performance": shadow_performance(directional),
         "paired_shadow_comparison": paired_shadow_comparison(directional),
+        "paired_shadow_by_fingerprint": paired_shadow_comparison(nonoverlap, separate_fingerprints=True),
+        "non_overlapping_logic_review_flags": logic_review_flags(nonoverlap),
         "shadow_promotion": shadow_promotion_readiness(directional),
         "evidence_quality": {
             "logged_count": len(decisions), "cohort_count": len(cohorts),
@@ -1057,6 +1064,7 @@ def evidence_payload(snapshot, *, include_cases=False):
         "score_version", "evidence_id", "summary", "flags", "alerting",
         "directional_families", "non_overlapping_families", "engine_version_families", "patience_summary",
         "evidence_quality", "shadow_performance", "shadow_promotion", "paired_shadow_comparison",
+        "paired_shadow_by_fingerprint", "non_overlapping_logic_review_flags",
         "confidence_calibration", "confidence_calibration_by_family",
     )
     result = {key: snapshot[key] for key in fields}

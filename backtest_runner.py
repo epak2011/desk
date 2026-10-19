@@ -19,10 +19,12 @@ import pandas as pd
 import engine_candidates
 import tactical
 import position_policy
+import research_protocol
 
 
 VERSIONS = ("original", "v2_structure", "v2_entry", "v2_combined", "v3_execution")
 ACTIVE_VERSIONS = VERSIONS[:-1]
+EVENT_VERSIONS = ("event_early", "event_confirmed")
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,8 @@ def validate_bars(frame):
 
 def policy(state, version):
     """Apply each experiment independently; no mutation or current-data lookup."""
+    if version in EVENT_VERSIONS:
+        return research_protocol.event_entry(state, confirmed=version == "event_confirmed")
     action = str(state.get("action") or "").lower()
     action = {"enter": "enter_now"}.get(action, action)
     candidates = {r["candidate"]: r for r in engine_candidates.shadow_evaluations(state)}
@@ -90,12 +94,13 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
     structural-exit next open and a maximum holding period. Stop wins when
     both stop and target are touched in the same daily bar.
     """
-    if version not in VERSIONS:
+    if version not in VERSIONS + EVENT_VERSIONS:
         raise ValueError("Unknown rule version.")
     bars = validate_bars(bars)
     cost = assumptions.cost_bps_per_side / 10000
     legacy = assumptions.exit_policy == "legacy_14_session"
     cash, position, pending, equities, trades, decisions = 1.0, None, None, [], [], []
+    used_events = set()
 
     def close(price, date, reason):
         nonlocal cash, position
@@ -126,6 +131,8 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
                             "checkpoints": {},
                             "target": entry + assumptions.target_r * risk if risk else None}
                 cash = 0.0
+                if pending.get("event_id"):
+                    used_events.add(pending["event_id"])
             else:
                 decisions.append({"date": str(date.date()), "action": "skip_invalid_stop"})
         pending = None
@@ -151,10 +158,15 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
                     float(bar.Close) / position["entry"] - 1) * 100
         state = signals.get(date)
         if state:
+            state = dict(state)
+            if version in EVENT_VERSIONS and state.get("entry_event"):
+                state["stop"] = state["entry_event"].get("stop")
             action = policy(state, version)
             decisions.append({"date": str(date.date()), "action": action})
             if not position and action in {"enter_now", "accumulate"}:
-                pending = {"kind": "entry", "state": dict(state), "date": str(date.date())}
+                event_id = (state.get("entry_event") or {}).get("event_id") if version in EVENT_VERSIONS else None
+                if event_id not in used_events:
+                    pending = {"kind": "entry", "state": dict(state), "date": str(date.date()), "event_id": event_id}
             elif position and legacy and version == "v3_execution" and action == "avoid":
                 ma50, ma200 = state.get("ma50"), state.get("ma200")
                 if ma50 and ma200 and float(bar.Close) < min(ma50, ma200):
@@ -193,7 +205,39 @@ def metrics(curve, trades, sleeves=1):
             "valuation_basis": "Open positions included in total return at sample-end value less hypothetical liquidation costs; excluded from closed-trade statistics."}
 
 
-def replay(histories, benchmark, *, start, end, validation_start, assumptions=Assumptions(), compute=None):
+def matched_exposure_benchmark(benchmark, weights, cost_bps):
+    """SPY/cash with the strategy's already-decided open exposure schedule.
+
+    Previous weight owns the overnight gap; new weight owns open-to-close.
+    Charge turnover at each open and terminal valuation cost. This is an ex-post
+    exposure-matched diagnostic, NOT an independently investable timing signal.
+    """
+    cost, equity, prior_weight = cost_bps / 10000, 1.0, 0.0
+    prior_close = float(benchmark.Open.iloc[0])
+    values = []
+    for dt, bar in benchmark.iterrows():
+        weight = float(weights.loc[dt])
+        if not math.isfinite(weight) or not 0 <= weight <= 1:
+            raise ValueError("Exposure weight must be in [0, 1].")
+        gap_ratio = float(bar.Open) / prior_close
+        gap_factor = 1 + prior_weight * (gap_ratio - 1)
+        equity *= gap_factor
+        pretrade_weight = prior_weight * gap_ratio / gap_factor
+        equity *= 1 - abs(weight - pretrade_weight) * cost
+        intraday_ratio = float(bar.Close) / float(bar.Open)
+        intraday_factor = 1 + weight * (intraday_ratio - 1)
+        equity *= intraday_factor
+        values.append(equity)
+        prior_weight, prior_close = weight * intraday_ratio / intraday_factor, float(bar.Close)
+    values[-1] *= 1 - prior_weight * cost
+    curve = pd.Series(values, index=benchmark.index)
+    return {"total_return_pct": float((curve.iloc[-1] - 1) * 100),
+            "max_drawdown_pct": float(((curve / curve.cummax().clip(lower=1) - 1) * 100).min()),
+            "basis": "Ex-post SPY/cash matched to mean equal-sleeve exposure at open; gap uses prior weight; turnover costs included."}
+
+
+def replay(histories, benchmark, *, start, end, validation_start, assumptions=Assumptions(), compute=None,
+           include_event_study=False):
     if compute is None:
         def compute(stock, bench):
             state = tactical.compute(stock, bench)
@@ -206,8 +250,13 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
     if len(dates) < 2 or not len(benchmark.loc[benchmark.index < start]) >= 200:
         raise ValueError("Require sample sessions and at least 200 pre-start benchmark bars.")
     versions = VERSIONS if assumptions.exit_policy == "legacy_14_session" else ACTIVE_VERSIONS
-    source_files = ("tactical.py", "engine_candidates.py", "backtest_runner.py", "position_policy.py")
-    source_hashes = {p: hashlib.sha256((Path(__file__).parent / p).read_bytes()).hexdigest() for p in source_files}
+    if include_event_study:
+        if assumptions.exit_policy != "signal_invalidation":
+            raise ValueError("Event study requires the corrected shared exit policy.")
+        versions += EVENT_VERSIONS
+    source_files = ("tactical.py", "engine_candidates.py", "backtest_runner.py", "position_policy.py", "research_protocol.py")
+    frozen_sources = {p: (Path(__file__).parent / p).read_text() for p in source_files}
+    source_hashes = {p: hashlib.sha256(text.encode()).hexdigest() for p, text in frozen_sources.items()}
     manifests = {}
     for version in versions:
         manifest = {
@@ -217,13 +266,18 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
             "sizing_policy": "full equal-capital ticker sleeve; NOT live starter/portfolio sizing",
             "fill_policy": "signal close then next open; no same-bar decision fills",
             "cost_bps_per_side": assumptions.cost_bps_per_side,
-            "confirmation_basis": "snapshot fired flag plus two prior-date closes versus snapshot level; not two closes after a persisted trigger event",
+            "confirmation_basis": ("Observed close crossing of a previously armed frozen level; confirmed arm waits for two subsequent held closes."
+                                   if version in EVENT_VERSIONS else
+                                   "snapshot fired flag plus two prior-date closes versus snapshot level; not two closes after a persisted trigger event"),
             "source_sha256": source_hashes,
             "legacy_parameters": asdict(assumptions) if assumptions.exit_policy == "legacy_14_session" else None,
             "scope": "technical-only; no historical AI/fundamentals/discretionary PM"}
+        if version in EVENT_VERSIONS:
+            manifest["control_comparison"] = "Same canonical qualifying action, frozen event stop, next-open fill and costs; only post-event confirmation differs."
         manifest["strategy_id"] = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
         manifests[version] = manifest
     report = {"assumptions": asdict(assumptions), "versions": list(versions),
+              "code_sha256": source_hashes, "frozen_sources": frozen_sources,
               "strategy_manifests": manifests,
               "version_aliases": {"v3_execution": "v2_combined"} if "v3_execution" not in versions else {},
               "experiment": ("signal entries / technical invalidation exits"
@@ -258,6 +312,7 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
             if not period.isin(bars.index).all() or len(bars.loc[bars.index < start]) < 200:
                 raise ValueError(f"{ticker}: missing sessions or insufficient warm-up.")
             signals = {}
+            journal = {}
             sample_bars = bars.loc[period]
             cost = assumptions.cost_bps_per_side / 10000
             passive = sample_bars.Close / (sample_bars.Open.iloc[0] * (1 + cost))
@@ -268,6 +323,11 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
                 state = compute(bars.loc[:date], benchmark.loc[:date])
                 if state:
                     state = dict(state)
+                    if include_event_study:
+                        journal = research_protocol.advance_event(journal, ticker=ticker,
+                            session=str(date.date()), close=float(bars.loc[date, "Close"]),
+                            state=state, fingerprint=research_protocol.identity(source_hashes))
+                        state["entry_event"] = dict(journal.get("event") or {})
                     state.update(tactical.shadow_entry_confirmation(bars.loc[:date], state.get("trigger"),
                                  state.get("trigger_fired"), as_of=date))
                     signals[date] = state
@@ -282,6 +342,8 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
             curve = pd.concat([c.equity.rename(i) for i, c in enumerate(curves[version])], axis=1).mean(axis=1)
             exposure = pd.concat([c.exposed.rename(i) for i, c in enumerate(curves[version])], axis=1).mean(axis=1)
             report["results"][label][version] = {**metrics(pd.DataFrame({"equity": curve, "exposed": exposure}), trade_sets[version], len(histories)),
+                                                   "matched_exposure_spy": (matched_exposure_benchmark(benchmark.loc[period], exposure, assumptions.cost_bps_per_side)
+                                                                            if assumptions.exit_policy == "signal_invalidation" else None),
                                                    "trades": trade_sets[version],
                                                    "decision_counts": dict(decision_counts[version])}
         original_return = report["results"][label]["original"]["total_return_pct"]
@@ -307,6 +369,7 @@ def main():
     parser.add_argument("--validation-start", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cost-bps", type=float, default=10)
+    parser.add_argument("--include-event-study", action="store_true")
     parser.add_argument("--exit-policy", choices=["signal_invalidation", "legacy_14_session"],
                         default="signal_invalidation")
     parser.add_argument("--confirm-adjusted-ohlcv", action="store_true", required=True)
@@ -320,11 +383,9 @@ def main():
     histories = {t: read(t) for t in args.tickers}
     report = replay(histories, read("SPY"), start=args.start, end=args.end,
                     validation_start=args.validation_start, assumptions=Assumptions(
-                        cost_bps_per_side=args.cost_bps, exit_policy=args.exit_policy))
-    root = Path(__file__).parent
-    report["code_sha256"] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest()
-                             for p in ("tactical.py", "engine_candidates.py", "backtest_runner.py", "position_policy.py")}
-    report["frozen_sources"] = {p: (root / p).read_text() for p in report["code_sha256"]}
+                        cost_bps_per_side=args.cost_bps, exit_policy=args.exit_policy),
+                    include_event_study=args.include_event_study)
+    # Sources were frozen before computation, not re-read after a long run.
     report["runtime"] = {"pandas": pd.__version__}
     report["input_sha256"] = {t: hashlib.sha256((args.data_dir / f"{t}.csv").read_bytes()).hexdigest()
                               for t in sorted(set(args.tickers) | {"SPY"})}

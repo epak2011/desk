@@ -6,6 +6,7 @@ to make proposed rule changes replayable and measurable on identical price paths
 
 from __future__ import annotations
 import math
+import research_protocol
 
 
 STRUCTURAL_CANDIDATE_VERSION = "shadow-2026.09-b"
@@ -118,6 +119,19 @@ def shadow_evaluations(state: dict) -> list[dict]:
             regime_gate = "watch"
 
     targeted = []
+    if live_action in {"enter_now", "accumulate"} and isinstance(state.get("entry_event"), dict):
+        for confirmed in (False, True):
+            event_action = research_protocol.event_entry(state, confirmed=confirmed)
+            registration = state.get("entry_experiment") or {}
+            targeted.append({"candidate": "event_confirmed" if confirmed else "event_early",
+                "version": research_protocol.VERSION, "action": event_action,
+                "eligible": event_action != "unknown" and registration.get("eligible") is True,
+                "experiment_id": registration.get("experiment_id"),
+                "registration_reason": registration.get("reason"),
+                "differs_from_live": event_action != live_action,
+                "event_id": state["entry_event"].get("event_id"),
+                "evaluation_mode": "directional" if event_action == "enter_now" else "cash_control",
+                "reason": "Frozen observed trigger; two post-event held closes." if confirmed else "Frozen observed trigger; first canonical qualifying entry."})
     if live_action == "avoid":
         required = ("price", "ma50", "ma200", "rs", "rs_delta", "tech_delta")
         complete = all(_number(state.get(key)) is not None for key in required)
