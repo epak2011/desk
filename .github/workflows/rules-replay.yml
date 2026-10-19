@@ -25,6 +25,13 @@ on:
           - signal_invalidation
           - legacy_14_session
         default: signal_invalidation
+      study:
+        description: Standard archived comparison or additional frozen-event entry arms
+        type: choice
+        options:
+          - standard
+          - event
+        default: standard
 permissions:
   contents: read
 concurrency:
@@ -49,12 +56,14 @@ jobs:
           REPLAY_END: ${{ inputs.end }}
           REPLAY_VALIDATION: ${{ inputs.validation_start }}
           REPLAY_EXIT_POLICY: ${{ inputs.exit_policy }}
+          REPLAY_STUDY: ${{ inputs.study || 'standard' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: >-
           python scripts/run_rules_replay.py --tickers "$REPLAY_TICKERS"
           --start "$REPLAY_START" --end "$REPLAY_END"
           --validation-start "$REPLAY_VALIDATION"
           --exit-policy "$REPLAY_EXIT_POLICY"
+          --study "$REPLAY_STUDY"
           --output-dir replay-artifact --publish
       - uses: actions/upload-artifact@v4
         if: always()
