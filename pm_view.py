@@ -683,7 +683,9 @@ def _rule_backed_pm_snapshot(ticker, tactical_output=None, company_name=None, re
     trigger_summary = trigger.get("summary") if isinstance(trigger, dict) else None
     levels = trigger.get("levels", {}) if isinstance(trigger, dict) else {}
     buy_above = levels.get("buy_above")
-    abort_below = levels.get("abort_below")
+    receipt = t.get("decision_receipt") if isinstance(t.get("decision_receipt"), dict) else {}
+    invalidation = receipt.get("invalidation") if isinstance(receipt.get("invalidation"), dict) else {}
+    abort_below = levels.get("abort_below") or invalidation.get("price") or t.get("stop")
 
     name = company_name or ticker
     price_txt = f"${price:,.2f}" if isinstance(price, (int, float)) else "the current price"
@@ -706,11 +708,6 @@ def _rule_backed_pm_snapshot(ticker, tactical_output=None, company_name=None, re
         trend_bits.append(f"{pct_200:+.1f}% vs 200-day")
     trend_line = ", ".join(trend_bits) if trend_bits else f"{state} structure"
 
-    context_lines = TICKER_RESEARCH_CONTEXT.get((ticker or "").upper()) or []
-    context_hint = context_lines[0] if context_lines else (
-        "The PM question is whether the business quality and catalyst path justify waiting for a cleaner rule signal."
-    )
-
     if str(t.get("action") or "").lower() == "enter":
         thesis = (
             f"{name} screens as actionable on the rules at {price_txt}: {bias} setup, "
@@ -730,7 +727,6 @@ def _rule_backed_pm_snapshot(ticker, tactical_output=None, company_name=None, re
     drivers = [
         f"Rule action: {action} with setup score {score_txt}",
         f"Technical context: {trend_line}; RS {rs_txt}; volume {vol_txt}",
-        context_hint[:180],
     ]
     risks = [
         f"Reward/risk is {rr_txt}, so sizing depends on the next clean trigger",
@@ -746,18 +742,9 @@ def _rule_backed_pm_snapshot(ticker, tactical_output=None, company_name=None, re
     elif isinstance(buy_above, (int, float)):
         drivers[0] = f"Trigger path: buy above ${buy_above:,.2f}"
 
-    if str(t.get("action") or "").lower() == "avoid":
-        tier = "Avoid"
-        rationale = "The tactical structure is not investable enough for fresh capital."
-    elif str(t.get("action") or "").lower() == "enter" and isinstance(setup_score, (int, float)) and setup_score >= 8:
-        tier = "B"
-        rationale = "Rules are constructive, but business-quality confirmation still needs a completed PM memo."
-    else:
-        tier = "B"
-        rationale = "Potentially investable, but timing and underwriting are not fully confirmed."
-
     return {
-        "quality": {"tier": tier, "rationale": rationale},
+        # A tactical action is not a business-quality assessment.
+        "quality": {},
         "thesis": thesis,
         "drivers": drivers,
         "risks": risks,

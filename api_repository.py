@@ -197,6 +197,11 @@ def analysis_request(job_id: str, user_id: str) -> dict[str, Any]:
         try:
             response["decision"] = decision(ticker)
             response["status"] = "ready"
+            if job.get("job_type") == "full_report":
+                research = response["decision"].get("research") or {}
+                if research.get("generation_status") == "incomplete" or not research.get("full_report_available"):
+                    response["status"] = "failed"
+                    response["message"] = "AI research did not complete. The previous saved analysis is preserved; retry research."
         except NotFoundError:
             response["status"] = "failed"
             response["message"] = "Analysis finished without producing a canonical decision."
@@ -611,7 +616,8 @@ def system_health(user_id: str) -> dict[str, Any]:
             issues.append({"ticker": ticker, "kind": "decision_missing", "severity": "high"})
         if memo:
             coverage["pm_memo"] += 1
-        if report:
+        research = public_contract.research_payload(ticker, report=report, memo=memo, market=market, rule=rule)
+        if research.get("full_report_available"):
             coverage["full_report"] += 1
         age = _age_minutes(market.get("updated_at") or market.get("ts") or market.get("market_updated_at"))
         if age is not None and age > 1440:
@@ -620,6 +626,8 @@ def system_health(user_id: str) -> dict[str, Any]:
         research_threshold_minutes = 7 * 1440
         if not report:
             issues.append({"ticker": ticker, "kind": "research_missing", "severity": "low"})
+        elif research.get("generation_status") == "incomplete" or research.get("completeness") == "unavailable":
+            issues.append({"ticker": ticker, "kind": "research_incomplete", "severity": "medium"})
         elif research_age is None or research_age >= research_threshold_minutes:
             issues.append({"ticker": ticker, "kind": "research_stale", "severity": "low", "age_minutes": research_age})
     jobs = []

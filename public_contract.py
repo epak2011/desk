@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
@@ -373,7 +374,8 @@ def analyze_page_payload(
 
     def number(value):
         try:
-            return None if value is None else float(value)
+            parsed = None if value is None else float(value)
+            return parsed if parsed is not None and math.isfinite(parsed) else None
         except (TypeError, ValueError):
             return None
 
@@ -383,7 +385,7 @@ def analyze_page_payload(
         return [str(item).strip() for item in value if str(item or "").strip()][:limit]
 
     action_labels = {
-        "enter_now": "Enter", "accumulate": "Accumulate", "watch": "Watch",
+        "enter": "Enter", "enter_now": "Enter", "accumulate": "Accumulate", "watch": "Watch",
         "hold_off": "Hold Off", "avoid": "Avoid",
     }
     wait_action = action in {"watch", "hold_off"}
@@ -406,11 +408,11 @@ def analyze_page_payload(
                 "max_points": number(component.get("max_points")), "note": component.get("note"),
             })
     checks = [
-        {"key": "trend", "label": "Trend", "passed": bool(number(rule.get("price")) and number(rule.get("ma50")) and number(rule.get("price")) > number(rule.get("ma50")))},
+        {"key": "trend", "label": "Trend", "passed": bool(number(rule.get("price")) and number(rule.get("ma50")) and number(rule.get("ma200")) and number(rule.get("price")) > number(rule.get("ma50")) and number(rule.get("price")) > number(rule.get("ma200")))},
         {"key": "relative_strength", "label": "Relative strength", "passed": bool(number(rule.get("rs")) and number(rule.get("rs")) >= 1)},
-        {"key": "reward_risk", "label": "Reward/risk", "passed": bool(number(rule.get("reward_risk")) is not None and number(rule.get("reward_risk")) >= 1.2)},
-        {"key": "trigger", "label": "Trigger", "passed": bool(rule.get("trigger_fired"))},
-        {"key": "volume", "label": "Volume", "passed": bool(number(rule.get("vol_ratio")) is not None and number(rule.get("vol_ratio")) >= 0.6)},
+        {"key": "reward_risk", "label": "Reward/risk", "passed": bool((number(rule.get("reward_risk")) is not None and number(rule.get("reward_risk")) >= 1.3) or action in {"enter", "enter_now"})},
+        {"key": "trigger", "label": "Trigger", "passed": bool(rule.get("trigger_fired") or action in {"enter", "enter_now"})},
+        {"key": "volume", "label": "Volume", "passed": bool(number(rule.get("vol_ratio")) is not None and number(rule.get("vol_ratio")) >= 0.8)},
     ]
     why = text_items(receipt.get("top_factors"))
     if constraint and str(constraint) not in why:
@@ -424,14 +426,61 @@ def analyze_page_payload(
     price = number(first(rule.get("price"), market.get("price")))
     ma20, ma50, ma200 = number(rule.get("ma20")), number(rule.get("ma50")), number(rule.get("ma200"))
     rs, tech_delta, vol_ratio = number(rule.get("rs")), number(rule.get("tech_delta")), number(rule.get("vol_ratio"))
-    range_position = number(rule.get("pct_of_52u_range"))
-    technical = [
-        {"key": "trend", "label": "Trend", "status": "Strong" if price and ma50 and ma200 and price > ma50 and price > ma200 else "Mixed", "detail": "Above both major moving averages." if price and ma50 and ma200 and price > ma50 and price > ma200 else "Price is not above both major moving averages."},
-        {"key": "momentum", "label": "Momentum", "status": "Improving" if tech_delta is not None and tech_delta > 0 else ("Fading" if tech_delta is not None and tech_delta < 0 else "Stable"), "detail": "Technical score change over the last 10 sessions."},
-        {"key": "strength", "label": "Strength", "status": "Leading" if rs is not None and rs >= 1 else "Lagging", "detail": "Relative performance versus the S&P 500."},
-        {"key": "volume", "label": "Volume", "status": "Strong" if vol_ratio is not None and vol_ratio >= 1 else "Light", "detail": f"Participation is {vol_ratio:.2f}x the 20-day average." if vol_ratio is not None else "Volume reading unavailable."},
-        {"key": "location", "label": "Location", "status": "Upper half" if range_position is not None and range_position >= 50 else "Lower half", "detail": "Position within the 52-week range."},
-    ]
+    range_position = number(rule.get("pct_of_52w_range"))
+    rs_delta = number(rule.get("rs_delta"))
+    # Match Streamlit's technical_picture_rows, not a second set of simplified
+    # frontend cutoffs. Missing readings remain unavailable, never bearish facts.
+    technical = []
+
+    def technical_row(key, label, status, detail):
+        technical.append({"key": key, "label": label, "status": status, "detail": detail})
+
+    if price is None or not ma50 or not ma200:
+        technical_row("trend", "Trend", "Pending", "Moving-average data is incomplete.")
+    elif price > ma50 and price > ma200:
+        technical_row("trend", "Trend", "Strong", "Above both major moving averages.")
+    elif price > ma200 and price < ma50:
+        technical_row("trend", "Trend", "Repairing", "Long-term trend intact, short-term trend still below the 50-day.")
+    elif price < ma200 and price > ma50:
+        technical_row("trend", "Trend", "Transition", "Short-term reclaim underway, but still below the 200-day.")
+    else:
+        technical_row("trend", "Trend", "Weak", "Below both major moving averages.")
+    if tech_delta is None:
+        technical_row("momentum", "Momentum", "Unavailable", "Momentum reading unavailable.")
+    elif tech_delta >= 1.5:
+        technical_row("momentum", "Momentum", "Accelerating", "Technical score is improving over the last 10 sessions.")
+    elif tech_delta <= -1.5:
+        technical_row("momentum", "Momentum", "Fading", "Technical score is deteriorating over the last 10 sessions.")
+    else:
+        technical_row("momentum", "Momentum", "Flat", "No clear acceleration or rollover yet.")
+    if rs is None:
+        technical_row("strength", "Strength", "Unavailable", "Relative-strength reading unavailable.")
+    elif rs >= 1.05 and rs_delta is not None and rs_delta > 0:
+        technical_row("strength", "Strength", "Leading", "Outperforming the S&P 500 and the lead is widening.")
+    elif rs >= 1:
+        technical_row("strength", "Strength", "Positive", "Outperforming the S&P 500.")
+    elif rs >= 0.95:
+        technical_row("strength", "Strength", "Neutral", "Roughly tracking the S&P 500.")
+    else:
+        technical_row("strength", "Strength", "Lagging", "Underperforming the S&P 500.")
+    if vol_ratio is None:
+        technical_row("volume", "Volume", "Unavailable", "Volume reading unavailable.")
+    elif vol_ratio >= 1.25:
+        technical_row("volume", "Volume", "Confirming", f"Participation is above average at {vol_ratio:.1f}x the 20-day average.")
+    elif vol_ratio <= 0.75:
+        technical_row("volume", "Volume", "Light", f"Participation is thin at {vol_ratio:.1f}x the 20-day average.")
+    else:
+        technical_row("volume", "Volume", "Normal", "Participation is near the 20-day average.")
+    if range_position is None:
+        technical_row("location", "Location", "Unavailable", "52-week range reading unavailable.")
+    elif range_position >= 85:
+        technical_row("location", "Location", "Upper range", "Near the top of the 52-week range.")
+    elif range_position >= 50:
+        technical_row("location", "Location", "Upper half", "Holding in the upper half of the 52-week range.")
+    elif range_position >= 20:
+        technical_row("location", "Location", "Lower half", "Still in the lower half of the 52-week range.")
+    else:
+        technical_row("location", "Location", "Near lows", "Near the bottom of the 52-week range.")
 
     meta = report.get("meta") if isinstance(report.get("meta"), Mapping) else {}
     quality = research.get("quality") if isinstance(research.get("quality"), Mapping) else {}
@@ -486,13 +535,35 @@ def analyze_page_payload(
         },
         "why_action": {"title": f"Why {action_labels.get(action, action).upper()}", "items": why},
         "call_changes": changes,
+        "execution_plan": {
+            "entry": number(first(rule.get("entry"), trigger.get("price"))),
+            "stop": number(first(rule.get("stop"), invalidation.get("price"))),
+            "target_1": number(rule.get("t1")), "target_2": number(rule.get("t2")),
+            "size": entry_size,
+            "reward_risk": number(rule.get("reward_risk")),
+            "trigger_fired": bool(rule.get("trigger_fired")),
+        },
+        "technical_evidence": {
+            key: number(rule.get(key)) for key in (
+                "price", "ma20", "ma50", "ma100", "ma200", "rsi14", "rs", "rs_delta",
+                "tech_delta", "vol_ratio", "pct_of_52w_range", "support", "resistance", "atr_pct",
+            )
+        },
         "technical_picture": technical,
         "portfolio_manager": {
+            "research_status": research.get("status") or "unavailable",
+            "research_completeness": research.get("completeness") or "unavailable",
+            "provenance": research.get("provenance") or "unverified",
+            "generation_status": research.get("generation_status") or "unavailable",
+            "retry_required": bool(research.get("retry_required")),
+            "status_label": research.get("display_label"),
+            "generated_at": research.get("generated_at"),
             "quality": dict(quality),
             "quality_classifications": QUALITY_CLASSIFICATIONS,
             "thesis": research.get("thesis"), "drivers": list(research.get("drivers") or []),
             "risks": list(research.get("risks") or []), "valuation": research.get("valuation"),
             "timing_watchpoint": research.get("timing_watchpoint"),
+            "deep_dive": dict(research.get("deep_dive") or {}),
             "next_earnings": next_earnings,
             "analyst_consensus": analyst_consensus,
             "lynch_check": {key: profile_fields.get(key) for key in ("earnings_growth", "peg", "forward_pe", "debt_to_equity")},
@@ -599,9 +670,27 @@ def research_payload(
         report.get("_worker_generated_at"), report.get("generated_at"),
         memo.get("_worker_generated_at"), memo.get("generated_at"), memo.get("updated_at"),
     )
-    source = first(dossier.get("_source"), pm.get("_source"), memo.get("_source"), memo.get("source"))
     dossier_completed = "claude" in str(dossier.get("_source") or "").lower()
-    quality = first(dossier.get("quality"), pm.get("quality"), memo.get("quality"), {})
+    source = first(dossier.get("_source") if dossier_completed else None, pm.get("_source"), memo.get("_source"), memo.get("source"), dossier.get("_source"))
+    source_text = str(source or "").lower()
+    legacy_fallback_text = " ".join(str(value or "") for value in (
+        thesis, pm.get("risks"), memo.get("risks"), pm.get("valuation"), memo.get("valuation"),
+    )).lower()
+    rules_only = not dossier_completed and (
+        any(marker in source_text for marker in ("rules fallback", "static", "identity guard"))
+        or "claude pm research did not complete" in legacy_fallback_text
+        or "valuation requires a successful pm memo refresh" in legacy_fallback_text
+    )
+    full_text = first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier"))
+    has_ai_summary = bool(thesis) and not rules_only and "claude" in source_text
+    provenance = "rules_only" if rules_only else ("claude" if has_ai_summary or dossier_completed else "unverified")
+    generation_status = "incomplete" if rules_only else ("complete" if (has_ai_summary or dossier_completed) else "unverified")
+    retry_required = rules_only or not bool(thesis)
+    display_label = (
+        "Rules-only snapshot — AI research incomplete" if rules_only
+        else ("Claude research" if provenance == "claude" else "Research not verified")
+    )
+    quality = first(dossier.get("quality") if dossier_completed else None, pm.get("quality"), memo.get("quality"), {})
     has_research = bool(company_overview or thesis)
     stale_reasons = []
     age_days = None
@@ -644,8 +733,12 @@ def research_payload(
     blocked = status == "stale"
     result = {
         "status": status,
-        "completeness": "full_report" if first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier")) else ("summary_only" if has_research else "unavailable"),
-        "full_report_available": bool(first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier"))),
+        "completeness": "rules_only" if rules_only else ("full_report" if full_text else ("summary_only" if thesis else "unavailable")),
+        "full_report_available": bool(full_text) and not rules_only and not blocked,
+        "provenance": provenance,
+        "generation_status": generation_status,
+        "retry_required": retry_required or blocked,
+        "display_label": display_label,
         "ticker": str(ticker or "").upper(),
         "company_name": first((report.get("meta") or {}).get("company_name") if isinstance(report.get("meta"), Mapping) else None, market.get("company_name")),
         "company_overview": None if blocked else company_overview,
@@ -653,20 +746,29 @@ def research_payload(
         # Once Claude completed a dossier, never splice rule-fallback prose into
         # missing dossier fields. Empty is more honest than a contradictory
         # hybrid memo that claims Claude did not complete.
-        "drivers": [] if blocked else strings(bullets.get("drivers") if dossier_completed else first(bullets.get("drivers"), pm.get("drivers"), memo.get("drivers"), [])),
+        "drivers": [] if blocked else [item for item in strings(bullets.get("drivers") if dossier_completed else first(bullets.get("drivers"), pm.get("drivers"), memo.get("drivers"), [])) if not (rules_only and re.search(r"\b(discuss|do not write|the memo must|must explicitly)\b", item, re.I))],
         "risks": [] if blocked else strings(bullets.get("risks") if dossier_completed else first(bullets.get("risks"), pm.get("risks"), memo.get("risks"), [])),
-        "valuation": None if blocked else (bullets.get("valuation") if dossier_completed else first(bullets.get("valuation"), pm.get("valuation"), memo.get("valuation"))),
+        "valuation": None if blocked or rules_only else (bullets.get("valuation") if dossier_completed else first(bullets.get("valuation"), pm.get("valuation"), memo.get("valuation"))),
         "timing_watchpoint": None if blocked else (bullets.get("timing_watchpoint") if dossier_completed else first(bullets.get("timing_watchpoint"), pm.get("timing_watchpoint"), memo.get("timing_watchpoint"))),
-        "decision_memo": None if blocked else first(dossier.get("dossier"), report.get("dossier") if isinstance(report.get("dossier"), str) else None, memo.get("dossier")),
+        "deep_dive": {} if blocked or rules_only else {
+            key: deep_dive.get(key) for key in (
+                "expanded_thesis", "business", "variant_bull", "variant_bear", "variant_needs",
+                "catalysts", "risk_scenarios", "valuation_context", "timing_watchpoint",
+                "proof_points", "valuation_metrics", "must_be_true", "would_change_mind",
+            ) if deep_dive.get(key) not in (None, "", [], {})
+        },
+        "decision_memo": None if blocked or rules_only else full_text,
         "technical_narrative": None if blocked else first(dossier.get("technical_narrative"), memo.get("technical_narrative")),
         "pm_narrative": None if blocked else first(dossier.get("pm_narrative"), memo.get("pm_narrative")),
-        "quality": {} if blocked else (dict(quality) if isinstance(quality, Mapping) else {}),
+        "quality": {} if blocked or rules_only else (dict(quality) if isinstance(quality, Mapping) else {}),
         "generated_at": generated_at,
         "age_days": age_days,
         "stale_reasons": stale_reasons,
         "content_blocked": blocked,
-        "refresh_required": blocked,
-        "source": source,
+        "refresh_required": blocked or retry_required,
+        # Provider exception text is retained internally, never leaked through
+        # the public source label (it may contain request/account details).
+        "source": "rules fallback" if rules_only else source,
     }
     return result
 
