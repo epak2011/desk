@@ -11,6 +11,23 @@ from public_contract import analyze_page_payload, research_payload
 
 
 class AnalyzeIntegrityTests(unittest.TestCase):
+    def test_api_technical_labels_match_actual_streamlit_renderer(self):
+        source = Path(__file__).resolve().parents[1] / "app.py"
+        if not source.exists():
+            self.skipTest("Full Streamlit source comparison runs in the hosted repository checkout")
+        tree = ast.parse(source.read_text())
+        fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "technical_picture_rows")
+        namespace = {}
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), str(source), "exec"), namespace)
+        for price in (80, 100, 120):
+            for momentum in (-2, -.2, 0, .2, 2):
+                for rs in (.9, .97, 1.02, 1.1):
+                    rule = {"price": price, "ma50": 110, "ma200": 90, "tech_delta": momentum,
+                            "rs": rs, "rs_delta": .01, "vol_ratio": 1.3, "pct_of_52w_range": 90}
+                    expected = [(label, status, detail) for label, status, detail, severity in namespace["technical_picture_rows"](rule)]
+                    actual = [(row["label"], row["status"], row["detail"]) for row in analyze_page_payload("TEST", rule=rule)["technical_picture"]]
+                    self.assertEqual(actual, expected)
+
     def test_technical_picture_matches_streamlit_classifications(self):
         cases = [
             ({"price": 110, "ma50": 100, "ma200": 90, "tech_delta": 1.5, "rs": 1.06, "rs_delta": .01, "vol_ratio": 1.25, "pct_of_52w_range": 90},
