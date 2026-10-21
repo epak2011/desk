@@ -45,7 +45,7 @@ import ism_data
 import email_delivery
 import notification_engine
 import unsubscribe
-from pm_view import _messages_create, get_decision_dossier, get_pm_view
+from pm_view import _messages_create, _dossier_contract_issues, get_decision_dossier, get_pm_view
 import tactical
 import idea_discovery
 import user_state_store
@@ -1243,6 +1243,11 @@ def refresh_full_report(ticker: str) -> dict:
         # public research field while avoiding frequent 45-second timeouts.
         fast=True,
     )
+    # Graceful UI fallbacks are not successful background research jobs. Keep
+    # the previous report intact and let the queue record a retryable failure.
+    dossier = dossier if isinstance(dossier, dict) else {}
+    if "claude" not in str(dossier.get("_source") or "").lower() or _dossier_contract_issues(dossier):
+        raise RuntimeError("Claude research did not complete or failed validation; previous report preserved. Retry research.")
     generated_at = datetime.now(timezone.utc).isoformat()
     pm_payload = {
         **(pm or {}),
@@ -1416,6 +1421,12 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
             pass
         if not report:
             candidates.append((0, ticker, "research_missing", None))
+        elif any(marker in str(report.get("dossier") or report.get("pm") or {}).lower() for marker in ("rules fallback", "claude pm research did not complete", "identity guard rejected")) and not (
+            isinstance(report.get("dossier"), dict)
+            and "claude" in str(report["dossier"].get("_source") or "").lower()
+            and report["dossier"].get("dossier")
+        ):
+            candidates.append((0, ticker, "research_incomplete", age_minutes))
         elif change_reasons:
             candidates.append((0, ticker, "+".join(change_reasons), age_minutes))
         elif age_minutes is None or age_minutes >= threshold_minutes:
