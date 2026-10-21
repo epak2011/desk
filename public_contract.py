@@ -484,7 +484,7 @@ def analyze_page_payload(
 
     meta = report.get("meta") if isinstance(report.get("meta"), Mapping) else {}
     quality = research.get("quality") if isinstance(research.get("quality"), Mapping) else {}
-    report_generated = first(report.get("_worker_generated_at"), report.get("generated_at"), research.get("generated_at"))
+    report_generated = first(research.get("generated_at"), report.get("_worker_generated_at"), report.get("generated_at"))
     full_report_available = bool(research.get("decision_memo"))
     full_report_status = (
         "stale" if research.get("status") == "stale"
@@ -558,6 +558,7 @@ def analyze_page_payload(
             "retry_required": bool(research.get("retry_required")),
             "status_label": research.get("display_label"),
             "generated_at": research.get("generated_at"),
+            "selection": dict(research.get("selection") or {}),
             "quality": dict(quality),
             "quality_classifications": QUALITY_CLASSIFICATIONS,
             "thesis": research.get("thesis"), "drivers": list(research.get("drivers") or []),
@@ -644,6 +645,80 @@ def research_payload(
     memo = memo if isinstance(memo, Mapping) else {}
     market = market if isinstance(market, Mapping) else {}
     rule = rule if isinstance(rule, Mapping) else {}
+
+    # Streamlit writes pm_memos; background full-report jobs write
+    # research_reports. Choose one genuine research revision before extracting
+    # fields. A newer fallback is not a newer successful memo.
+    original_report = report
+    memo_parts = dict(memo)
+    for wrapper in ("view", "pm"):
+        nested = memo.get(wrapper)
+        if isinstance(nested, Mapping):
+            memo_parts = {**nested, **{key: value for key, value in memo_parts.items() if key != wrapper}}
+    memo_bullets = memo_parts.get("bullets") if isinstance(memo_parts.get("bullets"), Mapping) else {}
+    for key in ("thesis", "drivers", "risks", "valuation", "timing_watchpoint"):
+        if not memo_parts.get(key) and memo_bullets.get(key):
+            memo_parts[key] = memo_bullets[key]
+
+    def successful_candidate(value):
+        if not isinstance(value, Mapping):
+            return False
+        bullets = value.get("bullets") if isinstance(value.get("bullets"), Mapping) else {}
+        thesis = str(value.get("thesis") or bullets.get("thesis") or "").strip()
+        source = str(value.get("_source") or value.get("source") or "").lower()
+        text = " ".join(str(value.get(key) or "") for key in ("thesis", "risks", "valuation")).lower()
+        return bool(thesis) and not (
+            any(marker in source for marker in ("rules fallback", "static", "identity guard", "refresh failed", "not generated", "error:"))
+            or thesis.lower().startswith(("no generated pm thesis", "no thesis on file", "pm research has not produced"))
+            or "claude pm research did not complete" in text
+            or "valuation requires a successful pm memo refresh" in text
+        )
+
+    def research_time(value, parent=None):
+        parent = parent or {}
+        for container in (value, parent):
+            for key in ("_worker_generated_at", "generated_at", "updated_at", "ts"):
+                stamp = _parsed_utc(container.get(key))
+                if stamp is not None:
+                    return stamp
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+    report_pm = report.get("pm") if isinstance(report.get("pm"), Mapping) else {}
+    report_dossier = report.get("dossier") if isinstance(report.get("dossier"), Mapping) else {}
+    candidates = []
+    for key, value, priority, parent in (
+        ("dossier", report_dossier, 3, report),
+        ("report_pm", report_pm, 2, report),
+        ("saved_memo", memo_parts, 1, {}),
+    ):
+        if successful_candidate(value):
+            candidates.append((research_time(value, parent), priority, key, value))
+    selected_key = max(candidates, key=lambda item: (item[0], item[1]))[2] if candidates else None
+    if selected_key == "saved_memo":
+        # Do not stamp an old saved memo with a failed report's new date or
+        # validate it against that failed attempt's unrelated market anchors.
+        report = {"meta": dict(report.get("meta") or {}), "pm": dict(memo_parts)}
+        for key in ("_worker_generated_at", "generated_at", "_market_price", "_rule_action", "_earnings_date", "_fundamentals_fingerprint"):
+            if key in memo_parts:
+                report[key] = memo_parts[key]
+        memo = memo_parts
+    elif selected_key == "report_pm":
+        # A failed dossier must not taint the successful compact PM revision.
+        chosen_pm = dict(report_pm)
+        if not chosen_pm.get("quality") and not report_dossier.get("_source") and report_dossier.get("quality"):
+            chosen_pm["quality"] = report_dossier["quality"]
+        if not chosen_pm.get("business") and not report_dossier.get("_source") and report_dossier.get("pm_narrative"):
+            chosen_pm["business"] = report_dossier["pm_narrative"]
+        report = {**report, "pm": chosen_pm, "dossier": {}}
+        memo = {}
+    elif selected_key == "dossier":
+        memo = {}
+    selection = {
+        "storage": "pm_memos" if selected_key == "saved_memo" else "research_reports",
+        "revision_id": memo_parts.get("_revision_id") if selected_key == "saved_memo" else None,
+        "saved_successful_research": bool(selected_key),
+        "newer_attempt_incomplete": bool(selected_key == "saved_memo" and original_report and not successful_candidate(report_pm) and not successful_candidate(report_dossier)),
+    }
     pm = report.get("pm") if isinstance(report.get("pm"), Mapping) else {}
     dossier = report.get("dossier") if isinstance(report.get("dossier"), Mapping) else {}
     bullets = dossier.get("bullets") if isinstance(dossier.get("bullets"), Mapping) else {}
@@ -717,7 +792,7 @@ def research_payload(
         if report.get("_rule_action") and current_action and str(report.get("_rule_action")).lower() != str(current_action).lower():
             stale_reasons.append("The canonical decision changed after this research was generated.")
         profile = market.get("security_profile") if isinstance(market.get("security_profile"), Mapping) else {}
-        if report.get("_earnings_date") != profile.get("earnings_date") and (report.get("_earnings_date") or profile.get("earnings_date")):
+        if "_earnings_date" in report and report.get("_earnings_date") != profile.get("earnings_date") and (report.get("_earnings_date") or profile.get("earnings_date")):
             stale_reasons.append("The earnings calendar changed after this research was generated.")
         fingerprint_values = {
             key: profile.get(key) for key in
@@ -736,6 +811,7 @@ def research_payload(
         "completeness": "rules_only" if rules_only else ("full_report" if full_text else ("summary_only" if thesis else "unavailable")),
         "full_report_available": bool(full_text) and not rules_only and not blocked,
         "provenance": provenance,
+        "selection": selection,
         "generation_status": generation_status,
         "retry_required": retry_required or blocked,
         "display_label": display_label,
