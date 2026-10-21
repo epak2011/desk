@@ -690,7 +690,7 @@ def research_payload(
         "Rules-only snapshot — AI research incomplete" if rules_only
         else ("Claude research" if provenance == "claude" else "Research not verified")
     )
-    quality = first(dossier.get("quality") if dossier_completed else None, pm.get("quality"), memo.get("quality"), {})
+    quality = first(dossier.get("quality") if dossier_completed or not dossier.get("_source") else None, pm.get("quality"), memo.get("quality"), {})
     has_research = bool(company_overview or thesis)
     stale_reasons = []
     age_days = None
