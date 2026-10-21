@@ -309,7 +309,10 @@ class PublicContractTests(unittest.TestCase):
         page = analyze_page_payload("RGTI", research=research)
 
         self.assertEqual(research["status"], "ready")
-        self.assertEqual(research["completeness"], "summary_only")
+        self.assertEqual(research["completeness"], "rules_only")
+        self.assertEqual(research["provenance"], "rules_only")
+        self.assertEqual(research["generation_status"], "incomplete")
+        self.assertTrue(research["retry_required"])
         self.assertFalse(research["full_report_available"])
         self.assertEqual(page["full_research_report"]["status"], "unavailable")
         self.assertFalse(page["full_research_report"]["available"])
