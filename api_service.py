@@ -252,8 +252,15 @@ def calibration(request: Request, identity: Identity):
     include_cases = owner_access_allowed(
         {"user_id": identity.user_id, "email": identity.email},
         os.environ.get("TRADING_DESK_OWNER_EMAIL", ""),
-    )
-    return _run(request, api_repository.calibration, identity.user_id, include_cases=include_cases)
+    ) and request.query_params.get("include_cases", "false").lower() == "true"
+    pagination = {}
+    if "case_offset" in request.query_params or "case_limit" in request.query_params:
+        try:
+            pagination = {"case_offset": max(0, int(request.query_params.get("case_offset", "0"))),
+                          "case_limit": max(1, min(50, int(request.query_params.get("case_limit", "50"))))}
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Case pagination must use integers.")
+    return _run(request, api_repository.calibration, identity.user_id, include_cases=include_cases, **pagination)
 
 
 @app.get("/v1/operator/engine-updates")

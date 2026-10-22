@@ -101,7 +101,7 @@ class ApiServiceTests(unittest.TestCase):
                     lambda email=email: VerifiedIdentity("trusted-user", email, "Demo")
                 )
                 with mock.patch.object(api_service.api_repository, "calibration", return_value={}) as calibration:
-                    response = self.client.get("/v1/calibration")
+                    response = self.client.get("/v1/calibration?include_cases=true")
                 self.assertEqual(response.status_code, 200)
                 calibration.assert_called_once_with("trusted-user", include_cases=allowed)
         api_service.app.dependency_overrides.clear()
@@ -152,3 +152,4 @@ class ApiServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
