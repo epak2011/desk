@@ -708,8 +708,14 @@ def _shadow_rule_summary(tickers: list[str], rules: dict[str, Any]) -> list[dict
 
 
 def calibration(user_id: str, *, include_cases: bool = False, case_offset: int = 0, case_limit: int = 50) -> dict[str, Any]:
-    state = _workspace_state(user_id)
-    tickers = [normalize_ticker(item) for item in state.get("watchlist", []) if str(item or "").strip()]
+    # Legacy owner state can include a copy of the entire decision history.
+    # This page needs only ticker names, not that multi-megabyte private blob.
+    with backend_layer.db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT value->'watchlist' FROM user_app_state WHERE user_id = %s::uuid", (user_state_store.normalize_user_id(user_id),))
+            row = cur.fetchone()
+    watchlist = row[0] if row and isinstance(row[0], list) else []
+    tickers = [normalize_ticker(item) for item in watchlist if str(item or "").strip()]
     rules = backend_layer.read_json_table_many("rule_outputs", tickers) if tickers else {}
     return {
         "meta": public_contract.response_meta(),
