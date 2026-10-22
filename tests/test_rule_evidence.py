@@ -152,14 +152,14 @@ class RuleEvidenceTests(unittest.TestCase):
         self.assertFalse(report["case_review_available"])
         self.assertEqual(report["generated_at"], "2026-10-22T00:00:00+00:00")
 
-    def test_calibration_falls_back_to_live_scan_before_the_worker_has_ever_run(self):
+    def test_calibration_is_pending_before_the_worker_has_ever_run(self):
         with (
             patch.object(backend_layer, "read_engine_review_status", return_value={}),
-            patch.object(backend_layer, "read_decision_logs", return_value=[case()]),
+            patch.object(backend_layer, "read_decision_logs", side_effect=AssertionError("unbounded fallback")),
         ):
             report = backend_layer.read_rule_evidence(include_cases=False)
-        self.assertIn("flags", report)
-        self.assertEqual(report["flags"][0]["count"], 1)
+        self.assertEqual(report["publication_status"], "pending")
+        self.assertNotIn("summary", report)
 
     def test_append_import_cannot_overwrite_a_scored_canonical_record(self):
         conn = MagicMock()
@@ -198,3 +198,4 @@ class RuleEvidenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
