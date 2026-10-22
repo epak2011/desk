@@ -707,13 +707,13 @@ def _shadow_rule_summary(tickers: list[str], rules: dict[str, Any]) -> list[dict
     return rows
 
 
-def calibration(user_id: str, *, include_cases: bool = False) -> dict[str, Any]:
+def calibration(user_id: str, *, include_cases: bool = False, case_offset: int = 0, case_limit: int = 50) -> dict[str, Any]:
     state = _workspace_state(user_id)
     tickers = [normalize_ticker(item) for item in state.get("watchlist", []) if str(item or "").strip()]
     rules = backend_layer.read_json_table_many("rule_outputs", tickers) if tickers else {}
     return {
         "meta": public_contract.response_meta(),
-        "calibration": backend_layer.read_rule_evidence(include_cases=include_cases),
+        "calibration": backend_layer.read_rule_evidence(include_cases=include_cases, case_offset=case_offset, case_limit=case_limit),
         "shadow_rules": _shadow_rule_summary(tickers, rules),
     }
 

@@ -724,61 +724,39 @@ def import_rule_decision_logs(entries: Iterable[dict[str, Any]]) -> int:
     return inserted
 
 
-_EVIDENCE_PAYLOAD_FIELDS = (
-    "score_version", "evidence_id", "summary", "flags", "alerting",
-    "directional_families", "non_overlapping_families", "engine_version_families", "patience_summary",
-    "evidence_quality", "shadow_performance", "shadow_promotion", "paired_shadow_comparison",
-    "paired_shadow_by_fingerprint", "non_overlapping_logic_review_flags",
-    "confidence_calibration", "confidence_calibration_by_family",
-)
-
-
-def read_rule_evidence(*, include_cases: bool = False) -> dict[str, Any]:
-    """Read the worker-scored evidence population for display.
-
-    The worker already recomputes and persists this snapshot into
-    engine_review_status on every scoring pass (engine_evaluation.evidence_payload,
-    written by write_engine_review_status). Every /v1/calibration request used to
-    recompute it live from an unbounded `decisions_log` read instead of reusing that
-    persisted row -- repeated on nearly every request because Render's free-tier
-    instances cold-start constantly and the in-process cache rarely survives between
-    them. That single query was the dominant driver of the Supabase egress overage
-    (~41GB of a 49GB cycle, confirmed via pg_stat_statements on 2026-10-22). So the
-    common (include_cases=False) path now reads the cheap persisted snapshot instead,
-    and only falls back to the full live recomputation when there is no persisted
-    snapshot yet (e.g. before the worker's first run) or when the caller needs the
-    case-level detail (performance_slices, failure_patterns, weakest_cases,
-    review_cases) that is deliberately left out of the persisted payload.
-    """
-    import engine_evaluation
-
+def read_rule_evidence(*, include_cases: bool = False, case_offset: int = 0, case_limit: int = 50) -> dict[str, Any]:
+    """Serve published evidence; a web request must never scan decision history."""
+    report = dict(read_engine_review_status())
+    report.update({"evidence_scope": "engine", "source": "worker_published_decisions_log"})
+    report["publication_status"] = "ready" if report.get("evidence_id") else "pending"
+    report["case_review_available"] = bool(include_cases and report.get("case_publication_id"))
     if not include_cases:
-        status = read_engine_review_status()
-        if status and any(status.get(key) is not None for key in _EVIDENCE_PAYLOAD_FIELDS):
-            report = {key: status.get(key) for key in _EVIDENCE_PAYLOAD_FIELDS}
-            report["case_review_available"] = False
-            report.update({
-                "generated_at": status.get("generated_at"),
-                "scored_now": status.get("scored_now"),
-                "remaining_due": status.get("remaining_due"),
-                "evidence_scope": "engine",
-                "source": "canonical_decisions_log",
-            })
-            return report
-
-    report = engine_evaluation.evidence_payload(
-        engine_evaluation.rules_performance_snapshot(read_decision_logs()),
-        include_cases=include_cases,
-    )
-    status = read_engine_review_status()
-    report.update({
-        "generated_at": status.get("generated_at"),
-        "scored_now": status.get("scored_now"),
-        "remaining_due": status.get("remaining_due"),
-        "evidence_scope": "engine",
-        "source": "canonical_decisions_log",
-    })
+        for field in ("performance_slices", "failure_patterns", "weakest_cases", "review_cases", "case_publication_id", "case_count"):
+            report.pop(field, None)
     if include_cases:
+        offset = max(0, int(case_offset))
+        limit = max(1, min(50, int(case_limit)))
+        publication_id = report.get("case_publication_id")
+        cases = []
+        if publication_id:
+            # SQL slices the saved, already-evaluated cases before transfer.
+            with db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT item
+                        FROM engine_review_status,
+                             jsonb_array_elements(payload->'review_cases') WITH ORDINALITY AS c(item, n)
+                        WHERE key = %s AND n > %s AND n <= %s
+                        ORDER BY n
+                    """, ("cases:" + str(publication_id), offset, offset + limit))
+                    cases = [row[0] for row in cur.fetchall()]
+        total = int(report.get("case_count") or 0)
+        report["review_cases"] = cases
+        report["case_pagination"] = {
+            "offset": offset, "limit": limit, "total": total,
+            "next_offset": offset + len(cases) if cases and offset + len(cases) < total else None,
+            "evidence_id": report.get("evidence_id"),
+        }
         import backtest_store
         report["historical_replay"] = backtest_store.read(__import__(__name__))
     return report
@@ -786,9 +764,21 @@ def read_rule_evidence(*, include_cases: bool = False) -> dict[str, Any]:
 
 def write_engine_review_status(payload: dict[str, Any]) -> None:
     """Persist the latest calibration alert snapshot for cheap UI reads."""
+    payload = dict(payload or {})
+    cases = payload.pop("review_cases", None)
+    if isinstance(cases, list):
+        publication_id = str(uuid.uuid4())
+        payload.update({"case_publication_id": publication_id, "case_count": len(cases)})
     ensure_backend_schema()
     with db_connection() as conn:
         with conn.cursor() as cur:
+            if isinstance(cases, list):
+                # Publish cases first; only then expose their pointer. A failed
+                # publication leaves the previous summary intact.
+                cur.execute("""
+                    INSERT INTO engine_review_status (key, payload, updated_at)
+                    VALUES (%s, %s::jsonb, NOW())
+                """, ("cases:" + publication_id, json_dumps({"review_cases": cases})))
             cur.execute(
                 """
                 INSERT INTO engine_review_status (key, payload, updated_at)

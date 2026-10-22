@@ -1697,7 +1697,7 @@ def score_due_rule_outcomes(
     flags = evidence["flags"]
     alerting = [row for row in flags if row.get("status") in {"watch", "review_logic"}]
     status = {
-        **engine_evaluation.evidence_payload(evidence),
+        **engine_evaluation.evidence_payload(evidence, include_cases=True),
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "score_version": OUTCOME_SCORE_VERSION,
         "scored_now": updated,
