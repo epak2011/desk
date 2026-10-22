@@ -124,6 +124,43 @@ class RuleEvidenceTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 backend_layer.read_rule_evidence(include_cases=True)
 
+    def test_ordinary_calibration_reads_the_persisted_snapshot_not_decisions_log(self):
+        """Guards the fix for the dominant Supabase egress driver: /v1/calibration
+        (include_cases=False) must not re-run the unbounded decisions_log scan when
+        the worker has already persisted a snapshot to engine_review_status.
+        """
+        persisted = {
+            "score_version": "v9", "evidence_id": "abc123", "summary": {"n": 3},
+            "flags": [{"count": 3}], "alerting": [], "directional_families": [],
+            "non_overlapping_families": [], "engine_version_families": [], "patience_summary": {},
+            "evidence_quality": {}, "shadow_performance": {}, "shadow_promotion": {},
+            "paired_shadow_comparison": {}, "paired_shadow_by_fingerprint": {},
+            "non_overlapping_logic_review_flags": [], "confidence_calibration": {},
+            "confidence_calibration_by_family": {},
+            "generated_at": "2026-10-22T00:00:00+00:00", "scored_now": 3, "remaining_due": 0,
+        }
+        with (
+            patch.object(backend_layer, "read_engine_review_status", return_value=persisted),
+            patch.object(backend_layer, "read_decision_logs", side_effect=AssertionError(
+                "read_rule_evidence must not fall back to the unbounded decisions_log "
+                "scan when a persisted engine_review_status snapshot is available"
+            )),
+        ):
+            report = backend_layer.read_rule_evidence(include_cases=False)
+        self.assertEqual(report["evidence_id"], "abc123")
+        self.assertEqual(report["flags"], [{"count": 3}])
+        self.assertFalse(report["case_review_available"])
+        self.assertEqual(report["generated_at"], "2026-10-22T00:00:00+00:00")
+
+    def test_calibration_falls_back_to_live_scan_before_the_worker_has_ever_run(self):
+        with (
+            patch.object(backend_layer, "read_engine_review_status", return_value={}),
+            patch.object(backend_layer, "read_decision_logs", return_value=[case()]),
+        ):
+            report = backend_layer.read_rule_evidence(include_cases=False)
+        self.assertIn("flags", report)
+        self.assertEqual(report["flags"][0]["count"], 1)
+
     def test_append_import_cannot_overwrite_a_scored_canonical_record(self):
         conn = MagicMock()
         cur = conn.cursor.return_value.__enter__.return_value

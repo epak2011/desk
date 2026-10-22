@@ -724,9 +724,47 @@ def import_rule_decision_logs(entries: Iterable[dict[str, Any]]) -> int:
     return inserted
 
 
+_EVIDENCE_PAYLOAD_FIELDS = (
+    "score_version", "evidence_id", "summary", "flags", "alerting",
+    "directional_families", "non_overlapping_families", "engine_version_families", "patience_summary",
+    "evidence_quality", "shadow_performance", "shadow_promotion", "paired_shadow_comparison",
+    "paired_shadow_by_fingerprint", "non_overlapping_logic_review_flags",
+    "confidence_calibration", "confidence_calibration_by_family",
+)
+
+
 def read_rule_evidence(*, include_cases: bool = False) -> dict[str, Any]:
-    """Read the exact worker-scored population through the common report builder."""
+    """Read the worker-scored evidence population for display.
+
+    The worker already recomputes and persists this snapshot into
+    engine_review_status on every scoring pass (engine_evaluation.evidence_payload,
+    written by write_engine_review_status). Every /v1/calibration request used to
+    recompute it live from an unbounded `decisions_log` read instead of reusing that
+    persisted row -- repeated on nearly every request because Render's free-tier
+    instances cold-start constantly and the in-process cache rarely survives between
+    them. That single query was the dominant driver of the Supabase egress overage
+    (~41GB of a 49GB cycle, confirmed via pg_stat_statements on 2026-10-22). So the
+    common (include_cases=False) path now reads the cheap persisted snapshot instead,
+    and only falls back to the full live recomputation when there is no persisted
+    snapshot yet (e.g. before the worker's first run) or when the caller needs the
+    case-level detail (performance_slices, failure_patterns, weakest_cases,
+    review_cases) that is deliberately left out of the persisted payload.
+    """
     import engine_evaluation
+
+    if not include_cases:
+        status = read_engine_review_status()
+        if status and any(status.get(key) is not None for key in _EVIDENCE_PAYLOAD_FIELDS):
+            report = {key: status.get(key) for key in _EVIDENCE_PAYLOAD_FIELDS}
+            report["case_review_available"] = False
+            report.update({
+                "generated_at": status.get("generated_at"),
+                "scored_now": status.get("scored_now"),
+                "remaining_due": status.get("remaining_due"),
+                "evidence_scope": "engine",
+                "source": "canonical_decisions_log",
+            })
+            return report
 
     report = engine_evaluation.evidence_payload(
         engine_evaluation.rules_performance_snapshot(read_decision_logs()),
