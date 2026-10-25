@@ -9,6 +9,19 @@ from backtest_runner import replay, simulate, metrics, Assumptions
 
 
 class PositionPolicyTests(unittest.TestCase):
+    def test_active_workflow_cannot_select_legacy_calendar_exit(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = (root / ".github/workflows/rules-replay.yml").read_text()
+        self.assertIn("REPLAY_EXIT_POLICY: signal_invalidation", workflow)
+        self.assertNotIn("inputs.exit_policy", workflow)
+        self.assertNotIn("- legacy_14_session", workflow)
+
+    def test_position_age_never_creates_a_live_exit(self):
+        for age in (0, 13, 14, 15, 30, 365):
+            self.assertIsNone(position_policy.full_exit_reason(
+                dict(price=100, action="hold", ma50=99, ma200=98,
+                     age=age, holding_sessions=age, sessions_held=age), 95))
+
     def test_worker_workflow_preserves_success_and_failure_status(self):
         root = Path(__file__).resolve().parents[1]
         workflow = (root / ".github/workflows/desk-worker.yml").read_text()
@@ -78,6 +91,9 @@ class PositionPolicyTests(unittest.TestCase):
         self.assertNotIn("v3_execution",report["versions"])
         self.assertEqual(report["version_aliases"],{"v3_execution":"v2_combined"})
         control = report["strategy_manifests"]["original"]
+        self.assertFalse(report["assumptions"]["calendar_exit_enabled"])
+        self.assertNotIn("holding_sessions", report["assumptions"])
+        self.assertNotIn("target_r", report["assumptions"])
         self.assertEqual(control["label"],"Technical control")
         self.assertEqual(len(control["strategy_id"]),64)
         second = replay({"TEST":frame},frame,assumptions=Assumptions(cost_bps_per_side=20),**kwargs)

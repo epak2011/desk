@@ -54,7 +54,10 @@ def main():
         import backend_layer
         import backtest_store
         backtest_store.publish(json.loads(output.read_text()), backend_layer)
-        print("Published owner-only replay summary; live decisions unchanged.")
+        if args.exit_policy == "legacy_14_session":
+            print("Archived legacy forced-sale experiment only; active report and live decisions unchanged.")
+        else:
+            print("Published owner-only replay summary; no calendar exits; live decisions unchanged.")
 
 
 if __name__ == "__main__":

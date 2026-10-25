@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 
 def publish(report, backend):
+    archive_only = (report.get("assumptions") or {}).get("exit_policy") == "legacy_14_session"
     summary = {"generated_at": datetime.now(timezone.utc).isoformat(),
                "assumptions": report["assumptions"], "versions": report["versions"],
                "validation_start": report["validation_start"], "limitations": report["limitations"],
@@ -25,6 +26,10 @@ def publish(report, backend):
             cur.execute("""INSERT INTO engine_review_status (key, payload, updated_at)
                            VALUES (%s, %s::jsonb, NOW()) ON CONFLICT (key) DO NOTHING""",
                         ("historical_replay:" + identity, backend.json_dumps(summary)))
+            if archive_only:
+                # Preserve reproducibility without making an obsolete forced
+                # sale experiment the active Streamlit/Lovable report.
+                return
             cur.execute("""INSERT INTO engine_review_status (key, payload, updated_at)
                            VALUES ('historical_replay', %s::jsonb, NOW())
                            ON CONFLICT (key) DO UPDATE SET payload=EXCLUDED.payload, updated_at=NOW()""",

@@ -276,7 +276,13 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
             manifest["control_comparison"] = "Same canonical qualifying action, frozen event stop, next-open fill and costs; only post-event confirmation differs."
         manifest["strategy_id"] = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
         manifests[version] = manifest
-    report = {"assumptions": asdict(assumptions), "versions": list(versions),
+    published_assumptions = (asdict(assumptions) if assumptions.exit_policy == "legacy_14_session" else {
+        "cost_bps_per_side": assumptions.cost_bps_per_side,
+        "exit_policy": assumptions.exit_policy,
+        "calendar_exit_enabled": False,
+        "performance_checkpoints_sessions": [5, 14, 30],
+    })
+    report = {"assumptions": published_assumptions, "versions": list(versions),
               "code_sha256": source_hashes, "frozen_sources": frozen_sources,
               "strategy_manifests": manifests,
               "version_aliases": {"v3_execution": "v2_combined"} if "v3_execution" not in versions else {},

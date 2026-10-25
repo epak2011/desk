@@ -13,6 +13,19 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-10-25",
+        "title": "Lock active strategy reporting to exits without a calendar sale",
+        "status": "Implemented; no entry-rule promotion or trading automation",
+        "summary": "Fourteen sessions is a performance checkpoint, never a reason to sell in the active strategy.",
+        "changes": (
+            "Remove the legacy forced-sale selector from the normal replay workflow; lock active runs to signal/invalidation exits.",
+            "Keep legacy reproduction archive-only so it cannot replace the active report shared by Streamlit and Lovable.",
+            "Remove inactive holding-period, full-target and trailing parameters from corrected report assumptions.",
+            "Retain 5/14/30-session return measurements, old archives and actual invalidation/structural exits.",
+        ),
+        "validation": "Regression tests cover holding beyond 14/30 sessions, age-independent live exits, archive-only legacy publication and the locked workflow. No changes to historical returns or the frozen prospective registration.",
+    },
+    {
         "date": "2026-10-19",
         "title": "Observed entry events, explicit PM replay and frozen prospective testing",
         "status": "Research implementation published; no rule promotion; PM choices remain manual",

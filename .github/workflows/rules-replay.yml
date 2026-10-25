@@ -18,13 +18,6 @@ on:
         description: Preselected validation start YYYY-MM-DD (no automatic tuning)
         required: true
         default: '2026-01-02'
-      exit_policy:
-        description: Exit experiment (14 sessions is a checkpoint, not a sell rule)
-        type: choice
-        options:
-          - signal_invalidation
-          - legacy_14_session
-        default: signal_invalidation
       study:
         description: Standard archived comparison or additional frozen-event entry arms
         type: choice
@@ -60,7 +53,9 @@ jobs:
           REPLAY_START: ${{ inputs.start }}
           REPLAY_END: ${{ inputs.end }}
           REPLAY_VALIDATION: ${{ inputs.validation_start }}
-          REPLAY_EXIT_POLICY: ${{ inputs.exit_policy }}
+          # Active reports never use calendar exits. Legacy reproduction is
+          # archive-only through the CLI, not selectable in this workflow.
+          REPLAY_EXIT_POLICY: signal_invalidation
           REPLAY_STUDY: ${{ inputs.study || 'standard' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: >-

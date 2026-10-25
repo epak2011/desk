@@ -6,6 +6,18 @@ import backend_layer
 
 
 class BacktestStoreTests(unittest.TestCase):
+    def test_legacy_can_be_archived_but_cannot_replace_active_report(self):
+        backend = MagicMock()
+        backend.json_dumps.side_effect = json.dumps
+        report = dict(assumptions={"exit_policy": "legacy_14_session"}, versions=["original"],
+                      validation_start="2026-01-01", limitations=[], results={})
+        backtest_store.publish(report, backend)
+        cursor = backend.db_connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        self.assertEqual(cursor.execute.call_count, 1)
+        sql, params = cursor.execute.call_args.args
+        self.assertTrue(params[0].startswith("historical_replay:"))
+        self.assertNotIn("VALUES ('historical_replay'", sql)
+
     def test_summary_excludes_trades_and_frozen_source_code(self):
         backend = MagicMock()
         backend.json_dumps.side_effect = json.dumps
