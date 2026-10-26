@@ -43,4 +43,14 @@ def read(backend):
         with conn.cursor() as cur:
             cur.execute("SELECT payload FROM engine_review_status WHERE key = 'historical_replay'")
             row = cur.fetchone()
-    return row[0] if row and isinstance(row[0], dict) else None
+    report = dict(row[0]) if row and isinstance(row[0], dict) else None
+    if report and (report.get("assumptions") or {}).get("exit_policy") == "signal_invalidation":
+        # Older corrected reports serialized unused legacy defaults such as
+        # holding_sessions=14. Normalize display only; do not rewrite archives
+        # or returns and do not mislabel actual legacy experiments.
+        assumptions = dict(report["assumptions"])
+        for field in ("holding_sessions", "target_r", "trail_r"):
+            assumptions.pop(field, None)
+        assumptions.update(calendar_exit_enabled=False, performance_checkpoints_sessions=[5, 14, 30])
+        report["assumptions"] = assumptions
+    return report

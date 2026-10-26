@@ -6,6 +6,24 @@ import backend_layer
 
 
 class BacktestStoreTests(unittest.TestCase):
+    def test_old_corrected_report_hides_inactive_calendar_defaults_without_mutation(self):
+        backend = MagicMock()
+        original = {"assumptions": {"exit_policy": "signal_invalidation", "holding_sessions": 14, "target_r": 2}, "results": {"validation": {"return": 18.12}}}
+        cursor = backend.db_connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = (original,)
+        result = backtest_store.read(backend)
+        self.assertNotIn("holding_sessions", result["assumptions"])
+        self.assertFalse(result["assumptions"]["calendar_exit_enabled"])
+        self.assertEqual(result["results"], original["results"])
+        self.assertEqual(original["assumptions"]["holding_sessions"], 14)
+        self.assertEqual(cursor.execute.call_count, 1)
+
+    def test_read_does_not_relabel_actual_legacy_experiment(self):
+        backend = MagicMock()
+        legacy = {"assumptions": {"exit_policy": "legacy_14_session", "holding_sessions": 14}}
+        backend.db_connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.fetchone.return_value = (legacy,)
+        self.assertEqual(backtest_store.read(backend), legacy)
+
     def test_legacy_can_be_archived_but_cannot_replace_active_report(self):
         backend = MagicMock()
         backend.json_dumps.side_effect = json.dumps
