@@ -1384,6 +1384,14 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
         }
 
     tickers = backend.enabled_watchlist_tickers(limit=250)
+    retry_states = backend.research_retry_states(tickers)
+    retry_states = retry_states if isinstance(retry_states, dict) else {}
+    now = datetime.now(timezone.utc)
+    provider_pause = retry_window(retry_states.pop("__provider__", {}), now)
+    if provider_pause.get("cooling_down"):
+        return {"queued": False, "tickers": [], "reason": "Provider quota/authentication pause; automatic research retries suspended",
+                "provider_error_code": provider_pause.get("error_code"),
+                "provider_retry_after": provider_pause.get("retry_after")}
     reports = backend.read_json_table_many("research_reports", tickers)
     markets = backend.read_json_table_many("market_snapshots", tickers)
     rules = backend.read_json_table_many("rule_outputs", tickers)
@@ -1434,8 +1442,6 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
         elif age_minutes is None or age_minutes >= threshold_minutes:
             candidates.append((1, ticker, "research_stale", age_minutes))
 
-    retry_states = backend.research_retry_states(tickers)
-    retry_states = retry_states if isinstance(retry_states, dict) else {}
     cooldown = {ticker: retry_window(row, now) for ticker, row in retry_states.items()}
     ready = [row for row in sorted(candidates) if not cooldown.get(row[1], {}).get("cooling_down")]
     queued = []

@@ -633,6 +633,11 @@ def system_health(user_id: str) -> dict[str, Any]:
         jobs = []
         issues.append({"kind": "worker_history_unavailable", "severity": "medium"})
     trial = research_reliability.experiment_health()
+    retries = backend_layer.research_retry_states(tickers)
+    retry_health = research_reliability.retry_window((retries or {}).get("__provider__", {}))
+    if retry_health.get("cooling_down"):
+        issues.append({"kind": "research_provider_paused", "severity": "medium",
+                       "error_code": retry_health.get("error_code"), "retry_after": retry_health.get("retry_after")})
     if trial["status"] != "eligible":
         issues.append({"kind": "prospective_trial_blocked", "severity": "medium", "reason": trial.get("reason")})
     job_counts: dict[str, int] = {}
@@ -650,6 +655,7 @@ def system_health(user_id: str) -> dict[str, Any]:
         "issue_count": len(issues),
         "worker_jobs": {"counts": job_counts, "recent": jobs},
         "prospective_trial": trial,
+        "research_provider": retry_health,
         "checks": {"external_market_calls": False, "external_ai_calls": False},
     }
 

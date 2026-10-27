@@ -16,6 +16,8 @@
    or quota failures wait 24 hours. Cooldowns survive worker restarts, do not
    consume the scheduling batch, and reset after success. Explicit user research
    requests remain available; no existing reports or jobs are deleted.
+   A provider-wide quota/authentication failure also pauses all new automatic
+   research scheduling for 24 hours, until expiry or a newer successful report.
 
 3. **Immutable experiment health.** System Health validates the real registration
    and every frozen source hash. Mismatches are visible as a blocked trial and
@@ -47,6 +49,10 @@
   issues automatically, but new visual controls still require frontend work.
 - Deployment and authenticated, real-provider acceptance must be reported
   separately from automated tests.
+- The first live worker smoke run identified provider_quota failures for
+  ANET, ASTS and AVGO. This category includes quota/rate-limit restrictions;
+  no provider billing change was made. Scheduled provider-wide retries are
+  now paused when that failure is recent, and System Health exposes the pause.
 
 ## API integration notes
 

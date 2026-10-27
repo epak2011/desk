@@ -871,8 +871,24 @@ def research_retry_states(tickers: Iterable[str]) -> dict[str, dict[str, Any]]:
                 FROM jobs WHERE status = 'failed' AND (last_good IS NULL OR updated_at > last_good)
                 GROUP BY ticker
             """, (clean,))
-            return {str(t): {"failures": int(n), "last_failed_at": stamp.isoformat(), "error_code": code}
-                    for t, n, stamp, code in cur.fetchall()}
+            states = {str(t): {"failures": int(n), "last_failed_at": stamp.isoformat(), "error_code": code}
+                      for t, n, stamp, code in cur.fetchall()}
+            cur.execute("""
+                SELECT j.updated_at, j.result->'research_diagnostics'->>'error_code'
+                FROM refresh_jobs j
+                WHERE j.job_type = 'full_report' AND j.status = 'failed'
+                  AND j.result->'research_diagnostics'->>'error_code' IN ('provider_auth', 'provider_quota')
+                  AND j.updated_at >= NOW() - INTERVAL '24 hours'
+                  AND NOT EXISTS (SELECT 1 FROM refresh_jobs good
+                      WHERE good.job_type = 'full_report' AND good.status = 'succeeded'
+                        AND good.updated_at > j.updated_at)
+                ORDER BY j.updated_at DESC LIMIT 1
+            """)
+            last_provider_failure = cur.fetchone()
+            if last_provider_failure:
+                states["__provider__"] = {"failures": 1, "last_failed_at": last_provider_failure[0].isoformat(),
+                                          "error_code": last_provider_failure[1]}
+            return states
 
 
 def latest_jobs(ticker: str | None = None, limit: int = 8) -> list[dict[str, Any]]:
