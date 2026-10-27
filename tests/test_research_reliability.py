@@ -23,6 +23,18 @@ def valid_dossier():
 
 
 class ResearchReliabilityTests(TestCase):
+    def test_provider_quota_circuit_stops_all_scheduled_tickers_before_large_reads(self):
+        pause = {"failures": 1, "last_failed_at": datetime.now(timezone.utc).isoformat(), "error_code": "provider_quota"}
+        with patch.object(worker, "_api_key", return_value="test"), \
+             patch.object(worker.backend, "enabled_watchlist_tickers", return_value=["DASH", "NVDA"]), \
+             patch.object(worker.backend, "research_retry_states", return_value={"__provider__": pause}), \
+             patch.object(worker.backend, "read_json_table_many") as read, patch.object(worker.backend, "enqueue_job") as enqueue:
+            result = worker.queue_stale_research_refresh()
+        self.assertFalse(result["queued"])
+        self.assertEqual(result["provider_error_code"], "provider_quota")
+        read.assert_not_called()
+        enqueue.assert_not_called()
+
     def test_system_health_uses_selected_memo_and_exposes_trial_block(self):
         research = {"generated_at": datetime.now(timezone.utc).isoformat(), "status": "ready",
                     "completeness": "summary_only", "selection": {"saved_successful_research": True}}
@@ -33,6 +45,7 @@ class ResearchReliabilityTests(TestCase):
                  {"DASH": {"decision_receipt": {"action": "watch"}}}, {}, {"DASH": {"thesis": "Saved"}}]), \
              patch.object(api_repository.public_contract, "research_payload", return_value=research), \
              patch.object(api_repository.backend_layer, "latest_jobs", return_value=[]), \
+             patch.object(api_repository.backend_layer, "research_retry_states", return_value={}), \
              patch.object(api_repository.backend_layer, "has_database", return_value=True), \
              patch.object(rr, "experiment_health", return_value=trial):
             result = api_repository.system_health("user")
