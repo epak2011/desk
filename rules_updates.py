@@ -13,6 +13,20 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-10-27",
+        "title": "Five reliability upgrades: research, retry budgets, trial health, evidence and freshness",
+        "status": "Implemented; trading rules and frozen registrations unchanged",
+        "summary": "Make failed research diagnosable and bounded, and prevent misleading freshness or performance claims.",
+        "changes": (
+            "Repair malformed or token-truncated fast research once with a bounded output budget; retain the previous successful report on failure.",
+            "Store safe failure categories without provider messages, prompts or keys; apply persistent per-ticker scheduled retry cooldowns.",
+            "Expose immutable experiment source mismatches in System Health without changing hashes, start dates or promotion rules.",
+            "Separate forward signal checkpoints from archived portfolio replay returns, show same-period strategy/benchmark comparisons and evidence age.",
+            "Audit the selected PM memo's actual timestamp rather than a failed full-report timestamp; report unknown/future dates honestly.",
+        ),
+        "validation": "Automated regressions cover response repair, sanitized diagnostics, persistent backoff, trial immutability, selected-memo freshness and performance separation. Live authenticated research generation must be verified separately; no claim of improved trading performance or repaired provider billing.",
+    },
+    {
         "date": "2026-10-25",
         "title": "Lock active strategy reporting to exits without a calendar sale",
         "status": "Implemented; no entry-rule promotion or trading automation",

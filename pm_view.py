@@ -1133,8 +1133,14 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         valuation = (pm_data or {}).get("valuation", "")
 
         if fast:
+            from research_reliability import number_label
             as_of = date.today()
             confirmed_earnings = _date_label((meta or {}).get("earnings_date"))
+            if confirmed_earnings and date.fromisoformat(confirmed_earnings) < as_of:
+                confirmed_earnings = None
+            earnings_days = (meta or {}).get("earnings_days")
+            if not isinstance(earnings_days, (int, float)) or earnings_days < 0:
+                earnings_days = None
             earnings_grounding = (
                 f"Confirmed next earnings date: {confirmed_earnings}."
                 if confirmed_earnings
@@ -1156,15 +1162,15 @@ Context:
 - Rule action: {action.replace('_', ' ')}
 - State: {t_state.get('state', 'unknown')}
 - Bias: {bias}
-- Price: ${t_state.get('price', 0):.2f}
-- 50d MA: ${t_state.get('ma50', 0):.2f}; 200d MA: ${t_state.get('ma200', 0):.2f}
-- RSI: {t_state.get('rsi14', 50):.0f}; RS vs SPY: {t_state.get('rs', 1):.2f}; RS delta: {t_state.get('rs_delta', 0):+.3f}
-- Volume vs 20d avg: {t_state.get('vol_ratio', 1):.2f}x
-- Reward/risk: {f"{t_state.get('reward_risk'):.2f}:1" if t_state.get('reward_risk') is not None else 'n/a'}
+- Price: {number_label(t_state.get('price'), prefix='$')}
+- 50d MA: {number_label(t_state.get('ma50'), prefix='$')}; 200d MA: {number_label(t_state.get('ma200'), prefix='$')}
+- RSI: {number_label(t_state.get('rsi14'), 0)}; RS vs SPY: {number_label(t_state.get('rs'))}; RS delta: {number_label(t_state.get('rs_delta'), 3)}
+- Volume vs 20d avg: {number_label(t_state.get('vol_ratio'), suffix='x')}
+- Reward/risk: {number_label(t_state.get('reward_risk'), suffix=':1')}
 - Trigger: {trig_summary}; buy above {f'${buy_above:.2f}' if buy_above else 'n/a'}; invalidation {f'${abort_below:.2f}' if abort_below else 'n/a'}
 - Sector: {(meta or {}).get('sector') or 'unknown'}; industry: {(meta or {}).get('industry') or 'unknown'}
 - Market cap: {(meta or {}).get('market_cap') or 'unknown'}
-- Earnings: {f'in {meta.get("earnings_days")} days' if meta and meta.get('earnings_days') is not None else 'no near-term'}
+- Earnings: {f'in {earnings_days} days' if confirmed_earnings and earnings_days is not None else 'no confirmed future date'}
 - Forward P/E: {(meta or {}).get('forward_pe') or 'n/a'}; PEG: {(meta or {}).get('peg') or 'n/a'}; EV/EBITDA: {(meta or {}).get('ev_ebitda') or 'n/a'}
 - Earnings growth: {(meta or {}).get('earnings_growth') or 'n/a'}%; Revenue growth: {(meta or {}).get('revenue_growth') or 'n/a'}%
 - Existing thesis: {thesis or 'none'}
@@ -1208,18 +1214,26 @@ Be specific. Do not return placeholders. Every JSON field is required. Drivers a
                 for attempt in range(2):
                     message = _call_with_timeout(
                         lambda p=prompt_for_attempt: _messages_create_fast(client,
-                            max_tokens=1800,
+                            max_tokens=2600 if attempt == 0 else 3600,
                             temperature=0,
                             messages=[{"role": "user", "content": p}],
                         ),
                         min(CLAUDE_DOSSIER_TIMEOUT_SECONDS, 45),
                         "Claude fast PM refresh",
                     )
-                    text = message.content[0].text.strip()
-                    parsed = substitute_live_values_nested(
-                        _parse_json_response(text), t_state
-                    )
-                    issues = _dossier_contract_issues(parsed, as_of=as_of)
+                    text = "\n".join(str(getattr(block, "text", "") or "")
+                                     for block in message.content).strip()
+                    # A valid-looking prefix of a truncated reply is not a
+                    # completed report. Repair malformed/truncated JSON once,
+                    # not just successfully parsed but incomplete schemas.
+                    try:
+                        if getattr(message, "stop_reason", None) == "max_tokens":
+                            raise ValueError("research_response_truncated")
+                        parsed = substitute_live_values_nested(_parse_json_response(text), t_state)
+                        issues = _dossier_contract_issues(parsed, as_of=as_of)
+                    except (ValueError, TypeError) as parse_error:
+                        parsed = None
+                        issues = ["research_response_truncated" if str(parse_error) == "research_response_truncated" else "research_invalid_json"]
                     if not issues:
                         break
                     if attempt == 1:
@@ -1233,7 +1247,7 @@ Problems to correct:
 Do not copy any past event into the timing watchpoint. Drivers and risks must each contain exactly 3 non-empty, company-specific items. Do not use placeholders.
 
 Previous response:
-{json.dumps(parsed, ensure_ascii=False)}"""
+{json.dumps(parsed, ensure_ascii=False) if parsed is not None else text[:16000]}"""
                 if pm_identity_mismatch(ticker, parsed, company_name):
                     return _identity_guarded_dossier_payload(ticker)
                 return {

@@ -1223,6 +1223,7 @@ def _fresh_tactical_state(ticker: str) -> tuple[dict, dict]:
 
 
 def refresh_full_report(ticker: str) -> dict:
+    from research_reliability import ResearchFailure
     ticker = str(ticker or "").upper().strip()
     api_key = _api_key()
     if not api_key:
@@ -1247,7 +1248,7 @@ def refresh_full_report(ticker: str) -> dict:
     # the previous report intact and let the queue record a retryable failure.
     dossier = dossier if isinstance(dossier, dict) else {}
     if "claude" not in str(dossier.get("_source") or "").lower() or _dossier_contract_issues(dossier):
-        raise RuntimeError("Claude research did not complete or failed validation; previous report preserved. Retry research.")
+        raise ResearchFailure(dossier.get("_source"), _dossier_contract_issues(dossier))
     generated_at = datetime.now(timezone.utc).isoformat()
     pm_payload = {
         **(pm or {}),
@@ -1374,6 +1375,7 @@ def _fundamentals_fingerprint(profile: dict | None) -> str | None:
 
 def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
     """Queue bounded report refreshes for missing or stale watchlist research."""
+    from research_reliability import retry_window
     if not _api_key():
         return {
             "queued": False,
@@ -1432,8 +1434,12 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
         elif age_minutes is None or age_minutes >= threshold_minutes:
             candidates.append((1, ticker, "research_stale", age_minutes))
 
+    retry_states = backend.research_retry_states(tickers)
+    retry_states = retry_states if isinstance(retry_states, dict) else {}
+    cooldown = {ticker: retry_window(row, now) for ticker, row in retry_states.items()}
+    ready = [row for row in sorted(candidates) if not cooldown.get(row[1], {}).get("cooling_down")]
     queued = []
-    for _, ticker, reason, age_minutes in sorted(candidates)[:max(1, int(limit))]:
+    for _, ticker, reason, age_minutes in ready[:max(1, int(limit))]:
         job_id = backend.enqueue_job(
             "full_report",
             ticker=ticker,
@@ -1453,6 +1459,8 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
         "tickers": [item["ticker"] for item in queued],
         "jobs": queued,
         "candidate_count": len(candidates),
+        "cooldown_tickers": sorted(t for t, state in cooldown.items() if state["cooling_down"]),
+        "reason": "Scheduled research retries cooling down" if candidates and not ready else None,
     }
 
 
@@ -1883,7 +1891,11 @@ def run_once(worker_name: str = "worker", job_types: list[str] | None = None) ->
         return True, True
     except Exception as exc:
         try:
-            backend.fail_job(job["id"], str(exc))
+            diagnostics = getattr(exc, "diagnostics", None)
+            if isinstance(diagnostics, dict):
+                backend.fail_job(job["id"], str(exc), result={"research_diagnostics": diagnostics})
+            else:
+                backend.fail_job(job["id"], str(exc))
         except Exception as fail_exc:
             _gha_warning(f"Could not mark failed job {job.get('id')}: {fail_exc}")
         _gha_warning(f"Queued job failed but worker will continue: {job['job_type']} {job.get('ticker') or ''} {job['id']}: {exc}")
