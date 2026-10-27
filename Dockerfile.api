@@ -16,6 +16,11 @@ COPY research_protocol.py research_event_store.py ./
 COPY market_news.py ./
 COPY engine_evaluation.py ./
 COPY backtest_store.py ./
+COPY research_reliability.py ./
+# Read-only source evidence for the immutable experiment health check. These
+# worker/engine modules are hashed, not imported by the API runtime.
+COPY tactical.py engine_candidates.py decision_contract.py worker.py ./
+COPY experiments/ ./experiments/
 
 RUN useradd --create-home --uid 10001 apiuser
 USER apiuser

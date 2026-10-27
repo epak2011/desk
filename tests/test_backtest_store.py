@@ -22,7 +22,9 @@ class BacktestStoreTests(unittest.TestCase):
         backend = MagicMock()
         legacy = {"assumptions": {"exit_policy": "legacy_14_session", "holding_sessions": 14}}
         backend.db_connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.fetchone.return_value = (legacy,)
-        self.assertEqual(backtest_store.read(backend), legacy)
+        result = backtest_store.read(backend)
+        self.assertEqual(result["assumptions"], legacy["assumptions"])
+        self.assertEqual(result["comparison_summary"]["exit_policy"], "legacy_14_session")
 
     def test_legacy_can_be_archived_but_cannot_replace_active_report(self):
         backend = MagicMock()

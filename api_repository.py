@@ -14,6 +14,7 @@ import backend_layer
 import portfolio_context
 import public_contract
 import user_state_store
+import research_reliability
 from rules_updates import engine_updates_payload
 
 
@@ -622,19 +623,18 @@ def system_health(user_id: str) -> dict[str, Any]:
         age = _age_minutes(market.get("updated_at") or market.get("ts") or market.get("market_updated_at"))
         if age is not None and age > 1440:
             issues.append({"ticker": ticker, "kind": "market_stale", "severity": "medium", "age_minutes": age})
-        research_age = _age_minutes(report.get("_worker_generated_at") or report.get("generated_at"))
-        research_threshold_minutes = 7 * 1440
-        if not report:
-            issues.append({"ticker": ticker, "kind": "research_missing", "severity": "low"})
-        elif research.get("generation_status") == "incomplete" or research.get("completeness") == "unavailable":
-            issues.append({"ticker": ticker, "kind": "research_incomplete", "severity": "medium"})
-        elif research_age is None or research_age >= research_threshold_minutes:
-            issues.append({"ticker": ticker, "kind": "research_stale", "severity": "low", "age_minutes": research_age})
+        issue = research_reliability.research_issue(research)
+        if issue:
+            issues.append({"ticker": ticker, **issue})
     jobs = []
     try:
         jobs = backend_layer.latest_jobs(limit=25)
     except (RuntimeError, TypeError):
         jobs = []
+        issues.append({"kind": "worker_history_unavailable", "severity": "medium"})
+    trial = research_reliability.experiment_health()
+    if trial["status"] != "eligible":
+        issues.append({"kind": "prospective_trial_blocked", "severity": "medium", "reason": trial.get("reason")})
     job_counts: dict[str, int] = {}
     for job in jobs:
         status = str(job.get("status") or "unknown").lower()
@@ -642,13 +642,14 @@ def system_health(user_id: str) -> dict[str, Any]:
     return {
         "contract_version": public_contract.PUBLIC_CONTRACT_VERSION,
         "meta": public_contract.response_meta(engine_version="saved-canonical-output", freshness="live"),
-        "status": "ok" if backend_layer.has_database() and not any(i["severity"] == "high" for i in issues) else "needs_attention",
+        "status": "ok" if backend_layer.has_database() and not any(i["severity"] in {"high", "medium"} for i in issues) else "needs_attention",
         "storage": {"ok": backend_layer.has_database()},
         "watchlist_count": len(tickers),
         "coverage": coverage,
         "issues": issues,
         "issue_count": len(issues),
         "worker_jobs": {"counts": job_counts, "recent": jobs},
+        "prospective_trial": trial,
         "checks": {"external_market_calls": False, "external_ai_calls": False},
     }
 
@@ -717,9 +718,11 @@ def calibration(user_id: str, *, include_cases: bool = False, case_offset: int =
     watchlist = row[0] if row and isinstance(row[0], list) else []
     tickers = [normalize_ticker(item) for item in watchlist if str(item or "").strip()]
     rules = backend_layer.read_json_table_many("rule_outputs", tickers) if tickers else {}
+    evidence = backend_layer.read_rule_evidence(include_cases=include_cases, case_offset=case_offset, case_limit=case_limit)
+    evidence["performance_context"] = research_reliability.performance_context(evidence)
     return {
         "meta": public_contract.response_meta(),
-        "calibration": backend_layer.read_rule_evidence(include_cases=include_cases, case_offset=case_offset, case_limit=case_limit),
+        "calibration": evidence,
         "shadow_rules": _shadow_rule_summary(tickers, rules),
     }
 

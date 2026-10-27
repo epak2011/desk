@@ -850,6 +850,31 @@ def enqueue_job(
             return job_id
 
 
+def research_retry_states(tickers: Iterable[str]) -> dict[str, dict[str, Any]]:
+    """Small per-ticker aggregates, not downloaded research or job payloads."""
+    clean = list(dict.fromkeys(str(t).upper().strip() for t in tickers if str(t).strip()))[:250]
+    if not clean or not has_database():
+        return {}
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                WITH jobs AS (
+                    SELECT ticker, status, updated_at,
+                           result->'research_diagnostics'->>'error_code' AS code,
+                           MAX(updated_at) FILTER (WHERE status = 'succeeded') OVER (PARTITION BY ticker) AS last_good
+                    FROM refresh_jobs
+                    WHERE job_type = 'full_report' AND ticker = ANY(%s)
+                      AND updated_at >= NOW() - INTERVAL '7 days'
+                )
+                SELECT ticker, COUNT(*), MAX(updated_at),
+                       (ARRAY_AGG(code ORDER BY updated_at DESC))[1]
+                FROM jobs WHERE status = 'failed' AND (last_good IS NULL OR updated_at > last_good)
+                GROUP BY ticker
+            """, (clean,))
+            return {str(t): {"failures": int(n), "last_failed_at": stamp.isoformat(), "error_code": code}
+                    for t, n, stamp, code in cur.fetchall()}
+
+
 def latest_jobs(ticker: str | None = None, limit: int = 8) -> list[dict[str, Any]]:
     if not has_database():
         return []

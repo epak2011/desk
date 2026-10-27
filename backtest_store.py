@@ -53,4 +53,27 @@ def read(backend):
             assumptions.pop(field, None)
         assumptions.update(calendar_exit_enabled=False, performance_checkpoints_sessions=[5, 14, 30])
         report["assumptions"] = assumptions
+    if report:
+        report["comparison_summary"] = comparison_summary(report)
     return report
+
+
+def comparison_summary(report):
+    """Same-period strategy/benchmark returns, separate from signal averages."""
+    rows = []
+    validation = (report.get("results") or {}).get("validation") or {}
+    for version, values in validation.items():
+        if version == "benchmarks" or not isinstance(values, dict):
+            continue
+        manifest = (report.get("strategy_manifests") or {}).get(version) or {}
+        rows.append({"version": version, "strategy_id": manifest.get("strategy_id"),
+                     "return_pct": values.get("total_return_pct"),
+                     "max_drawdown_pct": values.get("max_drawdown_pct"),
+                     "closed_trades": values.get("closed_trade_count"),
+                     "open_position_valuations": values.get("sample_boundary_valuation_count")})
+    return {"basis": "archived_technical_portfolio_replay_not_forward_signal_evidence",
+            "period_start": report.get("validation_start"), "period_end": report.get("sample_end"),
+            "universe": report.get("universe") or [], "exit_policy": (report.get("assumptions") or {}).get("exit_policy"),
+            "rows": rows, "benchmarks": validation.get("benchmarks") or {},
+            "new_forward_results": False,
+            "caveat": "Open positions contribute to portfolio value; closed-trade win rates exclude them. This is not a complete discretionary PM simulation."}
