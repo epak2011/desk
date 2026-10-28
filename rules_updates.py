@@ -14,6 +14,20 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 RULES_UPDATES = (
     {
         "date": "2026-10-28",
+        "title": "Independent Claude opinion, disagreement flag and paired measurement",
+        "status": "Implemented; no canonical action override or automatic promotion",
+        "summary": "Generate Claude's second opinion without the rules answer; preserve exact paired calls for prospective comparison.",
+        "changes": (
+            "Separate stateless Claude request sees whitelisted factual inputs, not the rule call, bias, scores, triggers or previous AI prose.",
+            "Expose new-buyer and conditional ownership calls, counterargument, what changes the call, model and subjective confidence; label older calls rules-constrained.",
+            "Flag fresh new-buyer exposure disagreements only; stale or unknown comparisons never manufacture a disagreement.",
+            "Append immutable input/model/prompt/rule-code snapshots and score nonoverlapping paired checkpoints versus SPY/QQQ, stratified by model and rule fingerprint.",
+            "Measurements are research-only fixed fractions, not portfolio returns or live sizing. No sale at 14 sessions; no ownership P&L without position context.",
+        ),
+        "validation": "Regression coverage verifies unanchored inputs, append-only pairing, fresh/legacy/unknown badges, shared next-open measurement dates and costs, missing-bar rejection, model stratification and no calendar sale.",
+    },
+    {
+        "date": "2026-10-28",
         "title": "SPY/QQQ portfolio comparisons and a new prospective registration",
         "status": "Implemented; no trading-rule promotion or calendar sale",
         "summary": "Separate portfolio simulations, forward checkpoints and prospective trial eligibility; preserve the blocked older trial.",

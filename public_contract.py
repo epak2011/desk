@@ -846,6 +846,13 @@ def research_payload(
         # the public source label (it may contain request/account details).
         "source": "rules fallback" if rules_only else source,
     }
+    import claude_assessment
+    selected = dossier.get("independent_assessment") or memo.get("independent_assessment") or pm.get("independent_assessment")
+    result["claude_assessment"] = claude_assessment.display(selected,
+        dossier.get("tactical_call") or memo.get("tactical_call") or pm.get("tactical_call"),
+        rule_action=rule.get("action"), blocked=blocked or rules_only)
+    if result["claude_assessment"].get("status") == "legacy":
+        result["claude_assessment"]["generated_at"] = generated_at
     return result
 
 

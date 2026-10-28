@@ -1464,6 +1464,18 @@ def fail_job(job_id: str, error: str, result: dict[str, Any] | None = None) -> N
             )
 
 
+def record_independent_claude(ticker, value):
+    """Durable Streamlit-generated pair; same immutable shape as worker saves."""
+    if not has_database():
+        return False
+    ensure_backend_schema()
+    import claude_assessment
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            claude_assessment.record(cur, ticker, {"dossier": {"independent_assessment": value}}, json_dumps)
+    return bool(value.get("status") == "ready")
+
+
 def upsert_json_table(table: str, key_column: str, key_value: str, payload: dict[str, Any], *, source: str | None = None) -> None:
     allowed = {
         "market_snapshots",
@@ -1564,3 +1576,6 @@ def upsert_json_table(table: str, key_column: str, key_value: str, payload: dict
                 """,
                 (key_value, json_dumps(payload), source),
             )
+            if table == "research_reports":
+                import claude_assessment
+                claude_assessment.record(cur, key_value, payload, json_dumps)

@@ -5,7 +5,8 @@ Layer 2 — Deep dive: expanded thesis, variant perception, catalysts,
   risk scenarios, valuation context, what-must-be-true, what-would-change-my-mind.
   Revealed on demand.
 
-Both layers generated in a single Claude call to keep cost at one request per ticker.
+The dossier uses one call; its independent second opinion uses a separate stateless
+request without the rule recommendation to avoid anchoring.
 """
 
 import json
@@ -1071,6 +1072,31 @@ Return ONLY the JSON, nothing else."""
         }
 
 
+def _generate_independent_assessment(client, ticker, state, meta):
+    import claude_assessment
+    import hashlib
+    from pathlib import Path
+    inputs = claude_assessment.evidence(ticker, state, meta)
+    try:
+        message = _call_with_timeout(lambda: _messages_create(client,
+            max_tokens=1800, temperature=0,
+            messages=[{"role": "user", "content": claude_assessment.prompt(inputs)}]),
+            CLAUDE_DOSSIER_TIMEOUT_SECONDS, "Independent Claude assessment")
+        if getattr(message, "stop_reason", None) == "max_tokens":
+            raise ValueError("Truncated assessment.")
+        text = "\n".join(str(getattr(block, "text", "") or "") for block in message.content)
+        parsed = _parse_json_response(text.strip())
+        frozen = "".join(hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
+                         for name in ("tactical.py", "position_policy.py", "decision_contract.py", "engine_candidates.py", "worker.py", "app.py"))
+        return claude_assessment.freeze(parsed, inputs,
+            model=str(getattr(message, "model", "") or CLAUDE_MODEL),
+            rule_action=state.get("action"), rule_fingerprint=hashlib.sha256(frozen.encode()).hexdigest())
+    except Exception:
+        # Never relabel the legacy rule-constrained call as independent.
+        return {"status": "unavailable", "version": claude_assessment.VERSION,
+                "error_code": "independent_generation_failed"}
+
+
 def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
                          api_key=None, company_name=None, fast=False):
     """Generate three pieces in one Claude call:
@@ -1097,6 +1123,7 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         from anthropic import Anthropic
         import json as _json
         client = Anthropic(api_key=api_key)
+        independent = _generate_independent_assessment(client, ticker, t_state, meta)
 
         special_context = _special_context_for(ticker)
         identity_guard = _identity_guard_for(ticker, company_name)
@@ -1257,6 +1284,7 @@ Previous response:
                     "bullets": parsed.get("bullets") or {},
                     "quality": parsed.get("quality") or {},
                     "tactical_call": parsed.get("tactical_call") or {},
+                    "independent_assessment": independent,
                     "_source": "claude · fast refresh",
                 }
             except Exception as exc:
@@ -1542,6 +1570,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
             "bullets": parsed.get("bullets") or {},
             "quality": parsed.get("quality") or {},
             "tactical_call": parsed.get("tactical_call") or {},
+            "independent_assessment": independent,
             "_source": "claude",
         }
 
