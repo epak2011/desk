@@ -1,0 +1,42 @@
+name: Score independent Claude comparison
+on:
+  workflow_dispatch:
+    inputs:
+      verify_ticker:
+        description: Optional single live research verification (uses Claude credits)
+        type: choice
+        options:
+          - none
+          - DASH
+        default: none
+  schedule:
+    - cron: '20 22 * * 1-5'
+permissions:
+  contents: read
+concurrency:
+  group: independent-claude-comparison
+  cancel-in-progress: false
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -q
+      - name: Verify one independent research generation
+        if: ${{ inputs.verify_ticker == 'DASH' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NTHROPIC_API_KEY: ${{ secrets.NTHROPIC_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: |
+          python -c 'import worker; worker.refresh_full_report("DASH"); p=worker.backend.read_json_table("research_reports","DASH").get("DASH") or {}; a=(p.get("dossier") or {}).get("independent_assessment") or {}; print({"ticker":"DASH","assessment_status":a.get("status"),"assessment_id":a.get("assessment_id"),"model":a.get("model")}); assert a.get("status")=="ready", "Independent verification did not complete; prior research preserved where applicable"'
+      - name: Publish immutable paired checkpoints
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/score_claude_comparison.py

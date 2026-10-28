@@ -17,6 +17,7 @@ COPY market_news.py ./
 COPY engine_evaluation.py ./
 COPY backtest_store.py ./
 COPY research_reliability.py ./
+COPY claude_assessment.py ./
 # Read-only source evidence for the immutable experiment health check. These
 # worker/engine modules are hashed, not imported by the API runtime.
 COPY tactical.py engine_candidates.py decision_contract.py worker.py ./

@@ -1988,6 +1988,7 @@ def hydrate_dossier_cache_from_backend(ticker):
             "bullets": dossier.get("bullets") or {},
             "quality": dossier.get("quality") or {},
             "tactical_call": tactical_call or {},
+            "independent_assessment": dossier.get("independent_assessment") or {},
         },
         "source": dossier.get("_source") or payload.get("source") or "worker",
     }
@@ -2227,10 +2228,18 @@ def get_cached_dossier(ticker, t_state, modifiers, meta, pm_data, api_key, compa
                 "bullets": result.get("bullets") or {},
                 "quality": result.get("quality") or {},
                 "tactical_call": result.get("tactical_call") or {},
+                "independent_assessment": result.get("independent_assessment") or {},
             },
             "source": result.get("_source", "claude"),
         }
         save_store(st.session_state.store)
+        independent_saved = result.get("independent_assessment") or {}
+        if independent_saved.get("status") == "ready":
+            try:
+                if not backend_layer.record_independent_claude(ticker, independent_saved):
+                    st.warning("Claude's view is available, but durable comparison tracking is unavailable.")
+            except Exception:
+                st.warning("Claude's view was generated, but its comparison snapshot could not be saved. It is not verified as tracked.")
     elif stale_cached_result:
         try:
             from pm_view import substitute_live_values
@@ -16771,6 +16780,29 @@ if view == "analyze":
     # context / dissent layer, not as a replacement for the tactical gate.
     rule_t = dict(t)
     claude_call = (dossier_result or {}).get("tactical_call") or {}
+    import claude_assessment as independent_claude
+    independent_read = independent_claude.display((dossier_result or {}).get("independent_assessment"),
+        claude_call, rule_action=rule_t.get("action"), blocked=False)
+    if independent_read.get("status") == "ready":
+        independent_stamp = independent_read.get("generated_at")
+        try:
+            independent_age = datetime.now(timezone.utc) - datetime.fromisoformat(independent_stamp.replace("Z", "+00:00"))
+            independent_is_fresh = timedelta(0) <= independent_age < timedelta(days=7)
+            basis_price = float(((dossier_result or {}).get("independent_assessment") or {}).get("inputs", {}).get("technical", {}).get("price") or 0)
+            if basis_price and abs(float(t.get("price") or 0) / basis_price - 1) >= .10:
+                independent_is_fresh = False
+        except (TypeError, ValueError):
+            independent_is_fresh = False
+        with st.expander("Claude disagrees · independent view" if independent_is_fresh and independent_read.get("disagrees") else "Claude’s independent view", expanded=False):
+            if not independent_is_fresh:
+                st.warning("This assessment is stale or undated. Refresh research before treating it as current.")
+            st.caption(f"{independent_read.get('version')} · {independent_stamp} · subjective confidence, not a probability")
+            for side, title in (("entry", "Considering buying"), ("ownership", "Already own it — conditional")):
+                read = independent_read["assessment"][side]
+                st.write(f"{title}: {read['action'].replace('_', ' ').title()}")
+                st.write(read["reasoning"])
+                st.write("What changes the call: " + read["what_changes_call"])
+            st.write("Counterargument: " + independent_read["assessment"]["entry"]["counterargument"])
     claude_action_raw = (claude_call.get("action") or "").upper()
     _claude_to_engine = {
         "ENTER": "enter_now", "WATCH": "watch", "HOLD_OFF": "hold_off",
@@ -22253,6 +22285,19 @@ if view == "backtest":
                 with st.expander("Prior-year technical simulations vs SPY and QQQ"):
                     st.caption("Same present-day stock universe and frozen engine replayed retrospectively. Annual slices carry positions within each replay partition; this is not untouched out-of-sample evidence.")
                     st.dataframe(pd.DataFrame(annual_rows), hide_index=True, use_container_width=True)
+            with st.expander("Claude vs rules — prospective paired measurements"):
+                with backend_layer.db_connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT payload FROM engine_review_status WHERE key='claude_comparison_summary'")
+                        comparison_row = cur.fetchone()
+                paired = comparison_row[0] if comparison_row else {}
+                st.caption("New independent calls eligible from October 29, 2026. These are nonoverlapping checkpoint averages, NOT portfolio returns or sales. Models and rule-code versions stay separate.")
+                if paired.get("groups"):
+                    st.dataframe(pd.DataFrame([{**{k:v for k,v in g.items() if k != 'average_checkpoint_returns_pct'}, **g.get('average_checkpoint_returns_pct',{})} for g in paired['groups']]), hide_index=True, use_container_width=True)
+                    st.caption(paired.get("sizing") or "")
+                else:
+                    st.info("Collecting independent paired calls; no mature results yet.")
+                st.caption("Conditional ownership Hold/Trim/Sell calls are not scored without position and execution context. No automatic winner or rule promotion.")
         except Exception:
             st.warning("Portfolio replay is temporarily unavailable; no substitute results are shown.")
     st.subheader("Forward signal checkpoints — not portfolio returns")

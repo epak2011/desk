@@ -741,9 +741,17 @@ def engine_updates() -> dict[str, Any]:
 def performance() -> dict[str, Any]:
     """Small owner-only report; never downloads the decision-history case blob."""
     import backtest_store
+    with backend_layer.db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT payload FROM engine_review_status WHERE key='claude_comparison_summary'")
+            row = cur.fetchone()
+    comparison = row[0] if row and isinstance(row[0], dict) else {
+        "status": "collecting", "version": "independent-claude-2026.10-v1", "groups": [],
+        "basis": "nonoverlapping_paired_checkpoint_means_not_portfolio_returns", "calendar_sale": False}
     return {"meta": public_contract.response_meta(),
             "historical_replay": backtest_store.read(backend_layer),
             "prior_year_replay": backtest_store.read(backend_layer, series="prior_years"),
+            "claude_comparison": comparison,
             "prospective_trial": research_reliability.experiment_health(),
             "forward_portfolio_performance": {"status": "not_established",
                 "reason": "Signal checkpoints are not a cash-and-position portfolio ledger."}}
