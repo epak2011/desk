@@ -17901,7 +17901,7 @@ if view == "analyze":
         if SHOW_ARCHIVED_TRACKER:
             # Header row: "Decision comparison" + agree/disagree badge
             st.markdown(
-                f'<div class="desk-cmp-header"><span>Decision comparison</span>{disagree_marker}</div>',
+                f'<div class="desk-cmp-header"><span>Legacy rules-constrained comparison</span>{disagree_marker}</div>',
                 unsafe_allow_html=True,
             )
             st.markdown(
@@ -17942,7 +17942,7 @@ if view == "analyze":
                 f'</div>'
                 f'<div class="desk-cmp-divider"></div>'
                 f'<div>'
-                f'<div class="desk-cmp-side-label">Claude <span style="color:var(--color-faint);font-weight:500;">· dissent/context</span></div>'
+                f'<div class="desk-cmp-side-label">Claude <span style="color:var(--color-faint);font-weight:500;">· legacy rules-constrained call</span></div>'
                 f'{claude_html}'
                 f'</div>'
                 f'</div>',

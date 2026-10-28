@@ -16,9 +16,9 @@ def main():
     with backend.db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""SELECT payload FROM engine_review_status
-                WHERE key LIKE 'claude_pair:%' AND payload->>'version'=%s
+                WHERE key LIKE %s AND payload->>'version'=%s
                   AND payload->>'generated_at' >= %s
-                ORDER BY updated_at DESC LIMIT 1000""", (study.VERSION, study.PROTOCOL["eligible_issued_from"]))
+                ORDER BY updated_at DESC LIMIT 1000""", ("claude_pair:%", study.VERSION, study.PROTOCOL["eligible_issued_from"]))
             pairs = [r[0] for r in cur.fetchall()]
     completed_before = datetime.now(ZoneInfo("America/New_York")).date()
     histories, errors = {}, 0
@@ -51,17 +51,24 @@ def main():
                     cur.execute("""INSERT INTO engine_review_status (key,payload,updated_at)
                         VALUES (%s,%s::jsonb,NOW()) ON CONFLICT (key) DO NOTHING""", (key, backend.json_dumps(row)))
             cur.execute("""SELECT payload FROM engine_review_status
-                WHERE key LIKE 'claude_checkpoint:%' AND payload->>'version'=%s
-                ORDER BY updated_at DESC LIMIT 10000""", (study.VERSION,))
+                WHERE key LIKE %s AND payload->>'version'=%s
+                ORDER BY updated_at DESC LIMIT 10000""", ("claude_checkpoint:%", study.VERSION))
             all_rows = [r[0] for r in cur.fetchall()]
+            cur.execute("""SELECT COUNT(*), COUNT(*) FILTER (WHERE payload->>'generated_at'>=%s)
+                FROM engine_review_status WHERE key LIKE %s AND payload->>'version'=%s
+                  AND payload->>'measurement_protocol_sha256'=%s""",
+                (study.PROTOCOL["eligible_issued_from"], "claude_pair:%", study.VERSION, study.PROTOCOL_HASH))
+            captured, eligible = cur.fetchone()
             report = study.summarize(all_rows)
             report.update(tracked_pairs_in_batch=len(pairs), scoring_errors=errors,
+                          captured_pair_count=captured, eligible_pair_count=eligible,
                           pair_batch_limit=1000, checkpoint_summary_limit=10000,
                           coverage_limited=len(pairs) >= 1000 or len(all_rows) >= 10000)
             cur.execute("""INSERT INTO engine_review_status (key,payload,updated_at)
                 VALUES ('claude_comparison_summary',%s::jsonb,NOW())
                 ON CONFLICT (key) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()""", (backend.json_dumps(report),))
     print(json.dumps({"version":study.VERSION,"tracked_pairs_in_batch":len(pairs),
+                      "captured_pair_count":captured,"eligible_pair_count":eligible,
                       "checkpoint_count":len(all_rows),"scoring_errors":errors,
                       "published":True,"calendar_sale":False}, allow_nan=False))
     if errors:
