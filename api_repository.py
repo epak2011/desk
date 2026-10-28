@@ -736,3 +736,14 @@ def calibration(user_id: str, *, include_cases: bool = False, case_offset: int =
 def engine_updates() -> dict[str, Any]:
     """Owner-only governance feed; authorization is enforced by api_service."""
     return engine_updates_payload()
+
+
+def performance() -> dict[str, Any]:
+    """Small owner-only report; never downloads the decision-history case blob."""
+    import backtest_store
+    return {"meta": public_contract.response_meta(),
+            "historical_replay": backtest_store.read(backend_layer),
+            "prior_year_replay": backtest_store.read(backend_layer, series="prior_years"),
+            "prospective_trial": research_reliability.experiment_health(),
+            "forward_portfolio_performance": {"status": "not_established",
+                "reason": "Signal checkpoints are not a cash-and-position portfolio ledger."}}

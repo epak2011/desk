@@ -120,12 +120,25 @@ class ResearchReliabilityTests(TestCase):
         root = Path(rr.__file__).parent
         path = root / "experiments/entry-events-v3.json"
         before = path.read_bytes()
-        result = rr.experiment_health()
+        result = rr.experiment_health(registration="entry-events-v3.json")
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["reason"], "frozen_sources_changed")
         self.assertIn("worker.py", result["changed_sources"])
         self.assertFalse(result["collection_verified"])
         self.assertEqual(before, path.read_bytes())
+
+    def test_new_trial_is_explicit_future_registration_without_rewriting_old_trial(self):
+        from datetime import date
+        import research_protocol
+        root = Path(rr.__file__).parent
+        old = (root / "experiments/entry-events-v3.json").read_bytes()
+        spec = research_protocol.active_registration(root)
+        self.assertEqual(spec["starts_on"], "2026-10-29")
+        self.assertEqual(spec["assumptions"]["benchmarks"], ["SPY", "QQQ"])
+        self.assertEqual(rr.experiment_health(today=date(2026, 10, 28))["status"], "scheduled")
+        self.assertTrue(rr.experiment_health(today=date(2026, 10, 29))["eligible"])
+        self.assertFalse(rr.experiment_health(today=date(2026, 10, 29))["collection_verified"])
+        self.assertEqual(old, (root / "experiments/entry-events-v3.json").read_bytes())
 
     def test_comparison_keeps_same_period_benchmarks_and_open_positions(self):
         result = backtest_store.comparison_summary({"validation_start": "2026-01-02", "sample_end": "2026-10-14",

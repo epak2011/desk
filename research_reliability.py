@@ -57,13 +57,14 @@ def retry_window(row, now=None):
             "error_code": row.get("error_code") or "generation_failed"}
 
 
-def experiment_health(root=None, today=None):
+def experiment_health(root=None, today=None, registration=None):
     """Verify the actual immutable registration; never silently re-register."""
     import research_protocol
     root = Path(root or Path(__file__).parent)
     today = today or datetime.now(timezone.utc).date()
     try:
-        spec = json.loads((root / "experiments/entry-events-v3.json").read_text())
+        spec = (json.loads((root / "experiments" / registration).read_text()) if registration
+                else research_protocol.active_registration(root))
         actual = {name: hashlib.sha256((root / name).read_bytes()).hexdigest()
                   for name in spec.get("source_hashes", {})}
         changed = sorted(name for name, expected in spec.get("source_hashes", {}).items()
@@ -71,7 +72,8 @@ def experiment_health(root=None, today=None):
         ticker = next(iter(spec.get("universe") or []), "")
         status = research_protocol.registration_status(spec, source_hashes=actual,
                                                        ticker=ticker, session=today.isoformat())
-        return {**status, "status": "eligible" if status["eligible"] else "blocked",
+        state = "eligible" if status["eligible"] else "scheduled" if status["reason"] == "before_prospective_start" else "blocked"
+        return {**status, "status": state,
                 "changed_sources": changed, "collection_verified": False,
                 "promotion": "manual_only", "start_date_preserved": True}
     except (OSError, ValueError, TypeError):

@@ -6,6 +6,24 @@ import backend_layer
 
 
 class BacktestStoreTests(unittest.TestCase):
+    def test_missing_qqq_is_unknown_and_excess_is_percentage_points(self):
+        report = {"results": {"validation": {"original": {"total_return_pct": 20},
+                   "benchmarks": {"spy_buy_hold_return_pct": 12}}}}
+        result = backtest_store.comparison_summary(report)
+        self.assertFalse(result["qqq_comparison_available"])
+        self.assertEqual(result["rows"][0]["excess_vs_spy_pp"], 8)
+        self.assertIsNone(result["rows"][0]["excess_vs_qqq_pp"])
+
+    def test_prior_year_publication_cannot_replace_current_ytd_pointer(self):
+        backend = MagicMock()
+        backend.json_dumps.side_effect = json.dumps
+        report = dict(assumptions={"exit_policy": "signal_invalidation"}, versions=["original"],
+                      validation_start="2024-01-02", limitations=[], results={})
+        backtest_store.publish(report, backend, series="prior_years")
+        cursor = backend.db_connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        self.assertIn("'historical_replay_prior_years'", cursor.execute.call_args.args[0])
+        self.assertNotIn("VALUES ('historical_replay',", cursor.execute.call_args.args[0])
+
     def test_old_corrected_report_hides_inactive_calendar_defaults_without_mutation(self):
         backend = MagicMock()
         original = {"assumptions": {"exit_policy": "signal_invalidation", "holding_sessions": 14, "target_r": 2}, "results": {"validation": {"return": 18.12}}}

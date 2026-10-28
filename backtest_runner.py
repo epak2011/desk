@@ -237,7 +237,7 @@ def matched_exposure_benchmark(benchmark, weights, cost_bps):
 
 
 def replay(histories, benchmark, *, start, end, validation_start, assumptions=Assumptions(), compute=None,
-           include_event_study=False):
+           include_event_study=False, comparison_benchmarks=None):
     if compute is None:
         def compute(stock, bench):
             state = tactical.compute(stock, bench)
@@ -247,6 +247,14 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
     if not start < split <= end:
         raise ValueError("Validation start must be later than start and within the sample.")
     dates = benchmark.loc[start:end].index
+    comparisons = {"SPY": benchmark}
+    for symbol, raw in (comparison_benchmarks or {}).items():
+        if symbol == "SPY":
+            raise ValueError("SPY is the canonical signal benchmark, not an override.")
+        frame = validate_bars(raw)
+        if not dates.isin(frame.index).all():
+            raise ValueError(f"{symbol}: missing comparison sessions; do not silently omit data.")
+        comparisons[symbol] = frame
     if len(dates) < 2 or not len(benchmark.loc[benchmark.index < start]) >= 200:
         raise ValueError("Require sample sessions and at least 200 pre-start benchmark bars.")
     versions = VERSIONS if assumptions.exit_policy == "legacy_14_session" else ACTIVE_VERSIONS
@@ -292,6 +300,8 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
               "sample_start": str(start.date()), "sample_end": str(end.date()),
               "universe": sorted(histories),
               "validation_start": str(split.date()), "results": {},
+              "evidence_type": "retrospective_technical_simulation",
+              "benchmark_symbols": sorted(comparisons),
               "limitations": ["Technical-engine replay only; no reconstructed historical AI, news or fundamental inputs.",
                               "Original means this frozen implementation, not an unspecified historical release.",
                               "Daily-bar ordering is unknown; stop-first is conservative. No liquidity/market-impact model.",
@@ -352,18 +362,49 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
                                                                             if assumptions.exit_policy == "signal_invalidation" else None),
                                                    "trades": trade_sets[version],
                                                    "decision_counts": dict(decision_counts[version])}
+            report["results"][label][version]["calendar_year_returns_pct"] = calendar_returns(curve)
         original_return = report["results"][label]["original"]["total_return_pct"]
         for version in versions:
             report["results"][label][version]["return_lift_vs_original_pct"] = (
                 report["results"][label][version]["total_return_pct"] - original_return)
-        spy = float(benchmark.loc[period[-1], "Close"] / benchmark.loc[period[0], "Open"] *
-                    (1 - assumptions.cost_bps_per_side / 10000) / (1 + assumptions.cost_bps_per_side / 10000) - 1) * 100
         basket = pd.concat(passive_curves, axis=1).mean(axis=1)
         report["results"][label]["benchmarks"] = {
-            "cash_return_pct": 0, "spy_buy_hold_return_pct": spy,
+            "cash_return_pct": 0,
             "same_universe_buy_hold_return_pct": float((basket.iloc[-1] - 1) * 100),
-            "same_universe_buy_hold_max_drawdown_pct": float(((basket / basket.cummax().clip(lower=1) - 1) * 100).min())}
+            "same_universe_buy_hold_max_drawdown_pct": float(((basket / basket.cummax().clip(lower=1) - 1) * 100).min()),
+            "same_universe_calendar_year_returns_pct": calendar_returns(basket),
+            "basis": "Adjusted prices, identical sessions and 10-bps default per-side costs; cash earns zero. No tax or financing model.",
+            "qqq_status": "available" if "QQQ" in comparisons else "unavailable_not_supplied"}
+        for symbol, frame in comparisons.items():
+            prices = frame.loc[period]
+            passive = prices.Close / (prices.Open.iloc[0] * (1 + cost))
+            passive.iloc[-1] *= 1 - cost
+            prefix = symbol.lower()
+            report["results"][label]["benchmarks"].update({
+                f"{prefix}_buy_hold_return_pct": float((passive.iloc[-1] - 1) * 100),
+                f"{prefix}_buy_hold_max_drawdown_pct": float(((passive / passive.cummax().clip(lower=1) - 1) * 100).min()),
+                f"{prefix}_calendar_year_returns_pct": calendar_returns(passive)})
+        for version in versions:
+            values = report["results"][label][version]
+            values["benchmark_excess_return_pp"] = {
+                symbol: values["total_return_pct"] - report["results"][label]["benchmarks"][f"{symbol.lower()}_buy_hold_return_pct"]
+                for symbol in comparisons}
     return report
+
+
+def calendar_returns(curve):
+    """Actual calendar slices of one continuous ledger; no hidden Jan-1 reset.
+
+    The first slice starts with one unit of capital, later slices at the prior
+    year-end marked equity. Partial years are explicitly dated, not annualized.
+    """
+    result, previous = {}, 1.0
+    for year, values in curve.groupby(curve.index.year):
+        result[str(year)] = {"return_pct": float((values.iloc[-1] / previous - 1) * 100),
+                             "start": str(values.index[0].date()), "end": str(values.index[-1].date()),
+                             "basis": "continuous_ledger_prior_year_end_equity"}
+        previous = float(values.iloc[-1])
+    return result
 
 
 def main():
@@ -390,11 +431,12 @@ def main():
     report = replay(histories, read("SPY"), start=args.start, end=args.end,
                     validation_start=args.validation_start, assumptions=Assumptions(
                         cost_bps_per_side=args.cost_bps, exit_policy=args.exit_policy),
-                    include_event_study=args.include_event_study)
+                    include_event_study=args.include_event_study,
+                    comparison_benchmarks={"QQQ": read("QQQ")})
     # Sources were frozen before computation, not re-read after a long run.
     report["runtime"] = {"pandas": pd.__version__}
     report["input_sha256"] = {t: hashlib.sha256((args.data_dir / f"{t}.csv").read_bytes()).hexdigest()
-                              for t in sorted(set(args.tickers) | {"SPY"})}
+                              for t in sorted(set(args.tickers) | {"SPY", "QQQ"})}
     args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     print(f"Saved research-only replay: {args.output}")
 

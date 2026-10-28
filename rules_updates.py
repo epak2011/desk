@@ -13,6 +13,19 @@ ENGINE_UPDATES_CONTRACT_VERSION = 1
 
 RULES_UPDATES = (
     {
+        "date": "2026-10-28",
+        "title": "SPY/QQQ portfolio comparisons and a new prospective registration",
+        "status": "Implemented; no trading-rule promotion or calendar sale",
+        "summary": "Separate portfolio simulations, forward checkpoints and prospective trial eligibility; preserve the blocked older trial.",
+        "changes": (
+            "Require QQQ as well as SPY in new CLI replays; report same-period returns, drawdowns and excess return in percentage points.",
+            "Store prior-year replay independently of the current YTD report; expose an owner-only performance API and Streamlit comparison table.",
+            "Add dated calendar slices from a continuous ledger; unavailable old QQQ comparisons remain unknown, not zero.",
+            "Select an explicit new entry-events-v4 registration starting October 29, 2026; retain v1/v2/v3 files and observations unchanged.",
+        ),
+        "validation": "Regression tests cover benchmark alignment, unknown QQQ data, calendar-slice capital continuity, owner authorization, separate publication pointers and immutable prior trials. Technical replays do not establish live discretionary PM returns or eliminate selection bias.",
+    },
+    {
         "date": "2026-10-27",
         "title": "Five reliability upgrades: research, retry budgets, trial health, evidence and freshness",
         "status": "Implemented; trading rules and frozen registrations unchanged",

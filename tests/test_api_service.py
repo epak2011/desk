@@ -25,6 +25,15 @@ class ApiServiceTests(unittest.TestCase):
         self.assertTrue(response.headers.get("X-Request-ID"))
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
 
+    def test_performance_report_requires_owner(self):
+        self.assertEqual(self.client.get("/v1/operator/performance").status_code, 401)
+        api_service.app.dependency_overrides[api_service.current_identity] = lambda: VerifiedIdentity("user", "other@example.invalid", "Demo")
+        with mock.patch.dict(api_service.os.environ, {"TRADING_DESK_OWNER_EMAIL": "owner@example.invalid"}):
+            self.assertEqual(self.client.get("/v1/operator/performance").status_code, 403)
+            api_service.app.dependency_overrides[api_service.current_identity] = lambda: VerifiedIdentity("owner", "owner@example.invalid", "Owner")
+            with mock.patch.object(api_service.api_repository, "performance", return_value={"historical_replay": None}):
+                self.assertEqual(self.client.get("/v1/operator/performance").status_code, 200)
+
     def test_public_decision_maps_not_found_to_contract_error(self):
         with mock.patch.object(
             api_service.api_repository,
