@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--validation-start", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--series", choices=["current", "prior_years"], default="current")
     parser.add_argument("--include-event-study", action="store_true")
     parser.add_argument("--study", choices=["standard", "event"], default="standard")
     parser.add_argument("--exit-policy", choices=["signal_invalidation", "legacy_14_session"],
@@ -34,7 +35,7 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=False)
     data = args.output_dir / "data"
     data.mkdir()
-    for ticker in sorted(set(tickers) | {"SPY"}):
+    for ticker in sorted(set(tickers) | {"SPY", "QQQ"}):
         frame = yf.download(ticker, start=str(start - timedelta(days=450)),
                             end=str(end + timedelta(days=1)), auto_adjust=True,
                             progress=False, threads=False)
@@ -53,7 +54,7 @@ def main():
     if args.publish:
         import backend_layer
         import backtest_store
-        backtest_store.publish(json.loads(output.read_text()), backend_layer)
+        backtest_store.publish(json.loads(output.read_text()), backend_layer, series=args.series)
         if args.exit_policy == "legacy_14_session":
             print("Archived legacy forced-sale experiment only; active report and live decisions unchanged.")
         else:

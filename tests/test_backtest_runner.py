@@ -1,6 +1,6 @@
 import unittest
 import pandas as pd
-from backtest_runner import Assumptions, simulate, replay, policy, validate_bars
+from backtest_runner import Assumptions, simulate, replay, policy, validate_bars, calendar_returns
 
 
 def bars(n=8, start="2026-01-01"):
@@ -15,6 +15,29 @@ def enter(**extra):
 
 
 class ReplayTests(unittest.TestCase):
+    def test_qqq_is_independent_same_period_benchmark_not_signal_input(self):
+        frame = bars(240)
+        qqq = frame.copy()
+        qqq.loc[qqq.index[220]:, ["Open", "High", "Low", "Close"]] = [120, 121, 119, 120]
+        report = replay({"TEST": frame}, frame, start=frame.index[210], end=frame.index[230],
+                        validation_start=frame.index[220], comparison_benchmarks={"QQQ": qqq},
+                        compute=lambda stock, bench: {"action": "hold_off"})
+        validation = report["results"]["validation"]
+        self.assertEqual(validation["benchmarks"]["qqq_status"], "available")
+        self.assertAlmostEqual(validation["original"]["benchmark_excess_return_pp"]["QQQ"],
+                               -validation["benchmarks"]["qqq_buy_hold_return_pct"])
+        self.assertEqual(report["evidence_type"], "retrospective_technical_simulation")
+        with self.assertRaises(ValueError):
+            replay({"TEST": frame}, frame, start=frame.index[210], end=frame.index[230],
+                   validation_start=frame.index[220], comparison_benchmarks={"QQQ": qqq.drop(qqq.index[225])})
+
+    def test_calendar_slices_carry_capital_and_do_not_annualize_partial_year(self):
+        curve = pd.Series([1.1, 1.2, 1.32], index=pd.to_datetime(["2025-12-30", "2025-12-31", "2026-01-02"]))
+        result = calendar_returns(curve)
+        self.assertAlmostEqual(result["2025"]["return_pct"], 20)
+        self.assertAlmostEqual(result["2026"]["return_pct"], 10)
+        self.assertEqual(result["2026"]["end"], "2026-01-02")
+
     def test_no_same_day_fill_and_costs_both_sides(self):
         frame = bars()
         frame.loc[frame.index[0], ["High", "Close"]] = [150, 150]

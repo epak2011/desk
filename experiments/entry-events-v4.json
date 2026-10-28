@@ -1,0 +1,42 @@
+{
+  "assumptions": {
+    "arms": [
+      "event_early",
+      "event_confirmed"
+    ],
+    "benchmarks": [
+      "SPY",
+      "QQQ"
+    ],
+    "confirmation_closes_after_event": 2,
+    "cost_bps_per_side": 10,
+    "exit_policy": "signal_invalidation",
+    "scope": "forward paired entry-event study; not a verified portfolio ledger",
+    "sizing": "equal-capital sleeve research only; discretionary PM choices not inferred",
+    "supersedes": "2a740c373cc6219550dedf3817ad7a259032a7e590c35ab39975808643d95084"
+  },
+  "experiment_id": "276984a7f6ecc8edca585792272f43950388ef879f29e7f391e9f395433db679",
+  "promotion": "manual_only",
+  "protocol": "event-study-2026.10-v2",
+  "registered_at": "2026-10-28T02:38:48.333663+00:00",
+  "source_hashes": {
+    "decision_contract.py": "23d9108b0cb0629251fdf74fcda08e32fda51cb0bf4ffcfb553f488d412ce14c",
+    "engine_candidates.py": "e544219299106895a0c6066e21b1291de43a73a6886a7d945b004be0bea6e8ae",
+    "position_policy.py": "22c36017a8863ed5a06cbda8bb533fd8452bf7576d143c44b553220272e374d9",
+    "research_event_store.py": "99c094d645a70296eb61465fba26072f10bd734e7b8046a0026bdb93bb382846",
+    "research_protocol.py": "25816fe231e8def2b9bc15a097c99b476c8a8bf6862d4f6466f135d3e8f3d7e2",
+    "tactical.py": "2e7e9edf9e5183badae71416e46427688b3892a9121bc878d1dab1f0aa18de47",
+    "worker.py": "c9ad4644face1d0ebed16b46f71fc68d60b319ef4b85dee2637df61301bf94ad"
+  },
+  "starts_on": "2026-10-29",
+  "universe": [
+    "AMD",
+    "AVGO",
+    "COIN",
+    "CRDO",
+    "DASH",
+    "NVDA",
+    "PLTR",
+    "TER"
+  ]
+}

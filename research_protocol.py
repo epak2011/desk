@@ -8,8 +8,19 @@ from datetime import date, datetime, timezone
 import hashlib
 import json
 import math
+from pathlib import Path
 
 VERSION = "event-study-2026.10-v2"
+
+
+def active_registration(root=None):
+    """An explicit pointer selects an append-only registration, never rewrites it."""
+    root = Path(root or Path(__file__).parent)
+    pointer = json.loads((root / "experiments/active.json").read_text())
+    name = pointer["registration"]
+    if not isinstance(name, str) or Path(name).name != name or not name.endswith(".json"):
+        raise ValueError("Invalid experiment registration path.")
+    return json.loads((root / "experiments" / name).read_text())
 
 
 def identity(value):

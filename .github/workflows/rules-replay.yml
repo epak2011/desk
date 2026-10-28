@@ -29,6 +29,13 @@ on:
         description: Run all tests without downloading data or replacing the replay summary
         type: boolean
         default: false
+      series:
+        description: Current comparison or separate prior-year archive (never replaces current YTD)
+        type: choice
+        options:
+          - current
+          - prior_years
+        default: current
 permissions:
   contents: read
 concurrency:
@@ -57,6 +64,7 @@ jobs:
           # archive-only through the CLI, not selectable in this workflow.
           REPLAY_EXIT_POLICY: signal_invalidation
           REPLAY_STUDY: ${{ inputs.study || 'standard' }}
+          REPLAY_SERIES: ${{ inputs.series || 'current' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: >-
           python scripts/run_rules_replay.py --tickers "$REPLAY_TICKERS"
@@ -64,6 +72,7 @@ jobs:
           --validation-start "$REPLAY_VALIDATION"
           --exit-policy "$REPLAY_EXIT_POLICY"
           --study "$REPLAY_STUDY"
+          --series "$REPLAY_SERIES"
           --output-dir replay-artifact --publish
       - uses: actions/upload-artifact@v4
         if: ${{ always() && inputs.tests_only != true }}

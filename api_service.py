@@ -266,3 +266,8 @@ def calibration(request: Request, identity: Identity):
 @app.get("/v1/operator/engine-updates")
 def engine_updates(request: Request, identity: OwnerIdentity):
     return _run(request, api_repository.engine_updates)
+
+
+@app.get("/v1/operator/performance")
+def performance(request: Request, identity: OwnerIdentity):
+    return _run(request, api_repository.performance)

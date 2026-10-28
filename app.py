@@ -22220,6 +22220,42 @@ if view == "backtest":
         '</div>',
         unsafe_allow_html=True,
     )
+    if _is_owner_account():
+        import backtest_store
+        st.subheader("Portfolio simulation vs SPY and QQQ")
+        st.caption("Historical technical-engine simulation, not live account returns. No forced calendar sales. Signal checkpoints below are separate evidence.")
+        try:
+            replay_report = backtest_store.read(backend_layer)
+            comparison = (replay_report or {}).get("comparison_summary") or {}
+            if not comparison:
+                st.info("No portfolio replay has been published yet.")
+            else:
+                st.caption(f"{comparison.get('period_start')} through {comparison.get('period_end')} · {', '.join(comparison.get('universe') or [])}")
+                comparison_rows = [{"Strategy": "Current technical control" if row["version"] == "original" else row["version"] + " (shadow)", "Return %": row.get("return_pct"),
+                                    "Max drawdown %": row.get("max_drawdown_pct"),
+                                    "vs SPY (pp)": row.get("excess_vs_spy_pp"),
+                                    "vs QQQ (pp)": row.get("excess_vs_qqq_pp"),
+                                    "Exposure %": row.get("exposure_pct")}
+                                   for row in comparison.get("rows") or []]
+                for symbol, prefix in (("SPY buy & hold", "spy"), ("QQQ buy & hold", "qqq"), ("Same-stock buy & hold", "same_universe")):
+                    benchmarks = comparison.get("benchmarks") or {}
+                    comparison_rows.append({"Strategy": symbol, "Return %": benchmarks.get(f"{prefix}_buy_hold_return_pct"),
+                                            "Max drawdown %": benchmarks.get(f"{prefix}_buy_hold_max_drawdown_pct")})
+                st.dataframe(pd.DataFrame(comparison_rows), hide_index=True, use_container_width=True)
+                if not comparison.get("qqq_comparison_available"):
+                    st.warning("QQQ was not included in this archived run; its comparison is unavailable, not zero.")
+                with st.expander("Simulation assumptions and limitations"):
+                    for limitation in (replay_report or {}).get("limitations") or []:
+                        st.write(limitation)
+            history_report = backtest_store.read(backend_layer, series="prior_years")
+            annual_rows = (history_report or {}).get("calendar_comparison") or []
+            if annual_rows:
+                with st.expander("Prior-year technical simulations vs SPY and QQQ"):
+                    st.caption("Same present-day stock universe and frozen engine replayed retrospectively. Annual slices carry positions within each replay partition; this is not untouched out-of-sample evidence.")
+                    st.dataframe(pd.DataFrame(annual_rows), hide_index=True, use_container_width=True)
+        except Exception:
+            st.warning("Portfolio replay is temporarily unavailable; no substitute results are shown.")
+    st.subheader("Forward signal checkpoints — not portfolio returns")
     render_rules_performance_dashboard()
 
 
