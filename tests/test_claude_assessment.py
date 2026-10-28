@@ -75,22 +75,23 @@ class IndependentTests(unittest.TestCase):
         self.assertIn("prompt_sha256",json.loads(args[1]))
 
     def test_checkpoint_dates_costs_cash_and_no_sale(self):
-        p=pair();p.update(ticker="TEST",generated_at="2026-10-01T20:01:00+00:00")
-        frame=pd.DataFrame({"Open":100.,"Close":110.},index=pd.bdate_range("2026-10-01",periods=35))
-        rows=c.score_checkpoints(p,{s:frame for s in ("TEST","SPY","QQQ")},completed_before=date(2026,12,1))
+        p=pair();p.update(ticker="TEST",generated_at="2026-10-29T20:01:00+00:00")
+        frame=pd.DataFrame({"Open":100.,"Close":110.},index=pd.bdate_range("2026-10-29",periods=35))
+        rows=c.score_checkpoints(p,{s:frame for s in ("TEST","SPY","QQQ")},completed_before=date(2027,1,1))
         self.assertEqual([r["horizon_sessions"] for r in rows],[5,14,30])
-        self.assertEqual(rows[0]["start"],"2026-10-02")
+        self.assertEqual(rows[0]["start"],"2026-10-30")
         self.assertAlmostEqual(rows[0]["claude_return_pct"],(110*.999/(100*1.001)-1)*100)
         self.assertEqual(rows[0]["rules_return_pct"],0)
         self.assertFalse(rows[1]["calendar_sale"])
         self.assertFalse(c.summarize(rows)["ownership_scored"])
         missing=frame.drop(frame.index[3])
-        self.assertEqual(c.score_checkpoints(p,{"TEST":frame,"SPY":frame,"QQQ":missing},completed_before=date(2026,12,1)),[])
+        self.assertEqual(c.score_checkpoints(p,{"TEST":frame,"SPY":frame,"QQQ":missing},completed_before=date(2027,1,1)),[])
 
     def test_nonoverlap_all_calls_disagreements_and_model_strata(self):
         row={"assessment_id":"a","version":c.VERSION,"model":"m","rule_fingerprint":"r","prompt_template_sha256":"p","ticker":"TEST","horizon_sessions":5,"start":"2026-10-01","end":"2026-10-07","disagrees":False,"claude_return_pct":10,"rules_return_pct":10,"spy_return_pct":2,"qqq_return_pct":3}
         overlap={**row,"assessment_id":"b","start":"2026-10-02","disagrees":True}
-        report=c.summarize([row,overlap,{**row,"model":"m2"}])
+        rows=[{**r,"measurement_protocol_sha256":c.PROTOCOL_HASH} for r in (row,overlap,{**row,"model":"m2"})]
+        report=c.summarize(rows)
         self.assertEqual(report["groups"][0]["sample_count"],1)
         self.assertEqual(report["groups"][1]["sample_count"],0)
         self.assertEqual({r["model"] for r in report["groups"]},{"m","m2"})

@@ -17,8 +17,8 @@ def main():
         with conn.cursor() as cur:
             cur.execute("""SELECT payload FROM engine_review_status
                 WHERE key LIKE 'claude_pair:%' AND payload->>'version'=%s
-                  AND payload->>'generated_at' >= '2026-10-29'
-                ORDER BY updated_at DESC LIMIT 1000""", (study.VERSION,))
+                  AND payload->>'generated_at' >= %s
+                ORDER BY updated_at DESC LIMIT 1000""", (study.VERSION, study.PROTOCOL["eligible_issued_from"]))
             pairs = [r[0] for r in cur.fetchall()]
     completed_before = datetime.now(ZoneInfo("America/New_York")).date()
     histories, errors = {}, 0
@@ -38,6 +38,9 @@ def main():
     with backend.db_connection() as conn:
         with conn.cursor() as cur:
             for pair in pairs:
+                if pair.get("measurement_protocol_sha256") != study.PROTOCOL_HASH:
+                    errors += 1
+                    continue
                 try:
                     rows = study.score_checkpoints(pair, histories, completed_before=completed_before)
                 except (KeyError, ValueError, TypeError):

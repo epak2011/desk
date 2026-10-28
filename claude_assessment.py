@@ -3,11 +3,16 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import math
+from pathlib import Path
 
 VERSION = "independent-claude-2026.10-v1"
 ENTRY = {"BUY_NOW", "START_SMALL", "WATCH", "AVOID"}
 OWNERSHIP = {"ADD", "HOLD", "TRIM", "SELL"}
 RULE_ENTRY = {"BUY_NOW", "ENTER", "ENTER_NOW", "ACCUMULATE", "WATCH", "HOLD_OFF", "AVOID"}
+PROTOCOL = json.loads((Path(__file__).parent / "experiments/claude-comparison-v1.json").read_text())
+PROTOCOL_HASH = hashlib.sha256(json.dumps(PROTOCOL, sort_keys=True).encode()).hexdigest()
+if PROTOCOL["version"] != VERSION or PROTOCOL["calendar_sale"] is not False:
+    raise ValueError("Independent comparison protocol mismatch.")
 
 
 def evidence(ticker, state, meta, now=None):
@@ -46,12 +51,12 @@ def validate(value):
         raise ValueError("Assessment must be an object.")
     for key, actions in (("entry", ENTRY), ("ownership", OWNERSHIP)):
         row = value.get(key)
-        if not isinstance(row, dict) or row.get("action") not in actions:
+        if not isinstance(row, dict) or not isinstance(row.get("action"), str) or row["action"] not in actions:
             raise ValueError("Invalid independent action.")
         for field in ("reasoning", "what_changes_call"):
             if not isinstance(row.get(field), str) or not row[field].strip():
                 raise ValueError("Missing independent reasoning.")
-    if not str(value["entry"].get("counterargument") or "").strip():
+    if not isinstance(value["entry"].get("counterargument"), str) or not value["entry"]["counterargument"].strip():
         raise ValueError("Missing counterargument.")
     confidence = value.get("confidence")
     if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not math.isfinite(confidence) or not 1 <= confidence <= 10:
@@ -68,6 +73,7 @@ def freeze(value, inputs, *, model, rule_action, rule_fingerprint=None):
         "generated_at": datetime.now(timezone.utc).isoformat(), "model": model,
         "prompt_sha256": hashlib.sha256(prompt(inputs).encode()).hexdigest(),
         "prompt_template_sha256": hashlib.sha256(prompt({}).encode()).hexdigest(),
+        "measurement_protocol_sha256": PROTOCOL_HASH,
         "inputs": inputs, "assessment": value,
         "paired_rule": {"action": rule_action, "code_fingerprint": rule_fingerprint},
         "ownership_conditional": True}
@@ -78,9 +84,15 @@ def freeze(value, inputs, *, model, rule_action, rule_fingerprint=None):
 def score_checkpoints(pair, histories, *, completed_before):
     """Paired new-buyer measurements, not sales or a portfolio-return series."""
     from zoneinfo import ZoneInfo
+    if pair.get("measurement_protocol_sha256") != PROTOCOL_HASH:
+        return []
     if str((pair.get("paired_rule") or {}).get("action") or "").upper() not in RULE_ENTRY:
         return []
     issued = datetime.fromisoformat(pair["generated_at"].replace("Z", "+00:00"))
+    if issued.tzinfo is None:
+        raise ValueError("Require timezone-aware issuance.")
+    if issued.astimezone(timezone.utc).date().isoformat() < PROTOCOL["eligible_issued_from"]:
+        return []
     issued_date = issued.astimezone(ZoneInfo("America/New_York")).date()
     ticker = pair["ticker"]
     frames = {}
@@ -92,7 +104,7 @@ def score_checkpoints(pair, histories, *, completed_before):
         frames[symbol] = frame
     stock = frames["SPY"]  # Exchange-session clock; missing stock bars cannot lengthen a horizon.
     result = []
-    for horizon in (5, 14, 30):
+    for horizon in PROTOCOL["checkpoints_sessions"]:
         if len(stock) < horizon:
             continue
         dates = stock.index[:horizon]
@@ -103,7 +115,8 @@ def score_checkpoints(pair, histories, *, completed_before):
             opening, closing = float(frame.loc[dates[0], "Open"]), float(frame.loc[dates[-1], "Close"])
             if not all(math.isfinite(x) and x > 0 for x in (opening, closing)):
                 raise ValueError("Invalid checkpoint prices.")
-            returns[symbol] = (closing * .999 / (opening * 1.001) - 1) * 100
+            cost = PROTOCOL["cost_bps_per_side"] / 10000
+            returns[symbol] = (closing * (1-cost) / (opening * (1+cost)) - 1) * 100
         ca = pair["assessment"]["entry"]["action"]
         ra = pair["paired_rule"]["action"]
         result.append({"assessment_id": pair["assessment_id"], "version": pair["version"],
@@ -118,8 +131,9 @@ def score_checkpoints(pair, histories, *, completed_before):
             "basis": "fixed_fraction_new_buyer_checkpoint_not_portfolio_return_or_sale",
             "model": pair.get("model"), "rule_fingerprint": pair["paired_rule"].get("code_fingerprint"),
             "prompt_template_sha256": pair.get("prompt_template_sha256"),
+            "measurement_protocol_sha256": PROTOCOL_HASH,
             "prices": {symbol: {"entry_open": float(frame.loc[dates[0], "Open"]), "checkpoint_close": float(frame.loc[dates[-1], "Close"])} for symbol, frame in frames.items()},
-            "cost_bps_per_side": 10, "calendar_sale": False})
+            "cost_bps_per_side": PROTOCOL["cost_bps_per_side"], "calendar_sale": False})
     return result
 
 
@@ -127,7 +141,7 @@ def summarize(rows):
     """Nonoverlapping per-ticker checkpoints; all pairs plus disagreements."""
     strata = {}
     for row in rows:
-        if row.get("version") == VERSION and row.get("model") and row.get("rule_fingerprint") and row.get("prompt_template_sha256"):
+        if row.get("version") == VERSION and row.get("measurement_protocol_sha256") == PROTOCOL_HASH and row.get("model") and row.get("rule_fingerprint") and row.get("prompt_template_sha256"):
             strata.setdefault((row["model"], row["rule_fingerprint"], row["prompt_template_sha256"]), []).append(row)
     groups = []
     for (model, fingerprint, template), subset in sorted(strata.items()):
@@ -135,7 +149,7 @@ def summarize(rows):
             groups.append({**group, "model": model, "rule_fingerprint": fingerprint, "prompt_template_sha256": template})
     return {"version": VERSION, "generated_at": datetime.now(timezone.utc).isoformat(),
         "groups": groups, "basis": "nonoverlapping_paired_checkpoint_means_not_portfolio_returns",
-        "eligible_issued_from": "2026-10-29",
+        "eligible_issued_from": PROTOCOL["eligible_issued_from"], "measurement_protocol_sha256": PROTOCOL_HASH,
         "automatic_winner_or_promotion": False,
         "sizing": "Research only: Buy/Enter 100%, Start small/Accumulate 25%, other entry calls cash at 0% interest. Not live sizing.",
         "ownership_scored": False, "ownership_caveat": "Conditional Add/Hold/Trim/Sell is not scored without actual position/execution context.",
@@ -162,8 +176,7 @@ def _summary_groups(rows):
 
 
 def entry_exposure(action):
-    return {"BUY_NOW": 1.0, "ENTER": 1.0, "ENTER_NOW": 1.0,
-            "START_SMALL": .25, "ACCUMULATE": .25}.get(str(action or "").upper(), 0.0)
+    return PROTOCOL["entry_sleeve_fractions"].get(str(action or "").upper(), 0.0)
 
 
 def display(value, legacy, *, rule_action, blocked=False):
