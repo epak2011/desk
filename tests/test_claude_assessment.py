@@ -47,6 +47,12 @@ class IndependentTests(unittest.TestCase):
             self.assertNotIn(secret,text)
         self.assertIn("0.10 means 10%",text)
 
+    def test_debt_equity_units_are_not_a_thirty_three_times_leverage_claim(self):
+        inputs=c.evidence("TEST",{}, {"debt_to_equity":33.276})
+        self.assertEqual(inputs["business"]["debt_to_equity_pct"],33.276)
+        self.assertNotIn("debt_to_equity",inputs["business"])
+        self.assertIn("0.33276",inputs["units"]["debt_to_equity_pct"])
+
     def test_ready_legacy_stale_and_unknown_rule_badges(self):
         p=pair()
         self.assertTrue(c.display(p,{},rule_action="watch")["disagrees"])
