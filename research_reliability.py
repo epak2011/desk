@@ -29,7 +29,7 @@ def failure_code(source, issues=()):
         ("provider_auth", ("401", "403", "authentication", "invalid api key", "api_key is not configured")),
         ("provider_quota", ("429", "rate limit", "credit balance", "billing", "quota")),
         ("provider_timeout", ("timeout", "timed out")),
-        ("provider_model", ("model_not_found", "model not found", "not_found_error", "model is not available")),
+        ("provider_model", ("model_not_found", "model not found", "not_found_error", "model is not available", "invalid model", "not a valid model")),
         ("response_truncated", ("research_response_truncated", "max_tokens")),
         ("invalid_json", ("research_invalid_json", "jsondecode", "expecting value", "unterminated", "expecting ','", "expecting property")),
         ("identity_rejected", ("identity guard",)),

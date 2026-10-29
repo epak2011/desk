@@ -39,6 +39,7 @@ CLAUDE_FAST_MODEL_FALLBACKS = [
     "claude-haiku-4-5-20251001",
     CLAUDE_MODEL,
     "claude-sonnet-5",
+    "claude-sonnet-4-6",
 ]
 CLAUDE_PM_TIMEOUT_SECONDS = max(12, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "24")))
 CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(24, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "45")))
@@ -83,7 +84,8 @@ def _is_model_not_found(exc):
         return False
     return any(
         phrase in text
-        for phrase in ("not found", "deprecat", "does not exist", "unknown model", "retired")
+        for phrase in ("not found", "deprecat", "does not exist", "unknown model", "retired",
+                       "not available", "not supported", "invalid model", "not a valid model")
     )
 
 
@@ -1303,6 +1305,8 @@ Previous response:
                     "exception_type": type(exc).__name__,
                     "error_code": failure_code(str(exc)),
                     "validation_issues": issues if "issues" in locals() else [],
+                    "request_markers": [key for key in ("model", "temperature", "max_tokens", "thinking", "credit", "tool")
+                                        if key in str(exc).lower()],
                 }
                 return failed
 

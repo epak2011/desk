@@ -122,6 +122,13 @@ class FastModelTests(unittest.TestCase):
             )
         ))
 
+    def test_unavailable_model_400_uses_fallback(self):
+        self.assertTrue(pm_view._is_model_not_found(RuntimeError(
+            "model: unsupported-model is not available for this account")))
+        self.assertTrue(pm_view._is_model_not_found(RuntimeError(
+            "model: unsupported-model is not a valid model ID")))
+        self.assertIn("claude-sonnet-4-6", pm_view.CLAUDE_FAST_MODEL_FALLBACKS)
+
     def test_dossier_contract_rejects_missing_required_sections(self):
         payload = self._complete_dossier()
         payload["bullets"]["risks"] = ["Only one risk"]
