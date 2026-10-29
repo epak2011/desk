@@ -132,6 +132,50 @@ def decision(ticker: str) -> dict[str, Any]:
     )
 
 
+def position_assessment(ticker: str, user_id: str) -> dict[str, Any]:
+    """Private saved-holding read; never attach position details to public decisions."""
+    from position_management import position_management_read
+    ticker = normalize_ticker(ticker)
+    workspace_state = _workspace_state(user_id)
+    holdings = workspace_state.get("holdings") or {}
+    holding = holdings.get(ticker)
+    result = {"contract_version": 2, "ticker": ticker, "scope": "existing_long_position",
+              "status": "needs_position", "assessment": None, "calendar_sale": False}
+    if not isinstance(holding, dict):
+        return result
+    rule = (backend_layer.read_json_table("rule_outputs", ticker) or {}).get(ticker) or {}
+    market = (backend_layer.read_json_table("market_snapshots", ticker) or {}).get(ticker) or {}
+    receipt = rule.get("decision_receipt") or {}
+    trust = receipt.get("data_trust") or {}
+    if not receipt or trust.get("executable") is False or trust.get("freshness") in {"stale", "expired"}:
+        result["status"] = "refresh_required"
+        return result
+    snapshot = receipt.get("input_snapshot") or {}
+    inputs = snapshot.get("inputs") or {}
+    try:
+        issued = datetime.fromisoformat(str(receipt.get("captured_at") or "").replace("Z", "+00:00"))
+        age = (datetime.now(timezone.utc) - issued).total_seconds()
+    except (ValueError, TypeError):
+        age = -1
+    if not 0 <= age <= 96 * 3600:
+        result["status"] = "refresh_required"
+        return result
+    state = {**market, **rule, **{k: v for k, v in inputs.items() if v is not None}}
+    state["action"] = receipt.get("action") or rule.get("action")
+    state["price"] = receipt.get("price") or state.get("price")
+    required = ("price", "ma50", "ma200")
+    from position_policy import finite_number
+    if any(finite_number(state.get(key)) is None or finite_number(state.get(key)) <= 0 for key in required):
+        result["status"] = "refresh_required"
+        return result
+    read = position_management_read(holding, state)
+    result.update(status="ready" if read else "needs_position", assessment=read,
+                  generated_at=receipt.get("captured_at"), entry_action=state["action"],
+                  missing_inputs=[key for key in ("stop_price", "target1_price") if
+                                  finite_number(holding.get(key)) is None])
+    return result
+
+
 def request_research(ticker: str, user_id: str) -> dict[str, Any]:
     """Queue a worker-generated report, preserving saved research meanwhile.
 
