@@ -1308,6 +1308,13 @@ Previous response:
                     "request_markers": [key for key in ("model", "temperature", "max_tokens", "thinking", "credit", "tool")
                                         if key in str(exc).lower()],
                 }
+                # Read only the provider's error-message field, never prompts,
+                # response headers, credentials or the whole request object.
+                body = getattr(exc, "body", None)
+                error = body.get("error", body) if isinstance(body, dict) else {}
+                provider_message = str(error.get("message") or "") if isinstance(error, dict) else ""
+                provider_message = re.sub(r"sk-[A-Za-z0-9_-]+|Bearer\s+\S+|[A-Za-z0-9_-]{48,}", "[redacted]", provider_message)
+                failed["_generation_diagnostics"]["provider_message"] = provider_message[:400]
                 return failed
 
         prompt = f"""You are a senior portfolio manager and trader. Generate THREE pieces of analysis on {ticker}{f' ({company_name})' if company_name else ''}.
