@@ -406,6 +406,8 @@ def analyze_page_payload(
         rule.get("matrix_reason"), receipt.get("primary_risk"),
     )
     change_text = first(invalidation.get("text"), entry_text, "Reassess when the technical structure changes.")
+    if trigger_display["status"] == "undefined" and action in {"hold_off", "avoid", "watch"}:
+        change_text = "A new entry setup must clear the active blockers; the current quote is not a buy trigger."
 
     setup_breakdown = rule.get("setup_score_breakdown") if isinstance(rule.get("setup_score_breakdown"), Mapping) else {}
     setup_components = []
@@ -546,6 +548,7 @@ def analyze_page_payload(
         "why_action": {"title": f"Why {action_labels.get(action, action).upper()}", "items": why},
         "call_changes": changes,
         "execution_plan": {
+            "entry_label": "Reference price — not an entry signal" if trigger_display["status"] == "undefined" else "Entry",
             "entry": number(first(rule.get("entry"), trigger.get("price"))),
             "stop": number(first(rule.get("stop"), invalidation.get("price"))),
             "target_1": number(rule.get("t1")), "target_2": number(rule.get("t2")),
