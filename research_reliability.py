@@ -14,6 +14,15 @@ def number_label(value, digits=2, prefix="", suffix=""):
         return "unavailable"
 
 
+def growth_percent_label(value):
+    """Provider growth values are fractions; preserve zero and reject nonfinite."""
+    try:
+        number = float(value)
+        return f"{number * 100:+.2f}%" if math.isfinite(number) else "unavailable"
+    except (TypeError, ValueError):
+        return "unavailable"
+
+
 def failure_code(source, issues=()):
     text = str(source or "").lower()
     for code, markers in (

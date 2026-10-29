@@ -326,6 +326,10 @@ def decision_payload(
     input_snapshot = receipt.get("input_snapshot") or {}
     executable = bool(trust.get("executable", True)) if isinstance(trust, Mapping) else True
     decision = _public_receipt(receipt)
+    from trigger_presentation import entry_trigger_display
+    display = entry_trigger_display(receipt)
+    if display["status"] == "undefined":
+        decision["trigger"] = {"text": display["text"], "price": None}
     data_as_of = (
         trust.get("as_of") if isinstance(trust, Mapping) else None
     ) or (
@@ -393,6 +397,10 @@ def analyze_page_payload(
     if entry_size in (None, "") and wait_action:
         entry_size = "0% — wait for an actionable call"
     entry_text = first(trigger.get("text"), rule.get("trigger_summary"), rule.get("entry_status"))
+    from trigger_presentation import entry_trigger_display
+    trigger_display = entry_trigger_display(receipt, rule)
+    if trigger_display["status"] in {"undefined", "level_reached"}:
+        entry_text = trigger_display["text"]
     constraint = first(
         rule.get("extension_overlay_reason"), rule.get("reward_risk_gate_reason"),
         rule.get("matrix_reason"), receipt.get("primary_risk"),
@@ -418,7 +426,7 @@ def analyze_page_payload(
     if constraint and str(constraint) not in why:
         why.append(str(constraint))
     changes = []
-    if entry_text:
+    if entry_text and trigger_display["status"] != "undefined":
         changes.append({"kind": "upgrade", "text": str(entry_text)})
     if invalidation.get("text"):
         changes.append({"kind": "invalidate", "text": str(invalidation.get("text"))})
@@ -520,6 +528,8 @@ def analyze_page_payload(
             "action": action, "action_label": action_labels.get(action, action.replace("_", " ").title()),
             "size_now": entry_size, "entry_label": "Entry trigger" if wait_action else "Execution",
             "entry_trigger": {"text": entry_text, "price": number(trigger.get("price"))},
+            "trigger_status": trigger_display["status"],
+            "entry_blocking_reason": trigger_display["blocking_reason"],
             "active_constraint": constraint,
             "what_changes_the_call": {"text": change_text, "price": number(invalidation.get("price"))},
         },

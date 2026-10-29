@@ -9317,6 +9317,13 @@ def decision_receipt_html(receipt):
 def trigger_text(t):
     """Short, price-based, single-condition."""
     action = normalize_action_key(t.get("action"))
+    if action == "hold_off" or (action == "watch" and not t.get("trigger")):
+        from trigger_presentation import entry_trigger_display
+        return entry_trigger_display({
+            "action": action, "price": t.get("price"),
+            "primary_risk": t.get("reward_risk_gate_reason"),
+            "trigger": {"text": t.get("trigger_summary") or "", "price": t.get("trigger_price")},
+        }, t)["text"]
     if action == "enter_now":
         size = str(t.get("entry_size") or "").lower()
         size_word = {
