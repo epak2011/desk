@@ -6,6 +6,7 @@ import pm_view
 import public_contract
 from trigger_presentation import entry_trigger_display
 from research_reliability import growth_percent_label
+from research_reliability import ResearchFailure
 
 
 class TriggerResearchRepairTests(unittest.TestCase):
@@ -44,6 +45,13 @@ class TriggerResearchRepairTests(unittest.TestCase):
         for value, expected in [(0.10, "+10.00%"), (-0.30, "-30.00%"),
                                 (0, "+0.00%"), (None, "unavailable"), (float("nan"), "unavailable")]:
             self.assertEqual(growth_percent_label(value), expected)
+
+    def test_usage_limit_is_not_schema_failure(self):
+        error = ResearchFailure("You have reached your specified API usage limits. "
+            "You will regain access on 2026-11-01 at 00:00 UTC.", ["missing dossier"])
+        self.assertEqual(error.diagnostics["error_code"], "provider_quota")
+        self.assertEqual(error.diagnostics["retry_after"], "2026-11-01T00:00:00+00:00")
+        self.assertIn("usage limit", str(error))
 
     def test_repair_receives_schema_evidence_and_uses_second_model(self):
         valid = {"dossier": "Memo", "technical_narrative": "Technical",

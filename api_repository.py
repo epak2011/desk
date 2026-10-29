@@ -252,6 +252,15 @@ def analysis_request(job_id: str, user_id: str) -> dict[str, Any]:
             response["message"] = "Analysis finished without producing a canonical decision."
     elif status in {"failed", "cancelled"}:
         response["message"] = "Analysis could not be completed. Please try again."
+        diagnostics = (job.get("result") or {}).get("research_diagnostics") or {}
+        if diagnostics.get("error_code") == "provider_quota":
+            response["error_code"] = "provider_quota"
+            response["message"] = "AI research is blocked by the provider API usage limit. Existing saved research is unchanged."
+            reset = diagnostics.get("retry_after")
+            try:
+                response["retry_after"] = datetime.fromisoformat(str(reset)).isoformat() if reset else None
+            except ValueError:
+                pass
     return response
 
 
