@@ -153,13 +153,16 @@ class ResearchReliabilityTests(TestCase):
         for first in (SimpleNamespace(stop_reason="max_tokens", content=[SimpleNamespace(text='{"dossier":')]),
                       SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(text='not JSON')])):
             second = SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(text=json.dumps(valid_dossier()))])
-            with patch("anthropic.Anthropic"), patch.object(pm_view, "_messages_create_fast", side_effect=[first, second]) as create, \
+            with patch("anthropic.Anthropic"), patch.object(pm_view, "_messages_create_fast", return_value=first) as create, \
+                 patch.object(pm_view, "_messages_create", return_value=second) as repair, \
+                 patch.object(pm_view, "_generate_independent_assessment", return_value={}), \
                  patch.object(pm_view, "_call_with_timeout", side_effect=lambda fn, *args: fn()), \
                  patch.object(pm_view, "pm_identity_mismatch", return_value=False):
                 result = pm_view.get_decision_dossier("TEST", {"action": "watch"}, [], {}, {}, api_key="test", fast=True)
             self.assertEqual(result["_source"], "claude · fast refresh")
-            self.assertEqual(create.call_count, 2)
-            self.assertEqual([call.kwargs["max_tokens"] for call in create.call_args_list], [2600, 3600])
+            self.assertEqual(create.call_count, 1)
+            self.assertEqual(repair.call_count, 1)
+            self.assertEqual([create.call_args.kwargs["max_tokens"], repair.call_args.kwargs["max_tokens"]], [2600, 3600])
 
     def test_worker_records_safe_research_failure_diagnostic(self):
         error = rr.ResearchFailure("429 rate limit SECRET")
