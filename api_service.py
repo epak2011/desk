@@ -139,6 +139,11 @@ def decision(ticker: str, request: Request):
     return _run(request, api_repository.decision, ticker)
 
 
+@app.get("/v1/positions/{ticker}/assessment")
+def position_assessment(ticker: str, request: Request, identity: Identity):
+    return _run(request, api_repository.position_assessment, ticker, identity.user_id)
+
+
 @app.post("/v1/decisions/{ticker}/requests", status_code=202)
 def request_decision(ticker: str, request: Request, identity: Identity, response: Response):
     result = _run(request, api_repository.request_decision, ticker, identity.user_id)
