@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 
 
@@ -14,13 +15,22 @@ def number_label(value, digits=2, prefix="", suffix=""):
         return "unavailable"
 
 
+def growth_percent_label(value):
+    """Provider growth values are fractions; preserve zero and reject nonfinite."""
+    try:
+        number = float(value)
+        return f"{number * 100:+.2f}%" if math.isfinite(number) else "unavailable"
+    except (TypeError, ValueError):
+        return "unavailable"
+
+
 def failure_code(source, issues=()):
     text = str(source or "").lower()
     for code, markers in (
         ("provider_auth", ("401", "403", "authentication", "invalid api key", "api_key is not configured")),
-        ("provider_quota", ("429", "rate limit", "credit balance", "billing", "quota")),
+        ("provider_quota", ("429", "rate limit", "credit balance", "billing", "quota", "api usage limits", "regain access")),
         ("provider_timeout", ("timeout", "timed out")),
-        ("provider_model", ("model_not_found", "model not found", "not_found_error", "model is not available")),
+        ("provider_model", ("model_not_found", "model not found", "not_found_error", "model is not available", "invalid model", "not a valid model")),
         ("response_truncated", ("research_response_truncated", "max_tokens")),
         ("invalid_json", ("research_invalid_json", "jsondecode", "expecting value", "unterminated", "expecting ','", "expecting property")),
         ("identity_rejected", ("identity guard",)),
@@ -36,7 +46,20 @@ class ResearchFailure(RuntimeError):
         # Never put provider messages, prompts or keys in queue/API diagnostics.
         self.diagnostics = {"error_code": code, "stage": "full_report",
                             "validation_issue_count": len(issues), "previous_report_preserved": True}
-        super().__init__(f"Claude research did not complete ({code}); previous report preserved. Retry research.")
+        reset = re.search(r"regain access on (\d{4}-\d{2}-\d{2}) at (\d{2}:\d{2}) UTC", str(source))
+        if code == "provider_quota" and reset:
+            try:
+                self.diagnostics["retry_after"] = datetime.fromisoformat(
+                    f"{reset.group(1)}T{reset.group(2)}:00+00:00").isoformat()
+            except ValueError:
+                pass
+        if code == "provider_quota":
+            message = "Claude research is blocked by the provider API usage limit; previous report preserved."
+            if self.diagnostics.get("retry_after"):
+                message += f" Provider access resumes at {self.diagnostics['retry_after']}."
+        else:
+            message = f"Claude research did not complete ({code}); previous report preserved. Retry research."
+        super().__init__(message)
 
 
 def retry_window(row, now=None):

@@ -13,6 +13,7 @@ COPY attention_engine.py backend_layer.py public_contract.py user_state_store.py
 COPY portfolio_context.py ./
 COPY position_policy.py ./
 COPY position_management.py ./
+COPY trigger_presentation.py ./
 COPY research_protocol.py research_event_store.py ./
 COPY market_news.py ./
 COPY engine_evaluation.py ./

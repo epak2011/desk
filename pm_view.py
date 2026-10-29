@@ -12,6 +12,7 @@ request without the rule recommendation to avoid anchoring.
 import json
 import os
 import re
+from research_reliability import growth_percent_label
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from datetime import date, datetime, timezone
 
@@ -38,6 +39,7 @@ CLAUDE_FAST_MODEL_FALLBACKS = [
     "claude-haiku-4-5-20251001",
     CLAUDE_MODEL,
     "claude-sonnet-5",
+    "claude-sonnet-4-6",
 ]
 CLAUDE_PM_TIMEOUT_SECONDS = max(12, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "24")))
 CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(24, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "45")))
@@ -82,7 +84,8 @@ def _is_model_not_found(exc):
         return False
     return any(
         phrase in text
-        for phrase in ("not found", "deprecat", "does not exist", "unknown model", "retired")
+        for phrase in ("not found", "deprecat", "does not exist", "unknown model", "retired",
+                       "not available", "not supported", "invalid model", "not a valid model")
     )
 
 
@@ -1199,7 +1202,7 @@ Context:
 - Market cap: {(meta or {}).get('market_cap') or 'unknown'}
 - Earnings: {f'in {earnings_days} days' if confirmed_earnings and earnings_days is not None else 'no confirmed future date'}
 - Forward P/E: {(meta or {}).get('forward_pe') or 'n/a'}; PEG: {(meta or {}).get('peg') or 'n/a'}; EV/EBITDA: {(meta or {}).get('ev_ebitda') or 'n/a'}
-- Earnings growth: {(meta or {}).get('earnings_growth') or 'n/a'}%; Revenue growth: {(meta or {}).get('revenue_growth') or 'n/a'}%
+- Earnings growth: {growth_percent_label((meta or {}).get('earnings_growth'))}; Revenue growth: {growth_percent_label((meta or {}).get('revenue_growth'))}
 - Existing thesis: {thesis or 'none'}
 - Existing drivers: {', '.join(drivers) if drivers else 'none'}
 - Existing risks: {', '.join(risks) if risks else 'none'}
@@ -1240,7 +1243,7 @@ Be specific. Do not return placeholders. Every JSON field is required. Drivers a
                 prompt_for_attempt = fast_prompt
                 for attempt in range(2):
                     message = _call_with_timeout(
-                        lambda p=prompt_for_attempt: _messages_create_fast(client,
+                        lambda p=prompt_for_attempt: (_messages_create_fast if attempt == 0 else _messages_create)(client,
                             max_tokens=2600 if attempt == 0 else 3600,
                             temperature=0,
                             messages=[{"role": "user", "content": p}],
@@ -1265,7 +1268,10 @@ Be specific. Do not return placeholders. Every JSON field is required. Drivers a
                         break
                     if attempt == 1:
                         raise ValueError("Incomplete Claude dossier: " + "; ".join(issues))
-                    prompt_for_attempt = f"""Repair the JSON response below. Return ONLY one complete valid JSON object using the exact schema from the original request.
+                    prompt_for_attempt = f"""Original request, including the evidence and exact schema:
+{fast_prompt}
+
+Repair the JSON response below. Return ONLY one complete valid JSON object using that exact schema. Use only the supplied evidence; do not invent missing facts.
 
 Today is {as_of.isoformat()}. {earnings_grounding}
 Problems to correct:
@@ -1288,12 +1294,28 @@ Previous response:
                     "_source": "claude · fast refresh",
                 }
             except Exception as exc:
-                return _rule_backed_pm_snapshot(
+                failed = _rule_backed_pm_snapshot(
                     ticker,
                     tactical_output=t_state,
                     company_name=company_name,
                     reason=str(exc),
                 )
+                from research_reliability import failure_code
+                failed["_generation_diagnostics"] = {
+                    "exception_type": type(exc).__name__,
+                    "error_code": failure_code(str(exc)),
+                    "validation_issues": issues if "issues" in locals() else [],
+                    "request_markers": [key for key in ("model", "temperature", "max_tokens", "thinking", "credit", "tool")
+                                        if key in str(exc).lower()],
+                }
+                # Read only the provider's error-message field, never prompts,
+                # response headers, credentials or the whole request object.
+                body = getattr(exc, "body", None)
+                error = body.get("error", body) if isinstance(body, dict) else {}
+                provider_message = str(error.get("message") or "") if isinstance(error, dict) else ""
+                provider_message = re.sub(r"sk-[A-Za-z0-9_-]+|Bearer\s+\S+|[A-Za-z0-9_-]{48,}", "[redacted]", provider_message)
+                failed["_generation_diagnostics"]["provider_message"] = provider_message[:400]
+                return failed
 
         prompt = f"""You are a senior portfolio manager and trader. Generate THREE pieces of analysis on {ticker}{f' ({company_name})' if company_name else ''}.
 
@@ -1335,7 +1357,7 @@ Context:
 - Market cap: {(meta or {}).get('market_cap') or 'unknown'}
 - Earnings: {f'in {meta.get("earnings_days")} days' if meta and meta.get('earnings_days') is not None else 'no near-term'}
 - Forward P/E: {(meta or {}).get('forward_pe') or 'n/a'}, PEG: {(meta or {}).get('peg') or 'n/a'}, EV/EBITDA: {(meta or {}).get('ev_ebitda') or 'n/a'}
-- Earnings growth YoY: {(meta or {}).get('earnings_growth') or 'n/a'}%, Revenue growth: {(meta or {}).get('revenue_growth') or 'n/a'}%
+- Earnings growth YoY: {growth_percent_label((meta or {}).get('earnings_growth'))}, Revenue growth: {growth_percent_label((meta or {}).get('revenue_growth'))}
 - Debt/equity: {(meta or {}).get('debt_to_equity') or 'n/a'}%
 - Analyst consensus: {(meta or {}).get('analyst_rec') or 'n/a'}, target ${(meta or {}).get('analyst_target') or 'n/a'}
 
@@ -1361,7 +1383,8 @@ DELIVERABLES — return ONLY a JSON object with these six keys:
     "thesis": "...",
     "drivers": ["...", "...", "..."],
     "risks": ["...", "...", "..."],
-    "valuation": "..."
+    "valuation": "...",
+    "timing_watchpoint": "Next 1-8 week checkpoint; no invented event dates"
   }},
   "quality": {{
     "tier": "A" | "B" | "Speculative" | "Avoid",
@@ -1575,4 +1598,7 @@ Return ONLY the JSON object. No markdown fencing, no preamble, no commentary."""
         }
 
     except Exception as e:
-        return {**empty, "_source": f"error: {str(e)[:120]}"}
+        from research_reliability import failure_code
+        return {**empty, "_source": f"error: {str(e)[:120]}",
+                "_generation_diagnostics": {"exception_type": type(e).__name__,
+                                            "error_code": failure_code(str(e))}}
