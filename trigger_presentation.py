@@ -12,6 +12,9 @@ def entry_trigger_display(receipt, rule=None):
     action = str(receipt.get("action") or rule.get("action") or "").lower()
     blocked = action in {"hold_off", "avoid", "watch"}
     constraint = rule.get("reward_risk_gate_reason") or receipt.get("primary_risk")
+    if action in {"enter", "enter_now", "accumulate"}:
+        return {"status": "defined", "price": level, "text": text,
+                "entry_blocked": False, "blocking_reason": constraint}
     if level is None and (not text or text.lower().startswith("watch trigger near")):
         return {"status": "undefined", "price": None,
                 "text": "No entry trigger is defined. Wait for a new actionable setup.",

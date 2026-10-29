@@ -34,6 +34,12 @@ class TriggerResearchRepairTests(unittest.TestCase):
             {"trigger": {"kind": "pullback"}})
         self.assertEqual(d["status"], "defined")
 
+    def test_market_entry_does_not_require_a_breakout_level(self):
+        d = entry_trigger_display({"action": "enter_now", "price": 228,
+                                  "trigger": {"text": "Enter at market", "price": None}})
+        self.assertEqual(d["text"], "Enter at market")
+        self.assertFalse(d["entry_blocked"])
+
     def test_growth_fraction_units_zero_and_missing(self):
         for value, expected in [(0.10, "+10.00%"), (-0.30, "-30.00%"),
                                 (0, "+0.00%"), (None, "unavailable"), (float("nan"), "unavailable")]:
