@@ -13,6 +13,7 @@ import attention_engine
 import backend_layer
 import portfolio_context
 import public_contract
+import macro_reconciliation
 import user_state_store
 import research_reliability
 from rules_updates import engine_updates_payload
@@ -269,6 +270,10 @@ def regime() -> dict[str, Any]:
     if not rows:
         raise NotFoundError("No saved market regime is available.")
     snapshot = next(iter(rows.values()))
+    # Add read-only comparison to older saved snapshots without rewriting them.
+    # Missing dated observations remain UNKNOWN; never infer from daily history.
+    snapshot = dict(snapshot)
+    snapshot.setdefault("macro_rule_audit", macro_reconciliation.for_snapshot(snapshot))
     return public_contract.regime_payload(snapshot)
 
 

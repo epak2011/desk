@@ -15,7 +15,7 @@ COPY position_policy.py ./
 COPY position_management.py ./
 COPY trigger_presentation.py ./
 COPY research_protocol.py research_event_store.py ./
-COPY market_news.py ./
+COPY market_news.py macro_reconciliation.py ./
 COPY engine_evaluation.py ./
 COPY backtest_store.py ./
 COPY research_reliability.py ./

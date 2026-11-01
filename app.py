@@ -40,6 +40,7 @@ import decision_contract
 import data_trust
 import engine_evaluation
 import ism_data
+import macro_reconciliation
 import engine_candidates
 import portfolio_context
 import tactical
@@ -19401,7 +19402,7 @@ if view == "regime":
         hy_bps = d.get("hy_bps")
         yc_bps = d.get("yc_bps")
         if ism is not None and ism < cfg["ism_warn"]:
-            s.update(t1="WARNING", t1_score=-2.5, t1_dist=ism - 50, t1_short=f"ISM Manufacturing {ism:.1f}% — BELOW 50, first miss", t1_detail=f"ISM {ism:.1f}% BELOW 50 — T1 WARNING. Reduce risk now.")
+            s.update(t1="WARNING", t1_score=-2.5, t1_dist=ism - 50, t1_short=f"ISM Manufacturing {ism:.1f}% — BELOW 50, contraction context", t1_detail=f"ISM {ism:.1f}% BELOW 50 — current T1 WARNING. Review risk; candidate state is shown separately.")
         else:
             s.update(t1="CLEAR", t1_score=1.0, t1_dist=(ism - 50 if ism is not None else None), t1_short=f"ISM Manufacturing {ism:.1f}% — above 50, no miss" if ism is not None else "ISM unavailable", t1_detail=f"ISM {ism:.1f}% expanding. T1 clear." if ism is not None else "ISM unavailable.")
         rising = unemp is not None and unemp_prev is not None and unemp > unemp_prev
@@ -19429,11 +19430,11 @@ if view == "regime":
         score = s["t1_score"] + s["t2_score"] * 0.5 + s["t3_score"] * 0.25 + s["yc_score"] * 0.25
         s["score"] = score
         if s["t1"] == "WARNING":
-            s.update(regime="LATE EXPANSION / REDUCE", action_label="REDUCE", action_detail="T1 fired below 50. Cut equity to 30–50%. Raise cash, trim cyclicals first.", action_short="REDUCE: Cut to 30–50% equity. Trim cyclicals first.")
+            s.update(regime="LATE EXPANSION / REDUCE", action_label="REDUCE", action_detail="T1 is below 50. Review macro risk; the Opportunity decision governs new-entry timing.", action_short="Review contraction risk; no fixed equity allocation.")
         elif s["yc"] == "INVERTED" and s["t1"] == "CLEAR":
-            s.update(regime="LATE CYCLE / INVERTED", action_label="REDUCE", action_detail="Yield curve inverted while T1 is still clear. Cut to 40–60% equity. Do not wait for T1 to confirm.", action_short="REDUCE: Inverted curve. Cut to 40–60% equity now.")
+            s.update(regime="LATE CYCLE / INVERTED", action_label="REDUCE", action_detail="Yield curve inverted while T1 is still clear. Review late-cycle risk; no fixed equity allocation.", action_short="Review inverted-curve risk; no fixed equity allocation.")
         elif s["t2"] == "RETREATING" and s["t1"] == "CLEAR":
-            s.update(regime="FRAGILE / IMPROVING", action_label="ADD", action_detail="T2 retreating. Near-miss confirmed. Target 60–70% equity, deployed over 1–2 weeks on weakness.", action_short="ADD: Deploy gradually on weakness.")
+            s.update(regime="FRAGILE / IMPROVING", action_label="ADD", action_detail="T2 retreating. Improving labor context; the Opportunity decision governs new-entry timing.", action_short="ADD: Deploy gradually on weakness.")
         elif s["t2"] == "FIRING" and s["t1"] == "CLEAR":
             s.update(regime="FRAGILE / NEAR-MISS", action_label="HOLD", action_detail="T2 firing but T1 still clear. Hold current exposure. Do not add. One ISM miss below 50 triggers REDUCE.", action_short="HOLD: Do not add. One ISM miss = REDUCE.")
         elif s["t1"] == "CLEAR" and s["t2"] == "CLEAR":
@@ -19614,6 +19615,9 @@ if view == "regime":
             s["change_if"].append("HY spreads above 475bps → tail-risk activates")
         elif s["t2"] not in {"FIRING", "RETREATING"}:
             s["change_if"].append("Unemployment re-accelerates above 4.4% rising → regime deteriorates")
+        # Keep all current recommendations aligned to the Opportunity action.
+        s.update(action_label=final_action, action_short=f"{final_action}: {opportunity_takeaway}",
+                 action_detail=s.get("opportunity_reason") or opportunity_takeaway)
         return s
 
     def _market_implications(d, s):
@@ -20010,6 +20014,17 @@ if view == "regime":
             "ism": ism[-1]["value"] if ism else None,
             "unemp": unemp[-1]["value"] if unemp else None,
             "unemp_prev": unemp[-2]["value"] if len(unemp) >= 2 else None,
+            "macro_rule_audit": macro_reconciliation.evaluate({
+                "ism": ism[-1]["value"] if ism else None,
+                "ism_previous": ism[-2]["value"] if len(ism) >= 2 else None,
+                "ism_period": ism[-1]["date"] if ism else None,
+                "ism_previous_period": ism[-2]["date"] if len(ism) >= 2 else None,
+                "unemployment": unemp[-1]["value"] if unemp else None,
+                "unemployment_previous": unemp[-2]["value"] if len(unemp) >= 2 else None,
+                "unemployment_two_months_ago": unemp[-3]["value"] if len(unemp) >= 3 else None,
+                "unemployment_periods": [row["date"] for row in reversed(unemp[-3:])],
+                "hy_oas_bps": hy[-1]["value"] * 100 if hy else None,
+            }),
             "hy_bps": hy[-1]["value"] * 100 if hy else None,
             "yc_bps": yc[-1]["value"] * 100 if yc else None,
             "fed_now": fed[-1]["value"] if fed else None,
@@ -20134,6 +20149,9 @@ if view == "regime":
             "opportunity_risks": list(canonical.get("risks") or []),
             "opportunity_reason": canonical.get("why_today") or s.get("opportunity_reason"),
         })
+        d["macro_rule_audit"] = macro_reconciliation.for_snapshot(canonical)
+        s.update(action_label=action, action_short=f"{action} — Opportunity · 2–12 weeks",
+                 action_detail=canonical.get("why_today") or s.get("opportunity_reason"))
         canonical_crypto = canonical.get("crypto_regime")
         if isinstance(canonical_crypto, dict):
             snap["canonical_crypto_regime"] = canonical_crypto
@@ -20166,6 +20184,15 @@ if view == "regime":
     snap = _apply_canonical_regime(_regime_snapshot(regime_refresh_key), _saved_canonical_regime())
     regime_loading.empty()
     d, s, crypto = snap["data"], snap["signals"], snap.get("crypto") or {}
+    with st.expander("Macro rule comparison · shadow mode", expanded=False):
+        audit = d.get("macro_rule_audit") or macro_reconciliation.evaluate({})
+        st.caption("Comparison only. Current entry score unchanged; no automatic equity allocation. Historical comparison awaits original dated inputs.")
+        st.write(f"Candidate ISM: {audit['t1']}. {audit['t1Meaning']}")
+        candidates = audit['t2Candidates']
+        st.write(f"Candidate unemployment: >0.10pp {candidates['dashboard_gt_0_10']}; ≥0.15pp {candidates['legacy_ge_0_15']}.")
+        st.caption(audit['t2Meaning'])
+        st.write(f"Credit context: {audit['t3']}. 450 bps early warning / 475 tail risk / 600 crisis.")
+        st.caption("Production unemployment rule remains 4.2% and rising. UNKNOWN means monthly inputs unavailable.")
     color_map = {
         "Risk Off": "var(--color-negative)",
         "Defensive": "var(--color-warning-text)",

@@ -1,0 +1,11 @@
+# Macro comparison — November 1, 2026
+
+Apps Script scanner v12.2 and Trading Desk use the same `macro-reconciliation-1` candidate definitions. ISM 50, unemployment 4.2 (approach 4.0), and HY 450/475/600 are unchanged. Candidate ISM distinguishes first contraction, consecutive contraction and recovery using consecutive monthly observations. Both unemployment acceleration cutoffs are explicit; on published tenths, >0.10pp and >=0.15pp require >=0.20pp. Neither is promoted into production. The current production T2 remains 4.2 and rising.
+
+`macro_reconciliation.py` is comparison only: it cannot change entry scores, actions, sizing or holdings. The API and both frontends distinguish production signals from candidate results; missing monthly inputs remain UNKNOWN. Current macro recommendations no longer prescribe fixed equity percentages. Stock-level position sizing is unaffected.
+
+The frozen worker and experiment registrations are deliberately unchanged. A separate hourly/manual GitHub Actions job runs `scripts/refresh_macro_comparison.py`, matches current dated ISM/UNRATE source levels to saved macro levels and stores supplemental diagnostics in `macro_regime_audits`. It does not update the saved production snapshot. API reads are tied to a hash of the exact saved macro inputs and capture timestamp, so diagnostics cannot bleed across snapshots. An unmatched or unavailable source leaves the corresponding candidate unavailable. `compared_at`, `input_periods`, and `comparison_basis` identify these as current diagnostics, not a historical vintage replay.
+
+`scripts/compare_macro_rules.py` provides the release-aware historical comparison runner. Original dated observations, publication dates and total-return/cash series are still required; no historical performance is claimed. The Notion Apr 12/16 scanner notes say 4.2 and rising. The separate Apr 21 stock-entry baseline explicitly reports the macro filter unvalidated because of alignment issues. Those stock backtests do not validate macro allocation rules.
+
+Sources: [Apr 16 scanner notes](https://app.notion.com/p/3449e2115d05818b9e9bc63648a2aa21), [Apr 21 stock-entry baseline](https://app.notion.com/p/3499e2115d0581b7a0cdf2e04b6f96c4).

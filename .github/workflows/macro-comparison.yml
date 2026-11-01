@@ -1,0 +1,29 @@
+name: Refresh macro shadow comparison
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - macro_reconciliation.py
+      - scripts/refresh_macro_comparison.py
+      - .github/workflows/macro-comparison.yml
+permissions:
+  contents: read
+concurrency:
+  group: macro-shadow-comparison
+  cancel-in-progress: false
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install certifi 'psycopg[binary]>=3.1,<4.0' 'psycopg-pool>=3.2,<4.0'
+      - run: python scripts/refresh_macro_comparison.py
