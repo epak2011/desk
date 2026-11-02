@@ -66,7 +66,14 @@ def evaluate(macro):
 def snapshot_key(snapshot):
     import hashlib
     import json
-    return hashlib.sha256(json.dumps({"generated_at": snapshot.get("generated_at"), "macro": snapshot.get("macro")}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    macro = snapshot.get("macro") or {}
+    # Only inputs used by this diagnostic; a new quote/refresh timestamp cannot
+    # invalidate unchanged macro levels. Explicit month metadata remains part of
+    # the key when provided. Short expiry prevents indefinite reuse across releases.
+    fields = ("ism", "ism_previous", "ism_period", "ism_previous_period",
+              "unemployment", "unemployment_previous", "unemployment_two_months_ago",
+              "unemployment_periods", "hy_oas_bps")
+    return hashlib.sha256(json.dumps({k: macro.get(k) for k in fields}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def for_snapshot(snapshot):
@@ -78,7 +85,11 @@ def for_snapshot(snapshot):
                 cur.execute("SELECT payload FROM macro_regime_audits WHERE snapshot_key = %s", (snapshot_key(snapshot),))
                 row = cur.fetchone()
         if row and isinstance(row[0], dict):
-            return row[0]
+            from datetime import datetime, timezone
+            stamp = datetime.fromisoformat(str(row[0].get("compared_at", "")).replace("Z", "+00:00"))
+            age = (datetime.now(timezone.utc) - stamp).total_seconds()
+            if 0 <= age <= 2 * 3600:
+                return row[0]
     except Exception:
         pass  # No supplemental table yet: retain UNKNOWN instead of fabricating months.
     return evaluate(snapshot.get("macro"))

@@ -71,9 +71,11 @@ class MacroComparisonTests(unittest.TestCase):
         rows[-1]['value'] = 4.2
         self.assertEqual(audit.evaluate(enrich(saved, [], rows))['t2'], 'WATCH')
 
-    def test_supplemental_key_changes_with_production_snapshot(self):
+    def test_supplemental_key_tracks_macro_inputs_not_refresh_timestamp(self):
         a = {'generated_at':'2026-11-01T00:00:00Z', 'macro': self.m}
         b = {**a, 'generated_at':'2026-11-01T01:00:00Z'}
+        self.assertEqual(audit.snapshot_key(a), audit.snapshot_key(b))
+        b['macro'] = {**self.m, 'unemployment': 4.3}
         self.assertNotEqual(audit.snapshot_key(a), audit.snapshot_key(b))
 
 if __name__ == '__main__':
