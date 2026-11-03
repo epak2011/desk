@@ -8,6 +8,11 @@ import worker
 
 
 class WorkerMarketScheduleTests(unittest.TestCase):
+    def setUp(self):
+        budget = patch("worker.backend.reserve_research_generation", return_value={"allowed": True, "remaining": 6, "cooldown_tickers": []})
+        self.budget = budget.start()
+        self.addCleanup(budget.stop)
+
     def test_regime_news_is_us_focused_and_blocks_regional_yahoo_editions(self):
         stories = [
             {"title": "Australian shares rise before RBA decision", "source": "Yahoo Finance Australia", "category": "markets", "impact_score": 99},

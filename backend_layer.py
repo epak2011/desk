@@ -1579,3 +1579,40 @@ def upsert_json_table(table: str, key_column: str, key_value: str, payload: dict
             if table == "research_reports":
                 import claude_assessment
                 claude_assessment.record(cur, key_value, payload, json_dumps)
+
+
+def reserve_research_generation(ticker: str | None = None) -> dict[str, Any]:
+    """Atomically cap full-report attempts across workers, including failures.
+
+    With no ticker, return queue eligibility without reserving a slot.
+    Reservations are deliberately not refunded: a timeout may still be billed.
+    The UTC daily limit is a report count, not a dollar spending guarantee.
+    """
+    daily_limit = max(0, int(os.environ.get("RESEARCH_DAILY_REPORT_LIMIT", "6")))
+    cooldown_hours = max(24, int(os.environ.get("RESEARCH_COOLDOWN_HOURS", "24")))
+    with db_connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_xact_lock(726194203)")
+                cur.execute("""CREATE TABLE IF NOT EXISTS research_generation_budget (
+                    id BIGSERIAL PRIMARY KEY, ticker TEXT NOT NULL,
+                    reserved_at TIMESTAMPTZ NOT NULL DEFAULT NOW())""")
+                cur.execute("CREATE INDEX IF NOT EXISTS research_generation_budget_time ON research_generation_budget (reserved_at)")
+                cur.execute("""SELECT COUNT(*) FROM research_generation_budget
+                    WHERE reserved_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'""")
+                used = cur.fetchone()[0]
+                if ticker is None:
+                    cur.execute("""SELECT DISTINCT ticker FROM research_generation_budget
+                        WHERE reserved_at > NOW() - (%s * INTERVAL '1 hour')""", (cooldown_hours,))
+                    return {"remaining": max(0, daily_limit - used),
+                            "cooldown_tickers": [row[0] for row in cur.fetchall()]}
+                if used >= daily_limit:
+                    return {"allowed": False, "reason": "Daily research report limit reached"}
+                cur.execute("""SELECT 1 FROM research_generation_budget
+                    WHERE ticker = %s AND reserved_at > NOW() - (%s * INTERVAL '1 hour') LIMIT 1""",
+                    (ticker.upper().strip(), cooldown_hours))
+                if cur.fetchone():
+                    return {"allowed": False, "reason": "Stock research refresh cooling down"}
+                cur.execute("INSERT INTO research_generation_budget (ticker) VALUES (%s)",
+                            (ticker.upper().strip(),))
+    return {"allowed": True}

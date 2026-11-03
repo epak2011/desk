@@ -1227,6 +1227,9 @@ def refresh_full_report(ticker: str) -> dict:
     api_key = _api_key()
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is not configured for the worker")
+    budget = backend.reserve_research_generation(ticker)
+    if not budget["allowed"]:
+        return {"skipped": True, "reason": budget["reason"], "ticker": ticker}
     t_state, meta = _fresh_tactical_state(ticker)
     company_name = meta.get("company_name") or ticker
     pm = get_pm_view(ticker, t_state, api_key=api_key, company_name=company_name)
@@ -1365,7 +1368,9 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
 
 def _fundamentals_fingerprint(profile: dict | None) -> str | None:
     profile = profile if isinstance(profile, dict) else {}
-    keys = ("forward_pe", "peg", "debt_to_equity", "earnings_growth", "revenue_growth", "market_cap")
+    # Market cap, forward P/E and PEG move with the share price. Including
+    # them turned ordinary quote refreshes into paid research refreshes.
+    keys = ("debt_to_equity", "earnings_growth", "revenue_growth")
     values = {key: profile.get(key) for key in keys}
     if not any(value is not None for value in values.values()):
         return None
@@ -1391,6 +1396,10 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
         return {"queued": False, "tickers": [], "reason": "Provider quota/authentication pause; automatic research retries suspended",
                 "provider_error_code": provider_pause.get("error_code"),
                 "provider_retry_after": provider_pause.get("retry_after")}
+    budget = backend.reserve_research_generation()
+    if budget["remaining"] <= 0:
+        return {"queued": False, "tickers": [], "reason": "Daily research report limit reached"}
+    budget_cooldown = set(budget["cooldown_tickers"])
     reports = backend.read_json_table_many("research_reports", tickers)
     markets = backend.read_json_table_many("market_snapshots", tickers)
     rules = backend.read_json_table_many("rule_outputs", tickers)
@@ -1442,9 +1451,9 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
             candidates.append((1, ticker, "research_stale", age_minutes))
 
     cooldown = {ticker: retry_window(row, now) for ticker, row in retry_states.items()}
-    ready = [row for row in sorted(candidates) if not cooldown.get(row[1], {}).get("cooling_down")]
+    ready = [row for row in sorted(candidates) if row[1] not in budget_cooldown and not cooldown.get(row[1], {}).get("cooling_down")]
     queued = []
-    for _, ticker, reason, age_minutes in ready[:max(1, int(limit))]:
+    for _, ticker, reason, age_minutes in ready[:min(max(1, int(limit)), budget["remaining"])]:
         job_id = backend.enqueue_job(
             "full_report",
             ticker=ticker,

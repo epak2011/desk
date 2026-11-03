@@ -57,27 +57,27 @@ class FastModelTests(unittest.TestCase):
         with mock.patch.object(
             pm_view,
             "CLAUDE_FAST_MODEL_FALLBACKS",
-            ["fast-model", "full-model"],
+            ["claude-haiku-test", "claude-haiku-backup"],
         ):
             result = pm_view._messages_create_fast(client, max_tokens=100)
 
-        self.assertEqual(client.messages.models, ["fast-model"])
-        self.assertEqual(result["model"], "fast-model")
+        self.assertEqual(client.messages.models, ["claude-haiku-test"])
+        self.assertEqual(result["model"], "claude-haiku-test")
 
     def test_fast_messages_fall_back_when_fast_model_is_unavailable(self):
-        client = _Client(missing={"missing-fast-model"})
+        client = _Client(missing={"missing-claude-haiku-test"})
         with mock.patch.object(
             pm_view,
             "CLAUDE_FAST_MODEL_FALLBACKS",
-            ["missing-fast-model", "full-model"],
+            ["missing-claude-haiku-test", "claude-haiku-backup"],
         ):
             result = pm_view._messages_create_fast(client, max_tokens=100)
 
         self.assertEqual(
             client.messages.models,
-            ["missing-fast-model", "full-model"],
+            ["missing-claude-haiku-test", "claude-haiku-backup"],
         )
-        self.assertEqual(result["model"], "full-model")
+        self.assertEqual(result["model"], "claude-haiku-backup")
 
     def test_fast_messages_fall_back_on_a_deprecated_model_error(self):
         """Guards the fix for the silent PM-research outage: a deprecated
@@ -88,11 +88,11 @@ class FastModelTests(unittest.TestCase):
         class _DeprecatedMessages(_Messages):
             def create(self, model, **kwargs):
                 self.models.append(model)
-                if model == "deprecated-model":
+                if model == "claude-haiku-deprecated":
                     raise RuntimeError(
                         "Error code: 400 - {'type': 'error', 'error': "
                         "{'type': 'invalid_request_error', 'message': "
-                        "'model: deprecated-model has been deprecated and "
+                        "'model: claude-haiku-deprecated has been deprecated and "
                         "will reach end-of-life on 2026-01-01. Please use "
                         "a current model instead.'}}"
                     )
@@ -103,12 +103,12 @@ class FastModelTests(unittest.TestCase):
         with mock.patch.object(
             pm_view,
             "CLAUDE_FAST_MODEL_FALLBACKS",
-            ["deprecated-model", "current-model"],
+            ["claude-haiku-deprecated", "claude-haiku-current"],
         ):
             result = pm_view._messages_create_fast(client, max_tokens=100)
 
-        self.assertEqual(client.messages.models, ["deprecated-model", "current-model"])
-        self.assertEqual(result["model"], "current-model")
+        self.assertEqual(client.messages.models, ["claude-haiku-deprecated", "claude-haiku-current"])
+        self.assertEqual(result["model"], "claude-haiku-current")
 
     def test_unrelated_api_errors_are_not_treated_as_model_not_found(self):
         """A content/parameter error on a valid model must still raise
@@ -127,7 +127,7 @@ class FastModelTests(unittest.TestCase):
             "model: unsupported-model is not available for this account")))
         self.assertTrue(pm_view._is_model_not_found(RuntimeError(
             "model: unsupported-model is not a valid model ID")))
-        self.assertIn("claude-sonnet-4-6", pm_view.CLAUDE_FAST_MODEL_FALLBACKS)
+        self.assertTrue(all("haiku" in model for model in pm_view.CLAUDE_FAST_MODEL_FALLBACKS))
 
     def test_dossier_contract_rejects_missing_required_sections(self):
         payload = self._complete_dossier()

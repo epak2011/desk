@@ -113,6 +113,7 @@ class WorkerResearchIntegrityTests(unittest.TestCase):
 
     def test_failed_claude_report_does_not_overwrite_saved_report(self):
         backend = Mock()
+        backend.reserve_research_generation.return_value = {"allowed": True, "remaining": 6, "cooldown_tickers": []}
         namespace = {"_api_key": lambda: "test-key", "_fresh_tactical_state": lambda ticker: ({}, {}),
                      "get_pm_view": lambda *a, **k: {},
                      "get_decision_dossier": lambda *a, **k: {"_source": "rules fallback"},
@@ -124,6 +125,7 @@ class WorkerResearchIntegrityTests(unittest.TestCase):
 
     def test_incomplete_claude_json_is_not_success(self):
         backend = Mock()
+        backend.reserve_research_generation.return_value = {"allowed": True, "remaining": 6, "cooldown_tickers": []}
         namespace = {"_api_key": lambda: "test-key", "_fresh_tactical_state": lambda ticker: ({}, {}),
                      "get_pm_view": lambda *a, **k: {},
                      "get_decision_dossier": lambda *a, **k: {"_source": "claude", "dossier": "partial"},
@@ -135,6 +137,7 @@ class WorkerResearchIntegrityTests(unittest.TestCase):
 
     def test_complete_report_is_persisted_even_if_compact_pm_failed(self):
         backend = Mock()
+        backend.reserve_research_generation.return_value = {"allowed": True, "remaining": 6, "cooldown_tickers": []}
         dossier = {"_source": "claude", "dossier": "Memo", "technical_narrative": "Tape", "pm_narrative": "Business",
                    "bullets": {"thesis": "Thesis", "valuation": "Valuation", "timing_watchpoint": "No confirmed near-term catalyst", "drivers": ["a", "b", "c"], "risks": ["x", "y", "z"]},
                    "quality": {"tier": "B", "rationale": "Rationale"}, "tactical_call": {"action": "WATCH", "reasoning": "Reason"}}
@@ -148,6 +151,7 @@ class WorkerResearchIntegrityTests(unittest.TestCase):
 
     def test_fresh_rules_fallback_is_queued_for_repair(self):
         backend = Mock()
+        backend.reserve_research_generation.return_value = {"allowed": True, "remaining": 6, "cooldown_tickers": []}
         backend.enabled_watchlist_tickers.return_value = ["DASH"]
         backend.read_json_table_many.side_effect = [
             {"DASH": {"pm": {"_source": "rules fallback"}, "_worker_generated_at": datetime.now(timezone.utc).isoformat()}}, {}, {},
@@ -170,6 +174,7 @@ class ApiResearchIntegrityTests(unittest.TestCase):
 
     def test_legacy_succeeded_job_with_fallback_is_not_ready(self):
         backend = Mock()
+        backend.reserve_research_generation.return_value = {"allowed": True, "remaining": 6, "cooldown_tickers": []}
         backend.get_job.return_value = {"id": "one", "requested_by": "api:user", "job_type": "full_report", "status": "succeeded", "ticker": "DASH"}
         fn = self.api_function("analysis_request", {"backend_layer": backend, "normalize_ticker": str,
             "NotFoundError": LookupError, "decision": lambda ticker: {"research": {"generation_status": "incomplete", "full_report_available": False}}})

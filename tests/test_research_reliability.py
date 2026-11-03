@@ -23,6 +23,11 @@ def valid_dossier():
 
 
 class ResearchReliabilityTests(TestCase):
+    def setUp(self):
+        budget = patch.object(worker.backend, "reserve_research_generation", return_value={"allowed": True, "remaining": 6, "cooldown_tickers": []})
+        budget.start()
+        self.addCleanup(budget.stop)
+
     def test_provider_quota_circuit_stops_all_scheduled_tickers_before_large_reads(self):
         pause = {"failures": 1, "last_failed_at": datetime.now(timezone.utc).isoformat(), "error_code": "provider_quota"}
         with patch.object(worker, "_api_key", return_value="test"), \

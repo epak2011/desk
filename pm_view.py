@@ -37,9 +37,6 @@ CLAUDE_MODEL_FALLBACKS = [
 CLAUDE_FAST_MODEL_FALLBACKS = [
     CLAUDE_FAST_MODEL,
     "claude-haiku-4-5-20251001",
-    CLAUDE_MODEL,
-    "claude-sonnet-5",
-    "claude-sonnet-4-6",
 ]
 CLAUDE_PM_TIMEOUT_SECONDS = max(12, int(os.environ.get("CLAUDE_PM_TIMEOUT_SECONDS", "24")))
 CLAUDE_DOSSIER_TIMEOUT_SECONDS = max(24, int(os.environ.get("CLAUDE_DOSSIER_TIMEOUT_SECONDS", "45")))
@@ -90,7 +87,10 @@ def _is_model_not_found(exc):
 
 
 def _messages_create(client, **kwargs):
-    """Create an Anthropic message with model fallback on 404/model rename."""
+    """Use Haiku unless this call explicitly opts into Sonnet."""
+    allow_sonnet = kwargs.pop("allow_sonnet", False)
+    if not allow_sonnet:
+        return _messages_create_fast(client, **kwargs)
     last_exc = None
     for model in _model_candidates():
         try:
@@ -106,9 +106,11 @@ def _messages_create(client, **kwargs):
 
 
 def _messages_create_fast(client, **kwargs):
-    """Create a latency-sensitive message, preferring Haiku over Sonnet."""
+    """Create a Haiku-only message; never escalate a fast request to Sonnet."""
     last_exc = None
     for model in _model_candidates(CLAUDE_FAST_MODEL_FALLBACKS):
+        if "haiku" not in model.lower():
+            continue
         try:
             return client.messages.create(model=model, **kwargs)
         except Exception as exc:
@@ -876,7 +878,7 @@ def get_pm_view(ticker, tactical_output, api_key=None, company_name=None):
         import time
         from anthropic import Anthropic
 
-        client = Anthropic(api_key=api_key)
+        client = Anthropic(api_key=api_key, timeout=45.0, max_retries=0)
         t = tactical_output or {}
         special_context = _special_context_for(ticker)
         identity_guard = _identity_guard_for(ticker, company_name)
@@ -1125,8 +1127,11 @@ def get_decision_dossier(ticker, t_state, modifiers, meta, pm_data,
         import time
         from anthropic import Anthropic
         import json as _json
-        client = Anthropic(api_key=api_key)
-        independent = _generate_independent_assessment(client, ticker, t_state, meta)
+        client = Anthropic(api_key=api_key, timeout=45.0, max_retries=0)
+        # Background reports reuse the primary analysis instead of paying for
+        # a separate opinion on every refresh. Explicit full dossiers retain it.
+        independent = ({"status": "unavailable", "error_code": "automatic_second_opinion_disabled"}
+                       if fast else _generate_independent_assessment(client, ticker, t_state, meta))
 
         special_context = _special_context_for(ticker)
         identity_guard = _identity_guard_for(ticker, company_name)
