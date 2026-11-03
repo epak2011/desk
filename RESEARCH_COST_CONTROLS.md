@@ -28,3 +28,8 @@ PM and dossier SDK clients disable automatic retries and bound network timeouts.
 The UI timeout cannot cancel a running request, so reservations remain consumed.
 The budget table is created lazily using the existing database role, which must
 have CREATE TABLE privileges (as it does for the existing backend schema).
+
+The worker source identity changes. Existing frozen prospective experiments
+correctly report `frozen_sources_changed` and will not mix new observations into
+the old cohort. Their registrations and prior results are not rewritten; a new
+explicit registration is needed to resume collection under the changed worker.

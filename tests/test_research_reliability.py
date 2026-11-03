@@ -140,9 +140,17 @@ class ResearchReliabilityTests(TestCase):
         spec = research_protocol.active_registration(root)
         self.assertEqual(spec["starts_on"], "2026-10-29")
         self.assertEqual(spec["assumptions"]["benchmarks"], ["SPY", "QQQ"])
-        self.assertEqual(rr.experiment_health(today=date(2026, 10, 28))["status"], "scheduled")
-        self.assertTrue(rr.experiment_health(today=date(2026, 10, 29))["eligible"])
-        self.assertFalse(rr.experiment_health(today=date(2026, 10, 29))["collection_verified"])
+        # Check calendar rules against the registered source identity. Runtime
+        # source changes must not silently rewrite that immutable identity.
+        ticker = spec["universe"][0]
+        before = research_protocol.registration_status(spec, source_hashes=spec["source_hashes"], ticker=ticker, session="2026-10-28")
+        after = research_protocol.registration_status(spec, source_hashes=spec["source_hashes"], ticker=ticker, session="2026-10-29")
+        self.assertEqual(before["reason"], "before_prospective_start")
+        self.assertTrue(after["eligible"])
+        actual = rr.experiment_health(today=date(2026, 10, 29))
+        self.assertEqual(actual["reason"], "frozen_sources_changed")
+        self.assertIn("worker.py", actual["changed_sources"])
+        self.assertFalse(actual["collection_verified"])
         self.assertEqual(old, (root / "experiments/entry-events-v3.json").read_bytes())
 
     def test_comparison_keeps_same_period_benchmarks_and_open_positions(self):
