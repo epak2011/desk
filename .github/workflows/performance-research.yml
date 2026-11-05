@@ -43,11 +43,15 @@ jobs:
           python scripts/run_rules_replay.py
           --universe-file research/broad-universe-v2-2026-11-05.json
           --start 2024-01-02 --end 2026-11-04 --validation-start 2026-01-02
-          --cash-proxy SGOV --series broad_universe
+          --cash-proxy SGOV --workers 2 --series broad_universe
           --output-dir broad-replay-artifact --publish
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: broad-universe-replay-${{ github.run_id }}
-          path: broad-replay-artifact/
+          path: |
+            broad-replay-artifact/
+            !broad-replay-artifact/signal-cache/
           retention-days: 90
+          # Derived local caches are not evidence inputs and are not published.
+          include-hidden-files: false

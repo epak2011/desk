@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--tickers")
     parser.add_argument("--universe-file", type=Path)
     parser.add_argument("--cash-proxy", choices=["SGOV"])
+    parser.add_argument("--workers", type=int, choices=range(1,5), default=1)
     parser.add_argument("--start", required=True)
     parser.add_argument("--end", required=True)
     parser.add_argument("--validation-start", required=True)
@@ -57,12 +58,21 @@ def main():
     if coverage["failed"]:
         raise ValueError("Incomplete universe; failed inputs are in coverage.json. No headline result published.")
     output = args.output_dir / "report.json"
-    subprocess.run([sys.executable, str(ROOT / "backtest_runner.py"), "--data-dir", str(data),
-                    "--tickers", *tickers, "--start", args.start, "--end", args.end,
-                    "--validation-start", args.validation_start, "--output", str(output),
-                    "--exit-policy", args.exit_policy, "--confirm-adjusted-ohlcv",
-                    *(["--cash-proxy", args.cash_proxy] if args.cash_proxy else []),
-                    *(["--include-event-study"] if args.include_event_study or args.study == "event" else [])], check=True)
+    if args.workers > 1:
+        if not universe or args.cash_proxy != 'SGOV' or args.include_event_study or args.study != 'standard' or args.exit_policy != 'signal_invalidation':
+            raise ValueError('Parallel dataset path requires declared universe, SGOV and standard signal-invalidation comparison.')
+        (args.output_dir / 'universe.json').write_text(json.dumps(universe,indent=2))
+        subprocess.run([sys.executable,str(ROOT/'scripts/replay_cached_dataset.py'),
+                        '--dataset',str(args.output_dir),'--workers',str(args.workers),
+                        '--start',args.start,'--end',args.end,'--validation-start',args.validation_start,
+                        '--output',str(output)],check=True)
+    else:
+        subprocess.run([sys.executable, str(ROOT / "backtest_runner.py"), "--data-dir", str(data),
+                        "--tickers", *tickers, "--start", args.start, "--end", args.end,
+                        "--validation-start", args.validation_start, "--output", str(output),
+                        "--exit-policy", args.exit_policy, "--confirm-adjusted-ohlcv",
+                        *(["--cash-proxy", args.cash_proxy] if args.cash_proxy else []),
+                        *(["--include-event-study"] if args.include_event_study or args.study == "event" else [])], check=True)
     if universe:
         report = json.loads(output.read_text())
         report["universe_selection"] = universe
