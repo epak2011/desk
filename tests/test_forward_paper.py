@@ -17,8 +17,10 @@ class ForwardPaperTests(unittest.TestCase):
 
     def test_observed_after_open_cannot_fill_it(self):
         w=f.wallet();w['pending']={'kind':'entry','stop':90.,'observed_at':'2026-11-09T15:00:00+00:00'}
-        with self.assertRaisesRegex(ValueError,'Lookahead'):
-            f.advance(w,{'Open':100.,'Close':100.},None,session='2026-11-09')
+        out=f.advance(w,{'Open':100.,'Close':100.},None,session='2026-11-09')
+        self.assertEqual(out['shares'],0.)
+        self.assertEqual(out['late_orders_skipped'],1)
+        self.assertIsNone(out['pending'])
 
     def test_before_close_signal_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -56,7 +58,26 @@ class ForwardPaperTests(unittest.TestCase):
         from pathlib import Path
         import json
         root=Path(__file__).parents[1]
-        spec=json.loads((root/'research/forward-paper-110-v2.json').read_text())
+        spec=json.loads((root/'research/forward-paper-110-v3.json').read_text())
         f.verify(spec,root)
         bad=deepcopy(spec);bad['cost_bps_per_side']=5
         with self.assertRaises(ValueError):f.verify(bad,root)
+
+    def test_holiday_weekend_does_not_falsely_expire_friday_bar(self):
+        from datetime import date
+        self.assertFalse(f.latest_bar_is_stale(date(2027,1,15),date(2027,1,18)))
+        self.assertTrue(f.latest_bar_is_stale(date(2027,1,15),date(2027,1,21)))
+
+    def test_late_order_suppresses_paper_alpha_headline(self):
+        spec={'protocol_id':'test','starts_on':'2026-11-06','universe':['X'],'cost_bps_per_side':10}
+        d={'session':'2026-11-09','equity':dict(strategy=1.,SPY=1.1,QQQ=1.2,same_universe=1.3,cash=1.),'exposure':0.,'turnover':0.,'late_orders_skipped':1}
+        r=f.summary(spec,[d])
+        self.assertEqual(r['status'],'incomplete');self.assertIsNone(r['rows'][0]['return_pct'])
+
+    def test_start_cannot_be_backdated_even_with_recomputed_identity(self):
+        import json
+        from pathlib import Path
+        root=Path(__file__).parents[1]
+        s=json.loads((root/'research/forward-paper-110-v3.json').read_text())
+        s['starts_on']='2026-01-01';s['protocol_id']=f.identity(s)
+        with self.assertRaisesRegex(ValueError,'Prospective start'):f.verify(s,root)

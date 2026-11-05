@@ -9,7 +9,7 @@ import backend_layer as backend
 import forward_paper as paper
 import tactical
 
-SPEC=ROOT/'research/forward-paper-110-v2.json'
+SPEC=ROOT/'research/forward-paper-110-v3.json'
 
 
 def publish(cur,report):
@@ -26,6 +26,8 @@ def main():
         with backend.db_connection() as conn:
             with conn.cursor() as cur:publish(cur,paper.summary(spec,[]))
         print(json.dumps({'status':'scheduled','starts_on':spec['starts_on'],'universe_count':len(spec['universe'])}));return
+    if eastern.hour < 18 and eastern.weekday() < 5:
+        print(json.dumps({'status':'waiting_for_settled_close','no_observations_backfilled':True}));return
     import yfinance as yf
     import pandas as pd
     raw={};adjusted={}
@@ -44,7 +46,7 @@ def main():
     if len(sessions)==0:
         print(json.dumps({'status':'no_completed_market_session'}));return
     latest=sessions[-1]
-    if latest.date()+timedelta(days=3)<cutoff:
+    if paper.latest_bar_is_stale(latest.date(),eastern.date()):
         raise ValueError('Benchmark source stale; preserve prior ledger.')
     # Do not silently drop missing symbols or backfill old strategy decisions.
     for symbol,frame in raw.items():
@@ -98,7 +100,8 @@ def main():
                              'SPY':indexes['SPY']['equity'],'QQQ':indexes['QQQ']['equity'],
                              'cash':(prior['equity']['cash'] if prior else 1.)*cash_gap*cash_day},
                    'exposure':sum(w['equity']*w['exposure'] for w in wallets.values())/sum(w['equity'] for w in wallets.values()),
-                   'turnover':sum(w['turnover'] for w in wallets.values())/n}
+                   'turnover':sum(w['turnover'] for w in wallets.values())/n,
+                   'late_orders_skipped':sum(w.get('late_orders_skipped',0) for w in wallets.values())}
                 cur.execute('INSERT INTO forward_paper_days (protocol_id,session,payload) VALUES (%s,%s,%s::jsonb)',(spec['protocol_id'],stamp,backend.json_dumps(d)))
                 days.append(d);prior=d
             report=paper.summary(spec,days,missing_observations=missing);publish(cur,report)
