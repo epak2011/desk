@@ -1,0 +1,15 @@
+{
+  "checks": [
+    {
+      "ticker": "AAPL",
+      "complete_daily_states_identical": 212,
+      "full_trade_records_identical": true
+    },
+    {
+      "ticker": "T",
+      "complete_daily_states_identical": 212,
+      "full_trade_records_identical": true
+    }
+  ],
+  "basis": "Unmodified production technical function against optimized research states; actual full 2026 paths and full trade records."
+}

@@ -1,0 +1,439 @@
+{
+  "evidence_type": "retrospective_technical_simulation",
+  "universe_count": 110,
+  "sample_start": "2024-01-02",
+  "sample_end": "2026-11-04",
+  "comparison_start": "2026-01-02",
+  "results": [
+    {
+      "strategy": "Technical control",
+      "return_pct": 7.12316086872371,
+      "max_drawdown_pct": -4.234651904666942
+    },
+    {
+      "strategy": "SPY buy-and-hold",
+      "return_pct": 12.4754251533836,
+      "max_drawdown_pct": -8.884964925337824
+    },
+    {
+      "strategy": "QQQ buy-and-hold",
+      "return_pct": 11.75038022724535,
+      "max_drawdown_pct": -11.723569369470098
+    },
+    {
+      "strategy": "Same 110 stocks buy-and-hold",
+      "return_pct": 18.054966689962626,
+      "max_drawdown_pct": -5.586536193804237
+    },
+    {
+      "strategy": "SGOV cash proxy",
+      "return_pct": 2.437657323775011,
+      "max_drawdown_pct": null
+    }
+  ],
+  "control": {
+    "total_return_pct": 7.12316086872371,
+    "max_drawdown_pct": -4.234651904666942,
+    "exposure_pct": 62.598627787307024,
+    "round_trips": 188,
+    "closed_trade_count": 188,
+    "sample_boundary_valuation_count": 73,
+    "gross_turnover_pct": 460.64474850766743,
+    "win_rate_pct": 18.085106382978722,
+    "avg_trade_return_pct": -3.637254579080623,
+    "valuation_basis": "Open positions included in total return at sample-end value less hypothetical liquidation costs; excluded from closed-trade statistics.",
+    "matched_exposure_spy": {
+      "total_return_pct": 8.226857761066952,
+      "max_drawdown_pct": -5.765194305902444,
+      "basis": "Ex-post benchmark/cash diagnostic matched to mean equal-sleeve exposure at open, not actual capital-weighted portfolio exposure; gap uses prior weight; turnover costs included."
+    },
+    "entry_exit_attribution": {
+      "status": "available",
+      "ticker_count": 110,
+      "mean_ticker_log_excess_contributions_pct": {
+        "initial_wait": -2.0684484561948047,
+        "entry_days": -0.6214205794905425,
+        "invested_days": 1.8126914111152543e-13,
+        "exit_days": -0.5141442101738486,
+        "between_trades_cash": -5.857973504161498
+      },
+      "event_windows": {
+        "entry_5": {
+          "eligible_events": 261,
+          "mature_events": 248,
+          "mean_stock_return_pct": 0.6615523118659384
+        },
+        "entry_14": {
+          "eligible_events": 261,
+          "mature_events": 233,
+          "mean_stock_return_pct": 1.9830010906097053
+        },
+        "entry_30": {
+          "eligible_events": 261,
+          "mature_events": 223,
+          "mean_stock_return_pct": 2.5803722926428327
+        },
+        "exit_5": {
+          "eligible_events": 188,
+          "mature_events": 187,
+          "mean_stock_return_pct": 0.2007219800083482
+        },
+        "exit_14": {
+          "eligible_events": 188,
+          "mature_events": 183,
+          "mean_stock_return_pct": 0.4748804011669079
+        },
+        "exit_30": {
+          "eligible_events": 188,
+          "mature_events": 162,
+          "mean_stock_return_pct": 1.4722104519700063
+        }
+      },
+      "basis": "Exact same-stock log-return bridge; log points sum, not arithmetic percentage-point alpha. Exit windows are counterfactual stock returns after selling; positive means foregone upside, negative means avoided loss. Overlapping descriptive windows are not independent tests.",
+      "aggregation": "Mean of per-ticker log bridges; not the arithmetic portfolio excess return and not a rule-change recommendation."
+    },
+    "matched_exposure_qqq": {
+      "total_return_pct": 9.81406548427639,
+      "max_drawdown_pct": -7.354778045894106,
+      "basis": "Ex-post benchmark/cash diagnostic matched to mean equal-sleeve exposure at open, not actual capital-weighted portfolio exposure; gap uses prior weight; turnover costs included."
+    },
+    "calendar_year_returns_pct": {
+      "2026": {
+        "return_pct": 7.12316086872371,
+        "start": "2026-01-02",
+        "end": "2026-11-04",
+        "basis": "continuous_ledger_prior_year_end_equity"
+      }
+    },
+    "return_lift_vs_original_pct": 0.0,
+    "benchmark_excess_return_pp": {
+      "SPY": -5.35226428465989,
+      "QQQ": -4.627219358521639
+    }
+  },
+  "shadow_candidates": {
+    "v2_structure": {
+      "total_return_pct": 9.264383601802106,
+      "max_drawdown_pct": -4.233611684985061,
+      "closed_trade_count": 137
+    },
+    "v2_entry": {
+      "total_return_pct": 2.9676614410859115,
+      "max_drawdown_pct": -2.993711981171121,
+      "closed_trade_count": 102
+    },
+    "v2_combined": {
+      "total_return_pct": 4.016140184809913,
+      "max_drawdown_pct": -2.993711981171121,
+      "closed_trade_count": 82
+    }
+  },
+  "universe_selection": {
+    "id": "broad-110-v2-2026-11-05",
+    "selected_on": "2026-11-05",
+    "selection": "Fixed ten-name research basket per sector, chosen before this run; not ranked on backtest returns. This is not an index membership reconstruction or an investment recommendation.",
+    "historical_status": "exploratory_current_survivor_universe_not_untouched_validation",
+    "sectors": {
+      "technology": [
+        "AAPL",
+        "MSFT",
+        "NVDA",
+        "AVGO",
+        "AMD",
+        "INTC",
+        "IBM",
+        "ORCL",
+        "CSCO",
+        "QCOM"
+      ],
+      "communication": [
+        "GOOGL",
+        "META",
+        "NFLX",
+        "DIS",
+        "TTD",
+        "CMCSA",
+        "VZ",
+        "T",
+        "TMUS",
+        "CHTR"
+      ],
+      "consumer_discretionary": [
+        "AMZN",
+        "TSLA",
+        "HD",
+        "LOW",
+        "NKE",
+        "SBUX",
+        "MCD",
+        "BKNG",
+        "F",
+        "GM"
+      ],
+      "consumer_staples": [
+        "WMT",
+        "COST",
+        "PG",
+        "KO",
+        "PEP",
+        "MDLZ",
+        "CL",
+        "KHC",
+        "GIS",
+        "KR"
+      ],
+      "healthcare": [
+        "UNH",
+        "JNJ",
+        "PFE",
+        "MRK",
+        "ABBV",
+        "LLY",
+        "BMY",
+        "AMGN",
+        "GILD",
+        "CVS"
+      ],
+      "financials": [
+        "JPM",
+        "BAC",
+        "WFC",
+        "C",
+        "GS",
+        "MS",
+        "AXP",
+        "BLK",
+        "SCHW",
+        "USB"
+      ],
+      "industrials": [
+        "CAT",
+        "DE",
+        "HON",
+        "GE",
+        "BA",
+        "UPS",
+        "UNP",
+        "LMT",
+        "RTX",
+        "FDX"
+      ],
+      "energy": [
+        "XOM",
+        "CVX",
+        "COP",
+        "EOG",
+        "SLB",
+        "OXY",
+        "VLO",
+        "MPC",
+        "PSX",
+        "HAL"
+      ],
+      "materials": [
+        "LIN",
+        "APD",
+        "SHW",
+        "ECL",
+        "FCX",
+        "NEM",
+        "DOW",
+        "NUE",
+        "DD",
+        "VMC"
+      ],
+      "utilities": [
+        "NEE",
+        "DUK",
+        "SO",
+        "AEP",
+        "EXC",
+        "XEL",
+        "SRE",
+        "ED",
+        "WEC",
+        "D"
+      ],
+      "real_estate": [
+        "AMT",
+        "PLD",
+        "CCI",
+        "EQIX",
+        "DLR",
+        "PSA",
+        "O",
+        "SPG",
+        "WELL",
+        "ESS"
+      ]
+    },
+    "benchmarks": [
+      "SPY",
+      "QQQ",
+      "same_universe_buy_hold"
+    ],
+    "cash_proxy": "SGOV",
+    "missing_data_policy": "Fail complete-universe headline on any missing security; publish coverage failure, never silently drop it.",
+    "limitations": [
+      "Current survivors selected today do not supply delisted securities or historical index constituents.",
+      "Historical results are exploratory; only separately timestamped future observations are prospective.",
+      "Equal starting capital per name is a technical research sleeve, not live PM sizing."
+    ],
+    "replaces_unusable_cohort": "broad-110-2026-11-05",
+    "coverage_changes": [
+      {
+        "removed": "WBD",
+        "replacement": "TTD",
+        "reason": "WBD acquired/delisted; provider lacks usable full history; changed before any complete cohort result.",
+        "source": "https://www.nasdaqtrader.com/TraderNews.aspx?id=ECA2026-710"
+      },
+      {
+        "removed": "AVB",
+        "replacement": "ESS",
+        "reason": "AVB merged/delisted; provider lacks usable full history; changed before any complete cohort result.",
+        "source": "https://investors.avalonbay.com/sec-filings/all-sec-filings/content/0000876661-26-000689/ruleprovisionnotice.htm"
+      }
+    ]
+  },
+  "cash_basis": "SGOV adjusted total-return proxy, no trading costs on cash accrual",
+  "limitations": [
+    "Technical-engine replay only; no reconstructed historical AI, news or fundamental inputs.",
+    "Original means this frozen implementation, not an unspecified historical release.",
+    "Daily-bar ordering is unknown; stop-first is conservative. No liquidity/market-impact model.",
+    "No automatic tuning or promotion. Validation is only untouched if chosen before inspecting it.",
+    "Avoid and Hold off both remain cash in this long-only simulation; no invented short gains.",
+    "Equal-capital ticker sleeves, no cross-ticker rebalancing; universe selection may introduce survivorship bias.",
+    "Full exits use a frozen entry stop breached at close or Avoid below both MA50/MA200, filled next open. No historical earnings gate is reconstructed.",
+    "Discretionary partial trims and Raise stop instructions are not simulated; this is not the complete live PM process.",
+    "V3 has the same exit policy as V2 combined in this controlled comparison; its legacy targets/trailing/time limit are disabled.",
+    "Sample-boundary liquidation is an accounting convention, not a sell signal. Checkpoints are gross marked returns for positions still held at 5/14/30 sessions."
+  ],
+  "input_sha256": {
+    "AAPL": "d244d566a00429a3706c39fd42563dbf9417bdbf3a64aec1564363741375d748",
+    "ABBV": "436c70ef8ea8cbe66c0b2b32734d6c7d93c0cd993025b1cc369e2a501f7c4245",
+    "AEP": "a9f446120facbc78b02b0fb842d5e7a1065fb831abbdbe5cbe23c019ad7a89fb",
+    "AMD": "52869e50a0c9594c233638dea620cffec2c9529484a10eff23c408c05a80b117",
+    "AMGN": "6b798a40f153659f721239dfb9b16cc052c9fb2e219054d427b28b07bf41bc3e",
+    "AMT": "e743c9f7910d084a494ba015c49096cc053d05120f7bc1bf1f3439a6c8dbc540",
+    "AMZN": "721f0c0ab73b3a6bdc623c0789b615fdda42c2f779bd5ce47426f5fb5521d6b2",
+    "APD": "1ee77ed7b404bd24b97a6f1c9e25071d7c7f55dabd5b5d4c940e91cdb7d0823d",
+    "AVGO": "7997b829499fa66ffe16627ee8590649ce2228e37b6a8adb3f8ec402f502048c",
+    "AXP": "997a2e1f7e0653d874bc5f1ec4868a89d935a65ece151b7ce89604a9cdade67d",
+    "BA": "22e73fc2f5ad51798946b8d6ea038d32d8e69b2b581b0635bf9b4e0fefc0344f",
+    "BAC": "8a7473daf29cef67081a1292895c2ab69c7d42730afc6d19ca4154411d494d6e",
+    "BKNG": "7b2dee870d53e2eaeffb3efbfecaacb57c90be29f0ad9e4f603b6ffd4bef19e0",
+    "BLK": "43f7409f640edb574559356bd1b7c46b0b8296e2617600e8912a75dc3f1cd2e3",
+    "BMY": "884eab986e483f9b3285fd48d297e784f2b3856b008026b5ade2e284b6027d9c",
+    "C": "adc1466e8eb58c765a019f26eca2c333e4f463b015cf9d05ce6f056b5e3ad927",
+    "CAT": "c80c5b4a83b5d220e5d34df16869819ce403585160495eddbdaf39a08d0b9021",
+    "CCI": "d866b263cb6cc9e131c45f656a55851773e3d927b8e3444e0626364e5a53002d",
+    "CHTR": "c33109fb847c3e314eec7f199c7a586f512024c0660f6034fc79118658bc568c",
+    "CL": "151aa6e2260c90cf25fc061bac8e8de15ba136ceef8d1a72be1e63f90ee2d8cc",
+    "CMCSA": "bf4ae2c22cf076691e4f4baac9615d5b6ce7bd87911297293cce94db51bd0628",
+    "COP": "d84ae590c1f9981f78f8b2a42d82f4bc379453fe70ad5fc1ae6c08c5ff1a7eb0",
+    "COST": "46ed327c2e553f2732c93c9ab8253671473e8fb1fcf226bfb0241d1e33d3256f",
+    "CSCO": "35f6cd423cf1bdd96f482f9f39567ed3085a1d79ab94474450e13017a4b72859",
+    "CVS": "e9a28e92887a8078af097d67ffe14ea7c3e38cc0796c3700d44e2fbec1cffffb",
+    "CVX": "d7c1c40ceecf16c159af9cca152763b1eb57dcad46967b54a6648df5e5cb399a",
+    "D": "318e165bab7915c4dc450977d67017feb5640869962fe2578ca88ebe4112da5e",
+    "DD": "bcfdd843ecc1698c5630b776b40de81f6f0389dc6f22ee5c9d7496fd367bd503",
+    "DE": "7224d2eae19a8f89ae471a5e7d545bdcc81d95829d1348abba74ef97391124f8",
+    "DIS": "4765b5a975c131737a9b153e058d3a54ab0d80316ddcb23365dd397591ce467c",
+    "DLR": "1fc41c79b8f5cfa27b2006b019026d9e98b38ee100fdcc5621fdde08cc86ff6c",
+    "DOW": "d082c691c8b9b9192ce11e0661402a5a32bda975a97eb942d7b3fbde4edbd772",
+    "DUK": "76e27e11f9da4272b3222c67786754e84e556eefe5c2504fa1fe9f93bc6b71ae",
+    "ECL": "0cf15e5fee4a996cc8d26893df4c6a6fb9bef0432321ea81b77d1f214d78c9b5",
+    "ED": "ef2f9306609452310fbb971905c3617e131df32619720d278b080253c65924f6",
+    "EOG": "91a6aa79b84e0927d36234a8f488d7046adf22522850914c17487aa4684ed454",
+    "EQIX": "0fd0d19195042eaa07031c25a6457c04a81e819547609054054f144ef8f683fb",
+    "ESS": "e8a3aab4fd41c39aac1b2b2bce6bb5feed018777a169b8a08346ae3ca86b0544",
+    "EXC": "3e5fb2463c9f8093338481d54dfa2f6aa4aae5de53d808fa7a3fb850d3a417d2",
+    "F": "26c8edf22e1c06eb1d8c777ef629a775c63d0981af5056952dc175d94134eab8",
+    "FCX": "5336d724ea9d418bb8e9d5fa95cdebf602bce3bcea070390bf8fee5d08f5ef7f",
+    "FDX": "46dcb452efe8ce6e131686e332b16f28c6d2a086d96b08b932296567b94a7e09",
+    "GE": "494dca6457c5cb45c611b05791e498001ca31abc2c5bbaea23a745c1c89fb79a",
+    "GILD": "2311d0fe31474c2b9123f335b87a412d691b873b129cde923ad9c66a41caa563",
+    "GIS": "7808c3a3c815ed96c061bb2933a7188fc1c43099f3164bc5762d212220a133e3",
+    "GM": "779e107b74f05b0a425691c3ed2cea98e4a78847f1abd209d51bfa4904063d4a",
+    "GOOGL": "d35498cfd9be118caea680fcb73c1ab45e93642804ac328b3397dd2182cbaf35",
+    "GS": "25bd6d9ccdc253ce3d87bef41c3a0231c22984cf04a85801a765d13c9ce4ad99",
+    "HAL": "449fd7928c435f5f1bc29beb12f2620725fffc0a66085d67dec43a9173a97bc2",
+    "HD": "374556b5e03c3621f622a6d2baaae75369fa0bba67a28ebea59fc05df4257c66",
+    "HON": "5796d115cd2ee3e7747bc67373c98eaaef72432b9eb03c07b81a710426784165",
+    "IBM": "b9bff668ce9d5c2276c310afba3e350d759d82fe15ba215f2571c2f0633f4618",
+    "INTC": "1de4136f0115b71cb215d7faba6f7898f1d11585c8a2b047e3a9f6543a7166e4",
+    "JNJ": "de4d68ee9c74a7e171baa42b2abf72fb4eefd394448062ffc7f7ec7687e0e9fa",
+    "JPM": "d2d3e8701e8fb22b5bb61c48e21480a078dedaed10142ea2280952a0a782a033",
+    "KHC": "1a36417d60623396b5a206bbf2d953eaab6d492f5677ed997f184957f6aa4a4f",
+    "KO": "0b93e8590d37946f5acfabf9de865788798cab1e54751c4dbbe97e530e06a7ec",
+    "KR": "ceecffabc37311ff20c5f3601a0396f4399d59f5b4752ff4c41ec72bc88c6f39",
+    "LIN": "b5a164d6fcef036292c6a2270a2c916aa34deb4c22420bf679e47522dc679ee3",
+    "LLY": "1993981164390e21e1fbacd629ad60bc1095d557021aa3edfcddf219f7e120c0",
+    "LMT": "114470ebf37c6b6aca2d52bd03311e16118ba043decffe0900f339fb7d42e2ed",
+    "LOW": "661a7f3d9b455f126931d251e539d1fec37558060469e8a51885f10888e14c06",
+    "MCD": "15882fb60fa3d631b5c93c38f0ca67eed39b27c07edd71c65a05a1c5d238609a",
+    "MDLZ": "a2be1111a1cf0ce8bff22f3dae19bef2fa16c8b3fe3fd4bf27e4dad1b0f224c2",
+    "META": "d093b60f70d4a7d5d2e56b7042e7e63f31c83cfa90c3b061ff277f4aba804918",
+    "MPC": "0eeff876f6a7526eb05f6f73e114f58f58e86a7531bb3630731c58121e8f8537",
+    "MRK": "ef295d3a5386ba813c801617de494cca21dfcfc193876d1e46d033b45a31502b",
+    "MS": "d18a1b2cc469a34bd84c906c741c6a103c774de912a5b2997cc530997daeed18",
+    "MSFT": "61ea62a507e77db38a857748a8fc0fbf5c4036e2c43292a08b427aca640bd87f",
+    "NEE": "2095739a646bbe4c3a738798d50bc818a1cee49f8bfbee4adb39295357d64b6f",
+    "NEM": "39358ff54dd607994ca0bc7fb5e86ecf4cf17b7e16fedfb17cfd6bfb12cf13da",
+    "NFLX": "98d44969e217716fd9559879cf01fe83d23956b9edcad7c3b47466eabb59ae5e",
+    "NKE": "6822b7f850a68c9590cb9c70a91cedb65b45a2b755a816de15dd56c12019ad95",
+    "NUE": "06daf941db307287cacb6d4009cda93a9e6efbe239a5b85715fcde0e60c52e25",
+    "NVDA": "4783f6fb2cd6331e37e5d4ee9650575b776d877b1131201209ef2a1022bea510",
+    "O": "50cfa643e9c868215d5f76a11c6690c7fe06d96d661b0583cf2201d64bde2fd7",
+    "ORCL": "b16f952596422f276aff13c01a4be134a7a12ad6965bc1c1a205197c98065cb5",
+    "OXY": "e3b3f8862ba319a7b56230809af837757fb450aa792d4f3575302bc1d3072cfa",
+    "PEP": "3e4553d4b26616197e8d95bed73952723625fb87cde241c79b1cf071038c590d",
+    "PFE": "090111607d4a32cabddaaf987451fb6f875ec9b85904d47bc75bd24374fc4fb5",
+    "PG": "38666d484e116084884225133c01dd56922dd81fc08f8e7a2ca7fb200257ea28",
+    "PLD": "758723803761e752fc50a70da46a791ee9962c65ccd418aeb6fd3f58d4afe24d",
+    "PSA": "603b3a56a1a2c3a653168c2bb38779d612ba1485590bc1a161495919070e1835",
+    "PSX": "90b1c2c02d660ab9eb4b30b3f49d47a1f3ef36b6996213be494414d69239e94c",
+    "QCOM": "9aef37c0ef9b1183a99f78bd6dec174002ac3f04017e409ab1d16bb256b563f2",
+    "RTX": "1cd9cb2b594caab3b1b5b657a1dbbd74c4b51e7af1c368b86023ef974dd3e018",
+    "SBUX": "54dfac3f35e4e9c905cd9db276c573f35893d5429b3fec3f20c153cb20deda89",
+    "SCHW": "6bda7c3d798cb7a715261d89b2c1523bc8a9f4cf0379d36afda2c1554a3ca3a0",
+    "SHW": "7258ffb47b2ff219da2d04243367c5ef5694a1bab2ff560c19c8d232eb1a359b",
+    "SLB": "5989c93695a71412583a3f99af7ea62303cb6ee9198fe6bb0ecdf1331bc30a29",
+    "SO": "5d18ba056b856bd677b11d1df0fa95b5f8d3ec43738a724854fb2d418bcf9c2b",
+    "SPG": "5d9ad34191a606d2b3661a6be2382ca1e6d82321176f3436f98812213588baf6",
+    "SRE": "ea080591937cd84c752cc05131334dd039977a5c1963a1dc786f2919cbe1b00e",
+    "T": "00c40e2703ad7e7b6ba97978de57b28673dca1116e6ef9044557f2d1f79a2901",
+    "TMUS": "a1400051dd81937bd1c1582367c182b11156f0f7641aa1a1bd7f087d46e91d27",
+    "TSLA": "9daf1a23a10e104fcaa20588b19bee7868d0018ff31fed788c3f14fc349d40fb",
+    "TTD": "3f42e6315af5bdbd4f1873183652d1fa8780ba5c9437f04f381229573ef74d29",
+    "UNH": "65a2bed5ec3922b79b3dd008319d432ada4498575ac5607e8b315c96d8cd1522",
+    "UNP": "58c5ef11f42e6841ddb239b469570ab555e16a803b9d64c3d2886f1a534d8760",
+    "UPS": "b31b5f39946338d03f48d22b8991c521efde9c2ef3189fcbfa82c9b7b48ff012",
+    "USB": "74342ebc6b529c4897e16660cca7e38a3d3805f356d6a4af07655ab348508730",
+    "VLO": "cab88fb2b71063dfb850d2c151922a4b0685351e06ad872d59f780b02f834d30",
+    "VMC": "89196553616df5d5a1db6977e70621d6a2886f3b1bba61af94abacd9709559b9",
+    "VZ": "26647725993a5544199946b7d4ebecaae0fec6f9c15b123e0652b2cd67f41106",
+    "WEC": "683092e35206190660f33e822e1e665569afd3757e6545af0415c80174170c8e",
+    "WELL": "bc3ee4bbadb860b1e5068e9cb37e4b10ef18c2dc42f0e16661ba22511a79d07d",
+    "WFC": "9dcffea4440ad386f10c690cb5c738f02263cd353544d338950bae0348fe4ee7",
+    "WMT": "7eabe32f4f0008bd18318e43164e5acd901f629bad1f834306e3dd9dc2519ead",
+    "XEL": "c70a7d7a2464def89b56df1e6628fc90b5486c6399d56864792c42093de7b7fa",
+    "XOM": "6f65e4495a07d5c43f2979f8ce0f4f367f926241478de255f97b085e412fa8eb",
+    "SPY": "ce26ea8b19092f21e13842cab684042fc47381f9550d938bde11bb5cad51b086",
+    "QQQ": "035a264084d21712b59442d26ad35dfc2c7c12a7fa407e2b63c5807c6a3e83dc",
+    "SGOV": "041ad07c7af8a94c2d3abe7225d635ac076c1ba160aa2025e316b93f4fe452d8"
+  },
+  "code_sha256": {
+    "performance_attribution.py": "6c5593af483703c1b342c7e399c168d6f72d326d8267340435df0e3d2615e1ac",
+    "tactical.py": "2e7e9edf9e5183badae71416e46427688b3892a9121bc878d1dab1f0aa18de47",
+    "engine_candidates.py": "e544219299106895a0c6066e21b1291de43a73a6886a7d945b004be0bea6e8ae",
+    "backtest_runner.py": "39797589cf84190cb363854045c5dfee2b4a918a18bdc24d4b076ebdbc061264",
+    "position_policy.py": "22c36017a8863ed5a06cbda8bb533fd8452bf7576d143c44b553220272e374d9",
+    "research_protocol.py": "25816fe231e8def2b9bc15a097c99b476c8a8bf6862d4f6466f135d3e8f3d7e2",
+    "parallel_replay.py": "c2302441713d24635302669e4c13dae415624a95583bbf06d5e688d2878dcf7a",
+    "scripts/replay_cached_dataset.py": "c67393a763f487492e9940bb39939a115c96c921f3271945ceb6e855a50c2414",
+    "research_fast_levels.py": "51386bc9b8117642a5ce5bc15888391726cccb3f4a3ef8a423d5383622b34630"
+  },
+  "actual_account_performance": false,
+  "production_rules_changed": false
+}

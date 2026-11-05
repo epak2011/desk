@@ -58,7 +58,7 @@ class ForwardPaperTests(unittest.TestCase):
         from pathlib import Path
         import json
         root=Path(__file__).parents[1]
-        spec=json.loads((root/'research/forward-paper-110-v3.json').read_text())
+        spec=json.loads((root/'research/forward-paper-110-v4.json').read_text())
         f.verify(spec,root)
         bad=deepcopy(spec);bad['cost_bps_per_side']=5
         with self.assertRaises(ValueError):f.verify(bad,root)
@@ -78,6 +78,6 @@ class ForwardPaperTests(unittest.TestCase):
         import json
         from pathlib import Path
         root=Path(__file__).parents[1]
-        s=json.loads((root/'research/forward-paper-110-v3.json').read_text())
+        s=json.loads((root/'research/forward-paper-110-v4.json').read_text())
         s['starts_on']='2026-01-01';s['protocol_id']=f.identity(s)
         with self.assertRaisesRegex(ValueError,'Prospective start'):f.verify(s,root)

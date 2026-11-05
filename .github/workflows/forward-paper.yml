@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
     paths:
-      - research/forward-paper-110-v3.json
+      - research/forward-paper-110-v4.json
 permissions:
   contents: read
 concurrency:
