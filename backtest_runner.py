@@ -57,9 +57,15 @@ def validate_bars(frame):
         raise ValueError("Non-finite or missing bar values.")
     if (frame[["Open", "High", "Low", "Close"]] <= 0).any().any() or (frame.Volume < 0).any():
         raise ValueError("Invalid prices or volume.")
-    if ((frame.High < frame[["Open", "Close", "Low"]].max(axis=1)) |
-            (frame.Low > frame[["Open", "Close", "High"]].min(axis=1))).any():
+    upper = frame[["Open", "Close", "Low"]].max(axis=1)
+    lower = frame[["Open", "Close", "High"]].min(axis=1)
+    tolerance = frame[["Open", "High", "Low", "Close"]].abs().max(axis=1) * 1e-10
+    if ((upper - frame.High > tolerance) | (frame.Low - lower > tolerance)).any():
         raise ValueError("Inconsistent OHLC range.")
+    # Adjusted-price multiplication can differ at machine precision (e.g.
+    # low and close by 1e-15). Normalize only the validated rounding boundary.
+    frame["High"] = frame[["Open", "High", "Low", "Close"]].max(axis=1)
+    frame["Low"] = frame[["Open", "High", "Low", "Close"]].min(axis=1)
     return frame
 
 
@@ -255,7 +261,7 @@ def matched_exposure_benchmark(benchmark, weights, cost_bps, cash_bars=None):
     curve = pd.Series(values, index=benchmark.index)
     return {"total_return_pct": float((curve.iloc[-1] - 1) * 100),
             "max_drawdown_pct": float(((curve / curve.cummax().clip(lower=1) - 1) * 100).min()),
-            "basis": "Ex-post SPY/cash matched to mean equal-sleeve exposure at open; gap uses prior weight; turnover costs included."}
+            "basis": "Ex-post benchmark/cash diagnostic matched to mean equal-sleeve exposure at open, not actual capital-weighted portfolio exposure; gap uses prior weight; turnover costs included."}
 
 
 def replay(histories, benchmark, *, start, end, validation_start, assumptions=Assumptions(), compute=None,
@@ -279,6 +285,12 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
         comparisons[symbol] = frame
     if len(dates) < 2 or not len(benchmark.loc[benchmark.index < start]) >= 200:
         raise ValueError("Require sample sessions and at least 200 pre-start benchmark bars.")
+    # Validate every name before calculating any result: no partial-universe
+    # performance can leak out before a late ticker's coverage error is found.
+    histories = {ticker: validate_bars(raw) for ticker, raw in histories.items()}
+    for ticker, bars in histories.items():
+        if not dates.isin(bars.index).all() or len(bars.loc[bars.index < start]) < 200:
+            raise ValueError(f"{ticker}: missing sessions or insufficient warm-up.")
     versions = VERSIONS if assumptions.exit_policy == "legacy_14_session" else ACTIVE_VERSIONS
     if include_event_study:
         if assumptions.exit_policy != "signal_invalidation":
@@ -329,6 +341,7 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
               "evidence_type": "retrospective_technical_simulation",
               "benchmark_symbols": sorted(comparisons),
               "cash_basis": "SGOV adjusted total-return proxy, no trading costs on cash accrual" if cash_bars is not None else "zero_return_cash",
+              "ohlc_normalization": "Machine-precision range differences <=1e-10 relative price normalized in memory; raw CSVs preserved. Larger inconsistencies fail.",
               "limitations": ["Technical-engine replay only; no reconstructed historical AI, news or fundamental inputs.",
                               "Original means this frozen implementation, not an unspecified historical release.",
                               "Daily-bar ordering is unknown; stop-first is conservative. No liquidity/market-impact model.",

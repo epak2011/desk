@@ -65,3 +65,17 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(r['entry_exit_attribution']['ticker_count'],1)
         self.assertIsNotNone(r['matched_exposure_qqq'])
         self.assertIn('SGOV',report['cash_basis'])
+
+    def test_only_machine_precision_ohlc_noise_is_normalized(self):
+        from backtest_runner import validate_bars
+        b=bars();b.loc[b.index[0],'Low']=100.+1e-12;b.loc[b.index[0],'High']=101.
+        self.assertEqual(validate_bars(b).Low.iloc[0],100.)
+        b.loc[b.index[0],'Low']=100.001
+        with self.assertRaises(ValueError):validate_bars(b)
+
+    def test_full_universe_is_validated_before_any_engine_call(self):
+        b=bars(240);calls=[]
+        with self.assertRaises(ValueError):
+            replay({'VALID':b,'MISSING':b.drop(b.index[225])},b,start=b.index[210],end=b.index[230],
+                   validation_start=b.index[220],compute=lambda *a:calls.append(1))
+        self.assertEqual(calls,[])
