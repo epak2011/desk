@@ -9,7 +9,7 @@ import backend_layer as backend
 import forward_paper as paper
 import tactical
 
-SPEC=ROOT/'research/forward-paper-110.json'
+SPEC=ROOT/'research/forward-paper-110-v2.json'
 
 
 def publish(cur,report):

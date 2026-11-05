@@ -26,3 +26,11 @@ The collector is independent of Claude/research generation and the frozen worker
 This is hypothetical technical-sleeve performance, **not actual account returns or the complete discretionary PM strategy**. Newly collected sessions do not establish a mature edge. Old checkpoint means remain separate. Owner-only `GET /v1/operator/performance` adds `decision_history_coverage`, `broad_universe_replay` and `forward_paper_performance`; the existing `forward_portfolio_performance` continues to say actual forward portfolio performance is not established.
 
 The daily collector and publishing changes require review/merge before activation. No historical result is labeled prospective, and no candidate is promoted automatically.
+
+## Coverage findings and revised cohort
+
+Hosted aggregate audit on November 5: 16,393 decision records, 46 distinct tickers, 1,751 rows with stored outcomes; records span May 2–November 5. These counts include repeat calls, differing engine versions and immature observations, not 16,393 independent trades. Hosted tests passed.
+
+The first 110-name preset failed complete-universe coverage: AVB and WBD had been acquired/delisted, and the public provider returned unusable one-row histories. That failed dataset and original preset are retained. Before viewing any complete cohort performance, the v2 preset explicitly substitutes ESS for AVB and TTD for WBD. All 110 v2 stock inputs plus SPY/QQQ/SGOV passed full sample-session and warm-up coverage. Selection remains survivor-biased and exploratory; replacement is disclosed, not silently omitted. The prospective v2 registration is separate, retains the original protocol ID as provenance and begins November 6. The original unstarted registration is not rewritten.
+
+The existing eight-name event-study health check currently reports a frozen worker-source mismatch on the base release; this work does not claim to repair or backfill that cohort. The new paper collector is separately frozen and independent of that worker.

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - research/broad-universe-2026-11-05.json
+      - research/broad-universe-v2-2026-11-05.json
       - scripts/run_rules_replay.py
       - performance_attribution.py
       - .github/workflows/performance-research.yml
@@ -41,7 +41,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: >-
           python scripts/run_rules_replay.py
-          --universe-file research/broad-universe-2026-11-05.json
+          --universe-file research/broad-universe-v2-2026-11-05.json
           --start 2024-01-02 --end 2026-11-04 --validation-start 2026-01-02
           --cash-proxy SGOV --series broad_universe
           --output-dir broad-replay-artifact --publish
