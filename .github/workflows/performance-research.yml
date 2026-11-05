@@ -1,0 +1,53 @@
+name: Broad universe performance research
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - research/broad-universe-2026-11-05.json
+      - scripts/run_rules_replay.py
+      - performance_attribution.py
+      - .github/workflows/performance-research.yml
+permissions:
+  contents: read
+concurrency:
+  group: broad-performance-research
+  cancel-in-progress: false
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'psycopg[binary]>=3.1,<4.0' 'psycopg-pool>=3.2,<4.0'
+      - run: python scripts/audit_performance_coverage.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  broad-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -q
+      - name: Frozen broad-universe comparison with cash yield and attribution
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: >-
+          python scripts/run_rules_replay.py
+          --universe-file research/broad-universe-2026-11-05.json
+          --start 2024-01-02 --end 2026-11-04 --validation-start 2026-01-02
+          --cash-proxy SGOV --series broad_universe
+          --output-dir broad-replay-artifact --publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: broad-universe-replay-${{ github.run_id }}
+          path: broad-replay-artifact/
+          retention-days: 90

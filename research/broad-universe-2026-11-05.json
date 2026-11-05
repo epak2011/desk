@@ -1,0 +1,23 @@
+{
+  "id": "broad-110-2026-11-05",
+  "selected_on": "2026-11-05",
+  "selection": "Fixed ten-name research basket per sector, chosen before this run; not ranked on backtest returns. This is not an index membership reconstruction or an investment recommendation.",
+  "historical_status": "exploratory_current_survivor_universe_not_untouched_validation",
+  "sectors": {
+    "technology": ["AAPL","MSFT","NVDA","AVGO","AMD","INTC","IBM","ORCL","CSCO","QCOM"],
+    "communication": ["GOOGL","META","NFLX","DIS","WBD","CMCSA","VZ","T","TMUS","CHTR"],
+    "consumer_discretionary": ["AMZN","TSLA","HD","LOW","NKE","SBUX","MCD","BKNG","F","GM"],
+    "consumer_staples": ["WMT","COST","PG","KO","PEP","MDLZ","CL","KHC","GIS","KR"],
+    "healthcare": ["UNH","JNJ","PFE","MRK","ABBV","LLY","BMY","AMGN","GILD","CVS"],
+    "financials": ["JPM","BAC","WFC","C","GS","MS","AXP","BLK","SCHW","USB"],
+    "industrials": ["CAT","DE","HON","GE","BA","UPS","UNP","LMT","RTX","FDX"],
+    "energy": ["XOM","CVX","COP","EOG","SLB","OXY","VLO","MPC","PSX","HAL"],
+    "materials": ["LIN","APD","SHW","ECL","FCX","NEM","DOW","NUE","DD","VMC"],
+    "utilities": ["NEE","DUK","SO","AEP","EXC","XEL","SRE","ED","WEC","D"],
+    "real_estate": ["AMT","PLD","CCI","EQIX","DLR","PSA","O","SPG","WELL","AVB"]
+  },
+  "benchmarks": ["SPY","QQQ","same_universe_buy_hold"],
+  "cash_proxy": "SGOV",
+  "missing_data_policy": "Fail complete-universe headline on any missing security; publish coverage failure, never silently drop it.",
+  "limitations": ["Current survivors selected today do not supply delisted securities or historical index constituents.","Historical results are exploratory; only separately timestamped future observations are prospective.","Equal starting capital per name is a technical research sleeve, not live PM sizing."]
+}
