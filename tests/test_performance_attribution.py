@@ -35,6 +35,7 @@ class PerformanceTests(unittest.TestCase):
     def test_exit_window_includes_sold_trades_not_only_survivors(self):
         b=bars(40)
         b.loc[b.index[3],['Open','High','Low','Close']]=[90,91,89,90]
+        b.loc[b.index[5]:,['Open','High','Low','Close']]=[105,106,104,105]
         r=simulate(b,{b.index[0]:enter()},'original',Assumptions(0))
         a=pa.attribute(b,r)
         self.assertEqual(a['windows']['exit_14']['mature_events'],1)
