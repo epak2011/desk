@@ -19,11 +19,17 @@ def build_one(task):
         with p.open('rb') as f:return ticker,pickle.load(f)
     from backtest_runner import validate_bars
     def read(symbol):return validate_bars(pd.read_csv(Path(data_dir)/(symbol+'.csv'),parse_dates=['Date']).set_index('Date'))
+    import research_fast_levels
+    original_levels = tactical.detect_key_levels
     stock,bench=read(ticker),read('SPY')
     result={}
-    for date in dates:
-        state=tactical.compute(stock.loc[:date],bench.loc[:date])
-        result[pd.Timestamp(date)]=tactical.apply_extension_execution_overlay(state) if state else None
+    try:
+        tactical.detect_key_levels = research_fast_levels.detect_key_levels
+        for date in dates:
+            state=tactical.compute(stock.loc[:date],bench.loc[:date])
+            result[pd.Timestamp(date)]=tactical.apply_extension_execution_overlay(state) if state else None
+    finally:
+        tactical.detect_key_levels = original_levels
     p.parent.mkdir(parents=True,exist_ok=True)
     temporary=p.with_suffix('.tmp')
     with temporary.open('wb') as f:pickle.dump(result,f,protocol=pickle.HIGHEST_PROTOCOL)
@@ -33,7 +39,7 @@ def build_one(task):
 
 def precompute(data_dir,tickers,dates,cache_dir,workers=4):
     root=Path(__file__).parent
-    sources={name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in ('tactical.py','position_policy.py','parallel_replay.py','backtest_runner.py')}
+    sources={name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in ('tactical.py','position_policy.py','parallel_replay.py','backtest_runner.py','research_fast_levels.py')}
     bench_hash=hashlib.sha256((Path(data_dir)/'SPY.csv').read_bytes()).hexdigest()
     tasks=[]
     for ticker in tickers:

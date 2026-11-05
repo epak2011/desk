@@ -21,12 +21,12 @@ def main():
     dates=spy.loc[args.start:args.end].index
     for name,b in stocks.items():
         if not dates.isin(b.index).all() or len(b.loc[b.index<args.start])<200:raise ValueError('Full universe preflight failed: '+name)
-    frozen={n:(ROOT/n).read_text() for n in ('parallel_replay.py','scripts/replay_cached_dataset.py')}
+    frozen={n:(ROOT/n).read_text() for n in ('parallel_replay.py','scripts/replay_cached_dataset.py','research_fast_levels.py')}
     states=parallel_replay.precompute(folder/'data',names,dates,folder/'signal-cache',args.workers)
     def compute(stock,bench):return states[stock.attrs['replay_ticker']].get(stock.index[-1])
     r=replay(stocks,spy,start=args.start,end=args.end,validation_start=args.validation_start,
              comparison_benchmarks={'QQQ':qqq},cash_bars=cash,assumptions=Assumptions(),compute=compute)
-    r['universe_selection']=spec;r['runtime']={'pandas':pd.__version__,'compute_mode':'parallel frozen technical-state cache; identical technical function and no recomputed historical AI'}
+    r['universe_selection']=spec;r['runtime']={'pandas':pd.__version__,'compute_mode':'parallel technical-state cache with equivalent vectorized key-level reductions; full-state equivalence checks passed, production source unchanged; no reconstructed historical AI'}
     for name,text in frozen.items():r['frozen_sources'][name]=text;r['code_sha256'][name]=hashlib.sha256(text.encode()).hexdigest()
     for m in r['strategy_manifests'].values():
         m['source_sha256']=r['code_sha256'];m.pop('strategy_id',None);m['strategy_id']=hashlib.sha256(json.dumps(m,sort_keys=True).encode()).hexdigest()
