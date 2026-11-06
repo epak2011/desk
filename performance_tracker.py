@@ -46,8 +46,19 @@ def summarize_backtest(report):
 
 
 def publish_backtest(report,backend):
-    summary=summarize_backtest(report);backend.ensure_backend_schema()
-    key='validation_suite_replay:'+report['study_id']
+    return publish_summary(summarize_backtest(report),backend)
+
+
+def validate_summary(summary):
+    if summary.get('evidence_type')!='retrospective_validation_engine_simulation' or summary.get('new_forward_results') is not False or summary.get('actual_account_performance') is not False:
+        raise ValueError('Only explicitly retrospective simulated results may be published here')
+    unsigned={k:v for k,v in summary.items() if k not in ('generated_at','summary_sha256')}
+    if engine.digest(unsigned)!=summary.get('summary_sha256'):raise ValueError('Historical summary integrity failure')
+
+
+def publish_summary(summary,backend):
+    validate_summary(summary);backend.ensure_backend_schema()
+    key='validation_suite_replay:'+summary['study_id']
     with backend.db_connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:

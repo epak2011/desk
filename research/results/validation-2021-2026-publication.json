@@ -1,0 +1,9 @@
+{
+  "study_id": "a26aa07f33c443a8067fa1f5ec4d74e79f94966e0bcbffafdfad3458498292bd",
+  "compressed_sha256": "a365d9a4f76db2ea10828ac24958da57e2028e3d67bfa56891eb146bbbfbe880",
+  "json_sha256": "f58fd8e38e58f62ff054f4d023fa45bb9a72868c1a97ba4d414a9c32485ad429",
+  "source": "Completed local 2021\u20132026 replay; immutable input/source archive supplied separately",
+  "input_files": 113,
+  "sample_sessions": 1468,
+  "forward_results": false
+}

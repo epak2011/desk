@@ -35,3 +35,9 @@ Choose a new output path for every report. Locally generated signal caches are a
 Historical charts and CSV exports are downloadable snapshots. Forward tracking begins with the registered November 9 US session; at implementation time no mature forward outcome exists. A historical winner can guide a new preregistered test but cannot establish that this system beats the market.
 
 Data-convention references: [yfinance price repair documentation](https://ranaroussi.github.io/yfinance/advanced/price_repair.html), [upstream adjustment discussion](https://github.com/ranaroussi/yfinance/issues/687). The actual provider frames and split-continuity fixtures, rather than documentation alone, are used to validate this adapter.
+
+## Publish a completed study without recalculating
+
+The completed study's compressed summary is checked into `research/results/` with SHA256 hashes. `python scripts/publish_validation_study.py --verify-only` checks the archive, uncompressed content, declared evidence type, all calculation-source hashes, 113 input identifiers and every reviewed result row. The **Publish verified validation study** workflow runs those checks and publishes only the historical pointer. It never writes the forward ledger. This is publication of completed local research, not an independently recomputed hosted backtest.
+
+Full recalculation remains available through **Backtest current validation portfolios**. The 2021–2026 replay takes roughly two hours on the local four-worker setup; the hosted workflow allows up to six hours. The publication workflow avoids that duplicate calculation when the reviewed study is already complete.

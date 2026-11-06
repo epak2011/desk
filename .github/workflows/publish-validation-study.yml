@@ -1,0 +1,26 @@
+name: Publish verified validation study
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: validation-study-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -q
+      - run: python scripts/publish_validation_study.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - run: python scripts/refresh_performance_tracker.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -5,6 +5,17 @@ import performance_tracker as t
 
 
 class TrackerTests(unittest.TestCase):
+    def test_completed_study_archive_matches_sources_and_reviewed_rows(self):
+        from scripts.publish_validation_study import verified_summary
+        summary=verified_summary()
+        self.assertEqual(len(summary['input_sha256']),113)
+        self.assertEqual(summary['periods']['full']['sessions'],1468)
+
+    def test_summary_tampering_is_rejected_before_publication(self):
+        from scripts.publish_validation_study import verified_summary
+        summary=verified_summary();summary['periods']['full']['rows'][0]['return_pct']=999.
+        with self.assertRaises(ValueError):t.validate_summary(summary)
+
     def test_future_start_has_no_invented_return_or_stale_warning(self):
         live={'status':'registered','starts_on':'2026-11-09','completed_sessions':0,'rows':[]}
         report=t.compose(live,now='2026-11-06T04:00:00+00:00')
