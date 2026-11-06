@@ -14,7 +14,10 @@ on:
         description: Optional reviewed repository-relative complete-policy JSON manifest
         required: false
   schedule:
-    - cron: '15 23 * * 1-5'
+    # Primary post-close collection plus overnight/pre-open recovery. Weekends
+    # let a delayed Friday close seed Monday without backdating any decision.
+    # 12:15 UTC remains before the US open in both standard and daylight time.
+    - cron: '15 2,8,12,23 * * *'
 permissions:
   contents: read
 concurrency:
