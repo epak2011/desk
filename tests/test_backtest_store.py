@@ -77,3 +77,13 @@ class BacktestStoreTests(unittest.TestCase):
             result = backend_layer.read_rule_evidence(include_cases=False)
         read.assert_not_called()
         self.assertNotIn("historical_replay", result)
+
+    def test_broad_report_has_separate_pointer(self):
+        backend = MagicMock(); backend.json_dumps.side_effect = json.dumps
+        report = dict(assumptions={'exit_policy':'signal_invalidation'},versions=['original'],
+                      validation_start='2026-01-02',limitations=[],results={})
+        backtest_store.publish(report,backend,series='broad_universe')
+        cursor=backend.db_connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        sql=cursor.execute.call_args.args[0]
+        self.assertIn('historical_replay_broad_universe',sql)
+        self.assertNotIn("VALUES ('historical_replay',",sql)

@@ -20,6 +20,7 @@ import engine_candidates
 import tactical
 import position_policy
 import research_protocol
+import performance_attribution
 
 
 VERSIONS = ("original", "v2_structure", "v2_entry", "v2_combined", "v3_execution")
@@ -56,9 +57,15 @@ def validate_bars(frame):
         raise ValueError("Non-finite or missing bar values.")
     if (frame[["Open", "High", "Low", "Close"]] <= 0).any().any() or (frame.Volume < 0).any():
         raise ValueError("Invalid prices or volume.")
-    if ((frame.High < frame[["Open", "Close", "Low"]].max(axis=1)) |
-            (frame.Low > frame[["Open", "Close", "High"]].min(axis=1))).any():
+    upper = frame[["Open", "Close", "Low"]].max(axis=1)
+    lower = frame[["Open", "Close", "High"]].min(axis=1)
+    tolerance = frame[["Open", "High", "Low", "Close"]].abs().max(axis=1) * 1e-10
+    if ((upper - frame.High > tolerance) | (frame.Low - lower > tolerance)).any():
         raise ValueError("Inconsistent OHLC range.")
+    # Adjusted-price multiplication can differ at machine precision (e.g.
+    # low and close by 1e-15). Normalize only the validated rounding boundary.
+    frame["High"] = frame[["Open", "High", "Low", "Close"]].max(axis=1)
+    frame["Low"] = frame[["Open", "High", "Low", "Close"]].min(axis=1)
     return frame
 
 
@@ -83,7 +90,7 @@ def policy(state, version):
     return action
 
 
-def simulate(bars, signals, version, assumptions=Assumptions()):
+def simulate(bars, signals, version, assumptions=Assumptions(), *, cash_bars=None, terminal_liquidation=True):
     """Signals at close can only affect the next session, never that day's OHLC.
 
     One fully funded long position per ticker; uninvested cash earns zero.
@@ -114,7 +121,13 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
                        "net_return_pct": (proceeds / position["capital"] - 1) * 100})
         cash, position = proceeds, None
 
+    if cash_bars is not None and not bars.index.isin(cash_bars.index).all():
+        raise ValueError("Cash proxy is missing sessions.")
+    previous_cash_close = float(cash_bars.Open.iloc[0]) if cash_bars is not None else 1.0
     for date, bar in bars.iterrows():
+        cash_open = float(cash_bars.loc[date, 'Open']) if cash_bars is not None else 1.0
+        cash_close = float(cash_bars.loc[date, 'Close']) if cash_bars is not None else 1.0
+        cash *= cash_open / previous_cash_close
         if position and pending and pending["kind"] == "exit":
             close(float(bar.Open), date, pending.get("reason", "structural_exit_next_open"))
         elif not position and pending and pending["kind"] == "entry":
@@ -180,12 +193,23 @@ def simulate(bars, signals, version, assumptions=Assumptions()):
             reason = position_policy.full_exit_reason(exit_state, position["stop"])
             if reason:
                 pending = {"kind": "exit", "reason": reason + "_exit_next_open"}
+        cash *= cash_close / cash_open
+        previous_cash_close = cash_close
         equities.append({"date": date, "equity": cash + (position["shares"] * float(bar.Close) if position else 0),
                          "exposed": position is not None})
-    if position:
+    open_position = dict(position) if position else None
+    if position and terminal_liquidation:
         close(float(bars.Close.iloc[-1]), bars.index[-1], "end_of_sample")
         equities[-1]["equity"] = cash
-    return {"curve": pd.DataFrame(equities).set_index("date"), "trades": trades, "decisions": decisions}
+    elif position:
+        # Valuation record, never a sell instruction or a closed-trade win.
+        trades.append({"entry_date": position["entry_date"], "signal_date": position["signal_date"],
+                       "exit_date": str(bars.index[-1].date()), "entry_price": position["entry"],
+                       "exit_price": float(bars.Close.iloc[-1]), "reason": "open_valuation",
+                       "exit_is_sample_boundary": True, "gross_traded_notional": position["shares"] * position["entry"],
+                       "net_return_pct": (position["shares"] * float(bars.Close.iloc[-1]) / position["capital"] - 1) * 100})
+    return {"curve": pd.DataFrame(equities).set_index("date"), "trades": trades, "decisions": decisions,
+            "terminal_liquidation": terminal_liquidation, "open_position": open_position}
 
 
 def metrics(curve, trades, sleeves=1):
@@ -205,7 +229,7 @@ def metrics(curve, trades, sleeves=1):
             "valuation_basis": "Open positions included in total return at sample-end value less hypothetical liquidation costs; excluded from closed-trade statistics."}
 
 
-def matched_exposure_benchmark(benchmark, weights, cost_bps):
+def matched_exposure_benchmark(benchmark, weights, cost_bps, cash_bars=None):
     """SPY/cash with the strategy's already-decided open exposure schedule.
 
     Previous weight owns the overnight gap; new weight owns open-to-close.
@@ -215,17 +239,21 @@ def matched_exposure_benchmark(benchmark, weights, cost_bps):
     cost, equity, prior_weight = cost_bps / 10000, 1.0, 0.0
     prior_close = float(benchmark.Open.iloc[0])
     values = []
+    previous_cash = float(cash_bars.Open.iloc[0]) if cash_bars is not None else 1.0
     for dt, bar in benchmark.iterrows():
         weight = float(weights.loc[dt])
         if not math.isfinite(weight) or not 0 <= weight <= 1:
             raise ValueError("Exposure weight must be in [0, 1].")
         gap_ratio = float(bar.Open) / prior_close
-        gap_factor = 1 + prior_weight * (gap_ratio - 1)
+        cash_open = float(cash_bars.loc[dt, 'Open']) if cash_bars is not None else 1.0
+        cash_close = float(cash_bars.loc[dt, 'Close']) if cash_bars is not None else 1.0
+        gap_factor = prior_weight * gap_ratio + (1 - prior_weight) * cash_open / previous_cash
         equity *= gap_factor
         pretrade_weight = prior_weight * gap_ratio / gap_factor
         equity *= 1 - abs(weight - pretrade_weight) * cost
         intraday_ratio = float(bar.Close) / float(bar.Open)
-        intraday_factor = 1 + weight * (intraday_ratio - 1)
+        intraday_factor = weight * intraday_ratio + (1 - weight) * cash_close / cash_open
+        previous_cash = cash_close
         equity *= intraday_factor
         values.append(equity)
         prior_weight, prior_close = weight * intraday_ratio / intraday_factor, float(bar.Close)
@@ -233,11 +261,11 @@ def matched_exposure_benchmark(benchmark, weights, cost_bps):
     curve = pd.Series(values, index=benchmark.index)
     return {"total_return_pct": float((curve.iloc[-1] - 1) * 100),
             "max_drawdown_pct": float(((curve / curve.cummax().clip(lower=1) - 1) * 100).min()),
-            "basis": "Ex-post SPY/cash matched to mean equal-sleeve exposure at open; gap uses prior weight; turnover costs included."}
+            "basis": "Ex-post benchmark/cash diagnostic matched to mean equal-sleeve exposure at open, not actual capital-weighted portfolio exposure; gap uses prior weight; turnover costs included."}
 
 
 def replay(histories, benchmark, *, start, end, validation_start, assumptions=Assumptions(), compute=None,
-           include_event_study=False, comparison_benchmarks=None):
+           include_event_study=False, comparison_benchmarks=None, cash_bars=None):
     if compute is None:
         def compute(stock, bench):
             state = tactical.compute(stock, bench)
@@ -257,12 +285,22 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
         comparisons[symbol] = frame
     if len(dates) < 2 or not len(benchmark.loc[benchmark.index < start]) >= 200:
         raise ValueError("Require sample sessions and at least 200 pre-start benchmark bars.")
+    # Validate every name before calculating any result: no partial-universe
+    # performance can leak out before a late ticker's coverage error is found.
+    histories = {ticker: validate_bars(raw) for ticker, raw in histories.items()}
+    for ticker, bars in histories.items():
+        if not dates.isin(bars.index).all() or len(bars.loc[bars.index < start]) < 200:
+            raise ValueError(f"{ticker}: missing sessions or insufficient warm-up.")
     versions = VERSIONS if assumptions.exit_policy == "legacy_14_session" else ACTIVE_VERSIONS
     if include_event_study:
         if assumptions.exit_policy != "signal_invalidation":
             raise ValueError("Event study requires the corrected shared exit policy.")
         versions += EVENT_VERSIONS
-    source_files = ("tactical.py", "engine_candidates.py", "backtest_runner.py", "position_policy.py", "research_protocol.py")
+    if cash_bars is not None:
+        cash_bars = validate_bars(cash_bars)
+        if not dates.isin(cash_bars.index).all():
+            raise ValueError("Cash proxy missing comparison sessions.")
+    source_files = ("performance_attribution.py", "tactical.py", "engine_candidates.py", "backtest_runner.py", "position_policy.py", "research_protocol.py")
     frozen_sources = {p: (Path(__file__).parent / p).read_text() for p in source_files}
     source_hashes = {p: hashlib.sha256(text.encode()).hexdigest() for p, text in frozen_sources.items()}
     manifests = {}
@@ -302,6 +340,8 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
               "validation_start": str(split.date()), "results": {},
               "evidence_type": "retrospective_technical_simulation",
               "benchmark_symbols": sorted(comparisons),
+              "cash_basis": "SGOV adjusted total-return proxy, no trading costs on cash accrual" if cash_bars is not None else "zero_return_cash",
+              "ohlc_normalization": "Machine-precision range differences <=1e-10 relative price normalized in memory; raw CSVs preserved. Larger inconsistencies fail.",
               "limitations": ["Technical-engine replay only; no reconstructed historical AI, news or fundamental inputs.",
                               "Original means this frozen implementation, not an unspecified historical release.",
                               "Daily-bar ordering is unknown; stop-first is conservative. No liquidity/market-impact model.",
@@ -323,6 +363,7 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
         trade_sets = {v: [] for v in versions}
         decision_counts = {v: Counter() for v in versions}
         passive_curves = []
+        attribution_rows = {v: [] for v in versions}
         for ticker, raw in sorted(histories.items()):
             bars = validate_bars(raw)
             if not period.isin(bars.index).all() or len(bars.loc[bars.index < start]) < 200:
@@ -348,7 +389,9 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
                                  state.get("trigger_fired"), as_of=date))
                     signals[date] = state
             for version in versions:
-                result = simulate(bars.loc[period], signals, version, assumptions)
+                result = simulate(bars.loc[period], signals, version, assumptions,
+                                  cash_bars=cash_bars.loc[period] if cash_bars is not None else None)
+                attribution_rows[version].append(performance_attribution.attribute(bars.loc[period], result, assumptions.cost_bps_per_side))
                 curves[version].append(result["curve"])
                 trade_sets[version].extend({"ticker": ticker, **t} for t in result["trades"])
                 decision_counts[version].update(d["action"] for d in result["decisions"])
@@ -358,8 +401,10 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
             curve = pd.concat([c.equity.rename(i) for i, c in enumerate(curves[version])], axis=1).mean(axis=1)
             exposure = pd.concat([c.exposed.rename(i) for i, c in enumerate(curves[version])], axis=1).mean(axis=1)
             report["results"][label][version] = {**metrics(pd.DataFrame({"equity": curve, "exposed": exposure}), trade_sets[version], len(histories)),
-                                                   "matched_exposure_spy": (matched_exposure_benchmark(benchmark.loc[period], exposure, assumptions.cost_bps_per_side)
+                                                   "matched_exposure_spy": (matched_exposure_benchmark(benchmark.loc[period], exposure, assumptions.cost_bps_per_side, cash_bars.loc[period] if cash_bars is not None else None)
                                                                             if assumptions.exit_policy == "signal_invalidation" else None),
+                                                   "entry_exit_attribution": performance_attribution.summarize(attribution_rows[version]),
+                                                   "matched_exposure_qqq": (matched_exposure_benchmark(comparisons["QQQ"].loc[period], exposure, assumptions.cost_bps_per_side, cash_bars.loc[period] if cash_bars is not None else None) if "QQQ" in comparisons and assumptions.exit_policy == "signal_invalidation" else None),
                                                    "trades": trade_sets[version],
                                                    "decision_counts": dict(decision_counts[version])}
             report["results"][label][version]["calendar_year_returns_pct"] = calendar_returns(curve)
@@ -369,11 +414,11 @@ def replay(histories, benchmark, *, start, end, validation_start, assumptions=As
                 report["results"][label][version]["total_return_pct"] - original_return)
         basket = pd.concat(passive_curves, axis=1).mean(axis=1)
         report["results"][label]["benchmarks"] = {
-            "cash_return_pct": 0,
+            "cash_return_pct": float((cash_bars.loc[period, "Close"].iloc[-1] / cash_bars.loc[period, "Open"].iloc[0] - 1) * 100) if cash_bars is not None else 0,
             "same_universe_buy_hold_return_pct": float((basket.iloc[-1] - 1) * 100),
             "same_universe_buy_hold_max_drawdown_pct": float(((basket / basket.cummax().clip(lower=1) - 1) * 100).min()),
             "same_universe_calendar_year_returns_pct": calendar_returns(basket),
-            "basis": "Adjusted prices, identical sessions and 10-bps default per-side costs; cash earns zero. No tax or financing model.",
+            "basis": f"Adjusted prices, identical sessions, {assumptions.cost_bps_per_side:g} bps per-side costs. Cash: {'SGOV total-return proxy' if cash_bars is not None else 'zero return'}. No tax or financing model.",
             "qqq_status": "available" if "QQQ" in comparisons else "unavailable_not_supplied"}
         for symbol, frame in comparisons.items():
             prices = frame.loc[period]
@@ -416,6 +461,7 @@ def main():
     parser.add_argument("--validation-start", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cost-bps", type=float, default=10)
+    parser.add_argument("--cash-proxy", choices=["SGOV"])
     parser.add_argument("--include-event-study", action="store_true")
     parser.add_argument("--exit-policy", choices=["signal_invalidation", "legacy_14_session"],
                         default="signal_invalidation")
@@ -432,11 +478,12 @@ def main():
                     validation_start=args.validation_start, assumptions=Assumptions(
                         cost_bps_per_side=args.cost_bps, exit_policy=args.exit_policy),
                     include_event_study=args.include_event_study,
-                    comparison_benchmarks={"QQQ": read("QQQ")})
+                    comparison_benchmarks={"QQQ": read("QQQ")},
+                    cash_bars=read(args.cash_proxy) if args.cash_proxy else None)
     # Sources were frozen before computation, not re-read after a long run.
     report["runtime"] = {"pandas": pd.__version__}
     report["input_sha256"] = {t: hashlib.sha256((args.data_dir / f"{t}.csv").read_bytes()).hexdigest()
-                              for t in sorted(set(args.tickers) | {"SPY", "QQQ"})}
+                              for t in sorted(set(args.tickers) | {"SPY", "QQQ"} | ({args.cash_proxy} if args.cash_proxy else set()))}
     args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     print(f"Saved research-only replay: {args.output}")
 

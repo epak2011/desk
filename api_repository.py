@@ -806,10 +806,37 @@ def performance() -> dict[str, Any]:
     comparison = row[0] if row and isinstance(row[0], dict) else {
         "status": "collecting", "version": "independent-claude-2026.10-v1", "groups": [],
         "basis": "nonoverlapping_paired_checkpoint_means_not_portfolio_returns", "calendar_sale": False}
+    with backend_layer.db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT key,payload FROM engine_review_status WHERE key IN ('performance_coverage','forward_paper_performance','validation_performance')")
+            supplemental = {key: value for key, value in cur.fetchall()}
     return {"meta": public_contract.response_meta(),
+            "market_validation": supplemental.get("validation_performance", {"status":"not_registered","actual_account_performance":False}),
+            "decision_history_coverage": supplemental.get("performance_coverage", {"status":"unavailable"}),
+            "forward_paper_performance": supplemental.get("forward_paper_performance", {"status":"not_started","actual_account_performance":False}),
+            "broad_universe_replay": backtest_store.read(backend_layer, series="broad_universe"),
             "historical_replay": backtest_store.read(backend_layer),
             "prior_year_replay": backtest_store.read(backend_layer, series="prior_years"),
             "claude_comparison": comparison,
             "prospective_trial": research_reliability.experiment_health(),
             "forward_portfolio_performance": {"status": "not_established",
                 "reason": "Signal checkpoints are not a cash-and-position portfolio ledger."}}
+
+
+def record_validation_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    """Owner authorization is enforced by api_service; server arrival is authoritative."""
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from validation_store import Store
+    from validation_ingest import record_plan
+    from validation_capture import market_window
+    from validation_protocol import verify
+    now=datetime.now(timezone.utc).isoformat()
+    with backend_layer.db_connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                store=Store(cur);store.initialize();store.lock()
+                key=store.active()
+                if not key:raise ValueError('No registered validation protocol')
+                spec=store.get(key,'protocol','registered');verify(spec,Path(__file__).parent)
+                return record_plan(store,spec,plan,now,market_window(plan['session']))

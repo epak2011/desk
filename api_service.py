@@ -276,3 +276,10 @@ def engine_updates(request: Request, identity: OwnerIdentity):
 @app.get("/v1/operator/performance")
 def performance(request: Request, identity: OwnerIdentity):
     return _run(request, api_repository.performance)
+
+
+@app.post("/v1/operator/validation/plans")
+def validation_plan(request: Request, identity: OwnerIdentity, plan: dict[str, Any]):
+    if not isinstance(plan.get('session'),str):
+        raise HTTPException(status_code=422,detail='A complete-policy session is required')
+    return _run(request, api_repository.record_validation_plan, plan)

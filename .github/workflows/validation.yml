@@ -1,0 +1,62 @@
+name: Prospective market validation
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Collect an active experiment or explicitly register a future start
+        type: choice
+        options: [collect, register]
+        default: collect
+      starts_on:
+        description: Registration only, future US exchange session YYYY-MM-DD
+        required: false
+      policy_file:
+        description: Optional reviewed repository-relative complete-policy JSON manifest
+        required: false
+  schedule:
+    - cron: '15 23 * * 1-5'
+permissions:
+  contents: read
+concurrency:
+  group: prospective-market-validation
+  cancel-in-progress: false
+jobs:
+  validation:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Restore registered calculation versions before tests and collection
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scripts/run_validation.py runtime-lock --output /tmp/validation-runtime.txt
+          if [ -s /tmp/validation-runtime.txt ]; then
+            pip install -r /tmp/validation-runtime.txt
+          fi
+      - run: python -m unittest discover -s tests -q
+      - name: Register or collect without backdating
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          VALIDATION_ACTION: ${{ inputs.action || 'collect' }}
+          VALIDATION_START: ${{ inputs.starts_on }}
+          VALIDATION_POLICY: ${{ inputs.policy_file }}
+        run: |
+          python - <<'PY'
+          import os,subprocess
+          from pathlib import Path
+          action=os.environ['VALIDATION_ACTION']
+          cmd=['python','scripts/run_validation.py',action]
+          if action=='register':
+              cmd+=['--starts-on',os.environ['VALIDATION_START']]
+              if os.environ['VALIDATION_POLICY']:
+                  root=Path.cwd().resolve();policy=(root/os.environ['VALIDATION_POLICY']).resolve()
+                  if not policy.is_relative_to(root):raise ValueError('Policy must be inside the reviewed repository')
+                  cmd+=['--policy-file',str(policy)]
+          subprocess.run(cmd,check=True)
+          PY

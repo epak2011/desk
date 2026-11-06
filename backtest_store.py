@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 
 def publish(report, backend, *, archive_only=False, series="current"):
-    if series not in {"current", "prior_years"}:
+    if series not in {"current", "prior_years", "broad_universe"}:
         raise ValueError("Unknown replay series.")
     archive_only = archive_only or (report.get("assumptions") or {}).get("exit_policy") == "legacy_14_session"
     summary = {"generated_at": datetime.now(timezone.utc).isoformat(),
@@ -15,6 +15,8 @@ def publish(report, backend, *, archive_only=False, series="current"):
                "strategy_manifests": report.get("strategy_manifests", {}),
                "version_aliases": report.get("version_aliases", {}),
                "code_sha256": report.get("code_sha256", {}), "results": {}}
+    summary["universe_selection"] = report.get("universe_selection")
+    summary["cash_basis"] = report.get("cash_basis", "zero_return_cash")
     summary["evidence_type"] = "retrospective_technical_simulation"
     summary["benchmark_symbols"] = report.get("benchmark_symbols", ["SPY"])
     for period, results in report["results"].items():
@@ -34,6 +36,9 @@ def publish(report, backend, *, archive_only=False, series="current"):
                 # Preserve reproducibility without making an obsolete forced
                 # sale experiment the active Streamlit/Lovable report.
                 return
+            if series == "broad_universe":
+                cur.execute("INSERT INTO engine_review_status (key,payload,updated_at) VALUES ('historical_replay_broad_universe',%s::jsonb,NOW()) ON CONFLICT (key) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()", (backend.json_dumps(summary),))
+                return
             if series == "prior_years":
                 cur.execute("""INSERT INTO engine_review_status (key, payload, updated_at)
                     VALUES ('historical_replay_prior_years', %s::jsonb, NOW())
@@ -47,13 +52,13 @@ def publish(report, backend, *, archive_only=False, series="current"):
 
 
 def read(backend, *, series="current"):
-    if series not in {"current", "prior_years"}:
+    if series not in {"current", "prior_years", "broad_universe"}:
         raise ValueError("Unknown replay series.")
     if not backend.has_database():
         return None
     with backend.db_connection() as conn:
         with conn.cursor() as cur:
-            key = "historical_replay" if series == "current" else "historical_replay_prior_years"
+            key = {"current": "historical_replay", "prior_years": "historical_replay_prior_years", "broad_universe": "historical_replay_broad_universe"}[series]
             cur.execute("SELECT payload FROM engine_review_status WHERE key = %s", (key,))
             row = cur.fetchone()
     report = dict(row[0]) if row and isinstance(row[0], dict) else None
