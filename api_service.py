@@ -283,3 +283,14 @@ def validation_plan(request: Request, identity: OwnerIdentity, plan: dict[str, A
     if not isinstance(plan.get('session'),str):
         raise HTTPException(status_code=422,detail='A complete-policy session is required')
     return _run(request, api_repository.record_validation_plan, plan)
+
+
+@app.get('/v1/operator/performance/tracker')
+def performance_tracker(request: Request, identity: OwnerIdentity):
+    return _run(request,api_repository.performance_tracker)
+
+
+@app.get('/v1/operator/performance/tracker.csv')
+def performance_tracker_csv(request: Request, identity: OwnerIdentity):
+    content=_run(request,api_repository.performance_tracker_csv)
+    return Response(content=content,media_type='text/csv',headers={'Content-Disposition':'attachment; filename="market-performance.csv"'})

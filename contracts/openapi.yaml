@@ -247,6 +247,34 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "503": {$ref: "#/components/responses/ServiceUnavailable"}
+  /v1/operator/performance/tracker:
+    get:
+      tags: [Operations]
+      summary: Owner-only combined performance tracker
+      description: >-
+        Separate forward and historical views, collection freshness, monthly
+        scorecards and formal review milestones. Returns from different periods
+        are never subtracted from each other. Backtests remain exploratory.
+      responses:
+        "200":
+          description: Dated tracking views; missing prospective performance stays unavailable
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/GenericResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /v1/operator/performance/tracker.csv:
+    get:
+      tags: [Operations]
+      summary: Download owner-only dated performance rows
+      responses:
+        "200":
+          description: CSV includes evidence type, study/protocol, dates and cost assumptions
+          content:
+            text/csv:
+              schema: {type: string}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
   /v1/operator/validation/plans:
     post:
       tags: [Operations]

@@ -840,3 +840,13 @@ def record_validation_plan(plan: dict[str, Any]) -> dict[str, Any]:
                 if not key:raise ValueError('No registered validation protocol')
                 spec=store.get(key,'protocol','registered');verify(spec,Path(__file__).parent)
                 return record_plan(store,spec,plan,now,market_window(plan['session']))
+
+
+def performance_tracker() -> dict[str, Any]:
+    import performance_tracker as tracker
+    return {'meta':public_contract.response_meta(),**tracker.read(backend_layer)}
+
+
+def performance_tracker_csv() -> str:
+    import performance_tracker as tracker
+    return tracker.csv_export(tracker.read(backend_layer))
