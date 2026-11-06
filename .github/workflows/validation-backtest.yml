@@ -1,0 +1,51 @@
+name: Backtest current validation portfolios
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        default: '2021-01-04'
+        description: Fixed historical start
+        required: true
+      end:
+        default: '2026-11-05'
+        description: Last completed prior-day US session
+        required: true
+      reset_start:
+        default: '2026-01-02'
+        description: Separately reset recent comparison
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: validation-historical-replay
+  cancel-in-progress: false
+jobs:
+  replay:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -q
+      - name: Archive and replay every requested stock
+        env:
+          STUDY_START: ${{ inputs.start }}
+          STUDY_END: ${{ inputs.end }}
+          STUDY_RESET: ${{ inputs.reset_start }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scripts/download_validation_inputs.py --start "$STUDY_START" --end "$STUDY_END" --output-dir validation-backtest
+          python scripts/run_validation_backtest.py --dataset validation-backtest --start "$STUDY_START" --end "$STUDY_END" --reset-start "$STUDY_RESET" --workers 2 --output validation-backtest/report.json --publish
+          python scripts/refresh_performance_tracker.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-backtest-${{ github.run_id }}
+          path: |
+            validation-backtest/
+            !validation-backtest/signal-cache/
+          retention-days: 90

@@ -1,0 +1,27 @@
+name: Refresh performance tracker
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Prospective market validation]
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: performance-tracker-refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements-api.txt
+      - run: python scripts/refresh_performance_tracker.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

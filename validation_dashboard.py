@@ -3,14 +3,24 @@
 
 def render(st, backend):
     import pandas as pd
-    st.subheader('Market validation — prospective paper portfolios')
+    st.subheader('Market performance tracker')
     st.caption('Frozen rules, recorded decisions and realistic costs. Paper results are separate from account returns and signal checkpoints.')
-    with backend.db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT payload FROM engine_review_status WHERE key='validation_performance'")
-            row=cur.fetchone()
-    report=row[0] if row else {}
-    if not report:
+    import performance_tracker
+    tracker=performance_tracker.read(backend)
+    st.caption('Collection health: '+tracker['freshness']['status'].replace('_',' '))
+    st.download_button('Download dated results (CSV)',performance_tracker.csv_export(tracker),
+        file_name='market-performance.csv',mime='text/csv',key='market-performance-download')
+    st.download_button('Download tracker snapshot (JSON)',__import__('json').dumps(tracker,indent=2,allow_nan=False),
+        file_name='market-performance.json',mime='application/json',key='market-performance-json')
+    render_historical(st,tracker.get('historical'))
+    if tracker['forward'].get('monthly_scorecard'):
+        with st.expander('Forward monthly scorecard'):
+            st.dataframe(pd.DataFrame(tracker['forward']['monthly_scorecard']),hide_index=True,use_container_width=True)
+    milestone=tracker['milestones']
+    st.caption(f"Forward evidence: {milestone['completed_sessions']} sessions · preliminary review at 252 · confirmatory review at 504")
+    st.subheader('Forward paper portfolios')
+    report=tracker['forward']
+    if report.get('status')=='not_registered':
         st.info('Validation has not been registered. A future start and frozen policy are required; no returns are available.')
         return
     st.write(report.get('verdict','No demonstrated edge'))
@@ -52,3 +62,30 @@ def render(st, backend):
         for incident in report.get('incidents',[])+report.get('operational_incidents',[]):st.write(incident)
         for assessment in report.get('assessments',[]):st.write(assessment)
         st.caption('252-session preliminary review; one 504-session confirmatory assessment. No automatic rule promotion. Variants are exploratory.')
+
+
+def render_historical(st,historical):
+    import pandas as pd
+    with st.expander('Historical backtest — current portfolio model',expanded=True):
+        if not historical:
+            st.info('The matched portfolio-model backtest has not been published yet. Forward observations remain separate.')
+            return
+        st.caption('Retrospective research on a current-survivor basket. Historical timestamps are simulated; these are not live or actual-account returns.')
+        periods=historical['periods']
+        name=st.selectbox('Backtest period',list(periods),format_func=lambda x:'2021 onward, capital carried' if x=='full' else '2026, fresh starting capital',key='validation-history-period')
+        cost=st.selectbox('Trading cost per side (basis points)',historical['assumptions']['cost_scenarios_bps'],key='validation-history-cost')
+        period=periods[name]
+        st.caption(f"{period['start']} through {period['end']} · {period['sessions']} sessions · {len(historical['universe'])} stocks")
+        fields={'label':'Portfolio','status':'Evidence','return_pct':'Return %','annualized_return_pct':'Annualized return %',
+            'excess_vs_spy_pp':'vs SPY (pp)','max_drawdown_pct':'Max drawdown %','annualized_volatility_pct':'Volatility %',
+            'average_exposure_pct':'Average exposure %','costs_dollars':'Costs ($)'}
+        st.dataframe(pd.DataFrame([{v:r.get(k) for k,v in fields.items()} for r in period['rows'] if r['cost_bps']==cost]),hide_index=True,use_container_width=True)
+        curves=pd.DataFrame(period['equity_curves'][str(cost)]).set_index('session')
+        st.line_chart(curves)
+        st.line_chart((curves/curves.cummax().clip(lower=period['initial_capital'])-1)*100)
+        st.write('Calendar-year returns — capital carried within this replay')
+        st.dataframe(pd.DataFrame(period['annual_rows'][str(cost)]),hide_index=True,use_container_width=True)
+        with st.expander('Monthly returns and assumptions'):
+            st.dataframe(pd.DataFrame(period['monthly_rows'][str(cost)]),hide_index=True,use_container_width=True)
+            st.write(historical['assumptions'])
+            for caveat in historical['limitations']:st.write(caveat)

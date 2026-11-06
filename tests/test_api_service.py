@@ -46,6 +46,20 @@ class ApiServiceTests(unittest.TestCase):
                 intake.assert_called_once_with(plan)
             self.assertEqual(self.client.post(url,json={}).status_code,422)
 
+    def test_performance_tracker_and_download_require_owner(self):
+        paths=('/v1/operator/performance/tracker','/v1/operator/performance/tracker.csv')
+        for path in paths:self.assertEqual(self.client.get(path).status_code,401)
+        api_service.app.dependency_overrides[api_service.current_identity]=lambda:VerifiedIdentity('other','other@example.invalid','Other')
+        with mock.patch.dict(api_service.os.environ,{'TRADING_DESK_OWNER_EMAIL':'owner@example.invalid'}):
+            for path in paths:self.assertEqual(self.client.get(path).status_code,403)
+            api_service.app.dependency_overrides[api_service.current_identity]=lambda:VerifiedIdentity('owner','owner@example.invalid','Owner')
+            with mock.patch.object(api_service.api_repository,'performance_tracker',return_value={'forward':{'status':'registered'}}):
+                self.assertEqual(self.client.get(paths[0]).json()['forward']['status'],'registered')
+            with mock.patch.object(api_service.api_repository,'performance_tracker_csv',return_value='evidence,return_pct\nprospective_paper,\n'):
+                response=self.client.get(paths[1]);self.assertEqual(response.status_code,200)
+                self.assertIn('text/csv',response.headers['content-type'])
+                self.assertIn('attachment',response.headers['content-disposition'])
+
     def test_public_decision_maps_not_found_to_contract_error(self):
         with mock.patch.object(
             api_service.api_repository,
