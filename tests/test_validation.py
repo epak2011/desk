@@ -324,6 +324,13 @@ class Statistics(unittest.TestCase):
         self.assertAlmostEqual(two['return_pct'],12.)
         self.assertEqual(next(r for r in out['rows'] if r['horizon']==5)['mature'],0)
 
+    def test_prestart_snapshot_cannot_consume_the_first_eligible_month(self):
+        before=snapshot('2026-11-05');eligible=snapshot('2026-11-06')
+        days=[{'session':'2026-11-09','raw_bars':bars()}]
+        out=candidate_outcomes([before,eligible],days,horizons=(1,))
+        self.assertEqual(len(out['events']),2)
+        self.assertTrue(all(r['snapshot_id']==eligible['snapshot_id'] for r in out['events']))
+
     def test_confirmatory_gate_uses_net_growth_and_risk_not_win_rate(self):
         a=b=100000.;days=[]
         for i in range(504):

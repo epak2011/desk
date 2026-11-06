@@ -76,9 +76,9 @@ def candidate_outcomes(snapshots, days, *, horizons=(5,14,30)):
         month = snapshot['next_session'][:7]
         if month in seen_months or not snapshot.get('full_plan'):
             continue
-        seen_months.add(month)
         start = indexes.get(snapshot['next_session'])
         if start is None: continue
+        seen_months.add(month)
         records = snapshot['full_plan']['candidates']
         for horizon in horizons:
             end = start+horizon-1
