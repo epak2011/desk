@@ -34,6 +34,18 @@ class ApiServiceTests(unittest.TestCase):
             with mock.patch.object(api_service.api_repository, "performance", return_value={"historical_replay": None}):
                 self.assertEqual(self.client.get("/v1/operator/performance").status_code, 200)
 
+    def test_validation_plan_intake_requires_owner_and_forwards_payload(self):
+        url='/v1/operator/validation/plans';plan={'session':'2026-11-05'}
+        self.assertEqual(self.client.post(url,json=plan).status_code,401)
+        api_service.app.dependency_overrides[api_service.current_identity]=lambda:VerifiedIdentity('other','other@example.invalid','Other')
+        with mock.patch.dict(api_service.os.environ,{'TRADING_DESK_OWNER_EMAIL':'owner@example.invalid'}):
+            self.assertEqual(self.client.post(url,json=plan).status_code,403)
+            api_service.app.dependency_overrides[api_service.current_identity]=lambda:VerifiedIdentity('owner','owner@example.invalid','Owner')
+            with mock.patch.object(api_service.api_repository,'record_validation_plan',return_value={'status':'receipt_recorded'}) as intake:
+                self.assertEqual(self.client.post(url,json=plan).status_code,200)
+                intake.assert_called_once_with(plan)
+            self.assertEqual(self.client.post(url,json={}).status_code,422)
+
     def test_public_decision_maps_not_found_to_contract_error(self):
         with mock.patch.object(
             api_service.api_repository,

@@ -22129,6 +22129,11 @@ if view == "backtest":
     )
     if _is_owner_account():
         import backtest_store
+        try:
+            import validation_dashboard
+            validation_dashboard.render(st, backend_layer)
+        except Exception:
+            st.warning("Prospective market validation is unavailable; no substitute returns are shown.")
         st.subheader("Portfolio simulation vs SPY and QQQ")
         st.caption("Historical technical-engine simulation, not live account returns. No forced calendar sales. Signal checkpoints below are separate evidence.")
         try:

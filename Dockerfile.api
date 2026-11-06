@@ -19,6 +19,9 @@ COPY market_news.py macro_reconciliation.py ./
 COPY engine_evaluation.py ./
 COPY backtest_store.py ./
 COPY research_reliability.py ./
+COPY validation_engine.py validation_stats.py validation_store.py validation_protocol.py ./
+COPY validation_capture.py validation_ingest.py validation_execution.py ./
+COPY scripts/run_validation.py ./scripts/
 COPY claude_assessment.py ./
 # Read-only source evidence for the immutable experiment health check. These
 # worker/engine modules are hashed, not imported by the API runtime.
