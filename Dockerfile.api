@@ -19,6 +19,8 @@ COPY market_news.py macro_reconciliation.py ./
 COPY engine_evaluation.py ./
 COPY backtest_store.py ./
 COPY research_reliability.py ./
+COPY strategy_research.py ./
+COPY research_artifacts/ ./research_artifacts/
 COPY validation_engine.py validation_stats.py validation_store.py validation_protocol.py ./
 COPY validation_capture.py validation_ingest.py validation_execution.py ./
 COPY performance_tracker.py ./
