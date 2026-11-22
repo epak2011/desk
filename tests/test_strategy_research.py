@@ -26,7 +26,7 @@ class StrategyResearchTests(unittest.TestCase):
 
     def test_all_saved_scopes_have_matched_years_and_zero_costs(self):
         data=research.load_artifact()
-        self.assertEqual(len(data['results']),1776)
+        self.assertEqual(len(data['results']),2664)
         for result in data['results'].values():
             scope=result['scope'];n=scope['end']-scope['start']+1
             self.assertEqual(scope['costs_bps'],0)
@@ -34,7 +34,22 @@ class StrategyResearchTests(unittest.TestCase):
             for counts in [result['years_vs_spy'],result['years_vs_annual']]:
                 self.assertEqual(counts['denominator'],n)
                 self.assertEqual(counts['better']+counts['same']+counts['worse'],n)
-            self.assertAlmostEqual(result['contributions'],n*1000,places=6)
+            self.assertAlmostEqual(result['contributions'],10000 if scope['funding']=='lump_sum' else n*1000,places=6)
+            if scope['funding']=='lump_sum':
+                self.assertEqual(result['additional_contributions'],0)
+                self.assertAlmostEqual(result['performance']['total_return_pct'],100*(result['final_value']/10000-1),places=6)
+
+    def test_one_time_capital_is_an_exact_saved_scope(self):
+        r=self.client.get('/v1/strategies/monthly12_rotate?funding=lump_sum')
+        self.assertEqual(r.status_code,200)
+        result=r.json()['result']
+        self.assertEqual(result['contributions'],10000)
+        self.assertEqual(result['additional_contributions'],0)
+        self.assertIn('reinvest',result['funding_note'])
+        hold=self.client.get('/v1/strategies/monthly12_hold?funding=lump_sum').json()['result']
+        annual=self.client.get('/v1/strategies/annual12_hold?funding=lump_sum').json()['result']
+        self.assertEqual(hold['actual_full_switches'],0)
+        self.assertAlmostEqual(hold['final_value'],annual['final_value'])
 
     def test_unknown_scope_has_no_nearest_or_default_fallback(self):
         for query in ['?window=1800-2025','?funding=weekly','?study=complete_sp500','?fill=signal_close']:
