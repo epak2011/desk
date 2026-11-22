@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import api_repository
+import strategy_research
 from api_auth import TokenVerificationError, VerifiedIdentity, verify_access_token
 from operator_access import owner_access_allowed
 from public_contract import error_payload
@@ -294,3 +295,21 @@ def performance_tracker(request: Request, identity: OwnerIdentity):
 def performance_tracker_csv(request: Request, identity: OwnerIdentity):
     content=_run(request,api_repository.performance_tracker_csv)
     return Response(content=content,media_type='text/csv',headers={'Content-Disposition':'attachment; filename="market-performance.csv"'})
+
+
+@app.get("/v1/strategies")
+def strategies_catalog(request: Request):
+    try:
+        return strategy_research.catalog()
+    except strategy_research.ResearchUnavailable as exc:
+        _http_error(request, 503, "research_unavailable", str(exc))
+
+
+@app.get("/v1/strategies/{strategy_id}")
+def strategy_detail(request: Request, strategy_id: str, study: str = "restricted", window: str = "2019-2025", funding: str = "monthly", fill: str = "open"):
+    try:
+        return strategy_research.detail(strategy_id, study=study, window=window, funding=funding, fill=fill)
+    except strategy_research.ResearchScopeNotFound as exc:
+        _http_error(request, 404, "research_scope_not_found", str(exc))
+    except strategy_research.ResearchUnavailable as exc:
+        _http_error(request, 503, "research_unavailable", str(exc))

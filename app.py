@@ -1211,7 +1211,7 @@ def save_store(store):
     record_perf_metric("save_store", _perf_t0)
 
 
-ACTIVE_VIEWS = {"regime", "analyze", "watchlist", "alerts", "backtest", "triggers", "health", "ideas", "trust", "updates"}
+ACTIVE_VIEWS = {"strategies", "regime", "analyze", "watchlist", "alerts", "backtest", "triggers", "health", "ideas", "trust", "updates"}
 ARCHIVED_VIEWS = {"tracker"}
 SHOW_ARCHIVED_TRACKER = False
 
@@ -11957,6 +11957,7 @@ with st.sidebar:
         "watchlist": "☆  Watchlist",
         "alerts": "!  Alerts",
         "ideas": "✎  Ideas",
+        "strategies": "Strategies",
     }
     operator_view_labels = {
         "backtest": "Calibration",
@@ -15900,6 +15901,10 @@ if st.session_state.get("_db_error"):
 # ─────────────────────────────────────────────────────────────────────
 # TODAY — fast command center
 # ─────────────────────────────────────────────────────────────────────
+if view == "strategies":
+    from strategy_view import render_strategies
+    render_strategies(st)
+
 if view == "today":
     watchlist_tickers = st.session_state.store.get("watchlist", []) or []
     watchlist_tickers = [

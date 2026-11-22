@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "file": "strategies-v1.json.gz",
+  "sha256": "969c254d46f5b2dc3e896927f272438a379f7bcb66b9d77193d5e6315894f7ce",
+  "results": 1776,
+  "inputs": [
+    {
+      "path": "outputs/membership-restricted-selection/frozen-manifest.json",
+      "sha256": "f6f5e8ba6279b66ee58396a666de19bce0b022c7f70bf2a18b8e7561395f8105"
+    },
+    {
+      "path": "outputs/membership-restricted-selection/summaries.csv",
+      "sha256": "a0c3fd3131f4426a24290dae5273e767f5e779d920b09c7ad0a705bcd5e9a9dc"
+    },
+    {
+      "path": "outputs/membership-restricted-selection/annual-results.csv",
+      "sha256": "5c6dc7a73767cc63191947fcbb83610b554973d1a67c0a067430c94e966731f1"
+    },
+    {
+      "path": "outputs/steady-earlier-periods/frozen-manifest.json",
+      "sha256": "c13c74d1fae1906e6b9c5b98686b7b1fb33f230b591bf280b114f2d4f37c67f1"
+    },
+    {
+      "path": "outputs/steady-earlier-periods/summary-paired.csv",
+      "sha256": "e412801b591b1b8358053d4667776012ef77d6649f7c858ea131ea8fe822dbd2"
+    },
+    {
+      "path": "outputs/steady-earlier-periods/annual-paired.csv",
+      "sha256": "d0c5e363b061295caf2139bf197c109dd1e96257cab3f0eeeccd4c8bcedc26c9"
+    }
+  ]
+}
