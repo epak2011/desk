@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "file": "strategies-v1.json.gz",
-  "sha256": "969c254d46f5b2dc3e896927f272438a379f7bcb66b9d77193d5e6315894f7ce",
-  "results": 1776,
+  "sha256": "7efc386714a02bfe63a3d16db91a811605f22a56dd400f248db4a542e547e085",
+  "results": 2664,
   "inputs": [
     {
       "path": "outputs/membership-restricted-selection/frozen-manifest.json",
@@ -27,6 +27,26 @@
     {
       "path": "outputs/steady-earlier-periods/annual-paired.csv",
       "sha256": "d0c5e363b061295caf2139bf197c109dd1e96257cab3f0eeeccd4c8bcedc26c9"
+    },
+    {
+      "path": "outputs/membership-restricted-selection/frozen-manifest.json",
+      "sha256": "f6f5e8ba6279b66ee58396a666de19bce0b022c7f70bf2a18b8e7561395f8105"
+    },
+    {
+      "path": "outputs/membership-restricted-selection/selection-ranks.csv",
+      "sha256": "1044e72c6c2ebea742575b903542943b6cbe1f9e9ec0173b22c9652c724c3034"
+    },
+    {
+      "path": "outputs/steady-earlier-periods/selection-ranks.csv",
+      "sha256": "4d215b8ad50db16bded73eeb194f7ce8b9156e342e42b99144e3cd67fb602ffa"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/base-strategies-v1.json.gz",
+      "sha256": "969c254d46f5b2dc3e896927f272438a379f7bcb66b9d77193d5e6315894f7ce"
+    },
+    {
+      "path": "work/lump-sum-strategies/run.py",
+      "sha256": "7a759520d19374ee452c87dcc0ddb14250653bdc0c429938c3a7fa0f91b2150c"
     }
   ]
 }

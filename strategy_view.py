@@ -13,9 +13,12 @@ def render_strategies(st):
         studies = {s['id']: s['name'] for s in data['studies']}
         study = st.selectbox('Universe study', list(studies), format_func=studies.get)
         window = st.selectbox('Test window', data['windows'], index=data['windows'].index('2019-2025'))
-        funding = st.selectbox('Deposits', ['monthly', 'annual'], format_func=lambda s: '$1,000/year deposited monthly' if s == 'monthly' else '$1,000 each January')
+        funding_names = {f['id']: f['label'] for f in data['funding_options']}
+        funding = st.selectbox('Funding', list(funding_names), format_func=funding_names.get)
         fill = st.selectbox('Fill convention', ['open', 'close'], format_func=lambda s: f'Next session {s}')
         result = detail(policy, study=study, window=window, funding=funding, fill=fill)['result']
+        if result.get('funding_note'):
+            st.info(result['funding_note'] + ' Compounding is retained; taxes and costs are zero.')
         st.caption(next(s['description'] for s in data['studies'] if s['id'] == study))
         st.subheader('Scope and rules')
         st.write(result['scope'])
@@ -24,6 +27,10 @@ def render_strategies(st):
         cols = st.columns(3)
         for col, name, key in zip(cols, ['Strategy ending value', 'Matched SPY', 'Matched annual control'], ['final_value', 'spy_final_value', 'annual_control_value']): col.metric(name, f"${result[key]:,.0f}")
         st.write(f"Deposits: ${result['contributions']:,.0f}. Strategy drawdown: {result['drawdown_pct']:.1f}%; SPY: {result['spy_drawdown_pct']:.1f}%.")
+        if 'performance' in result:
+            p = result['performance']
+            st.caption(f"{p['start_date']} through {p['end_date']}; time-weighted returns exclude additional deposits. Annualization uses elapsed calendar days.")
+            st.dataframe([{'Account': name, 'Total return (%)': p[prefix+'total_return_pct'], 'Annualized return (%)': p[prefix+'annualized_return_pct']} for name, prefix in [('Strategy', ''), ('SPY', 'spy_'), ('Annual control', 'annual_control_')]], hide_index=True)
         st.write('Calendar years vs SPY (not percentage of stocks):', result['years_vs_spy'])
         st.dataframe(result['annual_results'], use_container_width=True, hide_index=True)
         st.subheader('Evidence quality')
