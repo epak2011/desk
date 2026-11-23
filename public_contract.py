@@ -103,7 +103,7 @@ def validated_analyst_consensus(fields: Mapping[str, Any], *, price: float | Non
     }
 
 PAGE_CONTRACTS = [
-    {"key": "strategies", "label": "Strategies", "route": "/strategies", "endpoint": "/v1/strategies", "auth": "public", "status": "shared", "sections": ["verdict", "scope", "results", "quality", "next_steps"], "response_keys": ["strategies", "studies", "quality", "limitations", "next_steps"]},
+    {"key": "strategies", "label": "Strategies", "route": "/strategies", "endpoint": "/v1/strategies", "auth": "public", "status": "shared", "sections": ["verdict", "scope", "comparison", "results", "periods", "method", "quality", "next_steps"], "response_keys": ["strategies", "studies", "quality", "limitations", "next_steps"]},
     {"key": "today", "label": "Today", "route": "/watchlist", "endpoint": "/v1/watchlist", "auth": "required", "status": "redirect", "redirect_to": "/watchlist", "sections": [], "response_keys": []},
     {"key": "market", "label": "Market", "route": "/market", "endpoint": "/v1/regime", "auth": "public", "status": "shared", "sections": ["outlook", "entry_timing", "todays_context", "market_highlights", "market_implications", "forward_watch", "framework_gauges", "market_news", "crypto_regime", "metric_guide"], "response_keys": ["regime"]},
     {"key": "analyze", "label": "Analyze", "route": "/analyze/{ticker}", "endpoint": "/v1/decisions/{ticker}", "auth": "public", "status": "shared", "sections": ["decision_header", "hero", "company_overview", "decision_evidence", "why_action", "call_changes", "technical_picture", "portfolio_manager", "full_research_report"], "response_keys": ["decision", "security_profile", "research", "analyze_page"]},
