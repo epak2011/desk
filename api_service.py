@@ -305,6 +305,26 @@ def strategies_catalog(request: Request):
         _http_error(request, 503, "research_unavailable", str(exc))
 
 
+@app.get("/v1/strategies/compare")
+def strategies_compare(request: Request, study: str = "restricted", window: str = "2019-2025", funding: str = "monthly", fill: str = "open"):
+    try:
+        return strategy_research.compare(study=study, window=window, funding=funding, fill=fill)
+    except strategy_research.ResearchScopeNotFound as exc:
+        _http_error(request, 404, "research_scope_not_found", str(exc))
+    except strategy_research.ResearchUnavailable as exc:
+        _http_error(request, 503, "research_unavailable", str(exc))
+
+
+@app.get("/v1/strategies/{strategy_id}/periods")
+def strategies_periods(request: Request, strategy_id: str, study: str = "restricted", funding: str = "monthly", fill: str = "open"):
+    try:
+        return strategy_research.periods(strategy_id, study=study, funding=funding, fill=fill)
+    except strategy_research.ResearchScopeNotFound as exc:
+        _http_error(request, 404, "research_scope_not_found", str(exc))
+    except strategy_research.ResearchUnavailable as exc:
+        _http_error(request, 503, "research_unavailable", str(exc))
+
+
 @app.get("/v1/strategies/{strategy_id}")
 def strategy_detail(request: Request, strategy_id: str, study: str = "restricted", window: str = "2019-2025", funding: str = "monthly", fill: str = "open"):
     try:

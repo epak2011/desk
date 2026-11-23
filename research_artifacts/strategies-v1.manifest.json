@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "file": "strategies-v1.json.gz",
-  "sha256": "7efc386714a02bfe63a3d16db91a811605f22a56dd400f248db4a542e547e085",
+  "sha256": "acf9b0d7eb6cab4c67b42a04529ae371681179cece00940e0f8b57eefd1804a0",
   "results": 2664,
   "inputs": [
     {
@@ -47,6 +47,3566 @@
     {
       "path": "work/lump-sum-strategies/run.py",
       "sha256": "7a759520d19374ee452c87dcc0ddb14250653bdc0c429938c3a7fa0f91b2150c"
+    },
+    {
+      "path": "outputs/strategies-workspace/baseline.json.gz",
+      "sha256": "7efc386714a02bfe63a3d16db91a811605f22a56dd400f248db4a542e547e085"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "6c809f19c869d392e303744d16eca39aa76ed10ff987ff664c78e607914111ab"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "bcf357f683f1741d560c930b99237c371bbdb146b0b249c96b086ed839100410"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "9dc8a7d902c8c2c0f5d6ba437edc0fa8210fd384276157cbd761198410f9f3cf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "5ddc63715d102659a04977f4d9a11c7a2695a050d6c44563265b313d9bcf78f6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "7cf51d83b6ab9443976e4cadeeb80c43466742c6dd39c8265aabcd32f104984d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "3788b10318cad544d05a462d32a5915a27b6212771977c67241d013d4a0168c8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "dffa7145038c0f3777208f461191143b64681291076d964a2b2ae132470485ae"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "7bfdddf6fbe4eda19ec54d78216d63effcd3093a1d3b4fd305f0da2d3939a79a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "188c81df04c18aa5e11ccaee15e0542b832a73b81743f9ea947d24b7f9ddbe16"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "e30ec691e4547f1e36c82869af028470c2ad110dc91a0529c8eaa245f845b805"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "3cd656777022c798152d4c6bcb6499a8d2a156d438cc28fd3900b33a224d7a59"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "c9595ee6de5c834403b233cc2645fdda2c301bd5654e0b17b52ebd4291b398ec"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "d0ea58112c7e33f39640a53d5be2f10841b1d6517e49b657ac8bd220dfeb1ec6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "f9eaaa1dd11c0297da72d50fc0c21538f28b9b68f9a94ed85d161dfe0658a4e2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "36c8f57db430943272ba9c4b5c0dcc9e9ee214ad381443cfdb4280aee23ecee6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "53294c7525d0dfc9e5f977f7f774909a0e01172c88db6152f76396c6b263ca6c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "11754bb29d8dacd4595966655aa9b1f65a1d723dd0f3d49511357e64030fc1cb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "e4a085693fcaf6b31604f17895df66fb1bbef6749186a7a918f617939a1b6a6e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "ef27b559bc507a09345615046f1859dd3dbb97f28aa2d9aefd2f33a6dea33465"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "a467f77f736a49eef31bfc7e6441b6fdc79ace7a4364d16e560f34741c629bad"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "c510d350ecb943d8100e37871956dacd71a9fc0da95ef7d64771555dc0d58767"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "9e9f677760c4c4feb1f2c448c13a31b0013925a8ce830f95eb5a77f3724c6c75"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "7cf463d6a16fe2d4715835b8015025a6a380f7e46f87006907b3dd7f007a7481"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "c89abc1050d29244f259a90bd96a536f6e32dd3b571e532bf9c3ea024edac4dd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "d714d15c80d8971ece1d1f79cc08fe2b255af53c0d04ca88e359ba43b7ff9d2c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "920b4900a35164ddffd4559e8358bb1469886786a62c9ff53b13577253494a15"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "1f539397cabadcb90ec52d727f91d2a64dae3bab31677f737d5104241b7b026a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "f32445a60dadbbffbe2c4d96f412f3609d2103f660921f38197b8c3c65588d08"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "cd0877f2d9fdc592f771736a669298e8713144df65160a1c7f5e438a8397aa59"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "4c57269c9be38cbd9950309539017eed412d530cd2331db6f8988c57d21ba699"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "6ca76012180df0851253d35665d5f278f6c6d7d1ab26865e06049fa064c10268"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "7076dc1b07bdece31a927445844a09cb1a8bc1cd095693da89960de22fe2d0d4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "f4e56a74c003b8a8430fccc26032aa2bb2743c565beeeeb9e9ad7c43f9ccda6f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "eb2cc326229c50fea2a7a2cd46dc5b81aeedd184d94038240c7cbb0877cb39be"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "5eac34f5f13348e9d4c9f4cfa526b3ca83b613a66429a755c75a934f450139e3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "cedd454711462286ea9edc2e0f35339686b90ba035d9ecbe6869785197c4b043"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "002849b94d75b63dcef64f2681aa5cc7b7a6b9409dbec89df8ac0c38f352adea"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "24c2b3c50148977292f97ecbdf96a7b1e9fff75b7fe1a6081efb5a64e800efa5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "db2d29611da29f8fb46bef23162dbdcc47a7d9ad7cd5c56b4c4aee89fca75c51"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "82afa88b85dd64015af967e688c0b32c2fe5002e90939702010d8579f1d1781f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "c29dad87674215a5a1845db4b9f4c4ded86dd5cfe7442b253c32f6206c5f1ff4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "aa1703d94e75b6fffaef9123fea4342dfe98a54071b5c10ae7d453960b0d8561"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "d7cc820ced0f42c17abed23cb878894cc54235fd742035147fa1ead9ec306e06"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "bb008cb1ded174d393e707b7d1d9930f9998340956aeb4924bd69bfbbf9b30c9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "81553afab823239b503c387be8949df3c04daa2a3bc91fd15ceb2cbc5c363510"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "ae1efc45f14e714e474fac5580b745eb13b53d983f19dacd268c6ef11dbb7c41"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "a4d142a997040a0fa79f3f024de529669fea794e563512c8d1593d70fcee8c08"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "026f5d61a2d34e238231c332e8dd375259582c35b4c447e60060cd337f3f410c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "80be06ce8b5315d23b68b3d0ebaf122d3b278576c33db5c30630ea79caa3f1ae"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "3b9eaef0a91ef47c7046f2bb80605ab66bc79c0fa545a886a155bfb4c8a7636d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "f8300808ad4a20712f6492494c5dfb70daf0a76e6408075f9631b646dc2bdc5b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "0a412139d99cb9abdb5d25e36ac6ed1944021cf66956c37c33a343c2587673e1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "27ffa24ff658bbe1e5507bc93a76ec3425b263a5d3cf828f7f53b18b61648b12"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "405a98918361d6b3e8fe54cecac06059987d6392c62461d202fc92213ace4457"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "5b5ff5f28b174d5327b860cf61bc2f9bf59fba65e0c5e050d8ac77ffd634a775"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "d59c84d100854f15ccf520ac75e9325e279dd6aad9ae03ac2e7c2642d4ec307d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "37ddf6974cee2d1b2988f0c5c3122a4aa189b5676c4988540473f92905ce90ac"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "e87b1dabd5c2fcfa0956a20d77d883063dce1cdc0773526470b00ad6320da3f0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "afa0b1dcee99830475eb3c5ad255db8a13391fc28eaf1c6fd4fae2e469a7c015"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "5d1d1f598e05284485249555fd8c491642f8a591598f2d312dbd0574e549115d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "646e278cab4424d0791335dcda4a8ea11ec64cc895166dc6003633328ad44920"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "4923410bcb34a5a7921bdb2fda0819dbae713cd4bdf30fdcf6ad10eaa16130c6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "6023888ec2d35c4a7cefdc8a77189c52b10ae1aeaaae09f3d9c35d4c3fa1053f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "52d127b9e227f6884da6bde3d7665122dc1f1a3a584d7aaff4565d0c4935dc4c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "cdbe2d3840a10acd7940cb2995d73a1083ca5883ea167e299764dbc273282186"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "e8866ce316fe6027a5c946f86134775173671324d30c6730e417ea6a9e621b61"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "f0457d9116b6e62e24571bffb82b6e6ea42a6f26bbb31f4d1cea2568be36649a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "2762a6f9087969fd484ea63479e86b531d7615eb798e5cb2194e19bf1a528623"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "7aa7047206be63adce3846147167b986cd3475fc59a25fbf390432a4d7edbf01"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "389e2c92845fa1988465620e2ec427636f967be9726084cd3ddd26c6393998e8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "5e53225df6623407a5893719d1f504f46ea9b62600a9bac8ab50884c23dfe96e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "6044b3697f8954d3ac7ec1fefb8854d7d9b02753a3d87733742b80fc4ae5a6ef"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "9fb0981ddccbcb67264ad481bd4f29a43cf2b23beeb41c98079b8a6d1d227c57"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "b962153f0ff973ec267df5440e0b30da5e90938e5172a62d993eb769573bd692"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "fdd1c3319f31b6f86e4b9a701a17c28063a700f6cdc713774fd70427e815f050"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "fb655b1dba30e78a9e35bc47612371cfc3cbfea20197f8d8f2f2b93189c8c33c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "9ccc6561485ea9a739621838ca20165252c7ebda24b999732a006290b88bb6cb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "8e9fbd85415857c08368752c38c72110939de72657675b6ce5447f96abff2f4e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "eeae2d6c9bb9cd4c93b459c20dd36b770ce9dbf24fc5730d71f87bdc0af7d056"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "a68e792bc1f4075530db4a86d6400e28bb86765fa10b5d910735c71ea66f5bf2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "e048e197441ab52e2413e8a63f6a2fb858296b470cb08ceb9d21090ab41357c3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "6d01822aa320a53c82a41f07b2cb8a39968b004f112a41b3418e1be18260d4ee"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "7d8edb081ff1847c07db6b37dd90b1f418c5fae771098f54b3375565d6eca5a1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "62a10964dfee2143092b9e351fbe591e9046815115bcb4820856fed826239360"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "2a87886539a039faa26c33394c7b3144b57f2ce7bd63bd4b8b1019efa97faf50"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "8b61da6383c204cddba57ccfc282388911926470f0588c20cbcf8853e7425200"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "aca293a543f48ff6eede027eea089b5b3bead001d3c4474d4d79b5acb1908bd4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "c1154975117c29e00f5942e21e80c6608120b9b02d7efc5708a6e062d9060f2c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "ff95ddadcccadb2490938648d9e7746163ab93808c57940487f5c962051005bf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "bbfba759369e2710f2a4156bb2c0122b2b0b09d63803679273b2cb3d624af738"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "f2af0606d120e0c540ca6dec3d9f7c3f9055fd8869685ea50a3558bdb5c17a4c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "2ba15caffeaf4581dd1153f43b2428ec439e098e387aecf0332b0ee4a06b6fa6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "1aeab9761d1257227e0c62d4e1712d0ae0304adba003df5e72751c10d6f4ab98"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "f07574b8fc9c415f3e98a9e3d8a0460e79488b69b49285b383eb685233d2561d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "4a3580524247c3da7e2435a7b3579718fa6efe5af6c63090da54988a4cb41f5e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "fb1701f75b7527e617fe3675b06f58157ab374f9bba1f91c235d2770f85e20a6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "eb4f8b59b7ac07d5567c728a5157a5f88197b505268eb559dbbbd89762d4e40d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "85bbdb702f5d4be336634d682ce0d589902d57edc0bac1c8decea3ee5abd5486"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "7430d2b43808bbc2f69610a6d77a2a5436b63e85f04f2b8afcf9bc3befd498fe"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "e841009c48c3cf0aedeaea839c3115013593e1439fecb4c8fe6de1c8a6654052"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "1614586532565752a160b8ae5acd3084089b61bfb71a0ec6db8f12ab12d5d0e0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "683e7be48dd0431b341b6dafae40a4dace7145666d427f08934d2b3e48a82582"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "8238e1d36becd7f8015c50c4b51395d9df74cfeded1e8baaf7127682adbc7987"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "70dd6e331152e0f757b4244780b4b4c16f2b2938452c9495f914093cf0fc4932"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "e4f59bf24490c87c6a2a5c4cbbd05dca6f8862e17b0549b883754207c09c2f16"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "4b897943861a85622cce8cca9f084cd13bcaa47ff8e0cef05d7751098a3e6089"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "f924120dc33fc9959d95b6407f82b295b9784ed32aafebfe575eaff5bfc89e73"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "85a3846e6661e3d6605885baeb134789353a4bf73ad3b0bfb20b193fb51acb05"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "08d1e1f9e5bf4dd4195ac8ff22add048413f75e2110e31fcd70fc7fccc89522d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "60e301d441d8077dadc85f07c863e242514b48aee11465b2f81e89ead813d7ee"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "d520133be7a9368246ce72b4c76beaa04736a3c7882aacd3b4e99d869525a382"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "3e2c951d8dfc82e5e44a3ca673faa45bd6905d3f2110d6b6f95cc9b107c38776"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "afdda8292c598caefab2408c11a47613ec83ea021663ef0f9e5673a6de2c1553"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "ac41f52f0a18c4ce4cdb3d45264f09bcbf6b079c7c8bf4eb2ef76bd838e2b1ad"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "be9bbfdc179b51e37b741649aa580b1856b6602ae185f1892a032a83e5ae731c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "abc2db6c17bffa67b0436f41aba1237df0f6a8ff6136d4a5745b124bc2748c26"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "caaa9a331bfc71bef2d98c9730479318ac4ef904dd1b70fe0363a1ddb49920f2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "ffef7bcb7cf8eeb0900cc2155120be8b61f6fc5e54b4eccd420787c81a5a630f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "5ad203cf258b5fff2e4e27acddff641b48e19e2f478c1845bca7f806133a26e2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "0d3b6318171bef4bed01c70ebab710e653ebadf5d7a4c072904017e7b4b767b4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "1db84046157518dbef443e9b859e0c05088a13071c7d40c2b87bc66d8cbcc025"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "c3a8e4727f5b17e65588884d0cd08a59ad19c24ecb8d2891804a97ac5713a37c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "854d9c16fdee1cfd26dd95d28c9412a3a13c50d682ddce35b012f513bb84f10c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "6957606b7d84f889a1affdf637552644e7eeb91de3e404cd41c4fe8462581c3a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "9a00d02a29d9bafb94693a03a4d10cb2d3018094ab09b39286a9bc6bcf81d9c1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "e6e17bc9d35a885eedeb2ee46e7035c68aae35614c940cf31273b567265094a1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "6d5edf84172f6a7619a945dde741e782f5f309ba3e0b76cf01adac809bd3d792"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "bf2755621719373a538e6e10170382c4565640df472717bb2d8f193031cee43a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "a36faccaf36516b0b374e5accea2ffe768e581ab34ef52dea932d5147d2db52d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "bf74a2fccb26388afbd4536da8915c9d114e959b13bf5a4482f0e246a4599234"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "9836d47981225e867950cb975513ec920cc169139bd83b9227e51e48541c6ef2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "3ea3beab220d73528dd3f7b0bdca44ca98b8b88eaec7b94c1435f0ccb9bc70c4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "fc516d77a9d6117678aa1e6e55ccc12b3ad0d3ecd3a4046fee248f154a047e36"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "91139196b2048f119775e6564bee7f57df0a060f69e0c6c492fb076ddee653c8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "b028f6e02be803efa38da9a46158aa1de57807b999141a0be83d075c531121f2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "9680e4899bae1930c6efb9301c9935c16326b12c2cdb3b6bb86b66cab97565ca"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "537fa2054e9c5692bf63887f5771a9d7ad9b9896f1d7bdf8efc35a53e87169b3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "e94f918e5fd0d5b37cb2e2059b31b397b9be277f3b12700fd1d160a84a69386e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "185cbaa3cfbc39ee5fc49d98f58b2396c11e5cbdd98c9d0c4818debf2ba75677"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "309c6424e54d371e3672d95c65b29658b89fe5758d687d952468f9c198327a43"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "8f7cf52a05eef4b6efe8e16e00889b394b7ca9ede496311d9ba3bfe37b30cc15"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "648d6818ed473c743fcc5788453ad6a76a4a1794f9729723c35c478e4cd3b637"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "9529838deb0611006ec376f90030bbb52abd912317d2082381f76f98b5bd839d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "49075f659a4470ed9816fa97305a4f88d015e5320946b4f670e4d8e4fa020b83"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "4a93d14f3afc71c5cbd55530d5fd61e5702626d9bbcc1f8b3599437848359bf1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "7afd729db1bc1dc07e25df7d6fb47f4c2a007fc5bccc643a83482bf10207d14a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "866ce49967e2582b1a76497a20399b5fcbc1c28413076efcdb7a3abb1ed016b9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "8e77089cf3f56bb992721e7078649f91961cbdf785d42722fe47b9eb75331d29"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "f1e36ae826529ef42703a92bfc426f157ec78b3f063ada08b7f8e92f380b4db5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "9c42fd6350fdb0c40bf1cd71b01561904eec40d4e9edacac61434b23288f4b81"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "870e5ad191cad8f488e5a8c59b4d4852df87369716b5c6a788b4aa3a4850533d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "19d564e0a6630a6689830c87399fdce1b54ee63f12d810fb5cda0e250a785072"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "2fb461ba797e07475698eae81881211ce2381c03676f92fffd509bb5ff3d55a3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "70c547d27cd067f502318ff713308c6973e2b8ff76737014b971b58c55ee736c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "2ffb63eb5a3d8727dc03ba8c66ef54bb2b08d1015f0f676cee2117ffdfc57913"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "b7d36c7912bf6d9379476f0821f5ecfd99cdb2a3ea20581a10a57fec8a2d77cf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "6235354e6bfcb0471bc7d10709a7534e58b01ee09e7535f6996ce3f7a1301dda"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "8307a6e25d2bf7b2f629069f1c1965408e8bde1356951eccfa9248ec7e898572"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "613e4f2275ecff9de6e08aa12535c8fb7657d8f5ce4701918f74ca971300df88"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "1fedf5da368be232fc9c2b624433fe2229665a1a559d7725fbf28dcd806a7615"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "7e4714f63b90a9390d4c92b5984884586353cf1c76b2446e8671e26a89df4671"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "32eb58d7a4526e424313efac719c6357cd3e6ef16cf93e2f9b8146d080acd985"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "e0a08dd5cdf3bf87289a28d61cc53c2134b4063daed93435b481d258cd94add6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "2abb99c21219685c5c43a89a1b16f98a7be175bd9d4aece1f2e0954dbcff4237"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "61bd1efc399102083d23db8336eb774b86e4a5159e198fb5e18ba3a0767c26b1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "6bdd17f7e9b76fa03bdc7d41aff90a8ee65a10a5aec460f3903b012dc6bb2197"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "eb3f657c076c4d69f38a85bddc60ab9c747e442557bd347f4711dbf627d2b35d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "a2c50bad12ce812b770d6d3cb6689daf110af0b6739c534c5d00f066fe5ac47a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "73fd17014fcea0c2a26f61c955a6a6c150397b728a9d20bd9ba6bde799097159"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "bc92ffc8e852827e90a7c95a2b4b64233128db606311a59234aaedfe759b3031"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "d562914d5520aec6b85fc60eacd87c891dbb77b8caac79153370a94672926a70"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "97b5aadaabb928c13c812b1088181866fec5a781facb044017aef96aad1646f3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "edff9cba70c4b36b586db08f4889b79feed8cacda5176749ecf1231439e1d6b5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "73000d65e2347de53821ca2b848e4fab12cf585d7f8bae5a5225943da6727846"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "46f1b1c948bf0dd35dd18c8bdc89f31a9a9754d4ccf25a9bcdbeeaf119d65475"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "32024f956eb0cb174083034f4432252a62919c736e090c964a594e6f57388335"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "618f5c036f1950c24e0065cc13b39f337ddd503aa1a4a1040f8147b9447f213e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "02976c84b207788fd8a027880871e9507d01006b9cfd12fa4476ca9ac7952d23"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "644c29f4c0f9e89f25826cb1631f412559e78d13b29e98bf3fed885f010feadf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "51decea972cd6c4b994f44ca28bcd497a05bf6aaeeb50be5f178df2f50128944"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "cc3071e9a2eda43fc8eabe818247d1a8edf9d50ab1debfed5c60dc55edf7f640"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "5f9e098ab4d3196b14af9fa4b81f2574ff4fbbf1bc11f48cf71399263fb5eb20"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "c8f97a7b6073d23926dd458750a60cccf9698bddc373f83ddb6942a0eeb333bf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "d3206ba4852d8949b13655b0ea3c3d4d9f8cb3b0151407213fa0c24e9d722299"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "e224287915fffc04bcca22b57a08c8aac0fa1feebca36becd900915682762c73"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "ceecc7247697645bf04491ef75b45b0e3a04132e7eae8c842e62319827d177fc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "7814a6803012442ebff5397f03501e54611611312d96d14938d30b6151cd5a98"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "13760b681a7d484416fe547a586eba8dd5d671a05fcf850b97694980cf71736b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "441f774aeff8bd01ba03b34a81d69c9dbd7b99f99a86919d864f7229621aeaff"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "91541a6431c3be1cb82bfb5123c62eb3dc7d4a90e45c5f10f26eeedcb8e0e823"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "f0e1f32c8854d18609f545bb3c6d390495ebc85d958b24647cbb6e8debfd7b2b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "518da152a782171f94263dbe1590c32870a2cc1dc3583af2b6274c4863c69b71"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "26436459bfc2ed2eb05ff7bb3c9a642df9c0d1d502824645c0e8560a73f283a1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "798ed28672edec1f2deaddeacfcb8d86800663d362781158271f7536813eda6d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "2a40b6a5017a3eb205b5bb7f4f8e09bcb77bfc44a936e7f313a40dc63afa8a6f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "2175d23850a787e0b9d39495ce6fb99af7d4b60dabb8db9ed42e28731397b916"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "af895382b252b67f5c8b8eb10f1c0a97e8fd624ea80e8f7e8c33a8b0066741cb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "536eb7332c8199e8dae425a10f9327de88a93f3aadb58a483aa825f373a28804"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "cb64e06e54feb7d29eed09dca0565db59bb494ec808a907576589d36ac932ee9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "2bfae734f87c2ca05df85bf070430fa7a3eba0f5ccdac047089e88c279913b6f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "1d6c5a230f92cc3ea1ee09ae9409a4cbc306278269b8fce43c4e09468a9fd876"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "d1d14d0f52592b7989f54551fe594e5868ab30b63f31313f7e9900147382ef21"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "d51b35092b5b1fe34de9142a2af067e464399015a073eb4bf60ae63b588eca88"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "08e2aecbb2f2b2c05a7bbb06d0b08c3e7b0b8c807a1a86790518b9830f21face"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "9d4bde960547630d7ea2a7c62ae3883efd73c947c17d97c0e406a49499d96bad"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "622539bd41c3b6da131877ccebf7a791fb6d4f40b4e4af5e337aa9a7a0bf372a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "b0268b2b1835ffdf736192d1465e2092aec674c948ecb9f3c1dcd2282de1d826"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "66778bf326f8f6a60bc3a93a3695bdcc10e11d62ad693d8b87dfe02fc4f3cf9c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "a6d16170b7217b9699aac9c2adc5846539b341790e0b2f3d274ceb49d4430aab"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "533ffac15429aa00b4cf7204d8fc01f324ddc8564b9eb3693b20b4ab0f8d0f47"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "98c60e5a95fb81b501361c1525e1eb125b56edfa4f267fdf36446edc85545620"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "b121d1103f75ef93fa3ac9bae00206996d36f04cde4a68885dfe3a31b870e91c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "98eb1c900db324533f299aee9e7776ea846579ad1b2646f413613932f34fbfe6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "9d14afbbdcb03ebb520193087844b3d513c43debbb1f1e7189632adb41c9df76"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "460f62715d7d063f13224d9c47d550dfc3e061f034ded37c24d0333edff9e0c2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "3fa6d8a693ce6e04085a39e04e0aa0cd3c91a6a7cb9580c0c5881f7f8bef3d11"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "035a27a0a6ec3c75f7c332a02ac437e474ee4d99e9bf28d671caf4963f7ef3c3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "150f0936629deb231d8479cb4c0f92015698007ba0c3248c5722a63b0ac32de6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "a4502d37c84723b38b504e55116ac2ac5888a210acea1002eff22489b6b91cef"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "33d73d623f8941c248e6754007a40d6616c395c24baf9180c08d27b06becbd9f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "fe4464961c1522cb82bed5a748e22af392951ebe160ae238aaf4440d4532749b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "7de15139bc9462a1d85670648c8c35ef9910d0983c13efc7688dffef5fb7a492"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "b37d08567f89b4edec68274534af1be4db00bda8f5d6253557f13c4f98e27e5c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "b8abd081e68cafeab5b7bd60108cf94d272e7f755ae52eb0c81cf8288b260905"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "5eca65aa61b4c11226e01ee041f27f5fd401d82200e33ff4166c2fbaff5534d2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "ee0258a7d95f890e13a52df3f39411752af438e1afe5b6ebd47ec5ec1f3204b1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "a4cce18232c82f0759155396bed0602c72dfcb151d47081cbe1f702c99b2884f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "54d592d6e77aaf2e4f3b2468d2892d4f02064068f78c594748538444d6f63a2f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "85922079221ff94817bc6cdb306e09293d68a0bae1bf6c10f21fa203e3fb116f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "3e19a89716651d2c7c127de193248fa0fd9291812e69f6d514ec82e2334fb04e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "4f8d3cba5abd336f235c0de95ee26474022b5ce1ece053df2139ea494acf646f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "b30cc849b8cc5c1e64a35e82da366efb00f0b3ab22189ac69e29776ca7632c60"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "60783a43ec132d13c31f3cacb251fd90325d9fed98825f1c8070e062a0b32d06"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "4e57c50886277d11803a6abde65df4bfd98dc637bc6179ef3dc34db7b385980e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "250c3ebd1f711cf83875f0e492fef8f50caf33c38bb75ff985fbf69a3de7188d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "3e79799ea8b21eff8734a0893875498ee4daa802c72e3ad669f3019265af9225"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "cc31635645e1b3df5f34c34f27ce90f65895658f82dbd2e46744aeae47a65d7b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "501f50204b950852d992d7732ca9c4ee3e6066c010f275fea7bab1b8535ddba7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "c995c3d2f0acef7e88e1f7b7565b43f3615392d460b067d12b7dea544a84de07"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "a5338816db08663480a7cc8e6c6de8b80f8b1366b34e7ff70fc2b2b2531a056b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "460a6f7823c9385aa37207d0ee4308ce23768d3295c6146c5bee60766c78c1c4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "a3089e84329deacd58cac29608781fa6db152a34d79eeafb29df81d70626e78e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "bd8ba1429667dd758e0e0e4b5255478654c6a59886f18f0d0287d71c6d1ab556"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "2bf94cfa77aa9674b45d11768fa919086146d385c8d4a6932c6c56bd866c7196"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "f44cd445adaa62cec7eee6deecffa70e498291aae79a821b7f9bc5d61d317520"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "0e3ec9558c6ef2dee55ce13815b745041159295ee7ec2c88c106d60340e97539"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "c4de6527e404908d3a7cf52b8e113356ee10ef7655b0131bac98c049cccd0373"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "b1bbd88c95d1bb59e423a7e178aac1a149d861814ed4de6fc4225187d7c6a856"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "d2e62d6ad63e5e1c57013e88a6eea702fc422895be7e6858ef4d34434207e7d1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "cdb579710b675ed02f02cd92e4f2a89b4d65886e6bf085fe85f7b8a5b510b513"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "5d24e59f9f02e32fadeb95ab626e6ae3addd55171b6fff6128b3aae7a64a7886"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "4c3010c6579892bb18183a5536245a3dcd90048e2a0633100547774c5b6ef1fa"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "cdd0b9204676269abe4f1dbbc5601b4ecab0d9761ae5ab981a27989b08c212cf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "d875f21999b2960d18a478c44306d2c451df8596e8d16530779d994cab687eee"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "90ad3520b779eedb041d5eb55a08f6d324d3a4363fb32932b3b5f7dee0e35303"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "05b7a360ecc836844893803931ded52ffde67ea19e75ad330eea00625dacfa02"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "5602df230ef80ee7a39bb9b7a34c9a5d5753772378b5f6275af55021a2f6fb8c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "bf5fe385b8e9ecff9e25d56ad89a35a84ac54740de4b43b562faa5a80140b8e5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "85b6afa48c999bad83da2a576a9713a60789657f62a55abdf8f8f49f1b8e4ff3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "b465f596d1359280d32e41fcf41adc04a39db7a9c7123c097cbbf5ba154e9e46"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "b027304e41bc45798680abdb29d4dd0b4527e638bb3d9b8edff614912bbe3329"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "3d4f58548fb2b16c1e4c877e6abf437c07a6b0fc08c2cf7d5e479888e10f5faf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "5e84211700dfb2cb032121a09af229d4ab6d64fb27877a996bf5c020c5c94c73"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "6d0ce8e77ab03576b0e1add82ac8942ebbad573674c3bcb31bec13b7e671af70"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "50e4f1ca6d16b0f14b7e76185783dc0eb5494b4a14a20b693e4d8661edd607b0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "95d39ba0a361a5cf65cde468efcb86076854e0b8d3939c46d608c6fb752698f0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "c23542a0f3c5f643ebf5f9203172b5fb568391d4ed6b79ece0b589939ee06d1a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "7374952b71b7df670a2ad64bbaebca6b8a53eaadb441e3bf00ca6692a4ae6e4c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "e7b90dfb37dd95ff0e0c42f310a1bf1e8883d6e60cf9813eeed516aa30658340"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "fc45194cdff0fc3d81d435dcd5cae86bce6a3dc8972c3bb9087668b8f1154287"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "3e67eb5fb83d6fe446530ce8ab47378b8abc305a72308405afaa61ac64fa2fde"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "00c46b14a45ad76674a11ad3b803a87995798d2ae79f4f3d6ac420ecec1dfab6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "ba39c772989b7a7b4eb35439782781c048c7fd2ea55ea9874713c277226be7ed"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "6176a74decfcd0b27cd414b88f19b83e692bf8ede00734741480eb62638c5753"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "da13efc95ce9c184e8d3612f9b50cce3748e0b500d0663736558a5da877bc02f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "059cc91b867cd676521c17e25305b43648f809ba4e2665adad345b66a22192ab"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "19d668dea41d0645c6c2e84e405c133106fd8b439f4711b48a65eff248f3b380"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "12f87fcc3c259e610fa2ad1fe5166362be0d1c764673c1c2d0d8523abb225807"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "48ae771286f02d251714edc4c3d0b5f4e43964d8cc4b9ddf424ba7f1ef3b13b9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "ef58d80d2a8098286ab32df8c2cd1e25d0a6be638acba02c1a7e91950f0c7ea2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "fe7c15b7f093abdf15299325a8468abccf09941476d413a78121b563b517125c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "fa83f40d0d25b4f9dd51a3f84865a0ab2ddae6a0ad1460dc5e3019f3e8b6cbb7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "3bceedf92800c7eaf578006922f4b73af842f3f8c37d5cca5137d5a131974cad"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "343ad1a0b628b4bf1edc9cc2625dc78e1667efb1d2ba5f907c9b16a6a8e0eedd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "14655495c8cda1b17934b0a3477f22d7c02b922335885442924c9b5b968604e7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "abd7f714076d8d327224e13480c46def5d382c688d74fe4741c061894df430d9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "a17f7431fea060bd362705c929707b7857d13f9b98fe7a8a2a6a0a47d2ccfcce"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "8ef0de7ec780e4da2cfbfe0ed5b539777f28917621dd525a70756921289cc2e3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "9573efc1bd113d51797311b602b1c164ee39fcdaaa1f08204c7089a7d6d694b6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "1489f4af65f3fc888b924650dbe452ad3ca6fff66083e36bd3d55b1913c2c848"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "2864ef5a02b9d12af72fdd0d349497d35b14f8933cf1fb74c4c76caf7c0cf1a2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "03197528c01640264aa7629fa6009697610df896cef27546f087cbe32ea8b87a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "b59ee86911ed46ffa94168127666db2195c00dff78deff68917ba6900b591cb2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "e5dfbfac28ecc7a5875b88c4b29ca04fa4229d31e26d5da656dc35419d9bef12"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "e9cd87a5a172c862cb4814ae61452849351cf1dcd2534e0a3a0616bceabad257"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "6383a30f250fbec9381b0575f75d16b6b8e370580e96cc1c2701a03c792e9899"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "4fabd80632b06009bef77f2b2f637b0745a7609ab0f600a9a93f7f01c4bfaf8e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "89482cd5d4285c344afcf9b019363711af29a45945b84ae10047035e2afc4ab4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "6456a1d57eff1c83cb105fcd8feea89ed585d60b683d216f6f9cf497f85f911e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "fa398f928e66ad7c2b9509ebcb1ecba183361aae9cdb6b96ff905ce6ee884f61"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "47141a227fad715b35c829ef394b6e15f674393ea464e7004d98ed859b444b12"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "9cc03fe7c432fb52a6fa2cd9e841dff68816b1388bb2738549eaba7ffbe1224b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "65f74f1cac0236b7ad3dc0a4d0f1719bf18cfdf0c9bbc8f933489e7e6bbe9f97"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "63cb0d4f7df75ba65df6ebfc10fdeee0fe2972a3eb95fb62bc810a7db8918711"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "f6ac91340b7a2b551d4cc323a99a294b2e52674b843d1efd8b95ea37a99de8ab"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "66943df704180273c77b258287009ffea018b762efbcca5fe47aced596e3a0a2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "13bead17cca20ab22869d93c45d813fb41dcea07e6eae010f9d1eb2d10296309"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "70d6d642b39f1fe44e6c4ccb011834cb7c3e551ab3f73314f86407a4dd3d2dce"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "ec2dbeced20fe809897682098e779e51718a6a40767aaf3666b45db3f55157f1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "f9976c7b31b7f1fff7b5e66844edc4fc1b2b4c93d4b7afc6428f6949b75e0030"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "4876b9224a1d13f84cfa7c2103549db957fda3c55fca0c9acc1d413008daf6a9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "baa7a01bda00bad24fc1f6895cbe7329fed136c78fe961c4ece2796d93100eb6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "ba83ed7ee7d4465afe4e90e762fe9715dd07f5b5419090fd854e047745d0b6e9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "f5bab8e2d86cbe713e43aeb4001edc384850548fa45368bee738d4741d22be22"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "49a25fa69674e718c0351d26960ee03e7af357570b3ef05526721c911cdfbf47"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "a190328e31955b457b5e70bb78fdbcfc73d7ab790eca336c16c55e6a9ba1489e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "73c98134a6258262d2e9fb65f1e8ea8fe3edea9987b93c93cf35805a8c8a6ad1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "5822355df7804b70903fa4c16c397ae535ce7b66fa4db6c39a1a048f62d2617f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "f2dc9899eb3b1cb3f7bc86e063dfc5b315e5d0405c057ae10c0d870a673904e7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "b5231cceb0aa2f100012732afd49c22608e27a7144a4c375b9971f7aa8c11e7b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "64a1e08329b139fb364f120efbc75392b48f0904f43b52151f3db3486cbf3a29"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "8f857ce28e9404003b97e0d8a199d3e161de8bf4ab071f855f19c5ffca454dd5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "fb5a447b6b15dd6cd2d15c29689da3e064937acf38b1d0dd0bca7069f3d5b2af"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "83408b871222ecddadfb9123dfaa1645fd5ff62d5bbfa48f01a096ec4d4d0f6e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "77eeffb7e1f607bddc2b588cbb35279b4beec2e69f2cdedf01d026f3f87ea60f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "3658f766626a300ae9dec3dfec3e31a248891843d6eb38d5548215b505f369f3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "1df71016873b70dc87998fd5f7dffcc19b1465c11b41a7ee712231affeb6e771"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "4f5307ed9e001e0b9812f2b64a191c890686e7b6e641c5a6c7b3f0a3d7e2e976"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "82bfc0d1f7d74769c1bf932946c7717b5b5a735b483543fda32b4ad2e4465040"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "496ca66bcf7cd44b7d24da688f83ed64dd086955ddcfcd127aff0a2b8b78a437"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "a7b9daa152bf7258426d9e8654279c2885b3b9381dadb1742f21ec43351ac075"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "298a6b40f3489aa3d85c9d6689eb106cef5827335633f03978e97515a6e23ee8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "4be9d403968506ff36a3944e8263406218a7fdf48082bac01128adf6c5e848e6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "5736cad6305d4e51bbe6f86f20308ff106473f13d8264b60783e738277f28175"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "2a408f6b259fdd24814b31a83828d19507468a4fe7b71f439a293f3162a1ef6b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "a545b8a307439f7974f255504c80b1647fd6a54a35e2923656436ee2ead2b64c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "572a558d31d29d363a1004c4a8d570b1a7399befedcd8615076993316d566534"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "0c085ed8548cc9e893345cd2f6621b23bbd1235d0549e95857b4b7d6f720604e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "dc49146e5c49c85c8594a6c3821cc46a91c94d29312efccc819fe7d925754771"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "431bd9d1b2b5ed05a6ac98fba3713467fa29220bf988be027636d1cd47141534"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "6b15c3869373fe6ff46264bf4a2cdd66563f2d68187a7c6678e4d384ee9369f7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "8df0442d17a8fada924fe51bc4566aa64add3b2b889f92963013076461a96802"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "764231cfaa002b32b5281bcf71ec452fd5828783c20589bd6058e5f02e2d2445"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "293d244a14bcce3b5888c6c63595e0625c32eafd38fd74d6fee8a76ef383db42"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "187f0091f6de74c1a7aa57b8206cf06b3def2169c65f3060e03bdf8543589a7d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "6213fb745ded472e9e0d2be41e2dd25e65b029be4f8654e959ecd374a5359f34"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "1f6baa79c2fb35f26fd5ff16eb07cc8bb431ed60c423525a578dd5758da2ce69"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "759707a7c4c875f19e1eb2fe41f7910c93f98f9b854fdf302a4c656035a3d47e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "5a9fc2b0f22226bfa2feb8a359ec70f65b4cf3471e34c10eac45bbb0f95a0854"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "71a82fefc005588e64b8016ba071483c72cf014235479e829bad660bab214e92"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "fc192d4cd5f881b891ea5bc5a026f6a24aa824b681aab6e94d3500a67cde7e6d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "f5dd37c219cf1598b0c8446ee47a2a76fed42696b6496824d93a089113c0bad3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "b6f90ac1ba3cc732d6d77a98d20a815ada5008d075378eeb63764f4c09ac096f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "7e44539b7dc61bd6829e9128a893f54954e8b3e3b833fe753a494dc1e3a472ba"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "caf2747edf18518d09c12544f5c48809fc36f1f842f112293bf9bc26d4b2205b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "8ed4e2457ee8a6690247d4f4e887ac7b20fd4ecf2d7de99aab9d947656b200f6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "80a5eb3b2042f1ef1c8743156ef7dcc5f3a3f8c01ae67ba51e115e9af520dfd9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "c260c9ecdc713bd5df6bd74c436cb4b17ba7719d791ccb6c2aab35e4de641786"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "3275b080c3ec4b2b451d7846242e86b59c6cc88d23b344e093615be39f146f25"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "65494b19c692e1519f1134e9da4551310b3fedbbec90810aae1c3853be90176b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "5a01c93b11d406571af5672c2d42fca5972372bb16cb368b0dce3d4d58832697"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "496d502353bcd48ba651c682951096b3a7c860ed604e988a80673b5df1f09432"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "7b4d657d71d1e939ca589ed6cc5810c28a1e506782cf06b21c59420fbdd658bf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "a222c84e41480bcf4d56554f2599a589ab62d5ae6ba0330de42eb3684e216cb4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "108ea1e4ec61b5768732e438a85be816168c9dca33ffc750ecc92fcdb11d3c18"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "fc72f9e0cf3990cfaed154beddb2bce55f7356a5c850cdab3c52cad64c7efa79"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "7703cfae949ac0f7f9afd9ee807c70804604242c5748a7c0fa18777894ea8bf5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "6c49a22e00202c0de0eda98e90b6c3000ace205466e6265abdccad24ed302d30"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "3907389f153fa719016bc3aeb48e8a2cc8a7146b60e7560c072bdcfb6dbba929"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "614549d827419625f705b5b072c3bbd8a951a1e5a97a420abaaf330a186e199d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "eea0077fa3bfe6ba6b18d1c7102df97e20fc0bd973226db8d2ed3154bd247d53"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "9f064614e80094cdb2af08757f8df2f2d85bab412107179dba5882fa25fc58fb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "8c650e47524c0e1f6a14daa3393f6210291390c966f972a83a4940581acf5971"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "33c5bce74d1e47dd0b2b81041a6c0dcf36312d2510bd4492543eeb5af5de076e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "85c30e9a06d2275ea13d13ffd32bc65e05468dfa85bba6f459dafa26173df95f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "44dffcf55bf53cde0241caa04856afb1b4a68009b9f158796c6827ee4e40842a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "11cdd681d3cfcf5f9ef4a3450a4fe8a573e820b137d9ae6cac207022d8681e43"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "fb4c72ffc68e96280ef99a0b7754393221c99cc6027bf7b871f1c7ddbd1f57b7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "9fb8662e729ebdb81e153c03b2e4b322c8c5efc723ac05cb9832207f4441a260"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "a17c4ed47a61018e4812ca88848a73c8a2a57621c1c20bbae5b93eeef16bcde0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "89f473e356346906a76787208c755599ae3d7af839a724bcebd1ca1ff3142b0e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "dc3baec45662501e34b68d99bc28bc9cf8410ca432dc28486ba385876ba372b2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "94bb161dd94fc488e3fdac9c862f537781fe3efeb9d612c5fe8c1f9088e57c16"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "ae167a1bc7d918a8c9cd1a7cfa6c3552de0e52e7a87900db797ea762cb2353ac"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "48b3d79b660cea63a806a28af9f5f59b86ca91d6c96aeeb50cba62170eba257b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "a0cf07d163cef52c03563e2c2fe40334c154366033a87323b9445aec0ec05554"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "90dc8d959643b2fd6a94e86edf14c523be8bde622ab16e49881692a4ff45c068"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "990d3ddaab2235bc6d8fb346498063a91265356ff253ac2c27acce0955ba5a46"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "4ec9ad78b9295cc5cabf129c21434c25d1cb181556b9a1d18099b80b8d20593d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "23da5bdc7c13b46b7caf283107bd93acd411bc3dcd60de3f7c7df1cbe35d1a2d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "8816a467b0356f1d61f151f805ae6a33509d15cc0d56a560dde5d32b6acdd77f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "e824cd77a115f70c4720f40bf44397f41ae72a6e3f90171479fe3938f7847cb4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "cef1f2b00a319f47404befb2da296129af7edc2b5c122cbdf0a610aeadf3b202"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "352a1a5f5fa9eef65117a4be49abcecc1974a1ef21925968ead147e074a1c34d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "d987f5ee0ad09635ff1905e86b051e07aa1b3fa44e0dcc4ceb411be89a79542d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "4df356fa3deb4f3e1de568a76261fdd7f5c0d5cafe547ac5a131f735ffa0c575"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "719927db97afc6766806733e49765460ed992bed976252546f2c21b6729c9853"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "baed2b2e02aed65d142aa3c4bdad1668deac7f4396d9aecaccab062678da5bc5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "73eda130a39daa342e15dc854bd0db073e5d811c27553586004c08ccb97b8ba7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "8642e18bcb7252245c497269c5a2e5a45f78af52d9c3fd461b244406a85b19a8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "c87457381a63c609efe500c913e61f61dc556be811dd658123428f187d5a92a4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "b303c7c7020294bc4f5876d2fe8c29165f1d3e731133dd6d6f3a7070958f9bf3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "8aee93665f0954b0f57b941bba4907928819bca454cb955422a0c690753a2090"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "a1ed1bef7dd23a2a85e53b03147741e6f01de5c8107b23c366736a22385283d1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "d1e2f58058f1d4a7cee6053da4f77c4767c7d4566b28e6ba9fb82d11ce251c39"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "ad32dfb6c72d7b5ce76ff7c4ab870ae03aecf049a20b1d3c8330ea0c31775425"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "f5b073f8b2f4ee6f62fdbd275359ca973765e22116f9e7c605aa23a3271d5837"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "d8822dcabbab5da4c8380e7d8d2c66eff3c2def2bbb01a036371fd7ca9e61ac5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "034699346e7ecbf979bc8cca893132237b884d1c0fa10ce484b5c4f102ad2296"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "04aa144c0a8d4ce750a54fd2e31cb4c65472433f0765993b68f35503af26907d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "a7b28b7b1fda80fb63e10a17d29758b9a3dda9fc860e75f93b652ccd52af189b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "3fd9642dcfff22577444a8da03f90a836d92d27f9cda0d113b2a2772324bb0cc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "fb16987f575c8f9e3508f43cdcace2197622ba9195e3cd329aeb73272e0c6be8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "ae43eff1187a9df8e1fdae42f266ddb2b7ea18b16752834524f2a5d60955b6f6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "f27d8085df20cac31d02ef7d2b2a1863607e8ee4e6ed8284032aa03c4ac3f7e2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "7a75565ee87238483014e4031a6cec7e404511fcb827712f359f8952e7c2aaf1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "59dbf02fdb4fdbdd69e0ca275b969f7627e79c47dd04da75c94d713fa7d09e1a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "edeea3b7b809291514e653cacd254b925354e7ae58c53be2ba3906625c54954b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "b9528efc9a4c46c795c1f9434c58366c62b9386246cd8366e877203491d03104"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "0911a6d925b238ff985422180d5e4cae00cc859da9cd14cba3112daf63170802"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "77946a8134362133ff055d998ec5da9649d96c4fd2d461d44351f39032f29f51"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "221429ffcbbdb6e0cccb0fd79d27fe0c6b959ce9e883dc9861da50160ee9b871"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "ead14fc130544e0495b44bfe06efe353ac1c666a53922712a9393d67c85f08a1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "5eb0d0b3b7d05dd22dd81408ed27d118571a163ed17c172679f43c7f93c46888"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "aae305fc0aa5234ec7b2489291ba7427a8a85c1d439f82fafdab100d1f8dafb5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "8de3d048fde2f2a67d3711dba75d1980e9e0413a6c0e29e2f5e5d81e06a0b6f5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "9cdaf72be20b754c314ee0e6695a46ef40f3cdb44131884994ea30fa001889af"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "5b929b373f0ac952f28c31cd6ca0b07093c3f9ea9e67601fd931c6890221af1c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "4fb741f6b864f7dbcca88fb2d1122981a489a2f202ae88791b3f63c432a1b0d5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "e15cfc25225db1e0f80eeb8ded02538acc14b72a9683a1339e0d73bf78da84db"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "39ce68b20d5bfe9dd71043b0c1f60edc91962bf4576553359a7eaba7c4d84483"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "bba64cd5337da8fac92f7048723b77bbe423ca9e5214e69bb1d761bf5a19ad75"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "3eb5265d0101108a7fb9d9d4efbda3b9e0cd2fc2399550765f8085d093498368"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_rotate__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "774c1b3b6dd173070dfd48039ddaf75037abcc65af1febc9beb706ed39515f88"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "8525a1f0fb138498e60c0b8cf25241834130accc7e63024f21a000612349ada8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_rotate__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "b8cf87ea67507795828cb3296c16c18ba70881fcbb691c24b37cfbeebcabc9b6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "61ff916481a515ca4c77dffcf9cfd4ed98e0842ea5eebd384f3bbb6575ee8052"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_rotate__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "b8174c80ebc47dace6c84e56784cc563230d7415a95bd80e4d104b93c94ac840"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "3df7e717911d63505054eab58fb66bf11d4dcfd1c80caf8803c80fad461e87ce"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__annual12_hold__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "f0549380854a8b6fd1399b915b6163cb3e39b0fd7bdcfcdc14b5cf28f1ca8fe1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "8990c1aa3fc791ba994078b0ede28563ba9ee40bccd8a67a84185a7d980fd5ed"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly12_hold__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "2313d5878d9bdcde4b72397356b8025cc45cc7abbfd28071162ac793261fc6a3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "d2a8d7b7ec8af04155800ff7beebfded6ff4daf384c4dfaabb657ad715936fa3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/restricted__monthly1_hold__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "6b178652fa1642dda28906346d27174cd573a5ffff310697b426ad3f0077c84f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "a506ce91d7e8a76f9e81b8e09f0e0cda584ba3190d8b621800b3e76108659e44"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "0b02be81c854a48460dd68bd19bed99538e0ecd30a0168bfdd383799c38f400b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "49049823102e16771547c52a6b8f5a1a112b9ef56117bad8ab67578d7f188058"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "143fcffbaeb5b8f92f495ee384ca15c3fc47f2e2eaf4909a1c1619f01db6c7dd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "aa48fb0efd848d6236cebc82858cbddff43a25c799350f7f7c179d07a4774218"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "918f885403faca72d4865aba211beb958eb73cd0b46241f52f53a0c3ef706b4a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "bac53abec5152a550ae70e66a0edeee65671acdccea6d21089e936be155179d7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "c55c91bf7e92cf1b0b65451fe4bc58cb88b6f311263590ff0482653f80f304c6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "4606ef0daebe81953af2da29a7e8fc4a9a4919e5d3004e2d8ea03788629bde2c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "b0b16d66ccc1143c84b3d04221fb6b804672cc979a3dedeb7e33ba7090a9f686"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__1999-2002__lump_sum__open.csv.gz",
+      "sha256": "d56dec0c723968952a854621f61922033b8f10d9aa2f997219a252eb983574a4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__1999-2002__lump_sum__close.csv.gz",
+      "sha256": "9b05aa5a0b56129b39ec3a95ef15163fa5e8489726d4e568b0d0867c068888a2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "2b5b34c3605bfed7b3f42850f13ca241365b9d5c2bae0e8a80f3c7d55303edff"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "263c55d5659c7ab36ea438eaa7a44ea3f97d0a63bfcfbac7351068d7b9d05822"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "fe45cf9399e1cc472239e1900aab49ba2356f19c27879b708fd796d5a8e7d9ca"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "e8c8731d1a952e4466514be6ab0a47eb45427c73bb536d3306bb5db0f9d627c9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "9781791ca4f546a0660c4d17e813c130d6ee2b66969778d24fff3e7f3bba8511"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "577ff9dd6908bfb08f7c502a9b69b66e48f998164f278f19503ef68781743575"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "1fbbd1d27a7e0cc58ec6be5140410341cce0163ca014b6b0bdfc78365e03b9d5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "3fc6279c1eaae22608864fc60c31b512d16ddb15aca40c30e13ac940f62a1cc3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "351ef6387add27fcb6fc34260bcdb36a0794b94bd801e0ee278507d4d756fadd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "1028d38b5c7e3969d9dfc688fe0414e4b3430dad47c8a28edf7ac8987a078e05"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__1999-2009__lump_sum__open.csv.gz",
+      "sha256": "d56b77cb62ca737709f3f4b1e96b8c21d117387d535c8f1bc45123aeb5936e7a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__1999-2009__lump_sum__close.csv.gz",
+      "sha256": "cc61fbc206c464f99f73cb871e1b723417753d8454a310a6feb9395d12154254"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "b480b6ba742699550bb7d6992fdb51d174dcad57645e6f6d34d70f0da4a04faf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "efa45efb36cd38c6f31f3bd55fd769354708be84a1767a870bc0bf5fc046f521"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "532f27883e262889ef6e3bba05bfafb1675efe45d9f40f18f7feb627d14b6365"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "6a6243d82dad922414556cd36bacbf16b3133ecab1ad8f4c8eaf80f48cd9df8d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "f784157d2177fb5790360aa6c3cd1ba8c7a3267c52964cb51e9052fb7513c2e3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "28734b8a56fde7f69f9b145c1534c965dc7ac0e9269317ed08079b76d3f0b38c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "3e2f9da1e6b364441d094d53e09bfdfc5c385d66f2181706f841fdd2d83c7832"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "011f2cf635c1bd9e2c18b0d882b0b473b43a5ca74e7295b9e329ecb07b63389f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "c0bec573d229d5938f7a471cee7c1c238c28d39f7c5b6b3b3a6fcb4a47a4b768"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "88d4e2fca603bf85a040c892b0d1d64d420f953ec3597961ed5bdf3b7bbdce0d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__1999-2025__lump_sum__open.csv.gz",
+      "sha256": "326bd2cadee6c7fac3f9065ed777af15bbafa99573550a12629a1455d39e9800"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__1999-2025__lump_sum__close.csv.gz",
+      "sha256": "25d0f6fcb64f04649b9bd640705666e5f7ac6433e16b31ac3f40207ec2c69237"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "49578cefe09576ec52afbfbccb8507c266e6837f65dfa9c10af54e73f0b2b101"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "316b8272f691672cc0fa72aa6ede9b836f5660e4682f9bb84821384fec392603"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "8a37affd99726542e8192e662a969e00555afc18de9cb8158f3c2893e64c7744"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "827109d46a08e7a5be8de7d1ef33b051058b7391fdf86042205b9c3d2b86e7db"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "59919ba097ce23afea81208762616796528484a3c8cb713560c7b7676ca3f4b1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "aeb676bed50c770260f29539b8a7e1a6796d451feb0deb8119632df42a5e6923"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "278769fc41619a8ce0a65b109d789041f7b74892178e6ba250fc5af29ce97a4f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "457c830930643f5c6738acfeb1f5c9a7b006444082d4a8bc798826adc13557e1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "5ff117656781b6e63e71dab8e6ed74f2b9596c955f8fcd008d452abfdaf596e5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "5551d3ee819363a5844f979d29bd1f37348fd8ae6bb9e68d74585a9625b5ae65"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2002__lump_sum__open.csv.gz",
+      "sha256": "55226cc1788f31dca130bcd473de485690f989f6d0b06bc773b49d542a4e844f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2002__lump_sum__close.csv.gz",
+      "sha256": "b8f7c7b62bca2e9a5285151563513366233ee47c838d286a9815b26002b05d71"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "8950df53258b868a29f5d2b0af705236f481a5ce944f68f64c146380863e497e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "963a586b59ef2bbe3d4244b1958395bdb9ab3eb5fe77d0eb29a532f74d1b4b2a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "2d6306d6bda3659898cd886bca334aae8792d8b41e6d93e8b88dca699c830f42"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "d9a9d933d39293454e14460c3b04ff2e0da1c26d0e60e577733d414d4298fe67"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "25f1c712cd1bfbe2051d4f3297ac848f3012cd734e3d8e625fb884750536fb45"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "95dc3bf409b80e037b9aa836610dcae4856e6227abdf948b200566a7fa68357e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "cb427b1b62fc1d8af763cc266b9cefe20e238c83ce36d71f473ba7702b220c75"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "6e4e471c2d5c9d22fbfdc12253a58e90eb17ea9ddf9375b824c6d524f48a0c38"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "6f32d8e7017a84386e90f71e77a03342052ecd1a6ca0c91740dc8facf03dc00f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "84c0db2b9731b1a0db2ccce0bbbf7205037d4e7d8afb9c0e163ccb7e2feec348"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2004__lump_sum__open.csv.gz",
+      "sha256": "a52251374c4b8bfa00fa59bb7130a58bef80b767762b3242eccb2c2dd13fe60b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2004__lump_sum__close.csv.gz",
+      "sha256": "56dce1132bedd8ebe7e8f59bb52e7d37eff8cc3bd891849831b173960dbe21d3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "af42e7616e999b4595bac88f560db9b2e9f7c92e61e077258eea9f6c0635ab20"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "0c13a170c340ba075e20558c15515deec223091c7e84f118247e952686627a94"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "329b023af92071fa26e69912b141176d9026fb4ddb19a0333d7a6b3d378abbe1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "e3d87e160f8fb765b6a690261a699d15244185079f3a757deb23d4a55857863f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "e78d92f4dbc064919e079108e6e0c5dcce3e944742d25a477805c4b5d964a21f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "6e13e5c21952ef14f2b7f6c89a8f81b05fa584bcf9d33bb41e59014d86beb3de"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "bec5f4393473c553fe8e14a5565e6878ac68c70d44742dd9e300fbfe259f55ed"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "3bff57b8690e832a4be52c1edaf74b69a7cb994e7d753fcc00b8003bde300161"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "e5e0c7a7ef1bcf304b4fa49826e7ca172acc1ce9245b24bfa6fd74450396c5ea"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "11e966f0eebfa104f7637672b153a7b90377981f56cc37a5baeb7b447f78c642"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2009__lump_sum__open.csv.gz",
+      "sha256": "bd80b1e629d025da7d3a954def5d9c5bdbc4b04caf606d082f9f5e72c2bcc0d6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2009__lump_sum__close.csv.gz",
+      "sha256": "eeb2236a19cec9c9fa3e4b38d9b2bf878d128bab7d6848b7fe2fe0a896213109"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "929f0d0c3c378271e3dd38aab54b492d1b43bf36c27348f770afbf4f6dbc597e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "e7969df15403163593ba1637dc43594f178d57a5fd1642cc96c97fb2671339fd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "420b37c740b5699761b926ada73e486ac959ff831a69ed1b70f57b1ba18f90f6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "71f56e0373f0b51782fa41229b1f9446b9a834121d956bb777c0bfb72388b8d0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "b599fee8799ca924ca191c33665dad040e865f1c0262e74e2000d26fb626c0d2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "a42b01b9db85c68beec723eaea4ce835f8de4f6f4a659291b3bc740819678177"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "5e6b501115449d0d86f67821b506e2aa5311d5ad2f7aa28a4cef7c42b92e97a7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "ecd33bd680a47bd93e19590a4f4970b0525c1079fc916f249020de4aa17a0ef3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "25b27b0137351e9226075fe9fe1822a65590403d11dcdb6daa6f5e514f720d9c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "76fb5b9f7e2a0ce31db76b7573956a9c1c962ccf3e826ede2bcd63008b9e3a82"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2015__lump_sum__open.csv.gz",
+      "sha256": "75ff36d276bb264fdad87e2b6527024f24b9bba4efa171ce45a40b643a27f9a8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2015__lump_sum__close.csv.gz",
+      "sha256": "5ea86555fbddc286490392c0c9462cd20a12edfb7716f4dd116e569a95b17914"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "28988d2bb223174e92fb0dfddf757d4a8adffcadfe640dfb65ac38405a0635fe"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "3bc405346fa52e4bbbbe20702c6f59b2e87d368085c867ef2bfa34c8ff7f11ba"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "b865d1e655e15d62e600af693bc2881c60d6e2f91d05d6d52276b5e07f584334"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "136f82b2c37fb1a1c812a71c77eb269711e7381fbdbea49220b3e587510d5d19"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "881964287ea776ac15cbfd135690e338cf946301876685611b418f975901e091"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "53ab2564a92ed120a3778b204164e3358bca5e57230f04ea23cc8e7b3e04daaf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "85918b8f48cbe5274b6d798ff8e2e96cb392f29f5406c35dad20d904f67a6160"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "b79cbd18d9d6ce6b8b98fcfcbdcdf85f6963a0e93ea6bd39dbcfeec5be29acc0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "1408512623d4d1f52cd916c703fa02daf7e8f80bd0a50cdb102523c1a8df2845"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "4c4d50a71123215038611d95fb3de02df86743eeaaa4a62cecd6a2ddb2cbc3c9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2019__lump_sum__open.csv.gz",
+      "sha256": "a8f3126afd7d2e688edac86e5b6be344c4fa308e59c2bf6427c162d53389f7ba"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2019__lump_sum__close.csv.gz",
+      "sha256": "ef7488115649095de5534064563798cec3b9905c47ad1161d53e731557140aac"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "c0b9031f96a51d2cc72a7685371fe7b912837862dcb6aaa4c6499a64ad8f49f0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "19e0a42661b596b159f607fa8ae01e2a3c746b88f25c499934486a0b4251e63e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "a4c08e76197dc6a3661f53df168dfbd9952f3bb84f866e0b8b0ceb6deeccff00"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "66406f065fa66497b82a7a0bd4e237a7f13e7eb8466e8e4e639256ae77d0ff80"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "b426f1d1379c3267f0861a76f7fdd206ac10c8d8418a9e05d0a6b74aad8f58b2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "ede5bed1d874e5acf14e7a2919b249188ff62e7b94d9abf43d0104e9ef6fa095"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "1f8eaf3436c7cdd5eea61c9022f425e7a10806a47ec7bc26d7806e1ab664d75c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "afc5ada0ce4ce63158ca0ead257ccc2017d43f1cbe6b931f0cb6e86e138aac56"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "fa16c3ba106077c6efb8d3d1bfd0b6819e941b18e423a5d0a1eeb75053664621"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "e443924d78d62fbad41ff097c8674ef036e45d0e0867ed560fc4cfb002b72239"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2025__lump_sum__open.csv.gz",
+      "sha256": "6d3ad7746f73d47a00c337c09a91a38a36b3c141e2d988e3dd012364dd607ba5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2000-2025__lump_sum__close.csv.gz",
+      "sha256": "b22ec730a09ee1b1bfd18c9e6a74c9e8012dc015bda89861286890d9e8e24211"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "0530896f8bfdb2ecc1f45cb93fdf51a9ae8ac16b2ac1c1ddd5203c1015c51015"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "f2c6f03bf4d80c9b2d93207e51cdcbd49f01bbf9e4b1fae493b06f22c032c675"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "4b060f0a4b9e6555f9353a5d39a9299c3f0665ea0646a99abdecf4a4e1fdc194"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "2ed753af6da3ed1a51844206e93748e0227287826eeb3fd90e78922262f05fa4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "79cded32069d374c0b37a2183c1a9e5b8a0ca38b5074818340567791825abbcc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "e91d44b743a072d5eb5292dd932b2466144e7c7e1232e11d76c498bd2a984818"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "e575a5a0540279b4dea1b5e41f1c6e4f755188b372003adae282e3ea1dd6ac6b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "5182f76b03c370148dc3770a07e02ba7fdb4780ef65ac2fe41e08af7a56905e7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "e68c39f81b3dbe72dd3f9a3d1c8b33a5f3d853d153d7e63abb6e6ddc249edd90"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "a44ec737f03348b871020cdd80d1a2dc9182dfc483c6d8232b65ae80bf065cc0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2001-2025__lump_sum__open.csv.gz",
+      "sha256": "d3c2ca7e567c87773418544aa98f59daef0e0e1f42e3102778132609ef0a1165"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2001-2025__lump_sum__close.csv.gz",
+      "sha256": "0ad790e1548a7ea6f576f51d84d7720f78fb7a209bc2d2eda8e907cb34aa62f6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "e560b28aa551c6bc6ef219868801a15ad838f4fb222163dd8a8ac6921d5c4c1a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "4323b84f3719b2eee6198b339d665167a844e0580b721eeb26fc79514765ffdc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "5a0b82ec8b3eae86c075686e782a0c2141fe11eb93eb8e6aa3f64b7c8919529d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "a6cd51c63e0bf5aa4f19c6e10c8294c99e47530f1ce03317dc0bdf40f010b426"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "4cb9cb7b170b8010e387867ae27eba076254dab936f1d651dcaf45857f427c97"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "71050befe5453d79195ba8ce1905e903306a2fec7fbc7f0d3d92a0226eec7ac3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "cc633025b66d5d8160cabc43527ff26aad4cc11dfeef47590d7abfaf9bc1c057"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "3830f44d5425f027201f6f4f3403081723d30175cd62efdff651bc178486e47f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "d95f148a48864dc102855c66b7678e2f62e65ad17935ece5763992cf886972fc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "a4214ea3d6cfa1c39ee71086ddd1e1dc385122ce430a88093cbf3f3961b627f7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2002-2025__lump_sum__open.csv.gz",
+      "sha256": "6f6366944c270723af6ae6e4fdfb10d5c53c9659f861873b272bcafaec98fdd9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2002-2025__lump_sum__close.csv.gz",
+      "sha256": "cff9dd1e8b056e211bbc8935fce68fe31e9310a1bb75e8c591839165b1976699"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "e87e471eaa21796ce8f06ad0a4e4a06106713c6f5a06cff5b7f3bfccd78fc9a0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "78ffe2e6265e9fcefa41197a81d4d90b0bda6720b2caa6d9ec12443f87e8dc29"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "3ebc9c694132e7e55a6fd1411de8ea89f55b92885aa175da6cb932911ad0d371"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "6ae17e48953d3855105121ed8d3bf9deb5de4c57676597c64ba30b4c764ecc3a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "14d259bf7a33f2fe6c8942501e067476249553b36acfb061c47a3d06b93faeba"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "037e84637e602bf46f44177659bb0f85122ffb186865c11e7c2a364d312e9c68"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "f90f2734e8624595982cdabf650cac45d1ee978a60bc0c132875e762a6b2cf4b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "3f0e16b719229c9fe9a600bd8be6d4719a1c0a739a1ecc87ea8e82960132b42c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "251815da24e7e70f21948094a40230bb08118f6d986a8a7c567089365379ed2f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "ef10bffeeae67e1c25e50ab515f4e836a7e90b4d2d4714675e71070a59187afb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2003-2007__lump_sum__open.csv.gz",
+      "sha256": "fb8e7c5987eeee87d92e2768619bdf0284c19d97e5b935ffd6bb2ebaceaa8dec"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2003-2007__lump_sum__close.csv.gz",
+      "sha256": "3a690ae07d79bc2765c37c11fec7bb254ebdb7ae3b364a0a966e6e931d2e7753"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "3b3f39e0aeacfe61c57e3b02afdaeb01acf160da6cad307e6e1f114d9699d0ef"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "0cc9e75384245a7207854bf004ffdb0dceef90ebb1264d17b120e1a6bf922fae"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "f6afa3f465a7c491c4e4747b64130b9c5b66c78acc51c5c4b3ec16c6bf77f29b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "cafc8e2ebb3d557b8d4d9c957fa9c994c591d48b04ba1fb524879d0cb58bd94d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "01cf6951ca8d2e75d2bd922792c5b6499c5efde06e5763067c850d0ebb41e75f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "5ebf6e392b7cd69d884b28aaa9f9d0daa164d8739d69b7a282de4d6105b7543a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "6e43dd482daaaf20519c46a7adcf644846932b695ea6c247df15c0b7ea8707a1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "5190c540bf9b0e677d6818ea7e6c0af9b1c5f2d6e3ab99324807c14a74d85a89"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "360dd5951113a35472db618b5d83a5e8836a4c882b5c43326898b43ca0e2d299"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "2119840739f35934a947d071872b28b60ccfe2423bb1b049da93ab21fd8d8dd6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2003-2025__lump_sum__open.csv.gz",
+      "sha256": "4bbc222332362cdc20a3f77724c1dba4a7b8103b5c9d39ed4a778928fb2c64f8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2003-2025__lump_sum__close.csv.gz",
+      "sha256": "6a6e7620b9b346fde115ae74f74cec089902c9f72ce1806a6b327e9cf2e212b4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "8f27337a4bfc6cdd9f0269f4d3182e582197ca09353ef956c87111c1be8f2aa1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "f70b357168994d51f2050da80da0d3adc26b609afc5b9da46a34e777783ec981"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "bf1b0404965c26281a14a1921d7015d9092fa6e86529471eb9d57f591b437325"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "4210546f110192af8c7bba23060bf2d5a864408713f12763c490cc83886cce88"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "76a3d7af7555493d7b58a7e9fd21ad8b1b724e18ad0e20a60e80e215720be974"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "884577004afb13b75172d063e523a55588b4dac92e41235420901aaaee87efc2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "feb3807b11fa07ec9f5df2308605fa079bcd0d5160caeaa0649e743fc75f4319"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "ab30deedc3586627e1a1357413e613eb6f2f2d76bf9ed5d27b722cafcfcee61c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "cfe48cffff8c0387e71db44b44b2ee9e8ecfe027e9d65e343c35f57fcecf60c3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "ba439ba77d53b9a1098d4f03d2adf8ef91caccbd563239e6b48fbe564da54f49"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2004-2025__lump_sum__open.csv.gz",
+      "sha256": "89cfc5966a0e7e7cdf183d1c82578cedc2ae205cb9267840b1bea4d04a238324"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2004-2025__lump_sum__close.csv.gz",
+      "sha256": "f0662bdadebb5065193df99ac1bfa59162b49cd429a7349ae398b32546d91b56"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "29e6752e700f689132cdb1267b4a14c47fe4aa069163b890ad5f61645f102dc7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "6df9e05e25e4fb7e6fd9a98bac171c9b58ad0ab728f10b833281cde1487daa65"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "b863d4450ec8fe68a9cd3291aed9d061beb605d7138198908b898044d53fe920"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "723868db7a11ae2897f7a80bd9863714db3f0cb24a45abb6e37ee50505511af0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "bb6ee95dcd5b1f00a7e61577557499f39f1338f2880153c68b262ce8a6b5243d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "89c5d1024f38396e306689ae973521abbaf411b337ae5b75989467c663806bff"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "6e3a95d6ca0df7a050d2a0085bdcdf7fe8b44de978f00235d41c3d43f395b4bd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "57ddfc0f27ba1e21dc51970ce43b520b269c1e7d632875f05d94eb5923028e0a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "362f5bcc76b022c4346f9a9b4c8645c569a2c79fc9921bf0bb7ba5d7be841c07"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "35773a39c5f69c48a1fa37fc8980474741638eb7f68a277c140384cf6924ae72"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2005-2009__lump_sum__open.csv.gz",
+      "sha256": "7a9f44866994ce8ced4253a8febf099c423a987a0be710b8b069517ef852c88d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2005-2009__lump_sum__close.csv.gz",
+      "sha256": "86179de7750149d732550380adc43d8e5b66a1c86c80544d21926d47d53b75e6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "37cdd4d6a4edb989fbbdb702c7d31b668967bb75736c0fa2a1334e7ea12872af"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "641ca3ac340664d13a3bef671a1b112d9df6d291f0d20c5684d6a90015fc86e6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "f9db5df8d87e5e90894f2f4522c1911b6506450e36d707e650c8770b57dfbf72"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "2b37575110bc9b18bbdd9abe6bdd68277fc50d45960779ba4cd5eb4bfc23a869"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "1718c7632782775788c06dd9506a6d9a03a9cfeb44365c16bb845872d95aa276"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "b3ccff1bc884d59ac0e8f26f231bb30946e93bdc412aab35b3103c18d89502e4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "258dce5e55e629686d91bb994cf6d899564eeffc0265ac426682a9ae052e8a71"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "d4f93d7723d6d95ffe2d5c1c15b797a563c36685b095c555747f3cd7c7419779"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "80234abc18aee1c429e549f153351e0e55ccd9cc7ca8bed6dc73c526e0c5dd40"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "d5bf9f1c4c894adb16491c33c8399060c79e43bbd2c67acbba075d4ccda5898a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2005-2025__lump_sum__open.csv.gz",
+      "sha256": "954ba98bc8b1167c6b9ec37a8e02787a43304a320033d6a4822dc9f89816275e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2005-2025__lump_sum__close.csv.gz",
+      "sha256": "084efd1402302d37cc921117eebea018ed3b5d8bdcff4699f82c46e0f2df196a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "01cf27235b11f5213db43554e66eb6a2805aecc838c0264dab8c6a927a6419b9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "d0bce175a5fa118a3c5fbe379124ccc357659b77651f0d43a03a37bb67ef9781"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "6952e3d35ead7c4f58fc59e322d3a3db3bdc5c4fa5a8fbeac919fd5abf28ddc5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "532af15d8bf061aa725f564e1896cb7090cb95d42fde89cd3ce94f18f937e696"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "dd19b5e9b059ee9a4c6d6cc301bd7100f3231b70e496c5d682128f3c3ab310e5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "d5a2a637e807d3ffa4a15809bf8e67a6ef79e0c0d4bacf1fee2e1884d12e8905"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "ace5fa6e4d4aa1298213b9606101b2f05fa9da3ea1165d9960038533d4f4cc43"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "89a88bc9e63e82ec1b4aa62f0568bd029d0b5e6b3d8c6b8a616823fcd705d286"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "4ae88c901162028dc99ef2ea4a7f567bfaf12de41383a5937d423e3cef0dfe70"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "e5779d53fbe1c02a98c5685866b3a7591b7c9865d88c84ea9c4bc36303dd6e2b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2006-2025__lump_sum__open.csv.gz",
+      "sha256": "d299f40f06bc015f3d8d68d63ec4b636e5acc8b9c9c45e6b5a37619146adfdf6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2006-2025__lump_sum__close.csv.gz",
+      "sha256": "d60001e33ed02d9046a6eff65510c17121f0ebf4300b5d65c55431575453dc41"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "71f299b6a7a3e27aaf709097a12041307af7bb450c4e044c889102b352c3551b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "09fe5fbb2aa0a5b56d6a8cfdab9acb85f975ff26b79438753da2e28c43cc626e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "42a7ca8e6a32d0659349ea319f463cc9063979c62dedb1678feb13c109f725b3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "e3cd4338b0a049a9c246b9a016b49715900925dad6b0fd532b785df61612e72c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "14333ba9dce5958414e03cdcd9258686cb65c842d2c56475985219e8f031e4ae"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "ca0aa25563c171902b096338ee8962cc2684ba6a51628c040e8a77c5cb10070e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "24145f9c5e88e8587cec53a336559dad5ee97b3cc9d4ea123469661da03946fb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "b3cd6ec27d268eb122d4d65668958f0f0a2914b803922c6427a801a98245cfa1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "ec98a95d71ce390fda51ff3042231e5a959478f491067ddaf1cf7f27663e1694"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "7b23e44ef249c997ba62b12bad7440d2a06572893cd4e4a7d783f2b44f02e96a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2007-2009__lump_sum__open.csv.gz",
+      "sha256": "7278ef7919fc55526b662601a3f765420c63ea9e9b882ed4ea5999ab68bd893e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2007-2009__lump_sum__close.csv.gz",
+      "sha256": "b319813b4960d5e1164524cfdc12ee696f74b03ceade629d81e3624ba5666c89"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "1c458d8c39fc9514d5d6442161ef6462ae8d0cca547b82e6ddf2f16bba44034e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "af2ec2645047d2a0f0599e4b000fbfd2ae8737e9677e93a3636f7a5435a35028"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "1a3d5f53f81925de4bef62a0e962767b61ff7f198c385a787475ec54dc6932ec"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "9aa16bb3f017d347cec1d24aaabfbbd8f69091ec2c29006dadb751cf771e0e7e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "d7c46fd92e044b09e6be850b528d784bca2dd7ecb4a4499b2ebef0604e9240dd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "64f87b6eb39978a421db4eff85730ef8964c453ff56fe12b4f20315e02e17a16"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "c5f11eac962a5786ad095ae6d1eac94faec11357d59f1af29fad9b836b5f96d1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "c1f86a2c274825cbf182b7268d17f8bdbe69aad4b6926db95d56a66eba485811"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "003619b11989177fff2b52605a50cc16b542e68aef8a77746561f46868e60624"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "b586e144ba9806d3ec83fba8d47fe59384ccc23b2d2f30eac63cbc768fdda7f2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2007-2025__lump_sum__open.csv.gz",
+      "sha256": "920e9b76e745f8f0c55648b71661ed928de0b632694e72d36750b6db55cfc0bf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2007-2025__lump_sum__close.csv.gz",
+      "sha256": "fc5944deda89690c26c8c75f632ff00194746b3881ebad0b31a14dff24c770a2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "a3fdbb5c696a75e00dedf8b4e7cd39d81666005c25117df5cdd3442aeefa024d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "02f1d369b02c207ca89ba248b999046c050b998827fc99dd6809780240b35a3f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "6220fb0260d4c0721667b74a6a225dffa4635eb00bbb83dd12f0e0cda938ad78"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "b2d550310972ac5565a38eecb91f1b8b9383c9adf19708ea3aab13e625b4ffbb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "5e47fdcbdce615494f3801cad40aa1f8303171da163bf19d9ad5dfa6d36e1339"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "dbcd55a6d62cdcbf7ecf3d3bcb568065ceb0abff799ca663fc30a955e988d60a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "86958bd7aa83025cbebe72cb228595bcc30c97e32dfcf274ec1c8eb84d9870ed"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "f888f755d95583569f418b6217ce08012bf3b8bd3d0754d07c18d875af7ea0d6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "f12bf4d8ed170c73e5f4c4b6a2d8b9b69ec5337f2627ca2848416f02ccb5efa7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "8f6311018e528bd4f85afbda89c83e3ee832913ae43b3b4205669d97a32270c5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2008-2025__lump_sum__open.csv.gz",
+      "sha256": "1c3f8da892471f6ea3f4337fff3ba4a3eb666fb9534e294dc4688f845d4a8a20"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2008-2025__lump_sum__close.csv.gz",
+      "sha256": "0fabf9c4754321dbdfabddba7c670302d6f320cd6407e71e687e6748dbea02ba"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "e9661054e3f5cd7287d03cf833ee4f9380dc2d58828c5c33eb7f97d0e28d98a6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "80dd2e93b84326cf51f23f946b67e3d1f061f60ab3d19664a68c338520594b4b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "13831878a18154513f83c2369fd4edb7f3146e05a76ba59da894526a6c1eb9bb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "a3663768d6e96e734ebbf06e6682ae35a1fa2c8d7efd41d57d040f447c019a3c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "62dc9fba3575430a2ea5837a5ca42ca3c7052d6623b6094d52f758b6e7bd324b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "6a8b6ea7c8726942d0e584e4872e2cc2d9aaf0580ef4258017b75911a4a5fd71"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "35907418c9d9e8f1b1a149e31dddc328f07c4357ced3bb154b399122cd715bf3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "9554a8e8d07183b2d5988c2b9a739bf9f98fb910f0e1967dbd5127c351769bb8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "d21129ce7d16b777413603c6e3df3dd5417936aa52afe78e9bdcf307c8bfe1e5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "c03e2294ac288f4c768ed16ea0819dec46bca8d00d7013679bc02d13a7491173"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2009-2025__lump_sum__open.csv.gz",
+      "sha256": "d40db7e84998ae8b6c6f7fed85a17df359fe859c809819babeab9f448a34e65e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2009-2025__lump_sum__close.csv.gz",
+      "sha256": "8cca4ff90bac10b154235f2ba5c85511553322e85fddaf5a5b2f5cce6e551f20"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "a67a52af9c8453133ad7ef4eef13fee412a97fd8b5f5ee48590cb42fd5a927c7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "d6b5a61fc1aa0b62235fb8701095c1e4d78bd09d773867d9bba4d785531d78e0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "6e985b378876f835470ac2dc3040947bea22fc0f0988876f86386c1047c2d06f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "d64d30f36911080fbf556e2608744727472ad70f90a8b76c919afbd2d085a6c6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "d55727cc784847a8dc7463fdfde7788cc74c03e177112b53fed8da45a9c7e504"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "a0a63ac3589b4fd08ff716eb033170693bdd0b2cb8cc2725425346645ab85858"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "3cfdbdf9719a2a0f081ab7fc06e7037b0656e7e894c6ccf3d1968b724275ef0e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "4ce45500a1634cd738aa9d4dc9739f6daaf909c33de223a6518da5ee03b8513f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "e92dfe806f19bdb7389a5c78f9502703b2cf2386e70b8532477809b39306761b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "c747649bc146cb53133cb1acb8ce58cd8e0d6a944e6fe17455ccf7736b0c24a4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2010-2014__lump_sum__open.csv.gz",
+      "sha256": "90c7a4fa55663eda5a0096a1aea501af2d6e6d21ab0600462d7a15eed1b13963"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2010-2014__lump_sum__close.csv.gz",
+      "sha256": "45001b68772fabbc80d62ebd968416515fd689adc99022db646b635a47234a9b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "e04e1e266282264d193b52d42cd5537baba947c1a09043dce927504760c9650d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "bb1224a06a0b67777ce283e030f5a98bec90123d3420d48526dac95f0e0b4666"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "9e3688af50664065c3671b4f494564837fff9f76c4d3aa89d29b5b2be2edaa1a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "b062a7906377718fbfee7177bb7797ddcf48ca2773cdc0d7d27ee0e3a4fec00d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "2a01f5088b8c2260502d3e425b34de7346c74f5666014311877ecd7b0358c6bd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "5f94e77482cfff42df738eef39a1ee2640bb8daf3356e94ffd4973ab1f2907bb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "10c1f1b6f456c4cfadf2e4d68eada838ba8002169237d3fdf88f3aa7a74ddb6a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "0a6fd8fe07f4578070a82e7cfc338d4beff8b6d09b0c5469b6c580723ed082c0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "268095bc92dffebd18b684780a28cafae6037e0cd0aef161e499cd24e5c0e502"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "d9915b646c1fc401ce3edcaf1b52a15fed1dd43519e7b197583f3e0910c8049d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2010-2019__lump_sum__open.csv.gz",
+      "sha256": "d2196c87a6a5d8fbbba8c5090e36078d26cb2dcedcd99f1409e62b1586cd49c6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2010-2019__lump_sum__close.csv.gz",
+      "sha256": "7510a575fa9f06edd987fdb12498ea2957b7eafbe014ccebd6c18fb42be2e1b6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "f4c87ffaf3277df6b6f293c57725e20e50cfac616f4e32765f25a41c3ae9e780"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "3e6a17cb1356995fba8ad9ad3d4cde70d162a29c0bf3c11cd55be791d44356b5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "14e7fd129e80c28794519269feefc2fe236f29090291a2557f21fc098cdd3572"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "3c92cd39ef293f1df747aaab4faf68395881876b077f08ae6b5424cce870494c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "4067013e5ad3c7f7e40f09f02da74935b2aa62dc8aef30c56be271121785867e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "0f9a9fc6f0c5c91bbc81a4ee87b3e9f029a1c5ae7724e778d9951b2daf36dbfd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "291e84f6362863d2be82b43ffab43d4ba665d40f107e17ceabe67f4225c49b9d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "52b76e8fa3345f5c55e1d5ba911c402d1f019787a50d243a1693e6bd2fc24fbb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "7fe3be59e1f8e9246d46dea62e52f5ae6184408a2d35e9693ba102d43b372017"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "f09384fb83d243079a44b6392e626bc9a81b21a845bdcf4f31b1c0c7d92f27f1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2010-2025__lump_sum__open.csv.gz",
+      "sha256": "13266bc4790a6670244ccf4b960703d1eab6cef6210fa070bc24e99a4bddab74"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2010-2025__lump_sum__close.csv.gz",
+      "sha256": "3e99951ce19d62785e383d5ca0eb39ca3b88ea32f3dfc89527accfe0957f46de"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "0e1af0edec6c89147a79ba31419022722927ecec449e0c8da750e0bdec9b68a0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "aa7f8319c9d7c0be8b170faf845edfe274ad68a784b613a40ba01e0d8382071f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "7ea113513d9cbf3e37dfca164dd540d9fc7419f8bf0456c6c1ff3873d1a44d64"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "3fe380f6f0b33bf2c1ae50f6630938b5f07156449c053568084d12a864d28ce4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "a1e9dd067eb3ff46ef4a70ac8cf84ab12626af1db8fefe24150d849b15a63f6d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "875e6c995a3e045130816dbc48d769aa94689914deafeb0c3b8a213398180ed4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "52a9e64e72af7f9569e5a3f33066201786bf8bd7bd32ebbc22ead0c943fd9cca"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "eec19268f3488b269cfdc7fac2f7ad99e0ae526b0f8fca76b7cadfdeb7833bb3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "9f1a2b21a86d85e201380850d6fdca1a9048eb592c9e9a6d957d392bfdbb1232"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "ac023839e47346da5c3072908fcc62255110b7f518b3f8c1c08caec7b94506a0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2011-2025__lump_sum__open.csv.gz",
+      "sha256": "39415dfa30d5a6c56ac0636876a93ca82a3b82a53096aa07788debd59a1f65c4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2011-2025__lump_sum__close.csv.gz",
+      "sha256": "56e58a2ea8c23ef1131a5cd1781d7745aa0f19a17c4634a05bfcd360c074e498"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "834b44586711828bf77d2ca1a96d88047904fb00d6de2aaaccde1c33a004c245"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "fe2e9d6dac8fe3f01757eb3fd5029b108789ebe1b51cb91f45128eb6ef8d59e8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "523562750e00e3901af351a046dd08f280f76ed2ad549bd878695edcb7a6d4d3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "8f61f660e9eb41535e376f21bd610812a9f744fa4f84177e708a3633a070b6e1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "c016ad35f4b3c97129a5f060f694e16cd90e8558571fba481e1483eff85344ec"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "be368faac225822ecc0cc0f560e2a60f13a8bac20fc85655a97660d05b2af800"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "aa6c841217f129b9bf96e5043b2921eec62890e583995d2bd9f36f000671b99a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "2c3bea3038424bf05b7259a0e15d81169ac2b1b10f1506782423d776f16a7d87"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "4e6a9e1962bb93aaf17787b7abc09bac5f96a2b7881c8c1aaed5083295efaeb9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "dde7cc100d0404e3244ca1c31733b674f728a0fb0d56b529b036364e5be48b5a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2012-2025__lump_sum__open.csv.gz",
+      "sha256": "f4e1e3c990918d033cd521bf0a7638557a6c76582d4bd466a463993ae10092aa"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2012-2025__lump_sum__close.csv.gz",
+      "sha256": "9657e20b1f2e1c2d8ded4ea29b711133f715f2109055a6377818a75e96de57cc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "2dbe231557010300f9e352c70bb3d45a2483714e306327718766288efd044155"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "d80741adbd6412cbadc68592dc74e6e26b0130639ad15a8d5013c551ca3da7b6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "1b714a897f63063973027ae36a2c4e58f14a4cc8b2ee02fc2c7e7f8b0683a73f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "f83c1e58551b9a2633d7d7c796ed83e548c909b26d4a31f0801ad48a37e3979e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "298c2e88318d82c70b2904bd400b9888708e25b071d569508bacafccae15de7f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "ad8e3fbce56c3a573a334ba4ad600a7454ed3f627267c2e2edfeda82d97ac491"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "c4e2c782adac30d0f3003fc40e0615ca10906faa23405d3c410f9c426857475f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "ba0ab4907fbcd5ff9bdc71070df54f8b4f69f771bf33eb8d9160e6029f0da1e3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "f98f42346fe0f1a898014fc407abd66cca573161d74024d887cc980f161e5dc1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "2ded5766ffa9a7478c41e90e5695d99d8f525a48d2acf9ae32b1089a5ca529b5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2013-2025__lump_sum__open.csv.gz",
+      "sha256": "9517f720e06ae57c40d639a4e1b884168cdaa3fcdd54781dc48e833d385fcd51"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2013-2025__lump_sum__close.csv.gz",
+      "sha256": "f4d06c56fd1dd2cc43c6b1d87ba176ce2b6957e321f2e9fc6b5662b2c8d9c89d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "ec29480b68e66f867ce6d29851c461f5022ffdae6a111f021f6ad66c526b5166"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "76ef8c45eb33f9d8a9f51a23f66141949e847155a6b7f6ac5c248db506a8f0b1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "335c852b544fe07c0c93a35b0d0fe98761cf6b9780374bff74cda56e42d42936"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "f4bd2311eeb4a273b6cce2896b92453e13be226130aec45451578db6bd485e63"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "bc561f5ae06d4cfebffcfa5175803cd40dd81e981f4c463e35152db2faa943eb"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "8e128ea1136ed6f655fd69994438040bd27087c4253e19d2e5accf00b4e536bf"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "0925ab2b431913d240f14e001b508e85e4f6d64caeb48c22bdc3c32bc73203e4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "abef02e0af50b039592c865f7f609951c2ee690336d8d70fd1e27c560d7d7920"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "cc9560c89d310c8aebfd885cdd6a2d22636158a1e3c9ec76afccadb30d96e467"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "117a573dab58ddcb3f6cc4116766b73eeb5198bca00e960223d341a634cf557a"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2014-2025__lump_sum__open.csv.gz",
+      "sha256": "b828b3eb1dfc25eee90c717a107b054f843b07de5054c39775b04a4ad62ddae1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2014-2025__lump_sum__close.csv.gz",
+      "sha256": "a3f3fd56348219eef1206236232d2bdf0ad394f941e53209839c88daee1cf1d2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "10905021c545694b0975350059090e53d1de5c20a99e3a9e0c58f276c19c53dc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "2dc315b75f56dea9479755bb877df6539e16f890516b8fddcb0dedeee72c8640"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "0a53f504ec95d406a14ac3af01539688d96da70a0e8456237b78bd6992918b79"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "0d2c71c469423b5560349eff622a8982d3e6bbf50472d59aa8734fdbdae68d9b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "e02448a87e79bf8c1636fab1ed92a14ec9cb1c415d81dd4d4efd99dd8968a8b1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "1cca9bec05903ae858938b2aa548d825062aa8b490277221f436a75e89b3b3b3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "65d0f95ae9d987bd03d75a0418529a95f01bac2e167d1871d82391d79f0f4e56"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "e00ab38c605cec5746bcb43a861c061a8e5616118ec2f707602a03c858616c5b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "075cc7d059d48e6fe9d8aea9204f0cfacd60eeb0072ce185d974d3967833cbc3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "2b7e6a20fa0de1c6cb861dfeff8e8a34d014203e33150da12736321b29e6d019"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2015-2019__lump_sum__open.csv.gz",
+      "sha256": "65b6c065c02eaf1d1f330d26745753ba448bfed564d75cd816e8ea3717b9478d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2015-2019__lump_sum__close.csv.gz",
+      "sha256": "fd6a108574ca0a04bd86bb3e2922106c8666d407e1562c684d688b6256137680"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "471d9e669f38db35eed43425aa521635bb09146a62f5c37e2d73610cfd6d8849"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "7b2e039a27d67209bb44d003e085e0b0ff492a211c9d6675ed6de7ea8970af60"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "9893793f6e0f1c29d9226c57d1e408e397f32c5d0edac9b0e4bf56b509bd9d0c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "59602dbe110ae1fde5765feecb179cfda42bb6fe243710d55a51c544f68a0dd0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "6bf1289f4c7a0302831b15cc3c370a9ec13723861fbbaea76718af2e9ea61c75"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "1b7b3a7e55cfd9554b323c528ab076b412f65ece75b3d06a742f083f71466cd9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "e1768196f818fc7548717eca87af2d55276f921518e8f247110eb16d3722ac52"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "d0c9b51747c56c6d3561efd4a4f8bfbfa331c58064303a6a9de5036555e6ff3e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "799d9f2e92ab026271bc822ec41ceecd7ff9b7fe0791f90b154aed2833c916cd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "5ae5ef2193be91efe95b76122896993b15a505a0330d74d9d921f57a20ace146"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2015-2025__lump_sum__open.csv.gz",
+      "sha256": "3804d4bb5165d66caa3983bf1e4167fc7b08f91ca3ce6b09c2825c83721df37c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2015-2025__lump_sum__close.csv.gz",
+      "sha256": "7f13eb96229a7455852e308b8c673410d9df022def8be8e14625e6e69ef45947"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "feb790ec84a5b356f8d7e45bb463aa4eea0c7ecadf56977aaef376c8ba03fefa"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "e58edad9ac5f5695b02071886aed1225c177df51f56a2a78e3f819c6e6341cdd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "3613c2daa90958e30840f2c19c51c1db9f4fd8a36151c7ac1091ffc5d7f22255"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "634e5499c1770f01463fc9ff30cbd427eef3c46372304e2f00ffc022fbedf19e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "ab6c3fb3e052f27f2d685f2aaa56a824656770faa7fda031f23a2424b5d39fc0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "e63eaec8658211c0b9b5d810f8c190a7fc936c2931461afcdb2c4d71b689d16c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "b021e7ce7b882457ba0d1e6c05b7183b39ab1a3686aecbdb089ccd7b1493548b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "99ad869760d7670118db97924dc6e71ac32799c55be589a57e628e2f56fb48ee"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "b75ee051e0b55308c4a59b4bd2033767ab8ce463ee05a64a49429b9c0ca599f9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "a20d8dad98329f6a4bf336772d9e0cdae0d4efe0a5be25dd31d0ece5e9fbcbe5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2016-2025__lump_sum__open.csv.gz",
+      "sha256": "77b808946438bf6bc88b6dca0e3f4e4a57167dec3c9d28111a136f26efe1945e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2016-2025__lump_sum__close.csv.gz",
+      "sha256": "5f973a28f6131ebb95e29a69c51f1a6b488cedac733e7937e84ab5a7740affc8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "6a39c8beeccd6a250fc9862e43ec6287744b55bf4087c5d915a20f8eb22f9a4d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "be283b9a317dfc84d2369b6aa4810a5ca7954614570eeb2b23edc19977b6a691"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "3cd7793aab1cd487d09f8f77a77a129afa240a06526078ec7ee5355c4269ef62"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "d9730641a57c8c5b8c2ff1ac607f8364e29fe3c60cbddbe59eb254c9a9cad3ae"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "f957fa4bb5e485ef510c39cd5cea52fb1d0f76c9d2ffd0784ca93ad34bc80fbc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "79c8ce7458ab6f9184c8fef9e0f1ec7e7bb3eebaca04bb031bef62b2718be058"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "d6e77e5e8d185848b1f8a778efdb3e2d4a7a141cfa6f589349e9a7e638ff574f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "04d6a9dc95303ff92d3b3d8b279633d27ae0a2218d532c029c7bef14cf86366e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "79f5e1fc0a1a45950b4094bcd4ac5198e9ccf4989fac76e63991b19aeba2633d"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "ff99566c7a479112575cd6127b839d8e88eb5ad8e6586c3cd03c9aac195f40b1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2017-2025__lump_sum__open.csv.gz",
+      "sha256": "195d72ef65bd3338b5aa9d393644efccd75b0dbbaa9225a27d0d89e78bbcb281"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2017-2025__lump_sum__close.csv.gz",
+      "sha256": "b2244ea8716e2b94a51b5aeed188d125ed3fca97d4c062f7c7345153d5692027"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "62aeb93012111b5b42548881457ad374b5ce219bf3024c3462c27facd69339fc"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "851e6248ec5f2cefcba4941a5e4abb9c367639fbe01dd26574d1cec68a25ef6f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "5bb20944849df129082c496b823420d67bed8ade3fbb8f3db235c96879bd4090"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "199fc1544388ac45f9bf5f35891affefc5367a9ce783eaab2d292a8fe85db7b6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "40bb7fefa7c2e5254d913ac950037ceb197517310b7b3370112d13124b5d4e8b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "bc28fe4ff5df0568c60ddfeb9f56b1367b7449b990fd18e62cae8a43d5e2e5be"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "046251948683aa77143b16734feabf2f4df735e6ef75b70a2fdcb8b6e73db9a9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "624d1093a1c724d640005aadfad14c292aa26b10167a53556b59bac3f235fed1"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "fe41c82913da8de6d1f0ad603d7dd6ace10bb38e85b970d4394981815fe50caa"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "8b9c6390d58682629b3635db7af4aa090a9a550fb64f01d7f61b332808111572"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2018-2025__lump_sum__open.csv.gz",
+      "sha256": "4a1fc37eacd7fdcab9f1a971a0e9fd3a40a3a6bcfa977370397f5f0ee460c3f7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2018-2025__lump_sum__close.csv.gz",
+      "sha256": "aed839c1f5e219694a5cd1c183bfa1705576ea90920a1d51b08e622fa5e64cb5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "f4be34b483f9c83c5787978ac28c5fa1f0787314626bda9d5c2c1fc9d85f1065"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "eed51c838a57e160ebf14105fdd47989d65e973d6adf43e984cf76ecbd4d160f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "1fa61e54b1c54cdc74a4647b6b3e4d5cf6a5f58e66e8238838d53ec2ff9453c7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "19e7f4920bee5bb5986b8c684e9e2583d3fc6fdec7c9114f12f361d9eaa1e083"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "e366e84125580848b6c230f029042e0bc948b097c4c032b8eb0ad0b9376e6696"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "c6b55ea7a5b5671490982e6de1c5d0774574872fc401cc24dc7189d79c313b56"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "89710e980edc880b6983cd9fd16dd1b4cdb1fd6e7bdbfe6b3ccf2e1454f9f2b3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "ba3c76f54e3863b3909a5843eb2aa1523ca2308cd8c338354332e49eb1b5c1a9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "1d7eb7a25cf2faeb04014b3f58a922c2c6c5c7956f6ada7cea5c01031011e119"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "5753a4db2b981eb74d2bd0bd3237c24a4f87ec88af4fb04a393a334ea9553f89"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2019-2025__lump_sum__open.csv.gz",
+      "sha256": "fb5bacab86fe8880002c46d67b3d257807ac2d0b1b2fbbc751ba0411e267d2c5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2019-2025__lump_sum__close.csv.gz",
+      "sha256": "4ed92c93ccdf8e811792d3e47b847b7068bc3d6e7d28c6508b358b4b7a1a493e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "e89706e0d8dde373c820783dc08838fd36311bb63bf108433406502d3fb352a9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "46a5add119e10df7483c49c15f6d2b5e3729c002890eb3f9380aa39eca8a6b51"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "ced714ea337d34dd946d7b66399b0663b51e7bb0ecab12d45e9e53418a6fae9c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "2aeea4df6afec5228eba8312e0b4d36820c89af62a67e9bd2520aae0d5cbeea7"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "bd9f478c4566995055487c4ff4ddb4c6a450b98b6898dc69406907445a60e6c0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "dbdfd3e1eeb2d92ff8ebaa0ec853eed2f5d9e4411a5df32ffb1baf729d48e0f9"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "e1d68a988f102fbaa220a0a465f1cd940d9e7b1bf12b07f259ecd64a1e4df9b3"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "cf53bfef602d43e02d2ea875441c8896700effbce7dc355c68ce69b0a53cae6f"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "fd63b80ee11987493593756709282e11d3a1ed0db2dc7ffd711633cb3f592aef"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "d6a66b3bb9a94ffb9b2b74eefd9d812e98d8ecc18d3e3e0c346aabc57a2fbca2"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2020-2024__lump_sum__open.csv.gz",
+      "sha256": "8080241fcfb1e8eba19dbcdeb1d8ea1ff71149759fc440ee26c12b3ae0b69af8"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2020-2024__lump_sum__close.csv.gz",
+      "sha256": "78fc2ddde130875dfdf504406283865cfad9a2d7ddae4c53881cfe51a5cc4e79"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "422cbbd5a3f8fda5f77d4aee21129b4daeae5f42a5aa0430186ee1589d0639bd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "a8bb75bdb0fa1a52212f919d119717d68a1943ec76fb9b202a851a87c900e4c6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "acb241510561869c638454a9e680690e99dfeb6aa2787978c7f1768a5e21bbc6"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "05ff49c6c9e851085cdd500a094139db35f20f1c19a0093e700bd666cb78ff63"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "4f1b8bc45eb83d85dd064469e6d72c62f64dd92ea64cb261dadcf72b6dfe43ec"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "872fc799da70daa65d713187ba60095a1f40f6d6d7a47bb53a89a415a40ceb6e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "01011d06c4cd59fd5e7eacf7204186ae56b485ee511617238d40631e4c54a08b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "80c4d14fff1d727fa99194a691fe1298719fe28c553ba9b10948d968f4ee29d0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "00ec13e202da3a885a3aad5cbefc3a86aa565b510ee0ab12aafc2262d86c1707"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "04bb08c6a747c846f44a032084bb82e976c44352f12e345d5753537324eb2d1b"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2020-2025__lump_sum__open.csv.gz",
+      "sha256": "1a24108506ec4e8167c40d5b1c5cb37b0063eec4328bdcb864996bba21d295dd"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2020-2025__lump_sum__close.csv.gz",
+      "sha256": "ad8a0292c3df6fdd071980245d1c4ff1e0d945a69e5203ac761c58b35fc3b628"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "550f9f2b40d5168cb708a04ecee4b7d2eed0d464d08e97d1ea5439bc33c75706"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_rotate__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "b0c79299975ea92773a7a027b738ae5ee79f8528810a6a30890ec4b6b691273c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "d8580ed1616897a0ea5db5e3613f14a8f787b6d7fb4f75942cde798d50306769"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_rotate__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "9502492a837b004cc04d89700839dd68de05a1d5363e81a0381af8aa0f9b2c6c"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "02f0d391bf463690d2e1cce820471b1126bc36920f54984b31aa391caf27d0df"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_rotate__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "b4db5fb43fa13c57104b5d1167ced7ee5495905cc7fcd5f3a447c5b8f6602e2e"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "9bc464486e763ff5a97f06b31dbef1ede8e8a3fbb300a3ea2992659c9ed77ead"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__annual12_hold__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "b48593ff9cd300265d6e08d99dd7072ef1378a030e32ec4580385ad0477be1ca"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "264a19531368a7230b92c7671912e2119e348abccb67d967ee914f38872a41d4"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly12_hold__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "9097e8d4f8ad5b37d9b6318733dfc95e009b14b16b10b8e31b6346d804cbaec0"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2021-2025__lump_sum__open.csv.gz",
+      "sha256": "edb6713ec00c2a7e7729284145979b2abaec5645cef482934293d52dcb4748d5"
+    },
+    {
+      "path": "outputs/lump-sum-strategies/survivor__monthly1_hold__2021-2025__lump_sum__close.csv.gz",
+      "sha256": "c4fc4f5414542413a2faf7d9d4054f539361bf0f2efb3cb322a9156ed054f5ba"
+    },
+    {
+      "path": "work/strategies-workspace/enrich.py",
+      "sha256": "8469f75fd4a4ac292decf70a1066b6a829af1c6c0e5af3b0abfa1a01522ca106"
     }
   ]
 }
