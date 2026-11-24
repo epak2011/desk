@@ -1310,7 +1310,7 @@ def queue_stale_watchlist_market_scan(max_age_minutes: int = 10, limit: int = 10
     failure_counts = {}
     hard_unavailable = set()
     now = datetime.now(timezone.utc)
-    for job in backend.latest_jobs(limit=100):
+    for job in backend.latest_jobs(limit=100, summary=True):
         stamp = job.get("completed_at") or job.get("updated_at") or job.get("created_at")
         try:
             if isinstance(stamp, str):
@@ -1400,9 +1400,9 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
     if budget["remaining"] <= 0:
         return {"queued": False, "tickers": [], "reason": "Daily research report limit reached"}
     budget_cooldown = set(budget["cooldown_tickers"])
-    reports = backend.read_json_table_many("research_reports", tickers)
-    markets = backend.read_json_table_many("market_snapshots", tickers)
-    rules = backend.read_json_table_many("rule_outputs", tickers)
+    reports = backend.read_json_table_many("research_reports", tickers, maintenance=True)
+    markets = backend.read_json_table_many("market_snapshots", tickers, maintenance=True)
+    rules = backend.read_json_table_many("rule_outputs", tickers, maintenance=True)
     now = datetime.now(timezone.utc)
     threshold_minutes = max(1, int(max_age_days)) * 1440
     candidates = []
@@ -1439,7 +1439,7 @@ def queue_stale_research_refresh(max_age_days: int = 7, limit: int = 3) -> dict:
             pass
         if not report:
             candidates.append((0, ticker, "research_missing", None))
-        elif any(marker in str(report.get("dossier") or report.get("pm") or {}).lower() for marker in ("rules fallback", "claude pm research did not complete", "identity guard rejected")) and not (
+        elif report.get("_maintenance_incomplete") or any(marker in str(report.get("dossier") or report.get("pm") or {}).lower() for marker in ("rules fallback", "claude pm research did not complete", "identity guard rejected")) and not (
             isinstance(report.get("dossier"), dict)
             and "claude" in str(report["dossier"].get("_source") or "").lower()
             and report["dossier"].get("dossier")
@@ -1482,7 +1482,7 @@ def queue_scheduled_backend_maintenance() -> dict:
     """Keep regime intraday-current; run slower repair work once per UTC day."""
     today = date.today()
     now = datetime.now(timezone.utc)
-    recent = backend.latest_jobs(limit=100)
+    recent = backend.latest_jobs(limit=100, summary=True)
     saved_regime_rows = backend.read_json_table("market_regime_daily", limit=1)
     saved_regime = next(iter(saved_regime_rows.values()), {}) if saved_regime_rows else {}
     saved_crypto = saved_regime.get("crypto_regime") if isinstance(saved_regime, dict) else {}
