@@ -20,6 +20,11 @@ def market_history(start_price=100, sessions=40):
 
 
 class WorkerOutcomeScoringTests(unittest.TestCase):
+    def setUp(self):
+        checkpoint = patch.object(worker.backend, "read_engine_review_status", return_value={})
+        checkpoint.start()
+        self.addCleanup(checkpoint.stop)
+
     def test_historical_shadow_candidates_backfill_from_frozen_snapshot(self):
         entry = {
             "id": "rules-auto-BACKFILL",
@@ -128,6 +133,15 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
         self.assertEqual(result["skipped"], "scored_recently")
         self.assertEqual(result["alerts"], 1)
         self.assertEqual(result["remaining_due"], 3)
+
+    def test_checkpoint_failure_does_not_download_history(self):
+        with (
+            patch.object(worker.backend, "read_engine_review_status", side_effect=RuntimeError("database unavailable")),
+            patch.object(worker.backend, "read_decision_logs") as read_logs,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "history scan deferred"):
+                worker.score_due_rule_outcomes(max_entries=12)
+        read_logs.assert_not_called()
 
     def test_runs_normally_when_last_score_is_stale(self):
         stale_status = {
