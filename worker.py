@@ -1582,8 +1582,10 @@ def _outcome_scoring_recently_ran(min_interval_hours: float) -> dict | None:
         return None
     try:
         last_status = backend.read_engine_review_status()
-    except Exception:
-        return None
+    except Exception as exc:
+        # A failed checkpoint read must not trigger an expensive history scan.
+        # The maintenance caller reports this failure and retries on its next pass.
+        raise RuntimeError("Outcome scoring checkpoint unavailable; history scan deferred") from exc
     if not isinstance(last_status, dict):
         return None
     generated_at = last_status.get("generated_at")
