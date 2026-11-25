@@ -69,7 +69,7 @@ def _maybe_import_legacy_owner_state(cur, user_id: str, state: dict[str, Any]) -
     swallowed so a workspace read never breaks on it.
     """
     owner_email = os.environ.get("TRADING_DESK_OWNER_EMAIL", "").strip()
-    if not owner_email:
+    if not owner_email or state.get("legacy_owner_imported_at"):
         return state
     try:
         cur.execute("SELECT email FROM auth.users WHERE id = %s::uuid", (user_id,))

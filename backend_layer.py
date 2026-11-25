@@ -13,6 +13,9 @@ import os
 import re
 import time
 import uuid
+import threading
+import copy
+from collections import OrderedDict
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -78,6 +81,7 @@ def get_pool():
         _POOL = ConnectionPool(
             url,
             min_size=1,
+            timeout=5,
             max_size=5,
             max_idle=60,
             max_lifetime=300,
@@ -115,8 +119,18 @@ def _is_transient_db_error(exc: Exception) -> bool:
     )
 
 
+class DatabaseUnavailable(RuntimeError):
+    """Temporary upstream outage; clients should respect the cooldown."""
+
+
+_db_unavailable_until = 0.0
+
+
 @contextmanager
 def db_connection():
+    global _db_unavailable_until
+    if time.monotonic() < _db_unavailable_until:
+        raise DatabaseUnavailable("Database retry cooldown is active.")
     last_error = None
     for attempt in range(2):
         try:
@@ -128,6 +142,11 @@ def db_connection():
             if attempt == 0 and _is_transient_db_error(exc):
                 reset_pool()
                 continue
+            if type(exc).__name__ in {"OperationalError", "PoolTimeout"} or any(
+                marker in str(exc).lower() for marker in ("exceed_egress_quota", "quota exceeded", "service restricted")
+            ):
+                _db_unavailable_until = time.monotonic() + 60
+                raise DatabaseUnavailable("Database is temporarily unavailable.") from exc
             raise
     if last_error:
         raise last_error
@@ -165,7 +184,22 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_schema_ready_url = None
+_schema_lock = threading.Lock()
+
+
 def ensure_backend_schema() -> None:
+    """Bootstrap once per database/process; failures remain retryable."""
+    global _schema_ready_url
+    url = database_url()
+    with _schema_lock:
+        if _schema_ready_url == url:
+            return
+        _create_backend_schema()
+        _schema_ready_url = url
+
+
+def _create_backend_schema() -> None:
     """Create backend tables. Safe to call on every app boot."""
     with db_connection() as conn:
         with conn.cursor() as cur:
@@ -643,38 +677,93 @@ _decision_logs_cache: dict[str, Any] = {"at": 0.0, "rows": None}
 
 
 def _invalidate_decision_logs_cache() -> None:
-    _decision_logs_cache["rows"] = None
+    with _decision_logs_lock:
+        _decision_logs_cache["rows"] = None
+
+
+class HistoryReadBudgetExceeded(RuntimeError):
+    """Full evidence reads reached their rolling data allowance; no truncation."""
+
+
+def reserve_history_read(cur) -> dict:
+    """Reserve estimated payload bytes before any full-history transfer.
+
+    One GB over a rolling 30 days leaves most of the free plan for market,
+    research, auth and protocol overhead. This is a history circuit breaker,
+    not a claim to meter Supabase's entire organization-level bill.
+    """
+    limit = 1_000_000_000
+    cur.execute("SELECT pg_advisory_xact_lock(726194204)")
+    cur.execute("""
+        SELECT COALESCE(SUM(octet_length(entry::text)), 0)
+        FROM decisions_log
+    """)
+    payload_bytes = int(cur.fetchone()[0])
+    if payload_bytes > 32_000_000:
+        raise HistoryReadBudgetExceeded("Full history exceeds the 32 MB transfer limit; use saved summaries.")
+    reserved_bytes = int(payload_bytes * 1.1) + 1024
+    cur.execute("""
+        SELECT payload FROM engine_review_status WHERE key = 'history_read_budget'
+    """)
+    row = cur.fetchone()
+    ledger = row[0] if row and isinstance(row[0], dict) else {}
+    today = datetime.now(timezone.utc).date()
+    from datetime import timedelta
+    cutoff = (today - timedelta(days=29)).isoformat()
+    days = {day: int(amount) for day, amount in (ledger.get('days') or {}).items()
+            if cutoff <= day <= today.isoformat()}
+    used = sum(days.values())
+    if used + reserved_bytes > limit:
+        raise HistoryReadBudgetExceeded("Full history data allowance reached; saved summaries remain available.")
+    days[today.isoformat()] = days.get(today.isoformat(), 0) + reserved_bytes
+    cur.execute("""
+        INSERT INTO engine_review_status (key, payload, updated_at)
+        VALUES ('history_read_budget', %s::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()
+    """, (json_dumps({'days': days, 'limit_bytes': limit}),))
+    return {'reserved_bytes': reserved_bytes, 'rolling_bytes': used + reserved_bytes, 'limit_bytes': limit}
+
+
+_decision_logs_lock = threading.Lock()
 
 
 def read_decision_logs(*, limit: int | None = None) -> list[dict[str, Any]]:
-    """Read durable decision entries for background evaluation.
+    """Reuse unchanged history after a small count/version probe.
 
-    The unbounded read (limit=None) is the most expensive query in this app —
-    the full decisions_log table, which runs into double-digit megabytes of
-    JSON — and several call sites (the worker's own scoring pass, and every
-    /v1/calibration request) were re-running it repeatedly within seconds of
-    each other. That is what drove Supabase egress past quota. It is cached
-    in-process for a short window and invalidated on every write, so a
-    read-after-write in the same process always sees its own changes.
+    The short hot-cache window remains, but expiry no longer implies downloading
+    every entry. Count detects deletion; max(updated_at) detects normal writes.
     """
-    if limit is None:
-        cached = _decision_logs_cache["rows"]
-        if cached is not None and (time.monotonic() - _decision_logs_cache["at"]) < _DECISION_LOGS_CACHE_TTL_SECONDS:
-            return cached
-    ensure_backend_schema()
-    query = "SELECT entry FROM decisions_log ORDER BY COALESCE(entry_ts, updated_at) ASC"
-    params: tuple[Any, ...] = ()
-    if limit is not None:
-        query += " LIMIT %s"
-        params = (max(1, int(limit)),)
-    with db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            rows = [row[0] for row in cur.fetchall() if row and isinstance(row[0], dict)]
-    if limit is None:
-        _decision_logs_cache["rows"] = rows
-        _decision_logs_cache["at"] = time.monotonic()
-    return rows
+    with _decision_logs_lock:
+        url = database_url()
+        cached = _decision_logs_cache.get("rows")
+        same_database = _decision_logs_cache.get("database") == url
+        if limit is None and cached is not None and same_database and (
+                time.monotonic() - _decision_logs_cache["at"]) < _DECISION_LOGS_CACHE_TTL_SECONDS:
+            return copy.deepcopy(cached)
+        ensure_backend_schema()
+        with db_connection() as conn:
+            with conn.cursor() as cur:
+                version = None
+                if limit is None:
+                    cur.execute("SELECT COUNT(*), MAX(updated_at) FROM decisions_log")
+                    version = cur.fetchone()
+                    if cached is not None and same_database and version == _decision_logs_cache.get("version"):
+                        _decision_logs_cache["at"] = time.monotonic()
+                        return copy.deepcopy(cached)
+                query = "SELECT entry FROM decisions_log ORDER BY COALESCE(entry_ts, updated_at) ASC"
+                params = ()
+                if limit is not None:
+                    query += " LIMIT %s"
+                    params = (max(1, int(limit)),)
+                if limit is None:
+                    with conn.transaction():
+                        budget = reserve_history_read(cur)
+                    print("[history-egress] " + json_dumps(budget))
+                cur.execute(query, params)
+                rows = [row[0] for row in cur.fetchall() if row and isinstance(row[0], dict)]
+        if limit is None:
+            _decision_logs_cache.update(rows=copy.deepcopy(rows), at=time.monotonic(), version=version, database=url)
+        return rows
 
 
 def import_rule_decision_logs(entries: Iterable[dict[str, Any]]) -> int:
@@ -799,6 +888,26 @@ def read_engine_review_status() -> dict[str, Any]:
             cur.execute("SELECT payload FROM engine_review_status WHERE key = 'current'")
             row = cur.fetchone()
     return row[0] if row and isinstance(row[0], dict) else {}
+
+
+def reserve_outcome_scoring_attempt() -> bool:
+    """Atomically limit failed/restarted full-history scans to once per six hours.
+
+    The successful publication still enforces the existing twenty-hour gate.
+    This reservation survives process restarts and competing workers; failures
+    cannot turn a missing/malformed publication into five-minute full scans.
+    """
+    ensure_backend_schema()
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO engine_review_status (key, payload, updated_at)
+                VALUES ('outcome_scoring_attempt', '{}'::jsonb, NOW())
+                ON CONFLICT (key) DO UPDATE SET updated_at = NOW()
+                WHERE engine_review_status.updated_at < NOW() - INTERVAL '6 hours'
+                RETURNING key
+            """)
+            return cur.fetchone() is not None
 
 
 def enqueue_job(
@@ -1103,7 +1212,48 @@ def recover_stale_running_jobs(*, max_age_minutes: int = 30, limit: int = 50) ->
             return int(cur.rowcount or 0)
 
 
+_payload_cache = OrderedDict()
+_payload_cache_lock = threading.Lock()
+_PAYLOAD_CACHE_BYTES = 16 * 1024 * 1024
+
+
 def read_json_table(table: str, key_value: str | None = None, *, limit: int | None = None) -> dict[str, dict[str, Any]]:
+    """Validate a row's DB version before reusing its full JSON locally.
+
+    No TTL or stale-data window: the version probe observes other writers.
+    Cold/changed reads retain the original detail contract. Bounded memory,
+    deep copies and a single-flight lock prevent cross-request mutations.
+    """
+    key = str(key_value or "").upper().strip()
+    if not key or table not in {"market_snapshots", "research_reports", "pm_memos", "rule_outputs"} or not has_database():
+        return _read_json_table_uncached(table, key_value, limit=limit)
+    ensure_backend_schema()
+    cache_key = (database_url(), table, key)
+    with _payload_cache_lock:
+        with db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT updated_at FROM {table} WHERE ticker = %s", (key,))
+                row = cur.fetchone()
+        if not row:
+            _payload_cache.pop(cache_key, None)
+            return {}
+        version = row[0]
+        cached = _payload_cache.get(cache_key)
+        if version is not None and cached and cached[0] == version:
+            _payload_cache.move_to_end(cache_key)
+            return copy.deepcopy(cached[1])
+        value = _read_json_table_uncached(table, key_value, limit=limit)
+        size = len(json_dumps(value).encode())
+        _payload_cache.pop(cache_key, None)
+        if version is not None and value and size <= _PAYLOAD_CACHE_BYTES:
+            while _payload_cache and (len(_payload_cache) >= 128 or
+                    sum(item[2] for item in _payload_cache.values()) + size > _PAYLOAD_CACHE_BYTES):
+                _payload_cache.popitem(last=False)
+            _payload_cache[cache_key] = (version, copy.deepcopy(value), size)
+        return value
+
+
+def _read_json_table_uncached(table: str, key_value: str | None = None, *, limit: int | None = None) -> dict[str, dict[str, Any]]:
     """Read normalized JSON payload rows keyed by ticker/day.
 
     This gives the Streamlit UI a cheap way to hydrate from worker output
@@ -1349,6 +1499,10 @@ def read_json_table_many(table: str, key_values: Iterable[str], *, maintenance: 
             raise ValueError("Unsupported maintenance projection")
         pairs = ", ".join("'%s', payload->'%s'" % (key, key) for key in fields[table])
         projection = "jsonb_build_object('_maintenance_exists', true, " + pairs + ")"
+        if table == "market_snapshots":
+            projection = "jsonb_build_object('_maintenance_exists', true, 'price', payload->'price', 'last', payload->'last', 'security_profile', jsonb_build_object(" + ", ".join("'%s', payload->'security_profile'->'%s'" % (key, key) for key in ("earnings_date", "debt_to_equity", "earnings_growth", "revenue_growth")) + "))"
+        elif table == "rule_outputs":
+            projection = "jsonb_build_object('_maintenance_exists', true, 'action', payload->'action', 'decision_receipt', jsonb_build_object('action', payload->'decision_receipt'->'action'))"
         if table == "research_reports":
             # Preserve the existing fallback/error marker semantics without
             # transferring the potentially large dossier/PM research documents.

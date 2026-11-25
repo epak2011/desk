@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 import api_repository
 import strategy_research
-from api_auth import TokenVerificationError, VerifiedIdentity, verify_access_token
+from api_auth import AuthenticationUnavailable, TokenVerificationError, VerifiedIdentity, verify_access_token
 from operator_access import owner_access_allowed
 from public_contract import error_payload
 
@@ -76,6 +76,10 @@ def current_identity(
         _http_error(request, 401, "unauthorized", "Sign in to access this workspace.")
     try:
         return verify_access_token(token.strip())
+    except AuthenticationUnavailable:
+        raise HTTPException(status_code=503, detail=error_payload(
+            "service_unavailable", "Authentication is temporarily unavailable.",
+            retryable=False, request_id=request.state.request_id), headers={"Retry-After": "60"})
     except TokenVerificationError as exc:
         _http_error(request, 401, "unauthorized", str(exc))
 
@@ -98,6 +102,10 @@ OwnerIdentity = Annotated[VerifiedIdentity, Depends(current_owner)]
 def _run(request: Request, operation, *args, **kwargs):
     try:
         return operation(*args, **kwargs)
+    except (api_repository.backend_layer.DatabaseUnavailable, api_repository.backend_layer.HistoryReadBudgetExceeded):
+        raise HTTPException(status_code=503, detail=error_payload(
+            "service_unavailable", "Trading Desk data is temporarily unavailable.",
+            retryable=False, request_id=request.state.request_id), headers={"Retry-After": "60"})
     except ValueError as exc:
         _http_error(request, 422, "invalid_ticker", str(exc))
     except api_repository.NotFoundError as exc:

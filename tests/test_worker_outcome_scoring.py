@@ -21,9 +21,17 @@ def market_history(start_price=100, sessions=40):
 
 class WorkerOutcomeScoringTests(unittest.TestCase):
     def setUp(self):
+        reservation = patch.object(worker.backend, "reserve_outcome_scoring_attempt", return_value=True)
+        reservation.start()
+        self.addCleanup(reservation.stop)
         checkpoint = patch.object(worker.backend, "read_engine_review_status", return_value={})
         checkpoint.start()
         self.addCleanup(checkpoint.stop)
+
+    def test_failed_or_competing_attempt_cooldown_prevents_history_scan(self):
+        with patch.object(worker.backend, "reserve_outcome_scoring_attempt", return_value=False), patch.object(worker.backend, "read_decision_logs") as history:
+            self.assertEqual(worker.score_due_rule_outcomes()["skipped"], "attempt_cooldown")
+            history.assert_not_called()
 
     def test_historical_shadow_candidates_backfill_from_frozen_snapshot(self):
         entry = {
@@ -71,7 +79,7 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
             stored[0] = updated.copy()
 
         with (
-            patch.object(worker.backend, "read_decision_logs", side_effect=lambda: [row.copy() for row in stored]),
+            patch.object(worker.backend, "read_decision_logs", side_effect=lambda: [row.copy() for row in stored]) as history_reads,
             patch.object(worker.backend, "upsert_decision_log", side_effect=save_entry),
             patch.object(worker.backend, "write_engine_review_status", side_effect=lambda payload: saved_statuses.append(payload)),
             patch.object(worker, "_download_history", return_value=market_history()),
@@ -80,6 +88,7 @@ class WorkerOutcomeScoringTests(unittest.TestCase):
             result = worker.score_due_rule_outcomes(max_entries=12)
 
         self.assertEqual(result["scored"], 1)
+        history_reads.assert_called_once()
         self.assertTrue(saved_entries[0]["outcome"]["auto_scored"])
         self.assertEqual(saved_statuses[0]["score_version"], worker.OUTCOME_SCORE_VERSION)
         self.assertEqual(saved_statuses[0]["flags"][0]["count"], 1)
