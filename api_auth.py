@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -11,6 +12,13 @@ from dataclasses import dataclass
 
 class TokenVerificationError(RuntimeError):
     pass
+
+
+class AuthenticationUnavailable(TokenVerificationError):
+    pass
+
+
+_auth_unavailable_until = 0.0
 
 
 @dataclass(frozen=True)
@@ -26,6 +34,7 @@ def _setting(name: str) -> str:
 
 def verify_access_token(token: str) -> VerifiedIdentity:
     """Ask Supabase Auth to validate a JWT and return its trusted identity."""
+    global _auth_unavailable_until
     token = str(token or "").strip()
     supabase_url = _setting("SUPABASE_URL")
     anon_key = _setting("SUPABASE_ANON_KEY")
@@ -33,6 +42,8 @@ def verify_access_token(token: str) -> VerifiedIdentity:
         raise TokenVerificationError("A bearer token is required.")
     if not supabase_url or not anon_key:
         raise TokenVerificationError("Authentication is not configured.")
+    if time.monotonic() < _auth_unavailable_until:
+        raise AuthenticationUnavailable("Authentication is temporarily unavailable.")
     request = urllib.request.Request(
         f"{supabase_url.rstrip('/')}/auth/v1/user",
         method="GET",
@@ -44,9 +55,11 @@ def verify_access_token(token: str) -> VerifiedIdentity:
     except urllib.error.HTTPError as exc:
         if exc.code in {401, 403}:
             raise TokenVerificationError("The session is invalid or expired.") from None
-        raise TokenVerificationError("Authentication is temporarily unavailable.") from None
+        _auth_unavailable_until = time.monotonic() + 60
+        raise AuthenticationUnavailable("Authentication is temporarily unavailable.") from None
     except Exception:
-        raise TokenVerificationError("Authentication is temporarily unavailable.") from None
+        _auth_unavailable_until = time.monotonic() + 60
+        raise AuthenticationUnavailable("Authentication is temporarily unavailable.") from None
     user_id = str(payload.get("id") or "").strip()
     if not user_id:
         raise TokenVerificationError("The session is invalid or expired.")

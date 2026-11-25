@@ -63,3 +63,11 @@ After Render assigns the API origin:
 Private endpoints verify the bearer token with Supabase Auth and use only the
 verified UUID to load state. The browser cannot select an account by passing an
 email address or user ID.
+
+### Database transfer safeguards (November 25, 2026)
+
+- Worker maintenance uses five-minute triggers during the weekday 09:30–16:00 America/New_York window and hourly triggers otherwise. GitHub scheduling is best effort; manual queue drains remain available. No self-dispatch loop runs overnight. The weekday window does not additionally model exchange holidays.
+- Schema bootstrap runs once per database/process, and retries after failure. Full saved reports validate their database timestamp before local reuse. User state uses a user/database-scoped conditional SQL read, so unchanged private JSON does not cross the network; other processes' writes remain visible. Caches are bounded and return independent copies.
+- Full decision history is read once per scoring pass. Cached history checks count and last update after its existing 90-second window. Before a full transfer, a transactional ledger reserves estimated JSON bytes plus 10% and 1 KB of headroom, capped at 1 GB over a rolling 30 days and 32 MB per transfer. Exhaustion fails explicitly; no history is deleted or silently truncated, and saved summaries remain readable. The ledger is stored under engine_review_status/history_read_budget and the worker logs aggregate reserved/rolling bytes without private content.
+- Failed/restarted scoring attempts reserve a six-hour durable cooldown; successful publications retain the existing twenty-hour gate. Database and authentication outages use a sixty-second process cooldown. Upstream auth outages return 503 rather than falsely expiring the user's session. The frontend pauses periodic refresh after auth/quota/rate-limit/server errors; explicit retry remains available.
+- The ledger covers full-history reads only. Supabase's organization usage page remains authoritative for total billed egress, including protocol, auth, market and other traffic. Deployment does not remove an already-exhausted quota. Verify normal post-restoration daily usage against roughly 167 MB/day (5 GB over 30 days); use 100 MB/day as an operational headroom target. Restricted traffic is not a valid normal-usage baseline.

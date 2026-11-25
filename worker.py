@@ -1609,7 +1609,7 @@ def score_due_rule_outcomes(
     """Refresh due outcome paths once daily and persist the current review gate.
 
     This is invoked on every scheduled worker maintenance pass (roughly every
-    5 minutes, 24/7 via the GitHub Actions self-dispatch loop), but scoring is
+    5 minutes during US market hours, hourly outside that window), but scoring is
     only meaningful once a day. It used to read the entire unbounded
     decisions_log table (into the double-digit megabytes) on every one of
     those passes regardless, which is what kept Supabase egress elevated even
@@ -1631,7 +1631,10 @@ def score_due_rule_outcomes(
             "skipped": "scored_recently",
             "last_scored_at": recent.get("generated_at"),
         }
-    all_entries = [row for row in backend.read_decision_logs() if (
+    if not backend.reserve_outcome_scoring_attempt():
+        return {"scored": 0, "errors": {}, "skipped": "attempt_cooldown"}
+    saved_entries = backend.read_decision_logs()
+    all_entries = [row for row in saved_entries if (
         row.get("auto_logged") or row.get("source") == "rules_engine"
     )]
     backfilled = _backfill_shadow_candidates(all_entries)
@@ -1701,7 +1704,7 @@ def score_due_rule_outcomes(
                 note = f"14-session outcome: {primary.get('return_pct', 0):+.1f}%."
             else:
                 note = "Evaluation started; the 14-session directional outcome is still pending."
-            entry["outcome"] = {
+            new_outcome = {
                 "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "result": "auto_scored",
                 "right_sources": ["rules"] if scored.get("credited") is True else [],
@@ -1711,12 +1714,15 @@ def score_due_rule_outcomes(
                 "score_version": OUTCOME_SCORE_VERSION,
                 **scored,
             }
-            backend.upsert_decision_log(entry)
+            backend.upsert_decision_log({**entry, "outcome": new_outcome})
+            entry["outcome"] = new_outcome
             updated += 1
         except Exception as exc:
             errors[ticker] = str(exc)[:180]
 
-    refreshed = backend.read_decision_logs()
+    # Entries are updated in place by backfill/scoring; a second full download
+    # duplicates the same evidence and invalidates the process read cache.
+    refreshed = saved_entries
     evidence = engine_evaluation.rules_performance_snapshot(refreshed, as_of=today)
     flags = evidence["flags"]
     alerting = [row for row in flags if row.get("status") in {"watch", "review_logic"}]

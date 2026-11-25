@@ -3,11 +3,12 @@ name: Trading Desk worker
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "5-55/5 13-21 * * 1-5"
+    - cron: "0 * * * *"
 
 permissions:
   contents: read
-  actions: write
+  actions: read
 
 concurrency:
   group: trading-desk-worker
@@ -30,10 +31,30 @@ jobs:
       APP_BASE_URL: https://tradingdesk.streamlit.app
       DIGEST_SEND_HOUR_ET: "17"
     steps:
+      - name: Choose market-hours or hourly maintenance cadence
+        id: cadence
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          now = datetime.now(ZoneInfo("America/New_York"))
+          market = now.weekday() < 5 and (9, 30) <= (now.hour, now.minute) < (16, 0)
+          run = os.environ["EVENT_NAME"] != "schedule" or os.environ.get("SCHEDULE") == "0 * * * *" or market
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"run={str(run).lower()}\n")
+          print(f"Worker cadence: {'market-hours' if market else 'hourly off-hours'}; run={run}")
+          PYTHON
+
       - name: Check out repository
+        if: steps.cadence.outputs.run == 'true'
         uses: actions/checkout@v4
 
       - name: Drain queued refresh jobs safely
+        if: steps.cadence.outputs.run == 'true'
         shell: bash
         run: |
           set +e
@@ -85,37 +106,4 @@ jobs:
 
           echo "Trading Desk worker finished (status ${worker_status})."
           exit "$worker_status"
-
-      - name: Pace to a ~5 minute cycle
-        if: always()
-        shell: bash
-        run: |
-          JOB_START_TS="$(cat /tmp/job_start_ts 2>/dev/null || date +%s)"
-          TARGET_SECONDS=300
-          NOW_TS=$(date +%s)
-          ELAPSED=$(( NOW_TS - JOB_START_TS ))
-          REMAINING=$(( TARGET_SECONDS - ELAPSED ))
-          if [ "$REMAINING" -gt 0 ]; then
-            echo "Drain cycle took ${ELAPSED}s; sleeping ${REMAINING}s to pace ~5 minutes between runs."
-            sleep "$REMAINING"
-          else
-            echo "Drain cycle took ${ELAPSED}s, already at or past the 5 minute target; continuing immediately."
-          fi
-
-      - name: Re-dispatch this workflow to keep the loop alive
-        if: always()
-        shell: bash
-        run: |
-          echo "Re-triggering ${{ github.workflow }} via workflow_dispatch to keep the ~5 minute drain cadence going."
-          http_status=$(curl -s -o /tmp/dispatch_response.json -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/desk-worker.yml/dispatches" \
-            -d '{"ref":"main"}')
-          echo "Dispatch API responded with HTTP ${http_status}."
-          if [ "$http_status" -ge 300 ]; then
-            echo "::warning::Self re-dispatch failed (HTTP ${http_status}). The loop will resume on the next scheduled run or the next manual trigger."
-            cat /tmp/dispatch_response.json || true
-          fi
 

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+import copy
+import hashlib
+import threading
+from collections import OrderedDict
 from typing import Any
 
 
@@ -104,15 +108,55 @@ def consume_oauth_flow(cur, state: str) -> dict[str, str] | None:
     return {"code_verifier": str(row[0]), "redirect_uri": str(row[1])} if row else None
 
 
+# Cache only immutable copies. Every load still checks the database version,
+# so writes from Streamlit, the API or another process are visible immediately.
+_state_cache = OrderedDict()
+_state_cache_lock = threading.Lock()
+_STATE_CACHE_BYTES = 16 * 1024 * 1024
+_STATE_CACHE_USERS = 16
+
+
+def _cache_key(cur, user_id):
+    connection = getattr(cur, "connection", None)
+    info = getattr(connection, "info", None)
+    dsn = str(getattr(info, "dsn", "test"))
+    return hashlib.sha256(dsn.encode()).hexdigest(), user_id
+
+
 def load(cur, user_id: str) -> dict[str, Any] | None:
     scoped_id = normalize_user_id(user_id)
-    cur.execute("SELECT value FROM user_app_state WHERE user_id = %s::uuid", (scoped_id,))
-    row = cur.fetchone()
-    return (row[0] or {}) if row else None
+    key = _cache_key(cur, scoped_id)
+    with _state_cache_lock:
+        cached = _state_cache.get(key)
+        version = cached[0] if cached else None
+        cur.execute(
+            "SELECT updated_at, CASE WHEN updated_at = %s::timestamptz "
+            "THEN NULL ELSE value END FROM user_app_state WHERE user_id = %s::uuid",
+            (version, scoped_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            _state_cache.pop(key, None)
+            return None
+        updated_at, value = row
+        if cached and updated_at == version and value is None:
+            _state_cache.move_to_end(key)
+            return copy.deepcopy(cached[1])
+        value = value or {}
+        size = len(json.dumps(value, default=str).encode())
+        _state_cache.pop(key, None)
+        if updated_at is not None and size <= _STATE_CACHE_BYTES:
+            while _state_cache and (len(_state_cache) >= _STATE_CACHE_USERS or
+                    sum(item[2] for item in _state_cache.values()) + size > _STATE_CACHE_BYTES):
+                _state_cache.popitem(last=False)
+            _state_cache[key] = (updated_at, copy.deepcopy(value), size)
+        return value
 
 
 def save(cur, user_id: str, value: dict[str, Any]) -> None:
     scoped_id = normalize_user_id(user_id)
+    with _state_cache_lock:
+        _state_cache.pop(_cache_key(cur, scoped_id), None)
     cur.execute(
         """
         INSERT INTO user_app_state (user_id, value, updated_at)
@@ -126,4 +170,6 @@ def save(cur, user_id: str, value: dict[str, Any]) -> None:
 
 def delete(cur, user_id: str) -> None:
     scoped_id = normalize_user_id(user_id)
+    with _state_cache_lock:
+        _state_cache.pop(_cache_key(cur, scoped_id), None)
     cur.execute("DELETE FROM user_app_state WHERE user_id = %s::uuid", (scoped_id,))

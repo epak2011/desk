@@ -890,11 +890,9 @@ def _load_split_sections(cur, store, *, complete_legacy_import=False):
 
     load_all_decisions = complete_legacy_import or view_hint in {"tracker", "backtest"}
     if load_all_decisions:
-        cur.execute("""
-            SELECT entry
-            FROM decisions_log
-            ORDER BY COALESCE(entry_ts, updated_at) DESC
-        """)
+        # Reuse version-checked history and its rolling transfer budget instead
+        # of bypassing both on every tracker/backtest rerun.
+        decision_rows = [(entry,) for entry in reversed(backend_layer.read_decision_logs())]
     elif view_hint == "watchlist":
         cur.execute("""
             SELECT entry
@@ -904,7 +902,8 @@ def _load_split_sections(cur, store, *, complete_legacy_import=False):
         """)
     else:
         cur.execute("SELECT entry FROM decisions_log WHERE FALSE")
-    decision_rows = cur.fetchall()
+    if not load_all_decisions:
+        decision_rows = cur.fetchall()
     try:
         st.session_state["_split_decisions_loaded_all"] = load_all_decisions
     except Exception:

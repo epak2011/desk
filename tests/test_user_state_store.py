@@ -16,6 +16,9 @@ class FakeCursor:
 
 
 class UserStateStoreTests(unittest.TestCase):
+    def setUp(self):
+        user_state_store._state_cache.clear()
+
     def test_legacy_claim_requires_exact_configured_owner_and_runs_once(self):
         self.assertTrue(user_state_store.owner_claim_allowed("Owner@Example.com", "owner@example.com", None))
         self.assertFalse(user_state_store.owner_claim_allowed("other@example.com", "owner@example.com", None))
@@ -50,10 +53,10 @@ class UserStateStoreTests(unittest.TestCase):
             user_state_store.load(FakeCursor(), "")
 
     def test_load_always_scopes_query(self):
-        cursor = FakeCursor(({"watchlist": ["AAPL"]},))
+        cursor = FakeCursor(("2026-11-25T00:00:00Z", {"watchlist": ["AAPL"]}))
         value = user_state_store.load(cursor, "00000000-0000-0000-0000-000000000001")
         self.assertEqual(value["watchlist"], ["AAPL"])
-        self.assertEqual(cursor.calls[0][1], ("00000000-0000-0000-0000-000000000001",))
+        self.assertEqual(cursor.calls[0][1], (None, "00000000-0000-0000-0000-000000000001"))
 
     def test_save_always_scopes_upsert(self):
         cursor = FakeCursor()
