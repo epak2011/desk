@@ -1355,7 +1355,7 @@ def read_json_table_many(table: str, key_values: Iterable[str], *, maintenance: 
             false_values = "('null'::jsonb, '{}'::jsonb, '[]'::jsonb, '" + chr(34) * 2 + "'::jsonb, 'false'::jsonb, '0'::jsonb)"
             text = "lower((CASE WHEN payload->'dossier' IS NOT NULL AND payload->'dossier' NOT IN " + false_values + " THEN payload->'dossier' ELSE COALESCE(payload->'pm','{}'::jsonb) END)::text)"
             incomplete = "(" + " OR ".join(text + " LIKE '%" + marker + "%'" for marker in ("rules fallback", "claude pm research did not complete", "identity guard rejected")) + ")"
-            valid = "(jsonb_typeof(payload->'dossier') = 'object' AND lower(COALESCE(payload->'dossier'->>'_source','')) LIKE '%claude%' AND COALESCE(payload->'dossier'->'dossier','null'::jsonb) NOT IN ('null'::jsonb, '{}'::jsonb, '[]'::jsonb, '""'::jsonb, 'false'::jsonb, '0'::jsonb))"
+            valid = "(jsonb_typeof(payload->'dossier') = 'object' AND lower(COALESCE(payload->'dossier'->>'_source','')) LIKE '%claude%' AND COALESCE(payload->'dossier'->'dossier','null'::jsonb) NOT IN ('null'::jsonb, '{}'::jsonb, '[]'::jsonb, '\"\"'::jsonb, 'false'::jsonb, '0'::jsonb))"
             projection += " || jsonb_build_object('_maintenance_incomplete', " + incomplete + " AND NOT COALESCE(" + valid + ", false))"
         select_cols = select_cols.replace("payload", projection + " AS payload", 1)
     with db_connection() as conn:

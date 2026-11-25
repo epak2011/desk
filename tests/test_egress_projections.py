@@ -25,6 +25,8 @@ class ProjectionTests(unittest.TestCase):
         query = self.query(lambda: b.read_json_table_many('research_reports', ['AAPL'], maintenance=True))
         self.assertIn('jsonb_build_object', query)
         self.assertIn('_maintenance_incomplete', query)
+        self.assertIn("'\"\"'::jsonb", query)
+        self.assertNotIn("''::jsonb", query)
         self.assertNotIn('ticker, payload,', query)
         self.assertIn('WHERE ticker = ANY', query)
 
