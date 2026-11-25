@@ -16132,7 +16132,7 @@ if view == "today":
     missing_pm = set(health_audit.get("missing_pm") or [])
     stale_pm = {t for t, _age in (health_audit.get("stale_pm") or [])}
     try:
-        recent_jobs = backend_layer.latest_jobs(limit=20) if backend_layer.has_database() else []
+        recent_jobs = backend_layer.latest_jobs(limit=20, summary=True) if backend_layer.has_database() else []
     except Exception:
         recent_jobs = []
     active_jobs = [

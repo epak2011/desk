@@ -891,17 +891,18 @@ def research_retry_states(tickers: Iterable[str]) -> dict[str, dict[str, Any]]:
             return states
 
 
-def latest_jobs(ticker: str | None = None, limit: int = 8) -> list[dict[str, Any]]:
+def latest_jobs(ticker: str | None = None, limit: int = 8, *, summary: bool = False) -> list[dict[str, Any]]:
     if not has_database():
         return []
     ensure_backend_schema()
     clean_ticker = str(ticker or "").upper().strip()
+    result_column = "jsonb_build_object('errors', result->'errors')" if summary else "result"
     with db_connection() as conn:
         with conn.cursor() as cur:
             if clean_ticker:
                 cur.execute(
-                    """
-                    SELECT id, job_type, ticker, status, result, error, created_at,
+                    f"""
+                    SELECT id, job_type, ticker, status, {result_column}, error, created_at,
                            started_at, completed_at, updated_at
                     FROM refresh_jobs
                     WHERE ticker = %s OR ticker IS NULL
@@ -912,8 +913,8 @@ def latest_jobs(ticker: str | None = None, limit: int = 8) -> list[dict[str, Any
                 )
             else:
                 cur.execute(
-                    """
-                    SELECT id, job_type, ticker, status, result, error, created_at,
+                    f"""
+                    SELECT id, job_type, ticker, status, {result_column}, error, created_at,
                            started_at, completed_at, updated_at
                     FROM refresh_jobs
                     ORDER BY created_at DESC
@@ -1307,7 +1308,7 @@ def upsert_pm_memo(
     return verified_payload
 
 
-def read_json_table_many(table: str, key_values: Iterable[str]) -> dict[str, dict[str, Any]]:
+def read_json_table_many(table: str, key_values: Iterable[str], *, maintenance: bool = False) -> dict[str, dict[str, Any]]:
     """Read normalized JSON payload rows for a specific key set."""
     allowed = {
         "market_snapshots": ("ticker", "updated_at"),
@@ -1336,6 +1337,27 @@ def read_json_table_many(table: str, key_values: Iterable[str]) -> dict[str, dic
         if select_source
         else f"{key_column}, payload, {order_column}"
     )
+    if maintenance:
+        # Project in Postgres, before bytes cross the network. Retain an explicit
+        # existence marker so an empty-but-present report is not treated as missing.
+        fields = {
+            "research_reports": ("_worker_generated_at", "generated_at", "_rule_action", "_earnings_date", "_fundamentals_fingerprint", "_market_price"),
+            "market_snapshots": ("price", "last", "security_profile"),
+            "rule_outputs": ("action", "decision_receipt"),
+        }
+        if table not in fields:
+            raise ValueError("Unsupported maintenance projection")
+        pairs = ", ".join("'%s', payload->'%s'" % (key, key) for key in fields[table])
+        projection = "jsonb_build_object('_maintenance_exists', true, " + pairs + ")"
+        if table == "research_reports":
+            # Preserve the existing fallback/error marker semantics without
+            # transferring the potentially large dossier/PM research documents.
+            false_values = "('null'::jsonb, '{}'::jsonb, '[]'::jsonb, '" + chr(34) * 2 + "'::jsonb, 'false'::jsonb, '0'::jsonb)"
+            text = "lower((CASE WHEN payload->'dossier' IS NOT NULL AND payload->'dossier' NOT IN " + false_values + " THEN payload->'dossier' ELSE COALESCE(payload->'pm','{}'::jsonb) END)::text)"
+            incomplete = "(" + " OR ".join(text + " LIKE '%" + marker + "%'" for marker in ("rules fallback", "claude pm research did not complete", "identity guard rejected")) + ")"
+            valid = "(jsonb_typeof(payload->'dossier') = 'object' AND lower(COALESCE(payload->'dossier'->>'_source','')) LIKE '%claude%' AND COALESCE(payload->'dossier'->'dossier','null'::jsonb) NOT IN ('null'::jsonb, '{}'::jsonb, '[]'::jsonb, '\"\"'::jsonb, 'false'::jsonb, '0'::jsonb))"
+            projection += " || jsonb_build_object('_maintenance_incomplete', " + incomplete + " AND NOT COALESCE(" + valid + ", false))"
+        select_cols = select_cols.replace("payload", projection + " AS payload", 1)
     with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
