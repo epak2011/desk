@@ -23,7 +23,7 @@ class WorkerCadenceTests(unittest.TestCase):
         self.assertFalse(self.run_cadence('2026-11-25T14:25:00+00:00'))
         self.assertFalse(self.run_cadence('2026-11-25T21:00:00+00:00'))
         self.assertFalse(self.run_cadence('2026-11-28T15:30:00+00:00'))
-        self.assertTrue(self.run_cadence('2026-11-28T15:00:00+00:00', schedule='0 * * * *'))
+        self.assertTrue(self.run_cadence('2026-11-28T15:00:00+00:00', schedule='17 * * * *'))
 
     def test_manual_work_is_not_delayed_by_market_clock(self):
         self.assertTrue(self.run_cadence('2026-11-28T15:30:00+00:00', event='workflow_dispatch'))

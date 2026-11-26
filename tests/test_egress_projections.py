@@ -29,6 +29,9 @@ class ProjectionTests(unittest.TestCase):
         self.assertNotIn("''::jsonb", query)
         self.assertNotIn('ticker, payload,', query)
         self.assertIn('WHERE ticker = ANY', query)
+        from psycopg._queries import _query2pg_nocache
+        _query2pg_nocache(query.encode(), "utf-8")
+        self.assertIn("strpos(", query)
 
     def test_normal_report_read_is_unchanged(self):
         query = self.query(lambda: b.read_json_table_many('research_reports', ['AAPL']))
