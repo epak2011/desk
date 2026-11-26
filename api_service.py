@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 import api_repository
 import strategy_research
+import standalone_research
 from api_auth import AuthenticationUnavailable, TokenVerificationError, VerifiedIdentity, verify_access_token
 from operator_access import owner_access_allowed
 from public_contract import error_payload
@@ -309,6 +310,14 @@ def performance_tracker_csv(request: Request, identity: OwnerIdentity):
 def strategies_catalog(request: Request):
     try:
         return strategy_research.catalog()
+    except strategy_research.ResearchUnavailable as exc:
+        _http_error(request, 503, "research_unavailable", str(exc))
+
+
+@app.get("/v1/strategies/standalone")
+def standalone_strategies(request: Request):
+    try:
+        return standalone_research.snapshot()
     except strategy_research.ResearchUnavailable as exc:
         _http_error(request, 503, "research_unavailable", str(exc))
 

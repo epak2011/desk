@@ -35,6 +35,9 @@ import api_service, strategy_research
 assert Path(api_service.__file__).parent == Path.cwd()
 assert Path(strategy_research.__file__).parent == Path.cwd()
 client = TestClient(api_service.app)
+standalone = client.get('/v1/strategies/standalone')
+assert standalone.status_code == 200, standalone.text
+assert standalone.json()['periods'][0]['results'][4]['name'] == 'QQQ'
 catalog = client.get('/v1/strategies')
 assert catalog.status_code == 200, catalog.text
 assert catalog.json()['eligible_to_implement'] is False

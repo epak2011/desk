@@ -3,7 +3,10 @@ from strategy_research import catalog, detail, ResearchUnavailable
 
 
 def render_strategies(st):
-    st.header('Strategies')
+    from standalone_research import render
+    render(st)
+    st.divider()
+    st.subheader('Earlier strategy experiments')
     try:
         data = catalog()
         st.caption(f"Research updated {data['as_of']} · observations end {data['data_end']}")
