@@ -31,3 +31,9 @@ The workspace adds saved annual closing balances to the 2,664 existing result re
 An exact source snapshot is included at `research_artifacts/workspace-enrichment-source.py`. To reproduce, place that snapshot back at the original `work/strategies-workspace/enrich.py` path in the archived research workspace, with the referenced frozen CSVs/ledgers available. It is evidence-generation source, not an API runtime job. No downloads, new simulations or paid calls occur in the enrichment.
 
 Live publication must verify the exact artifact hash, all six policies, matched controls, unknown-scope handling, interactive filters/share links and hosted build; keep the Notion roadmap current with release commits and limitations.
+
+## January standalone comparison — 2026-11-26
+
+The first Strategies section compares only standalone Top1/Top3/Top5 and buy-and-hold SPY/QQQ. `/v1/strategies/standalone` serves a separate immutable `standalone-january-v1` snapshot, shared with Streamlit; the older six-policy artifact remains unchanged. Periods: 2000–2025, 2010–2025, 2020–2025, 2000–2009. Arithmetic mean, median, best/worst calendar years and positive-year counts are distinct from CAGR. The backend rechecks every displayed statistic against saved annual rows and fails closed on invalid evidence. The annual CSV is derived research evidence and its SHA is in the manifest. No runtime downloads, model calls or trading activation occur.
+
+Rules: prior December calendar-year total-return ranking in historical S&P membership; full formation history, strict prior return below200%; first January session close execution; equal weights for baskets; annual rebalance; verified merger cash/successor processing; zero fees/taxes/deposits. Source qualification remains conditional. Calendar slices refer to the same continuing account rather than restarted era accounts. Lovable renders saved backend numbers without calculating returns in the browser.
