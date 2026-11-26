@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "5-55/5 13-21 * * 1-5"
-    - cron: "0 * * * *"
+    - cron: "17 * * * *"
 
 permissions:
   contents: read
@@ -43,7 +43,7 @@ jobs:
           from zoneinfo import ZoneInfo
           now = datetime.now(ZoneInfo("America/New_York"))
           market = now.weekday() < 5 and (9, 30) <= (now.hour, now.minute) < (16, 0)
-          run = os.environ["EVENT_NAME"] != "schedule" or os.environ.get("SCHEDULE") == "0 * * * *" or market
+          run = os.environ["EVENT_NAME"] != "schedule" or os.environ.get("SCHEDULE") == "17 * * * *" or market
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               out.write(f"run={str(run).lower()}\n")
           print(f"Worker cadence: {'market-hours' if market else 'hourly off-hours'}; run={run}")
